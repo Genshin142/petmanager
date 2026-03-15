@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/load_img.jpg</file>
+        <file>images/chevron-down.svg</file>
+        <file>images/search.svg</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,225 @@
+# 宠物店信息管理系统（Pet Management System）实现计划
+
+本方案旨在设计一个基于 Qt (Client) 和 Linux C++ (Server) 的高性能宠物店管理系统。系统将通过 MySQL 进行持久化存储，并采用 TCP 协议进行高效的数据交互。
+
+## 1. 核心架构设计
+
+### 1.1 系统拓扑 (C/S 架构)
+- **客户端 (Qt 6.x)**: 
+  - 采用 **Model/View** 架构解耦 UI 与数据。
+  - **网络层**: 基于 `QTcpSocket` 封装异步请求管理器，支持二进制流/JSON 数据交换。
+  - **UI 特色**: 房态图组件（自定义 QGraphicsView）、收银扫码支持。
+- **服务端 (Linux / C++)**:
+  - **核心协议**: 自定义 TCP 协议（4字节消息长度头 + 消息体）。
+  - **并发处理**: 采用 **Reactor 模式** (Epoll + 线程池) 处理海量连接。
+  - **数据层**: 使用 **MySQL 连接池** 提升 SQL 执行效率，减少频繁握手开销。
+
+---
+
+## 2. 数据库逻辑建模 (MySQL)
+
+
+-- ==========================================
+-- 1. 创建完整业务表结构 (紧凑模式)
+-- ==========================================
+-- [表 1] 员工信息表 (已合并角色身份)
+create table sys_employees (
+    emp_id int auto_increment primary key comment '员工id',
+    username varchar(50) not null unique comment '用户名',
+    password_hash char(64) not null comment '密码哈希',
+    role enum('店长', '店员') not null default '店员' comment '身份角色',
+    real_name varchar(50) comment '真实姓名',
+    phone varchar(20) comment '手机号',
+    salary_base decimal(10,2) comment '基本底薪',
+    commission_rate decimal(4,2) comment '提成比例(例如: 0.10)',
+    status tinyint default 1 comment '1:在职 0:离职'
+) comment='员工基础信息及权限表';
+
+-- [表 2] 排班与考勤表
+create table sys_schedules (
+    schedule_id int auto_increment primary key comment '排班id',
+    emp_id int not null comment '员工id',
+    work_date date not null comment '工作日期',
+    shift_type enum('早班', '中班', '晚班') not null comment '班次类型',
+    clock_in datetime comment '实际签到时间',
+    clock_out datetime comment '实际签退时间',
+    foreign key (emp_id) references sys_employees(emp_id)
+) comment='考勤排班表';
+
+-- [表 3] 会员等级表
+create table member_levels (
+    level_id int auto_increment primary key comment '等级id',
+    level_name varchar(20) comment '等级名称',
+    discount_rate decimal(3,2) comment '折扣系数(如0.90)',
+    points_threshold int comment '达到该等级所需积分'
+) comment='会员等级与折扣配置';
+
+-- [表 4] 会员信息表
+create table members (
+    member_id int auto_increment primary key comment '会员id',
+    phone varchar(20) unique not null comment '手机号',
+    name varchar(50) comment '姓名',
+    balance decimal(15,2) default 0.00 comment '储值余额',
+    total_consumption decimal(15,2) default 0.00 comment '累计消费金额',
+    points int default 0 comment '当前可用积分',
+    level_id int comment '等级id',
+    encrypted_pay_pwd char(64) comment '支付密码哈希',
+    created_at timestamp default current_timestamp comment '创建时间',
+    foreign key (level_id) references member_levels(level_id)
+) comment='会员核心档案';
+
+-- [表 5] 宠物全生命周期档案表
+create table pets (
+    pet_id int auto_increment primary key comment '宠物id',
+    member_id int not null comment '所属会员id',
+    pet_name varchar(50) not null comment '宠物名称',
+    photo_url varchar(255) comment '宠物头像',
+    species varchar(30) comment '种属(猫/狗/异宠)',
+    breed varchar(50) comment '具体品种',
+    age_months int comment '月龄',
+    weight decimal(5,2) comment '体重(kg)',
+    vaccine_status text comment '疫苗及驱虫接种日志',
+    medical_history text comment '过敏史与既往病史',
+    current_status enum('离店', '服务中', '寄养中') default '离店' comment '在店状态追踪',
+    foreign key (member_id) references members(member_id)
+) comment='宠物实体档案库';
+
+-- [表 6] 商品分类表
+create table product_categories (
+    cat_id int auto_increment primary key comment '分类id',
+    name varchar(50) not null comment '分类名称'
+) comment='商品类目字典';
+
+-- [表 7] 商品规格与库存表
+create table products (
+    product_id int auto_increment primary key comment '商品id',
+    cat_id int comment '分类id',
+    barcode varchar(100) unique comment '条形码(支持扫码枪录入)',
+    name varchar(200) not null comment '商品名称',
+    unit varchar(20) comment '计件单位',
+    purchase_price decimal(10,2) comment '成本进价',
+    sale_price decimal(10,2) comment '零售单价',
+    stock_current int default 0 comment '当前可用库存',
+    stock_min_threshold int default 10 comment '低位库存预警阈值',
+    is_on_sale tinyint default 1 comment '1:上架销售 0:下架停售',
+    unique index idx_barcode (barcode),
+    foreign key (cat_id) references product_categories(cat_id)
+) comment='零售商品库存主表';
+
+-- [表 8] 门店服务项目定义表
+create table services (
+    service_id int auto_increment primary key comment '服务id',
+    name varchar(100) not null comment '服务名称',
+    price decimal(10,2) not null comment '价格',
+    category enum('美容洗护', '医疗保健', '培训及其他') not null comment '类目'
+) comment='店内无形服务项目字典';
+
+-- [表 9] 客户服务预约表
+create table appointments (
+    appt_id int auto_increment primary key comment '预约id',
+    member_id int not null comment '会员id',
+    pet_id int not null comment '宠物id',
+    service_id int not null comment '服务id',
+    staff_id int comment '指派执行员工id',
+    appt_time datetime not null comment '预约到店时间',
+    station_id int comment '工作台/设备id',
+    status enum('待到店', '已接待', '已取消') default '待到店' comment '状态',
+    index idx_conflict (appt_time, station_id),
+    foreign key (member_id) references members(member_id),
+    foreign key (pet_id) references pets(pet_id),
+    foreign key (service_id) references services(service_id),
+    foreign key (staff_id) references sys_employees(emp_id)
+) comment='服务预约单';
+
+-- [表 10] 寄养房态配置表
+create table foster_rooms (
+    room_id int auto_increment primary key comment '房间id',
+    room_number varchar(20) unique not null comment '房间号',
+    room_type varchar(50) comment '标准舱/豪华房',
+    daily_price decimal(10,2) not null comment '单日基础计费',
+    current_status enum('空闲', '已入住', '清洁中') default '空闲' comment '当前状态'
+) comment='物理房间基础表';
+
+-- [表 11] 寄养记录明细表
+create table foster_records (
+    record_id int auto_increment primary key comment '记录id',
+    pet_id int not null comment '宠物id',
+    room_id int not null comment '房间id',
+    check_in_time datetime not null comment '实际入场时间',
+    expected_out_time datetime comment '预定离店时间',
+    actual_out_time datetime comment '实际结账离店时间',
+    belongings text comment '寄存自带物品及体检备注',
+    daily_report json comment '每日饮食与运动跟踪(json数组)',
+    overdue_fee decimal(10,2) default 0.00 comment '逾期附加费',
+    foreign key (pet_id) references pets(pet_id),
+    foreign key (room_id) references foster_rooms(room_id)
+) comment='寄养业务流水';
+
+-- [表 12] 订单总结算表
+create table orders (
+    order_id bigint auto_increment primary key comment '订单id',
+    order_no varchar(32) unique not null comment '全局唯一交易号',
+    member_id int comment '会员id(散客为空)',
+    total_amount decimal(15,2) not null comment '订单总额',
+    payment_method enum('会员余额', '现金', '微信', '支付宝') not null comment '支付方式',
+    created_at timestamp default current_timestamp comment '记账时间',
+    operator_id int not null comment '经手员工id',
+    foreign key (member_id) references members(member_id),
+    foreign key (operator_id) references sys_employees(emp_id)
+) comment='收支账目主表(用于宏观统计)';
+
+-- [表 13] 商品入库明细表
+create table product_inbounds (
+    inbound_id int auto_increment primary key comment '入库流水id',
+    product_id int not null comment '入库商品id',
+    quantity int not null comment '入库数量(正数)',
+    purchase_price decimal(10,2) comment '实际进货单价(用于核算成本)',
+    supplier varchar(100) comment '供应商/进货渠道',
+    operator_id int not null comment '操作员工id',
+    inbound_time datetime default current_timestamp comment '入库时间',
+    remark varchar(255) comment '备注信息',
+    foreign key (product_id) references products(product_id),
+    foreign key (operator_id) references sys_employees(emp_id)
+) comment='商品入库追踪单';
+```
+
+---
+
+## 3. 核心方案与技术路径
+
+### 3.1 事务一致性保障 (库存核减)
+在进行收银结算时，使用 MySQL 事务确保库存与订单的一致性：
+```cpp
+// 服务端逻辑伪代码
+void processCheckout(OrderInfo order) {
+    db.beginTransaction();
+    try {
+        // 1. 插入订单项
+        // 2. 更新库存: UPDATE products SET stock_current = stock_current - ? WHERE product_id = ? AND stock_current >= ?;
+        // 3. 更新会员余额/积分
+        // 4. 检查库存预警并触发通知
+        db.commit();
+    } catch (...) {
+        db.rollback();
+    }
+}
+```
+
+### 3.2 敏感数据安全
+- **支付密码/员工密码**: 使用 `SHA-256` 加盐存储。
+- **余额信息**: 采用 **数据签名**（HMAC）或服务端逻辑层校验流水之和，防止数据库被恶意篡改。
+
+### 3.3 房态可视化 (Qt 实现)
+- 使用 `QGraphicsScene` 绘制。
+- 每个房间为一个 `QGraphicsItem`，绑定 `room_id`。
+- 通过计时器或服务端 **Push 机制** 实时更新 UI 状态。
+
+## 4. 验证计划
+
+### 自动化测试
+- 编写 Python 脚本模拟 100 个客户端并发执行“库存扣减”压力测试。
+- 使用 `gtest` 进行服务端协议解析单元测试。
+
+### 模拟验证
+- 模拟“扫码入库 -> 修改库存阈值 -> 触发自动通知”的闭环测试。
+- 模拟“同一时间点预约同一工位”的冲突检测逻辑。
