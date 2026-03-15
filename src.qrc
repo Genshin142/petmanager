@@ -3,5 +3,6 @@
         <file>images/load_img.jpg</file>
         <file>images/chevron-down.svg</file>
         <file>images/search.svg</file>
+        <file>images/arrow_down.png</file>
     </qresource>
 </RCC>

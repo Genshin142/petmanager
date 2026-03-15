@@ -1,0 +1,31 @@
+# --- 编译产物 ---
+build/
+bin/
+release/
+debug/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+
+# --- Qt 自动生成的代码 ---
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+Makefile*
+*.pro.user
+
+# --- 编译器 & IDE 配置文件 ---
+.vscode/
+.idea/
+*.suo
+*.user
+*.ncb
+*.pdb
+
+# --- 临时文件 ---
+*.log
+*.tmp
