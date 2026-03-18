@@ -1,6 +1,7 @@
 #include "addmemberdialog.h"
 #include "ui_addmemberdialog.h"
 #include <QMessageBox>
+#include "custommessagedialog.h"
 #include <QGraphicsDropShadowEffect>
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
@@ -102,8 +103,10 @@ AddMemberDialog::AddMemberDialog(QWidget *parent) :
     QPushButton *saveBtn = ui->buttonBox->button(QDialogButtonBox::Save);
     QPushButton *cancelBtn = ui->buttonBox->button(QDialogButtonBox::Cancel);
     
-    // 给积分输入框增加数字限制
-    ui->pointsEdit->setValidator(new QIntValidator(0, 99999, this));
+    // 为数值输入框增加校验
+    ui->balanceEdit->setValidator(new QDoubleValidator(0, 999999.99, 2, this));
+    ui->consumeAmtEdit->setValidator(new QDoubleValidator(0, 999999.99, 2, this));
+    ui->pointsEdit->setValidator(new QIntValidator(0, 999999, this));
     
     if (saveBtn) {
         saveBtn->setCursor(Qt::PointingHandCursor);
@@ -127,9 +130,12 @@ AddMemberDialog::~AddMemberDialog()
 MemberInfo AddMemberDialog::getMemberInfo() const
 {
     MemberInfo info;
+    info.id = ui->idEdit->text();
     info.name = ui->nameEdit->text();
     info.phone = ui->phoneEdit->text();
     info.level = ui->levelCombo->currentText();
+    info.balance = ui->balanceEdit->text().toDouble();
+    info.consume_amt = ui->consumeAmtEdit->text().toDouble();
     info.points = ui->pointsEdit->text().toInt();
     return info;
 }
@@ -143,8 +149,11 @@ void AddMemberDialog::setInitialData(const MemberInfo &info)
     }
 
     // 填充数据
+    ui->idEdit->setText(info.id);
     ui->nameEdit->setText(info.name);
     ui->phoneEdit->setText(info.phone);
+    ui->balanceEdit->setText(QString::number(info.balance, 'f', 2));
+    ui->consumeAmtEdit->setText(QString::number(info.consume_amt, 'f', 2));
     ui->pointsEdit->setText(QString::number(info.points));
     
     // 选中对应的等级
@@ -157,12 +166,15 @@ void AddMemberDialog::setInitialData(const MemberInfo &info)
     // ui->phoneEdit->setEnabled(false); 
 }
 
-void AddMemberDialog::on_buttonBox_accepted()
+void AddMemberDialog::accept()
 {
-    if (ui->nameEdit->text().trimmed().isEmpty() || ui->phoneEdit->text().trimmed().isEmpty()) {
-        QMessageBox::warning(this, "输入错误", "会员姓名和手机号不能为空！");
-        // 不调用 accept() 让弹窗保持开启
+    if (ui->idEdit->text().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "输入错误", "会员ID不能为空！");
         return;
     }
-    accept();
+    if (ui->nameEdit->text().trimmed().isEmpty() || ui->phoneEdit->text().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "输入错误", "会员姓名和手机号不能为空！");
+        return; // 直接返回，不再调用基类的 accept()
+    }
+    QDialog::accept();
 }

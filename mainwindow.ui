@@ -78,7 +78,21 @@
        <item>
         <widget class="QPushButton" name="navOrder">
          <property name="text">
-          <string>收银业务运营</string>
+          <string>预约服务</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="navCheckout">
+         <property name="text">
+          <string>订单管理中心</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="navPerformance">
+         <property name="text">
+          <string>业绩核算明细</string>
          </property>
         </widget>
        </item>

@@ -9,11 +9,13 @@
 #include <QLabel>
 #include <QStackedLayout>
 
+#include "common_types.h"
+
 class MemberModule : public QWidget
 {
     Q_OBJECT
 public:
-    explicit MemberModule(QWidget *parent = nullptr);
+    explicit MemberModule(UserRole role, QWidget *parent = nullptr);
 
 private slots:
     void showAddMemberDialog();
@@ -25,7 +27,7 @@ private slots:
 private:
     void setupUI();
     void addSampleData();
-    void addRow(const QString &name, const QString &phone, const QString &level, int pts, const QString &pets);
+    void addRow(const QString &id, const QString &name, const QString &phone, const QString &level, double balance, double consume_amt, int pts, const QString &pets);
     void styleRow(int row);
     
     QTableWidget *memTable;
@@ -36,6 +38,9 @@ private:
     QWidget *emptyStateWidget;
     QLabel *totalMemberLabel;
     QLabel *goldMemberLabel;
+    QLabel *platinumMemberLabel;
+    QLabel *diamondMemberLabel;
+    UserRole m_role;
 };
 
 #endif // MEMBERMODULE_H

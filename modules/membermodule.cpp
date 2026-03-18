@@ -22,7 +22,7 @@
 #include <QColor>
 #include <QFont>
 
-MemberModule::MemberModule(QWidget *parent) : QWidget(parent)
+MemberModule::MemberModule(UserRole role, QWidget *parent) : QWidget(parent), m_role(role)
 {
     setupUI();
 }
@@ -51,17 +51,21 @@ void MemberModule::setupUI()
     // 2. 搜索栏
     QHBoxLayout *searchLayout = new QHBoxLayout();
     searchEdit = new QLineEdit();
-    searchEdit->setPlaceholderText(" 搜索姓名或联系方式...");
-    searchEdit->setFixedWidth(320);
-    searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 18px; padding: 8px 15px; font-size: 13px; background: white; } QLineEdit:focus { border-color: #409eff; }");
+    searchEdit->setPlaceholderText(" 搜索会员姓名、手机号、ID...");
+    searchEdit->setFixedWidth(280);
+    searchEdit->setFixedHeight(32);
+    searchEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
+        "QLineEdit:focus { border-color: #409eff; outline: none; }"
+    );
+    searchLayout->addWidget(searchEdit);
+    searchLayout->addStretch();
 
     QPushButton *addBtn = new QPushButton("+ 新增会员档案");
     addBtn->setCursor(Qt::PointingHandCursor);
     addBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; padding: 9px 20px; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #85ce61; }");
     connect(addBtn, &QPushButton::clicked, this, &MemberModule::showAddMemberDialog);
 
-    searchLayout->addWidget(searchEdit);
-    searchLayout->addStretch();
     searchLayout->addWidget(addBtn);
     mainLayout->addLayout(searchLayout);
 
@@ -69,20 +73,20 @@ void MemberModule::setupUI()
     stackLayout = new QStackedLayout(); // 直接作为 layout，不再包裹多余的 QWidget
 
     memTable = new QTableWidget();
-    memTable->setColumnCount(6);
-    memTable->setHorizontalHeaderLabels({"会员姓名", "手机号码", "会员等级", "累计积分", "宠物档案", "管理操作"});
+    memTable->setColumnCount(9);
+    memTable->setHorizontalHeaderLabels({"会员ID", "会员姓名", "手机号码", "会员等级", "储值余额", "累计消费金额", "可用积分", "宠物档案", "管理操作"});
 
-    // 固定的列宽策略
+    // 固定的列宽策略与居中对齐
+    memTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     memTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    memTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
-    memTable->setColumnWidth(5, 290); // 彻底扩容，确保三个按钮及其间距完美显示
+    memTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
+    memTable->setColumnWidth(8, 290); // 彻底扩容，确保三个按钮及其间距完美显示
 
     memTable->setShowGrid(false);
     memTable->setAlternatingRowColors(true);
     memTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     memTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    memTable->verticalHeader()->setVisible(true);
-    memTable->verticalHeader()->setFixedWidth(50);
+    memTable->verticalHeader()->setVisible(false);
     memTable->verticalHeader()->setDefaultSectionSize(48); // 统一行高，确保按钮放得下
 
     // 【修复1：样式调整】强制字体为纯黑，并自定义选中后的背景色，保证选中时清晰可见
@@ -94,7 +98,7 @@ void MemberModule::setupUI()
         "   selection-background-color: #e4e7ed; " /* 选中行背景变为浅灰 */
         "   selection-color: black; " /* 选中行文字依然强制为纯黑 */
         "} "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; padding-left: 5px; } "
+        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
         "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; border-bottom: 1px solid #ebeef5; color: #606266; font-weight: bold; font-size: 13px; } "
         "QHeaderView::section:vertical { "
         "   background-color: #f5f7fa; " 
@@ -109,9 +113,10 @@ void MemberModule::setupUI()
 
     // 空状态提示
     emptyStateWidget = new QWidget();
+    emptyStateWidget->setFixedHeight(200); // 限制高度，防止由于stretch导致的大透明边框感
     QVBoxLayout *emptyLayout = new QVBoxLayout(emptyStateWidget);
-    emptyLayout->addStretch();
-    QLabel *emptyIcon = new QLabel("📁"); // 换成Emoji防止你本地找不到图片文件导致空白
+    emptyLayout->setContentsMargins(0, 40, 0, 40);
+    QLabel *emptyIcon = new QLabel("📁");
     emptyIcon->setStyleSheet("font-size: 50px; color: #c0c4cc;");
     emptyIcon->setAlignment(Qt::AlignCenter);
     QLabel *emptyText = new QLabel("暂无会员数据，快去添加吧！");
@@ -119,8 +124,7 @@ void MemberModule::setupUI()
     emptyText->setStyleSheet("color: #909399; font-size: 14px;");
     emptyLayout->addWidget(emptyIcon);
     emptyLayout->addWidget(emptyText);
-    emptyLayout->addStretch();
-    emptyStateWidget->setStyleSheet("background-color: white; border: 1px solid #ebeef5;");
+    emptyStateWidget->setStyleSheet("background-color: transparent;"); // 改为透明背景，消除边框感
 
     stackLayout->addWidget(memTable);
     stackLayout->addWidget(emptyStateWidget);
@@ -132,10 +136,19 @@ void MemberModule::setupUI()
     QHBoxLayout *statLayout = new QHBoxLayout(statFrame);
     totalMemberLabel = new QLabel("总会员: 0");
     goldMemberLabel = new QLabel("黄金会员: 0");
-    totalMemberLabel->setStyleSheet("color: #606266; font-size: 13px; font-weight: bold; margin-right: 30px;");
-    goldMemberLabel->setStyleSheet("color: #606266; font-size: 13px; font-weight: bold;");
+    platinumMemberLabel = new QLabel("铂金会员: 0");
+    diamondMemberLabel = new QLabel("钻石会员: 0");
+
+    QString statStyle = "color: #606266; font-size: 13px; font-weight: bold; margin-right: 35px;";
+    totalMemberLabel->setStyleSheet(statStyle);
+    goldMemberLabel->setStyleSheet(statStyle + "color: #e6a23c;");
+    platinumMemberLabel->setStyleSheet(statStyle + "color: #409eff;");
+    diamondMemberLabel->setStyleSheet(statStyle + "color: #67c23a;");
+
     statLayout->addWidget(totalMemberLabel);
     statLayout->addWidget(goldMemberLabel);
+    statLayout->addWidget(platinumMemberLabel);
+    statLayout->addWidget(diamondMemberLabel);
     statLayout->addStretch();
     mainLayout->addWidget(statFrame);
 
@@ -150,7 +163,7 @@ void MemberModule::setupUI()
     updateStatistics();
 }
 
-void MemberModule::addRow(const QString &name, const QString &phone, const QString &level, int pts, const QString &pets)
+void MemberModule::addRow(const QString &id, const QString &name, const QString &phone, const QString &level, double balance, double consume_amt, int pts, const QString &pets)
 {
     int r = memTable->rowCount();
     memTable->insertRow(r);
@@ -159,13 +172,17 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
     auto createItem = [&](const QString &text) {
         auto *item = new QTableWidgetItem(text);
         item->setFont(QFont("Microsoft YaHei", 9));
+        item->setTextAlignment(Qt::AlignCenter);
         return item;
     };
 
-    memTable->setItem(r, 0, createItem(name));
-    memTable->setItem(r, 1, createItem(phone));
-    memTable->setItem(r, 2, createItem(level));
-    memTable->setItem(r, 3, createItem(QString::number(pts)));
+    memTable->setItem(r, 0, createItem(id));
+    memTable->setItem(r, 1, createItem(name));
+    memTable->setItem(r, 2, createItem(phone));
+    memTable->setItem(r, 3, createItem(level));
+    memTable->setItem(r, 4, createItem(QString::number(balance, 'f', 2)));
+    memTable->setItem(r, 5, createItem(QString::number(consume_amt, 'f', 2)));
+    memTable->setItem(r, 6, createItem(QString::number(pts)));
     
     // 【美化：使用 Element UI 风格的下拉框】
     QComboBox *petCombo = new QComboBox();
@@ -174,7 +191,7 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
     petCombo->setStyleSheet(
         "QComboBox { "
         "   border: 1px solid #dcdfe6; "
-        "   border-radius: 16px; "
+        "   border-radius: 4px; " // 统一为 4px
         "   padding: 2px 12px; "
         "   background: #f5f7fa; "
         "   color: #606266; "
@@ -186,21 +203,21 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
         "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; height: 14px; } "
         "QComboBox QAbstractItemView { "
         "   border: 1px solid #ebeef5; "
-        "   border-radius: 10px; "
+        "   border-radius: 4px; "
         "   background-color: white; "
         "   outline: none; "
+        "   padding: 4px 0px; "
         "} "
         "QComboBox QAbstractItemView::item { "
         "   height: 35px; "
-        "   padding-left: 10px; "
+        "   padding-left: 12px; "
         "   color: #606266; "
         "   background-color: white; "
-        "   border-radius: 4px; "
-        "   margin: 2px 5px; "
         "} "
-        "QComboBox QAbstractItemView::item:hover, QComboBox QAbstractItemView::item:selected { "
+        "QComboBox QAbstractItemView::item:selected { "
         "   background-color: #f0f7ff; "
         "   color: #409eff; "
+        "   border-left: 3px solid #409eff; "
         "} "
     );
 
@@ -232,8 +249,8 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
     QVBoxLayout *comboLayout = new QVBoxLayout(comboWrapper);
     comboLayout->setContentsMargins(5, 4, 5, 0); // 上边距 4px
     comboLayout->addWidget(petCombo);
-    memTable->setCellWidget(r, 4, comboWrapper);
-    memTable->setItem(r, 5, new QTableWidgetItem()); // 必须占位
+    memTable->setCellWidget(r, 7, comboWrapper);
+    memTable->setItem(r, 8, new QTableWidgetItem()); // 必须占位
 
     // 【修复2：使用标准 QWidget 渲染操作列，并加上明显的底色保证可见性】
     QWidget *actionWidget = new QWidget();
@@ -266,12 +283,16 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
     actionLayout->addWidget(deleteBtn);
     actionLayout->addStretch();
 
+    if (m_role == STAFF) {
+        deleteBtn->setVisible(false);
+    }
+
     // 【按钮逻辑】
     connect(editBtn, &QPushButton::clicked, this, [=](){
         // 查找当前行
         int currentRow = -1;
         for (int i = 0; i < memTable->rowCount(); ++i) {
-            if (memTable->cellWidget(i, 5) == actionWidget) {
+            if (memTable->cellWidget(i, 8) == actionWidget) {
                 currentRow = i;
                 break;
             }
@@ -280,20 +301,26 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
 
         // 获取当前行数据
         MemberInfo info;
-        info.name = memTable->item(currentRow, 0)->text();
-        info.phone = memTable->item(currentRow, 1)->text();
-        info.level = memTable->item(currentRow, 2)->text();
-        info.points = memTable->item(currentRow, 3)->text().toInt();
+        info.id = memTable->item(currentRow, 0)->text();
+        info.name = memTable->item(currentRow, 1)->text();
+        info.phone = memTable->item(currentRow, 2)->text();
+        info.level = memTable->item(currentRow, 3)->text();
+        info.balance = memTable->item(currentRow, 4)->text().toDouble();
+        info.consume_amt = memTable->item(currentRow, 5)->text().toDouble();
+        info.points = memTable->item(currentRow, 6)->text().toInt();
 
         AddMemberDialog dialog(this);
         dialog.setInitialData(info); // 进入编辑模式
         if (dialog.exec() == QDialog::Accepted) {
             MemberInfo newInfo = dialog.getMemberInfo();
             // 更新 UI
-            memTable->item(currentRow, 0)->setText(newInfo.name);
-            memTable->item(currentRow, 1)->setText(newInfo.phone);
-            memTable->item(currentRow, 2)->setText(newInfo.level);
-            memTable->item(currentRow, 3)->setText(QString::number(newInfo.points));
+            memTable->item(currentRow, 0)->setText(newInfo.id);
+            memTable->item(currentRow, 1)->setText(newInfo.name);
+            memTable->item(currentRow, 2)->setText(newInfo.phone);
+            memTable->item(currentRow, 3)->setText(newInfo.level);
+            memTable->item(currentRow, 4)->setText(QString::number(newInfo.balance, 'f', 2));
+            memTable->item(currentRow, 5)->setText(QString::number(newInfo.consume_amt, 'f', 2));
+            memTable->item(currentRow, 6)->setText(QString::number(newInfo.points));
             
             updateStatistics();
             CustomMessageDialog::showWarning(this, "修改成功", "会员信息已成功更新");
@@ -304,7 +331,7 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
         // 查找当前行
         int currentRow = -1;
         for (int i = 0; i < memTable->rowCount(); ++i) {
-            if (memTable->cellWidget(i, 5) == actionWidget) {
+            if (memTable->cellWidget(i, 8) == actionWidget) {
                 currentRow = i;
                 break;
             }
@@ -318,7 +345,7 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
             
             // 获取当前行的下拉框并更新
             // 注意这里现在外面包裹了一层 QWidget
-            QWidget *wrapper = memTable->cellWidget(currentRow, 4);
+            QWidget *wrapper = memTable->cellWidget(currentRow, 7);
             QComboBox *petCombo = nullptr;
             if (wrapper) petCombo = wrapper->findChild<QComboBox*>();
 
@@ -364,7 +391,7 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
             }
             
             CustomMessageDialog::showWarning(this, "添加成功", 
-                QString("已为会员 %1 成功添加新宠物档案：%2").arg(memTable->item(currentRow, 0)->text(), pet.name));
+                QString("已为会员 %1 成功添加新宠物档案：%2").arg(memTable->item(currentRow, 1)->text(), pet.name));
         }
     });
 
@@ -372,14 +399,14 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
         // 动态定位被点击按钮所在的行
         int currentRow = -1;
         for (int i = 0; i < memTable->rowCount(); ++i) {
-            if (memTable->cellWidget(i, 5) == actionWidget) {
+            if (memTable->cellWidget(i, 8) == actionWidget) {
                 currentRow = i;
                 break;
             }
         }
 
         if (currentRow != -1) {
-            QString memberName = memTable->item(currentRow, 0)->text();
+            QString memberName = memTable->item(currentRow, 1)->text();
             if(CustomMessageDialog::confirm(this, "业务确认", "确定移除会员 [" + memberName + "] 的档案吗？")) {
                 memTable->removeRow(currentRow);
                 updateStatistics();
@@ -387,7 +414,7 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
         }
     });
 
-    memTable->setCellWidget(r, 5, actionWidget);
+    memTable->setCellWidget(r, 8, actionWidget);
 
     if (stackLayout->currentWidget() == emptyStateWidget) {
         stackLayout->setCurrentWidget(memTable);
@@ -396,20 +423,29 @@ void MemberModule::addRow(const QString &name, const QString &phone, const QStri
 
 void MemberModule::addSampleData()
 {
-    addRow("张三", "13800138000", "黄金会员", 1250, "无");
-    addRow("李芳", "13912345678", "普通会员", 100, "无");
-    addRow("赵四", "18189294306", "普通会员", 100, "无");
+    addRow("M001", "张三", "13800138000", "黄金会员", 500.00, 1250.00, 125, "无");
+    addRow("M002", "李芳", "13912345678", "普通会员", 0.00, 100.00, 10, "无");
+    addRow("M003", "王五", "13777777777", "铂金会员", 1200.00, 3500.00, 350, "无");
+    addRow("M004", "赵六", "13666666666", "钻石会员", 2500.00, 8800.00, 880, "无");
+    addRow("M005", "孙七", "18189294306", "普通会员", 50.00, 100.00, 10, "无");
 }
 
 void MemberModule::updateStatistics()
 {
     int total = memTable->rowCount();
-    int gold = 0;
+    int gold = 0, platinum = 0, diamond = 0;
     for(int i=0; i<total; ++i) {
-        if(memTable->item(i, 2) && memTable->item(i, 2)->text().contains("黄金")) gold++;
+        if(memTable->item(i, 3)) {
+            QString level = memTable->item(i, 3)->text();
+            if(level.contains("黄金")) gold++;
+            else if(level.contains("铂金")) platinum++;
+            else if(level.contains("钻石")) diamond++;
+        }
     }
     totalMemberLabel->setText(QString("总会员: %1").arg(total));
     goldMemberLabel->setText(QString("黄金会员: %1").arg(gold));
+    platinumMemberLabel->setText(QString("铂金会员: %1").arg(platinum));
+    diamondMemberLabel->setText(QString("钻石会员: %1").arg(diamond));
 
     if (total == 0) {
         stackLayout->setCurrentWidget(emptyStateWidget);
@@ -429,7 +465,8 @@ void MemberModule::onSearchTextChanged(const QString &text)
     int visibleCount = 0;
     for (int i = 0; i < memTable->rowCount(); ++i) {
         bool match = (memTable->item(i, 0)->text().contains(text, Qt::CaseInsensitive) ||
-                      memTable->item(i, 1)->text().contains(text));
+                      memTable->item(i, 1)->text().contains(text, Qt::CaseInsensitive) ||
+                      memTable->item(i, 2)->text().contains(text));
         memTable->setRowHidden(i, !match);
         if (match) visibleCount++;
     }
@@ -446,7 +483,7 @@ void MemberModule::showAddMemberDialog()
     AddMemberDialog dialog(this);
     if (dialog.exec() == QDialog::Accepted) {
         MemberInfo info = dialog.getMemberInfo();
-        addRow(info.name, info.phone, info.level, info.points, "无");
+        addRow(info.id, info.name, info.phone, info.level, info.balance, info.consume_amt, info.points, "无");
         updateStatistics();
     }
 }
@@ -459,10 +496,18 @@ void MemberModule::exportData()
     if(file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream ts(&file);
         ts.setGenerateByteOrderMark(true);
-        ts << "姓名,手机,等级,积分,宠物\n";
+        ts << "会员ID,姓名,手机,等级,储值余额,累计消费,积分,宠物\n";
         for(int r=0; r<memTable->rowCount(); ++r) {
             if(!memTable->isRowHidden(r)) {
-                ts << QString("%1,%2,%3,%4,%5\n").arg(memTable->item(r,0)->text(), memTable->item(r,1)->text(), memTable->item(r,2)->text(), memTable->item(r,3)->text(), memTable->item(r,4)->text());
+                ts << QString("%1,%2,%3,%4,%5,%6,%7,%8\n").arg(
+                          memTable->item(r,0)->text(), 
+                          memTable->item(r,1)->text(), 
+                          memTable->item(r,2)->text(), 
+                          memTable->item(r,3)->text(), 
+                          memTable->item(r,4)->text(), 
+                          memTable->item(r,5)->text(),
+                          memTable->item(r,6)->text(),
+                          memTable->item(r,7)->text());
             }
         }
         file.close();
@@ -472,5 +517,7 @@ void MemberModule::exportData()
 
 void MemberModule::onCellClicked(int row, int column)
 {
+    Q_UNUSED(row);
+    Q_UNUSED(column);
     // 已由 QComboBox 接管，此处保留空实现或未来用于其它点击逻辑
 }

@@ -15,12 +15,18 @@ SOURCES += \
     modules/petmodule.cpp \
     modules/productmodule.cpp \
     modules/fostermodule.cpp \
-    modules/ordermodule.cpp \
+    modules/appointmentmodule.cpp \
+    modules/checkoutmodule.cpp \
     modules/statsmodule.cpp \
     modules/addmemberdialog.cpp \
     modules/custommessagedialog.cpp \
     modules/selectpetdialog.cpp \
-    modules/addpetdialog.cpp
+    modules/addpetdialog.cpp \
+    modules/addappointmentdialog.cpp \
+    modules/historyappointmentdialog.cpp \
+    modules/performancemodule.cpp \
+    modules/addemployeedialog.cpp \
+    modules/salarymodule.cpp
 
 HEADERS += \
     loginwindow.h \
@@ -30,12 +36,18 @@ HEADERS += \
     modules/petmodule.h \
     modules/productmodule.h \
     modules/fostermodule.h \
-    modules/ordermodule.h \
+    modules/appointmentmodule.h \
+    modules/historyappointmentdialog.h \
+    modules/checkoutmodule.h \
+    modules/addappointmentdialog.h \
     modules/statsmodule.h \
     modules/addmemberdialog.h \
     modules/custommessagedialog.h \
     modules/selectpetdialog.h \
-    modules/addpetdialog.h
+    modules/addpetdialog.h \
+    modules/performancemodule.h \
+    modules/addemployeedialog.h \
+    modules/salarymodule.h
 
 FORMS += \
     loginwindow.ui \

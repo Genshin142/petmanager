@@ -9,10 +9,13 @@ class AddMemberDialog;
 }
 
 struct MemberInfo {
+    QString id;
     QString name;
     QString phone;
     QString level;
-    int points;
+    double balance;      // 储值余额
+    double consume_amt;  // 累计消费金额
+    int points;         // 当前可用积分
 };
 
 class AddMemberDialog : public QDialog
@@ -24,10 +27,9 @@ public:
     ~AddMemberDialog();
 
     MemberInfo getMemberInfo() const;
-    void setInitialData(const MemberInfo &info); // 新增：设置初始数据进入编辑模式
-
-private slots:
-    void on_buttonBox_accepted();
+    void setInitialData(const MemberInfo &info);
+    
+    void accept() override; // 重写 accept 实现拦截校验
 
 private:
     Ui::AddMemberDialog *ui;

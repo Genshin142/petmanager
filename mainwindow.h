@@ -3,23 +3,24 @@
 
 #include <QMainWindow>
 #include <QButtonGroup>
+#include "common_types.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+class QPushButton;
 
 class MemberModule;
 class RoleModule;
 class PetModule;
 class ProductModule;
 class FosterModule;
-class OrderModule;
+class AppointmentModule;
+class CheckoutModule;
 class StatsModule;
-
-enum UserRole {
-    ADMIN,
-    STAFF
-};
+class PerformanceModule;
+class SalaryModule;
 
 class MainWindow : public QMainWindow
 {
@@ -42,10 +43,15 @@ private:
     PetModule *petMod;
     ProductModule *productMod;
     FosterModule *fosterMod;
-    OrderModule *orderMod;
+    AppointmentModule *apptMod;
+    CheckoutModule *checkoutMod;
     StatsModule *statsMod;
+    PerformanceModule *perfMod;
+    SalaryModule *salaryMod;
+    QPushButton *navSalary;
 
     void initSidebar();
-    void initModules();
+    void initModules(UserRole role);
+    UserRole m_role;
 };
 #endif // MAINWINDOW_H

@@ -22,18 +22,18 @@
 -- ==========================================
 -- 1. 创建完整业务表结构 (紧凑模式)
 -- ==========================================
--- [表 1] 员工信息表 (已合并角色身份)
-create table sys_employees (
-    emp_id int auto_increment primary key comment '员工id',
-    username varchar(50) not null unique comment '用户名',
-    password_hash char(64) not null comment '密码哈希',
-    role enum('店长', '店员') not null default '店员' comment '身份角色',
-    real_name varchar(50) comment '真实姓名',
-    phone varchar(20) comment '手机号',
-    salary_base decimal(10,2) comment '基本底薪',
-    commission_rate decimal(4,2) comment '提成比例(例如: 0.10)',
-    status tinyint default 1 comment '1:在职 0:离职'
-) comment='员工基础信息及权限表';
+-- [表 1] 员工信息表 (精简长度)
+CREATE TABLE sys_employees (
+    emp_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '员工id',
+    username VARCHAR(20) NOT NULL UNIQUE COMMENT '用户名',
+    password VARCHAR(255) NOT NULL COMMENT '登录密码(哈希存储)',
+    role ENUM('店长', '店员') NOT NULL DEFAULT '店员' COMMENT '身份角色',
+    real_name VARCHAR(10) COMMENT '真实姓名',
+    phone CHAR(11) COMMENT '手机号',
+    salary_base INT UNSIGNED COMMENT '基本底薪',
+    commission_rate DECIMAL(3,2) UNSIGNED COMMENT '提成比例',
+    status TINYINT UNSIGNED DEFAULT 1 COMMENT '1:在职 0:离职'
+) COMMENT='员工基础信息及权限表';
 
 -- [表 2] 排班与考勤表
 create table sys_schedules (
@@ -47,37 +47,37 @@ create table sys_schedules (
 ) comment='考勤排班表';
 
 -- [表 3] 会员等级表
-create table member_levels (
-    level_id int auto_increment primary key comment '等级id',
-    level_name varchar(20) comment '等级名称',
-    discount_rate decimal(3,2) comment '折扣系数(如0.90)',
-    points_threshold int comment '达到该等级所需积分'
-) comment='会员等级与折扣配置';
+CREATE TABLE member_levels (
+    level_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '等级id',
+    level_name VARCHAR(10) COMMENT '等级名称',
+    discount_rate DECIMAL(3,2) UNSIGNED COMMENT '折扣系数',
+    consume_req DECIMAL(8,2) UNSIGNED COMMENT '所需累计消费金额'
+) COMMENT='会员等级与折扣配置';
 
 -- [表 4] 会员信息表
-create table members (
-    member_id int auto_increment primary key comment '会员id',
-    phone varchar(20) unique not null comment '手机号',
-    name varchar(50) comment '姓名',
-    balance decimal(15,2) default 0.00 comment '储值余额',
-    total_consumption decimal(15,2) default 0.00 comment '累计消费金额',
-    points int default 0 comment '当前可用积分',
-    level_id int comment '等级id',
-    encrypted_pay_pwd char(64) comment '支付密码哈希',
-    created_at timestamp default current_timestamp comment '创建时间',
-    foreign key (level_id) references member_levels(level_id)
-) comment='会员核心档案';
+CREATE TABLE members (
+    member_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '会员id',
+    phone CHAR(11) UNIQUE NOT NULL COMMENT '手机号',
+    name VARCHAR(10) COMMENT '姓名',
+    balance DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '储值余额',
+    consume_amt DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '累计消费金额',
+    points INT UNSIGNED DEFAULT 0 COMMENT '当前可用积分',
+    level_id INT,
+    pay_pwd VARCHAR(255) COMMENT '支付密码(哈希)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (level_id) REFERENCES member_levels(level_id)
+) COMMENT='会员核心档案';
 
 -- [表 5] 宠物全生命周期档案表
 create table pets (
     pet_id int auto_increment primary key comment '宠物id',
     member_id int not null comment '所属会员id',
-    pet_name varchar(50) not null comment '宠物名称',
-    photo_url varchar(255) comment '宠物头像',
-    species varchar(30) comment '种属(猫/狗/异宠)',
-    breed varchar(50) comment '具体品种',
-    age_months int comment '月龄',
-    weight decimal(5,2) comment '体重(kg)',
+    pet_name varchar(10) not null comment '宠物名称',
+    photo_url varchar(500) comment '宠物头像',
+    species varchar(10) comment '种属(猫/狗/异宠)',
+    breed varchar(10) comment '具体品种',
+    age_months int unsigned comment '月龄',
+    weight decimal(5,2) unsigned comment '体重(kg)',
     vaccine_status text comment '疫苗及驱虫接种日志',
     medical_history text comment '过敏史与既往病史',
     current_status enum('离店', '服务中', '寄养中') default '离店' comment '在店状态追踪',
@@ -85,34 +85,34 @@ create table pets (
 ) comment='宠物实体档案库';
 
 -- [表 6] 商品分类表
-create table product_categories (
-    cat_id int auto_increment primary key comment '分类id',
-    name varchar(50) not null comment '分类名称'
-) comment='商品类目字典';
+CREATE TABLE product_categories (
+    cat_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(10) NOT NULL COMMENT '分类名称'
+) COMMENT='商品类目字典';
 
 -- [表 7] 商品规格与库存表
 create table products (
     product_id int auto_increment primary key comment '商品id',
     cat_id int comment '分类id',
-    barcode varchar(100) unique comment '条形码(支持扫码枪录入)',
-    name varchar(200) not null comment '商品名称',
-    unit varchar(20) comment '计件单位',
-    purchase_price decimal(10,2) comment '成本进价',
-    sale_price decimal(10,2) comment '零售单价',
-    stock_current int default 0 comment '当前可用库存',
-    stock_min_threshold int default 10 comment '低位库存预警阈值',
-    is_on_sale tinyint default 1 comment '1:上架销售 0:下架停售',
+    barcode VARCHAR(50) UNIQUE COMMENT '条形码',
+    name VARCHAR(100) NOT NULL COMMENT '商品名称',
+    unit VARCHAR(10) COMMENT '计件单位',
+    purchase_price DECIMAL(7,2) UNSIGNED COMMENT '成本进价',
+    sale_price DECIMAL(7,2) UNSIGNED COMMENT '零售单价',
+    stock_current int unsigned default 0 comment '当前可用库存',
+    stock_min int unsigned default 10 comment '低位库存预警阈值',
+    is_on_sale tinyint unsigned default 1 comment '1:上架销售 0:下架停售',
     unique index idx_barcode (barcode),
     foreign key (cat_id) references product_categories(cat_id)
 ) comment='零售商品库存主表';
 
 -- [表 8] 门店服务项目定义表
-create table services (
-    service_id int auto_increment primary key comment '服务id',
-    name varchar(100) not null comment '服务名称',
-    price decimal(10,2) not null comment '价格',
-    category enum('美容洗护', '医疗保健', '培训及其他') not null comment '类目'
-) comment='店内无形服务项目字典';
+CREATE TABLE services (
+    service_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(20) NOT NULL COMMENT '服务名称',
+    price DECIMAL(7,2) UNSIGNED NOT NULL COMMENT '价格',
+    category ENUM('美容洗护', '医疗保健', '培训及其他') NOT NULL
+) COMMENT='店内无形服务项目字典';
 
 -- [表 9] 客户服务预约表
 create table appointments (
@@ -132,13 +132,13 @@ create table appointments (
 ) comment='服务预约单';
 
 -- [表 10] 寄养房态配置表
-create table foster_rooms (
-    room_id int auto_increment primary key comment '房间id',
-    room_number varchar(20) unique not null comment '房间号',
-    room_type varchar(50) comment '标准舱/豪华房',
-    daily_price decimal(10,2) not null comment '单日基础计费',
-    current_status enum('空闲', '已入住', '清洁中') default '空闲' comment '当前状态'
-) comment='物理房间基础表';
+CREATE TABLE foster_rooms (
+    room_id INT AUTO_INCREMENT PRIMARY KEY,
+    room_number VARCHAR(10) UNIQUE NOT NULL COMMENT '房间号',
+    room_type VARCHAR(20) COMMENT '标准舱/豪华房',
+    daily_price DECIMAL(7,2) UNSIGNED NOT NULL COMMENT '单日基础计费',
+    current_status ENUM('空闲', '已入住', '清洁中') DEFAULT '空闲'
+) COMMENT='物理房间基础表';
 
 -- [表 11] 寄养记录明细表
 create table foster_records (
@@ -148,36 +148,49 @@ create table foster_records (
     check_in_time datetime not null comment '实际入场时间',
     expected_out_time datetime comment '预定离店时间',
     actual_out_time datetime comment '实际结账离店时间',
-    belongings text comment '寄存自带物品及体检备注',
-    daily_report json comment '每日饮食与运动跟踪(json数组)',
-    overdue_fee decimal(10,2) default 0.00 comment '逾期附加费',
+    belongings TEXT comment '寄存自带物品及体检备注',
+    daily_report JSON comment '每日饮食与运动跟踪(json数组)',
+    overdue_fee DECIMAL(8,2) UNSIGNED DEFAULT 0.00 comment '逾期附加费',
     foreign key (pet_id) references pets(pet_id),
     foreign key (room_id) references foster_rooms(room_id)
 ) comment='寄养业务流水';
 
 -- [表 12] 订单总结算表
-create table orders (
-    order_id bigint auto_increment primary key comment '订单id',
-    order_no varchar(32) unique not null comment '全局唯一交易号',
-    member_id int comment '会员id(散客为空)',
-    total_amount decimal(15,2) not null comment '订单总额',
-    payment_method enum('会员余额', '现金', '微信', '支付宝') not null comment '支付方式',
-    created_at timestamp default current_timestamp comment '记账时间',
-    operator_id int not null comment '经手员工id',
-    foreign key (member_id) references members(member_id),
-    foreign key (operator_id) references sys_employees(emp_id)
-) comment='收支账目主表(用于宏观统计)';
+CREATE TABLE orders (
+    order_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '订单id',
+    order_no VARCHAR(32) UNIQUE NOT NULL COMMENT '全局唯一交易号',
+    order_type ENUM('商品零售', '服务项目', '寄养结算', '综合订单') NOT NULL DEFAULT '商品零售' COMMENT '订单类型',
+    member_id INT COMMENT '会员id(散客为空)',
+    total_amount DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '订单总额',
+    payment_method ENUM('会员余额', '现金', '微信', '支付宝') NOT NULL COMMENT '支付方式',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记账时间',
+    operator_id INT NOT NULL COMMENT '经手员工id',
+    FOREIGN KEY (member_id) REFERENCES members(member_id),
+    FOREIGN KEY (operator_id) REFERENCES sys_employees(emp_id)
+) COMMENT='收支账目主表(用于宏观统计)';
 
--- [表 13] 商品入库明细表
+-- [表 13] 订单明细表 (细化消费项)
+CREATE TABLE order_items (
+    item_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '明细id',
+    order_id BIGINT UNSIGNED NOT NULL COMMENT '所属订单id',
+    item_type ENUM('product', 'service', 'foster') NOT NULL COMMENT '项目类型',
+    target_id int not null comment '对应 products.product_id 或 services.service_id 或 foster_records.record_id',
+    quantity INT UNSIGNED DEFAULT 1 comment '数量',
+    unit_price DECIMAL(7,2) UNSIGNED NOT NULL comment '单价',
+    subtotal DECIMAL(8,2) UNSIGNED as (quantity * unit_price) comment '小计(自动计算)',
+    foreign key (order_id) references orders(order_id)
+) comment='订单交易明细(记录具体买了什么)';
+
+-- [表 14] 商品入库明细表
 create table product_inbounds (
     inbound_id int auto_increment primary key comment '入库流水id',
-    product_id int not null comment '入库商品id',
-    quantity int not null comment '入库数量(正数)',
-    purchase_price decimal(10,2) comment '实际进货单价(用于核算成本)',
-    supplier varchar(100) comment '供应商/进货渠道',
-    operator_id int not null comment '操作员工id',
-    inbound_time datetime default current_timestamp comment '入库时间',
-    remark varchar(255) comment '备注信息',
+    product_id INT NOT NULL comment '入库商品id',
+    quantity INT UNSIGNED NOT NULL comment '入库数量(正数)',
+    purchase_price DECIMAL(7,2) UNSIGNED COMMENT '实际进货单价',
+    supplier VARCHAR(50) COMMENT '供应商',
+    operator_id INT NOT NULL,
+    inbound_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    remark VARCHAR(200) COMMENT '备注信息',
     foreign key (product_id) references products(product_id),
     foreign key (operator_id) references sys_employees(emp_id)
 ) comment='商品入库追踪单';

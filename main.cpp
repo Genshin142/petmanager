@@ -6,8 +6,45 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     
     // 设置通用样式
-    a.setStyleSheet("QWidget { font-family: 'Microsoft YaHei'; font-size: 14px; }"
-                    "QHeaderView::section { background-color: #f2f6fc; color: #606266; padding: 4px; border: none; font-weight: bold; }");
+    a.setStyleSheet(
+        "QWidget { font-family: 'Microsoft YaHei'; font-size: 14px; }"
+        "QHeaderView::section { background-color: #f2f6fc; color: #606266; padding: 4px; border: none; font-weight: bold; }"
+        
+        // 全局 ComboBox 下拉列表美化 (同步薪资管理中心样式)
+        "QComboBox QAbstractItemView {"
+        "   border: 1px solid #e4e7ed;"
+        "   background-color: #ffffff;"
+        "   border-radius: 4px;"
+        "   selection-background-color: #f5f7fa;"
+        "   selection-color: #409eff;"
+        "   outline: none;"
+        "}"
+        "QComboBox QAbstractItemView::item {"
+        "   height: 35px;"
+        "   padding-left: 10px;"
+        "   color: #606266;"
+        "}"
+        "QComboBox QAbstractItemView::item:selected {"
+        "   background-color: #f5f7fa;"
+        "   color: #409eff;"
+        "   border-left: 3px solid #409eff;"
+        "}"
+        
+        // 下拉列表滚动条美化
+        "QComboBox QScrollBar:vertical {"
+        "   width: 0px;"
+        "   background: transparent;"
+        "   margin: 0px;"
+        "}"
+        "QComboBox QScrollBar::handle:vertical {"
+        "   background: #dcdfe6;"
+        "   border-radius: 4px;"
+        "   min-height: 20px;"
+        "}"
+        "QComboBox QScrollBar::add-line:vertical, QComboBox QScrollBar::sub-line:vertical {"
+        "   height: 0px;"
+        "}"
+    );
 
     LoginWindow w;
     w.show();
