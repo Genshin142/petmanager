@@ -32,6 +32,7 @@ public:
 
 private slots:
     void onNavClicked(int id);
+    void onJumpToPetRequested(const QString &memberName, const QString &petName);
 
 private:
     Ui::MainWindow *ui;

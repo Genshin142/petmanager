@@ -22,12 +22,17 @@
 -- ==========================================
 -- 1. 创建完整业务表结构 (紧凑模式)
 -- ==========================================
--- [表 1] 员工信息表 (精简长度)
+
+-- ------------------------------------------
+-- 1.1 员工与系统 (Staff & System)
+-- ------------------------------------------
+
+-- [表 1] 员工信息表
 CREATE TABLE sys_employees (
     emp_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '员工id',
     username VARCHAR(20) NOT NULL UNIQUE COMMENT '用户名',
     password VARCHAR(255) NOT NULL COMMENT '登录密码(哈希存储)',
-    role ENUM('店长', '店员') NOT NULL DEFAULT '店员' COMMENT '身份角色',
+    role ENUM('店长', '收银', '美容师') NOT NULL DEFAULT '美容师' COMMENT '身份角色(管理员/前台/技师)',
     real_name VARCHAR(10) COMMENT '真实姓名',
     phone CHAR(11) COMMENT '手机号',
     salary_base INT UNSIGNED COMMENT '基本底薪',
@@ -36,23 +41,31 @@ CREATE TABLE sys_employees (
 ) COMMENT='员工基础信息及权限表';
 
 -- [表 2] 排班与考勤表
-create table sys_schedules (
-    schedule_id int auto_increment primary key comment '排班id',
-    emp_id int not null comment '员工id',
-    work_date date not null comment '工作日期',
-    shift_type enum('早班', '中班', '晚班') not null comment '班次类型',
-    clock_in datetime comment '实际签到时间',
-    clock_out datetime comment '实际签退时间',
-    foreign key (emp_id) references sys_employees(emp_id)
-) comment='考勤排班表';
+CREATE TABLE sys_schedules (
+    schedule_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '排班id',
+    emp_id INT NOT NULL COMMENT '员工id',
+    work_date DATE NOT NULL COMMENT '工作日期',
+    shift_type ENUM('早班', '中班', '晚班') NOT NULL COMMENT '班次类型',
+    clock_in DATETIME COMMENT '实际签到时间',
+    clock_out DATETIME COMMENT '实际签退时间',
+    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id)
+) COMMENT='考勤排班表';
 
--- [表 3] 会员等级表
-CREATE TABLE member_levels (
-    level_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '等级id',
-    level_name VARCHAR(10) COMMENT '等级名称',
-    discount_rate DECIMAL(3,2) UNSIGNED COMMENT '折扣系数',
-    consume_req DECIMAL(8,2) UNSIGNED COMMENT '所需累计消费金额'
-) COMMENT='会员等级与折扣配置';
+-- [表 3] 系统通用图片附件表
+CREATE TABLE sys_images (
+    img_id INT AUTO_INCREMENT PRIMARY KEY,
+    target_type ENUM('product', 'pet', 'employee', 'foster_record') NOT NULL COMMENT '关联类型',
+    target_id INT NOT NULL COMMENT '关联对象的ID',
+    url VARCHAR(255) NOT NULL COMMENT '图片存储路径',
+    is_primary TINYINT DEFAULT 0 COMMENT '1:主图 0:普通图',
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_target (target_type, target_id)
+) COMMENT='全系统通用图片附件表';
+
+-- ------------------------------------------
+-- 1.2 会员与宠物 (Membership & Pets)
+-- ------------------------------------------
 
 -- [表 4] 会员信息表
 CREATE TABLE members (
@@ -62,49 +75,57 @@ CREATE TABLE members (
     balance DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '储值余额',
     consume_amt DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '累计消费金额',
     points INT UNSIGNED DEFAULT 0 COMMENT '当前可用积分',
-    level_id INT,
+    level_name CHAR(4) DEFAULT '普通' COMMENT '会员等级',
     pay_pwd VARCHAR(255) COMMENT '支付密码(哈希)',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (level_id) REFERENCES member_levels(level_id)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) COMMENT='会员核心档案';
 
--- [表 5] 宠物全生命周期档案表
-create table pets (
-    pet_id int auto_increment primary key comment '宠物id',
-    member_id int not null comment '所属会员id',
-    pet_name varchar(10) not null comment '宠物名称',
-    photo_url varchar(500) comment '宠物头像',
-    species varchar(10) comment '种属(猫/狗/异宠)',
-    breed varchar(10) comment '具体品种',
-    age_months int unsigned comment '月龄',
-    weight decimal(5,2) unsigned comment '体重(kg)',
-    vaccine_status text comment '疫苗及驱虫接种日志',
-    medical_history text comment '过敏史与既往病史',
-    current_status enum('离店', '服务中', '寄养中') default '离店' comment '在店状态追踪',
-    foreign key (member_id) references members(member_id)
-) comment='宠物实体档案库';
+-- [表 5] 会员充值/变更历史表
+CREATE TABLE member_recharge_logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    member_id INT NOT NULL,
+    amount DECIMAL(8,2) NOT NULL COMMENT '正数为充值，负数为人工调账',
+    pay_method ENUM('现金', '微信', '支付宝', '银行卡') NOT NULL,
+    operator_id INT NOT NULL COMMENT '经手员工id',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark VARCHAR(100),
+    FOREIGN KEY (member_id) REFERENCES members(member_id),
+    FOREIGN KEY (operator_id) REFERENCES sys_employees(emp_id)
+) COMMENT='会员余额变动记录(资金流水审计)';
 
--- [表 6] 商品分类表
-CREATE TABLE product_categories (
-    cat_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(10) NOT NULL COMMENT '分类名称'
-) COMMENT='商品类目字典';
+-- [表 6] 宠物全生命周期档案表
+CREATE TABLE pets (
+    pet_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '宠物id',
+    member_id INT NOT NULL COMMENT '所属会员id',
+    pet_name VARCHAR(10) NOT NULL COMMENT '宠物名称',
+    species VARCHAR(10) COMMENT '种属(猫/狗/异宠)',
+    breed VARCHAR(10) COMMENT '具体品种',
+    age_months INT UNSIGNED COMMENT '月龄',
+    weight DECIMAL(5,2) UNSIGNED COMMENT '体重(kg)',
+    vaccine_status TEXT COMMENT '疫苗及驱虫接种日志',
+    medical_history TEXT COMMENT '过敏史与既往病史',
+    current_status ENUM('离店', '服务中', '寄养中') DEFAULT '离店' COMMENT '在店状态追踪',
+    FOREIGN KEY (member_id) REFERENCES members(member_id)
+) COMMENT='宠物实体档案库';
+
+-- ------------------------------------------
+-- 1.3 商品与服务定义 (Product & Service Defs)
+-- ------------------------------------------
 
 -- [表 7] 商品规格与库存表
-create table products (
-    product_id int auto_increment primary key comment '商品id',
-    cat_id int comment '分类id',
+CREATE TABLE products (
+    product_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '商品id',
+    category VARCHAR(10) COMMENT '商品分类（直接存储名称）', 
     barcode VARCHAR(50) UNIQUE COMMENT '条形码',
     name VARCHAR(100) NOT NULL COMMENT '商品名称',
     unit VARCHAR(10) COMMENT '计件单位',
     purchase_price DECIMAL(7,2) UNSIGNED COMMENT '成本进价',
     sale_price DECIMAL(7,2) UNSIGNED COMMENT '零售单价',
-    stock_current int unsigned default 0 comment '当前可用库存',
-    stock_min int unsigned default 10 comment '低位库存预警阈值',
-    is_on_sale tinyint unsigned default 1 comment '1:上架销售 0:下架停售',
-    unique index idx_barcode (barcode),
-    foreign key (cat_id) references product_categories(cat_id)
-) comment='零售商品库存主表';
+    stock_current INT UNSIGNED DEFAULT 0 COMMENT '当前可用库存',
+    stock_min INT UNSIGNED DEFAULT 10 COMMENT '低位库存预警阈值',
+    is_on_sale TINYINT UNSIGNED DEFAULT 1 COMMENT '1:上架销售 0:下架停售',
+    UNIQUE INDEX idx_barcode (barcode)
+) COMMENT='零售商品库存主表';
 
 -- [表 8] 门店服务项目定义表
 CREATE TABLE services (
@@ -114,24 +135,7 @@ CREATE TABLE services (
     category ENUM('美容洗护', '医疗保健', '培训及其他') NOT NULL
 ) COMMENT='店内无形服务项目字典';
 
--- [表 9] 客户服务预约表
-create table appointments (
-    appt_id int auto_increment primary key comment '预约id',
-    member_id int not null comment '会员id',
-    pet_id int not null comment '宠物id',
-    service_id int not null comment '服务id',
-    staff_id int comment '指派执行员工id',
-    appt_time datetime not null comment '预约到店时间',
-    station_id int comment '工作台/设备id',
-    status enum('待到店', '已接待', '已取消') default '待到店' comment '状态',
-    index idx_conflict (appt_time, station_id),
-    foreign key (member_id) references members(member_id),
-    foreign key (pet_id) references pets(pet_id),
-    foreign key (service_id) references services(service_id),
-    foreign key (staff_id) references sys_employees(emp_id)
-) comment='服务预约单';
-
--- [表 10] 寄养房态配置表
+-- [表 9] 寄养房态配置表
 CREATE TABLE foster_rooms (
     room_id INT AUTO_INCREMENT PRIMARY KEY,
     room_number VARCHAR(10) UNIQUE NOT NULL COMMENT '房间号',
@@ -140,60 +144,87 @@ CREATE TABLE foster_rooms (
     current_status ENUM('空闲', '已入住', '清洁中') DEFAULT '空闲'
 ) COMMENT='物理房间基础表';
 
--- [表 11] 寄养记录明细表
-create table foster_records (
-    record_id int auto_increment primary key comment '记录id',
-    pet_id int not null comment '宠物id',
-    room_id int not null comment '房间id',
-    check_in_time datetime not null comment '实际入场时间',
-    expected_out_time datetime comment '预定离店时间',
-    actual_out_time datetime comment '实际结账离店时间',
-    belongings TEXT comment '寄存自带物品及体检备注',
-    daily_report JSON comment '每日饮食与运动跟踪(json数组)',
-    overdue_fee DECIMAL(8,2) UNSIGNED DEFAULT 0.00 comment '逾期附加费',
-    foreign key (pet_id) references pets(pet_id),
-    foreign key (room_id) references foster_rooms(room_id)
-) comment='寄养业务流水';
+-- ------------------------------------------
+-- 1.4 业务流程与订单 (Process & Orders)
+-- ------------------------------------------
 
--- [表 12] 订单总结算表
+-- [表 10] 客户服务预约表
+CREATE TABLE appointments (
+    appt_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '预约id',
+    member_id INT NOT NULL COMMENT '会员id',
+    pet_id INT NOT NULL COMMENT '宠物id',
+    service_id INT NOT NULL COMMENT '服务id',
+    staff_id INT COMMENT '指派执行员工id',
+    appt_time DATETIME NOT NULL COMMENT '预约到店时间',
+    station_id INT COMMENT '工作台/设备id',
+    status ENUM('待到店', '服务中', '待结账', '已完成', '已取消') DEFAULT '待到店' COMMENT '流程状态',
+    INDEX idx_conflict (appt_time, station_id),
+    FOREIGN KEY (member_id) REFERENCES members(member_id),
+    FOREIGN KEY (pet_id) REFERENCES pets(pet_id),
+    FOREIGN KEY (service_id) REFERENCES services(service_id),
+    FOREIGN KEY (staff_id) REFERENCES sys_employees(emp_id)
+) COMMENT='服务预约单';
+
+-- [表 11] 寄养记录明细表
+CREATE TABLE foster_records (
+    record_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '记录id',
+    pet_id INT NOT NULL COMMENT '宠物id',
+    room_id INT NOT NULL COMMENT '房间id',
+    check_in_time DATETIME NOT NULL COMMENT '实际入场时间',
+    expected_out_time DATETIME COMMENT '预定离店时间',
+    actual_out_time DATETIME COMMENT '实际结账离店时间',
+    belongings TEXT COMMENT '寄存自带物品及体检备注',
+    daily_report JSON COMMENT '每日饮食与运动跟踪(json数组)',
+    overdue_fee DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '逾期附加费',
+    FOREIGN KEY (pet_id) REFERENCES pets(pet_id),
+    FOREIGN KEY (room_id) REFERENCES foster_rooms(room_id)
+) COMMENT='寄养业务流水';
+
+-- [表 12] 商品入库明细表
+CREATE TABLE product_inbounds (
+    inbound_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '入库流水id',
+    product_id INT NOT NULL COMMENT '入库商品id',
+    quantity INT UNSIGNED NOT NULL COMMENT '入库数量(正数)',
+    purchase_price DECIMAL(7,2) UNSIGNED COMMENT '实际进货单价',
+    supplier VARCHAR(50) COMMENT '供应商',
+    operator_id INT NOT NULL,
+    inbound_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    remark VARCHAR(200) COMMENT '备注信息',
+    FOREIGN KEY (product_id) REFERENCES products(product_id),
+    FOREIGN KEY (operator_id) REFERENCES sys_employees(emp_id)
+) COMMENT='商品入库追踪单';
+
+-- [表 13] 订单总结算表
 CREATE TABLE orders (
     order_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '订单id',
     order_no VARCHAR(32) UNIQUE NOT NULL COMMENT '全局唯一交易号',
     order_type ENUM('商品零售', '服务项目', '寄养结算', '综合订单') NOT NULL DEFAULT '商品零售' COMMENT '订单类型',
     member_id INT COMMENT '会员id(散客为空)',
-    total_amount DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '订单总额',
+    total_amount DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '订单总额(原价合计)',
+    discount_amount DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '优惠金额',
+    actual_pay DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '实付金额',
     payment_method ENUM('会员余额', '现金', '微信', '支付宝') NOT NULL COMMENT '支付方式',
+    status ENUM('已支付', '已退款', '已取消') DEFAULT '已支付' COMMENT '订单状态',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记账时间',
     operator_id INT NOT NULL COMMENT '经手员工id',
     FOREIGN KEY (member_id) REFERENCES members(member_id),
     FOREIGN KEY (operator_id) REFERENCES sys_employees(emp_id)
 ) COMMENT='收支账目主表(用于宏观统计)';
 
--- [表 13] 订单明细表 (细化消费项)
+-- [表 14] 订单明细表 (细化消费项)
 CREATE TABLE order_items (
     item_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '明细id',
     order_id BIGINT UNSIGNED NOT NULL COMMENT '所属订单id',
     item_type ENUM('product', 'service', 'foster') NOT NULL COMMENT '项目类型',
-    target_id int not null comment '对应 products.product_id 或 services.service_id 或 foster_records.record_id',
-    quantity INT UNSIGNED DEFAULT 1 comment '数量',
-    unit_price DECIMAL(7,2) UNSIGNED NOT NULL comment '单价',
-    subtotal DECIMAL(8,2) UNSIGNED as (quantity * unit_price) comment '小计(自动计算)',
-    foreign key (order_id) references orders(order_id)
-) comment='订单交易明细(记录具体买了什么)';
+    target_id INT NOT NULL COMMENT '关联主键ID',
+    snapshot_name VARCHAR(100) NOT NULL COMMENT '交易快照:商品/服务名称',
+    quantity INT UNSIGNED DEFAULT 1 COMMENT '数量',
+    unit_price_origin DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '销售原单价',
+    unit_price DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '实际成交单价',
+    subtotal DECIMAL(8,2) UNSIGNED AS (quantity * unit_price) COMMENT '小计(自动计算)',
+    FOREIGN KEY (order_id) REFERENCES orders(order_id)
+) COMMENT='订单交易明细(含交易快照)';
 
--- [表 14] 商品入库明细表
-create table product_inbounds (
-    inbound_id int auto_increment primary key comment '入库流水id',
-    product_id INT NOT NULL comment '入库商品id',
-    quantity INT UNSIGNED NOT NULL comment '入库数量(正数)',
-    purchase_price DECIMAL(7,2) UNSIGNED COMMENT '实际进货单价',
-    supplier VARCHAR(50) COMMENT '供应商',
-    operator_id INT NOT NULL,
-    inbound_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    remark VARCHAR(200) COMMENT '备注信息',
-    foreign key (product_id) references products(product_id),
-    foreign key (operator_id) references sys_employees(emp_id)
-) comment='商品入库追踪单';
 ```
 
 ---
@@ -226,6 +257,23 @@ void processCheckout(OrderInfo order) {
 - 使用 `QGraphicsScene` 绘制。
 - 每个房间为一个 `QGraphicsItem`，绑定 `room_id`。
 - 通过计时器或服务端 **Push 机制** 实时更新 UI 状态。
+
+### 3.4 通用图片库组件 (Qt 实现)
+为支持商品、宠物、寄养记录的多图展示，设计一个通用的 `ImageGallery` 控件：
+- **布局**: 基于 `QScrollArea` + 自定义 `FlowLayout`（流式布局）展示预览缩略图。
+- **功能**:
+  - 点击缩略图可弹出 `QDialog` 查看高清原图。
+  - 右键菜单支持“设为主图”、“删除照片”、“下载到本地”。
+  - 接入开源的图像处理库或简单的 `QImage` 缩放实现预览加速。
+- **数据交互**:
+  - 启动时根据 `target_type` 和 `target_id` 异步从服务端下载图片（先下载缩略图列表，再按需下载大图）。
+  - 支持拖拽上传图片至该控件。
+
+### 3.5 基于角色的访问控制 (RBAC) 设计
+系统根据登录身份自动切换 UI 视图和操作权限：
+- **店长 (Manager)**: 拥有全局权限，包括财务报表、员工提成设置、订单撤回、系统参数配置。
+- **收银 (Cashier)**: 核心业务操作，包括收银、会员充值、寄养/预约登记。不可查看敏感财务报表。
+- **美容师 (Staff/Groomer)**: 专注服务执行。仅可查看指派给自己的预约，记录服务进度（如：洗澡中、已完成）及上传寄养日志。仅能看到自己的提成统计。
 
 ## 4. 验证计划
 

@@ -41,7 +41,7 @@ void SelectPetDialog::setupUI(const QStringList &allPets, const QStringList &sel
     containerLayout->setSpacing(15);
 
     QLabel *titleLabel = new QLabel("关联宠物档案");
-    titleLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #303133;");
+    titleLabel->setStyleSheet("font-size: 18px; color: #303133;");
     containerLayout->addWidget(titleLabel);
 
     petListWidget = new QListWidget();
@@ -106,7 +106,7 @@ void SelectPetDialog::setupUI(const QStringList &allPets, const QStringList &sel
         "   color: white;"
         "   border: none;"
         "   border-radius: 4px;"
-        "   font: bold 14px 'Microsoft YaHei', 'Segoe UI', sans-serif;"
+        "   font: 14px 'Microsoft YaHei', 'Segoe UI', sans-serif;"
         "   text-align: center;"
         "   padding: 0px;"
         "}"

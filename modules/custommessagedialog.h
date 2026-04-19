@@ -12,14 +12,16 @@ class CustomMessageDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit CustomMessageDialog(const QString &title, const QString &content, bool isConfirm = false, QWidget *parent = nullptr);
+    enum DialogType { Warning, Success, Confirm };
+    explicit CustomMessageDialog(const QString &title, const QString &content, DialogType type = Warning, QWidget *parent = nullptr);
     ~CustomMessageDialog();
 
     static void showWarning(QWidget *parent, const QString &title, const QString &content);
+    static void showSuccess(QWidget *parent, const QString &title, const QString &content);
     static bool confirm(QWidget *parent, const QString &title, const QString &content);
 
 private:
-    void setupUI(const QString &title, const QString &content, bool isConfirm);
+    void setupUI(const QString &title, const QString &content, DialogType type);
 };
 
 #endif // CUSTOMMESSAGEDIALOG_H

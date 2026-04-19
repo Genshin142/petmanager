@@ -19,6 +19,7 @@ struct EmployeeInfo {
     QString idCard;
     int baseSalary;
     QString status;
+    QString imgPath; // 员工头像路径
 };
 
 class AddEmployeeDialog : public QDialog
@@ -39,6 +40,7 @@ private slots:
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void setupUI();
@@ -55,6 +57,12 @@ private:
     QComboBox *statusCombo;
     
     QLabel *titleLabel;
+    QPushButton *saveBtn;
+    
+    // 头像相关
+    QLabel *avatarPreview;
+    QString m_selectedImgPath;
+    
     QPoint dragPosition;
     QString m_id;
 };

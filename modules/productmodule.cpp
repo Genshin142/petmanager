@@ -13,10 +13,82 @@
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QMessageBox>
-#include <QScrollBar>
+#include <QIntValidator>
+#include <QTimer>
+#include <QFileDialog>
+#include <QEvent>
 
 ProductModule::ProductModule(UserRole role, QWidget *parent) : QWidget(parent), m_role(role) {
+    m_currentPage = 1;
+    m_pageSize = 10;
+    m_recCurrentPage = 1;
+    m_recPageSize = 10;
     setupUI();
+}
+
+bool ProductModule::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::MouseButtonPress) {
+        QLabel *label = qobject_cast<QLabel*>(watched);
+        if (label && label->property("imgPath").isValid()) {
+            QString path = label->property("imgPath").toString();
+            
+            // 模拟宠物模块：全屏半透明预览
+            // 关键修复：即便在对话框内触发，预览也应覆盖整个主窗口，但父节点绑定在 label->window() 确保层级在上
+            QWidget *mainWin = this->window();
+            QWidget *currentWin = label->window();
+            QDialog *preview = new QDialog(currentWin, Qt::FramelessWindowHint);
+            
+            // 铺满主窗口
+            preview->setGeometry(mainWin->geometry());
+            preview->setAttribute(Qt::WA_TranslucentBackground);
+            
+            QVBoxLayout *layout = new QVBoxLayout(preview);
+            layout->setContentsMargins(0, 0, 0, 0);
+            
+            // 全屏背景遮罩 - 调深阴影
+            QFrame *bg = new QFrame();
+            bg->setStyleSheet("background-color: rgba(0, 0, 0, 235);");
+            layout->addWidget(bg);
+            
+            QVBoxLayout *bgLayout = new QVBoxLayout(bg);
+            bgLayout->setContentsMargins(0, 0, 0, 0);
+            bgLayout->setAlignment(Qt::AlignCenter);
+            
+            QLabel *imgLabel = new QLabel();
+            QPixmap pix(path);
+            if (!pix.isNull()) {
+                // 调整显示尺寸，避免过大显得突兀
+                imgLabel->setPixmap(pix.scaled(400, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            }
+            imgLabel->setStyleSheet("border: none; background: white; border-radius: 10px; padding: 20px;");
+            imgLabel->setAlignment(Qt::AlignCenter);
+            bgLayout->addWidget(imgLabel);
+            
+            // 点击背景任意位置关闭
+            bg->installEventFilter(this);
+            bg->setProperty("isPreviewBg", true);
+            bg->setProperty("previewDlg", QVariant::fromValue((void*)preview));
+            bg->setCursor(Qt::PointingHandCursor);
+            
+            // 全局坐标同步
+            preview->raise();
+            
+            connect(preview, &QDialog::finished, preview, &QDialog::deleteLater);
+            preview->show();
+            return true;
+        }
+        
+        // 点击预览背景关闭
+        if (watched->property("isPreviewBg").toBool()) {
+            void* ptr = watched->property("previewDlg").value<void*>();
+            if (ptr) {
+                QDialog *dlg = static_cast<QDialog*>(ptr);
+                dlg->close();
+                return true;
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void ProductModule::setupUI() {
@@ -27,7 +99,7 @@ void ProductModule::setupUI() {
     QTabWidget *tabs = new QTabWidget();
     tabs->setStyleSheet(
         "QTabWidget::pane { border: 1px solid #ebeef5; top: -1px; background: white; border-radius: 0 0 8px 8px; } "
-        "QTabBar::tab { background: #f5f7fa; color: #909399; padding: 12px 25px; border: 1px solid #e4e7ed; border-bottom: none; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; margin-right: 2px; } "
+        "QTabBar::tab { background: #f5f7fa; color: #909399; padding: 12px 25px; border: 1px solid #e4e7ed; border-bottom: none; border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px; } "
         "QTabBar::tab:selected { background: white; color: #409eff; border-bottom-color: white; } "
         "QTabBar::tab:hover:!selected { background: #fafafa; }"
     );
@@ -42,7 +114,7 @@ void ProductModule::setupUI() {
     // 1. 顶部标题与快速搜索
     QHBoxLayout *headerLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel("商品进销存看板");
-    titleLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #303133;");
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133;");
     
     QHBoxLayout *filterLayout = new QHBoxLayout();
     searchEdit = new QLineEdit();
@@ -53,11 +125,36 @@ void ProductModule::setupUI() {
         "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
         "QLineEdit:focus { border-color: #409eff; outline: none; }"
     );
+    // -- 左侧：批量删除 --
+    QPushButton *batchDeleteBtn = new QPushButton("批量删除");
+    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
+    batchDeleteBtn->setFixedHeight(32);
+    batchDeleteBtn->setStyleSheet(
+        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 6px; font-size: 12px; padding: 0 15px; }"
+        "QPushButton:hover { background-color: #f56c6c; color: white; }"
+    );
+    connect(batchDeleteBtn, &QPushButton::clicked, this, &ProductModule::onBatchDelete);
+    filterLayout->addWidget(batchDeleteBtn);
+
+    filterLayout->addStretch();
     filterLayout->addWidget(searchEdit);
+    filterLayout->addSpacing(10);
+
+    QPushButton *stockInBtn = new QPushButton("+ 商品入库登记");
+    stockInBtn->setFixedHeight(32);
+    stockInBtn->setCursor(Qt::PointingHandCursor);
+    stockInBtn->setStyleSheet(
+        "QPushButton { background: #409eff; color: white; border-radius: 16px; font-size: 13px; border: none; padding: 0 10px; } "
+        "QPushButton:hover { background: #66b1ff; } "
+    );
+    connect(stockInBtn, &QPushButton::clicked, this, &ProductModule::onStockIn);
+    if (m_role == UserRole::STAFF) stockInBtn->setVisible(false);
+    stockInBtn->setFixedWidth(130);
+    filterLayout->addWidget(stockInBtn);
 
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
-    headerLayout->addLayout(filterLayout);
+    // 移除了此处对 filterLayout 的添加，稍后将其移至卡片下方
 
     // 2. 统计概览
     QHBoxLayout *statLayout = new QHBoxLayout();
@@ -82,7 +179,7 @@ void ProductModule::setupUI() {
         QVBoxLayout *vl = new QVBoxLayout();
         vl->setSpacing(2);
         QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 22px; font-weight: bold; border: none; background: transparent;");
+        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 22px; border: none; background: transparent;");
         vl->addWidget(tl); vl->addWidget(valLabel);
         vl->addStretch();
 
@@ -93,46 +190,120 @@ void ProductModule::setupUI() {
     statLayout->addWidget(createStatCard("📦", "商品品种", varietyLabel, "#409eff"));
     statLayout->addWidget(createStatCard("⚠️", "库存预警", lowStockLabel, "#f56c6c"));
     statLayout->addWidget(createStatCard("💰", "总货值估算", totalValueLabel, "#67c23a"));
-    mainLayout->addLayout(statLayout);
-
+    
     // 3. 商品列表
     prodTable = new QTableWidget();
-    prodTable->setColumnCount(6);
-    prodTable->setHorizontalHeaderLabels({"条形码", "商品名称", "规格单位", "单价/零售", "当前库存", "库存状态"});
+    prodTable->setColumnCount(9);
+    prodTable->setHorizontalHeaderLabels({"选择", "图片", "条形码", "商品名称", "规格单位", "单价/零售", "当前库存", "库存状态", "操作"});
     
     prodTable->setShowGrid(false);
-    prodTable->setAlternatingRowColors(true);
+    prodTable->setAlternatingRowColors(false);
     prodTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    prodTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    prodTable->setFocusPolicy(Qt::NoFocus);
     prodTable->verticalHeader()->setVisible(false);
     prodTable->verticalHeader()->setDefaultSectionSize(55);
 
     prodTable->setStyleSheet(
         "QTableWidget { border: 1px solid #ebeef5; background: white; } "
         "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QHeaderView::section { background: #f5f7fa; padding: 10px; border: none; font-weight: bold; } "
+        "QTableWidget::item:selected { background-color: #b3d8ff; } " 
+        "QHeaderView::section { background: #f5f7fa; padding: 10px; border: none;  font-weight: bold; } "
     );
 
     prodTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     prodTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    prodTable->setColumnWidth(0, 120);
-    prodTable->setColumnWidth(4, 80);
+    prodTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); // 选择
+    prodTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); // 图片
+    prodTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed); // 操作
+    prodTable->setColumnWidth(0, 48);  // 选择
+    prodTable->setColumnWidth(1, 60);  // 图片
+    prodTable->setColumnWidth(2, 120); // 条码
+    prodTable->setColumnWidth(8, 140); // 操作按钮
+    prodTable->setColumnWidth(6, 80);  // 当前库存
 
+    // 4. 底部统计与分页
+    QFrame *statFrame = new QFrame();
+    statFrame->setFixedHeight(45);
+    statFrame->setStyleSheet("QFrame { background: #f8f9fb; border-top: 1px solid #ebeef5; padding: 0 12px; }");
+    QHBoxLayout *footerLayout = new QHBoxLayout(statFrame);
+    footerLayout->addStretch();
 
-    // 4. 底部动作
-    QPushButton *stockInBtn = new QPushButton("+ 商品入库登记 / 新货上架");
-    stockInBtn->setMinimumHeight(45);
-    stockInBtn->setCursor(Qt::PointingHandCursor);
-    stockInBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 6px; font-weight: bold; font-size: 14px; border: none; } "
-        "QPushButton:hover { background: #66b1ff; } "
+    // 1. 跳转组
+    jumpEdit = new QLineEdit();
+    jumpEdit->setFixedWidth(36);
+    jumpEdit->setMaxLength(3);
+    jumpEdit->setFixedHeight(24);
+    jumpEdit->setAlignment(Qt::AlignCenter);
+    jumpEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0; font-size: 13px; background: white; margin: 0; } "
+        "QLineEdit:focus { border-color: #409eff; outline: none; }"
     );
+    jumpValidator = new QIntValidator(1, 1, this);
+    jumpEdit->setValidator(jumpValidator);
+
+    QLabel *jumpPrefix = new QLabel("跳转到第");
+    jumpPrefix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
+    QLabel *jumpSuffix = new QLabel("页");
+    jumpSuffix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
+
+    jumpBtn = new QPushButton("确认");
+    jumpBtn->setCursor(Qt::PointingHandCursor);
+    jumpBtn->setFixedSize(44, 24);
+    jumpBtn->setStyleSheet(
+        "QPushButton { border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 2px 0; text-align: center; margin: 0; }"
+        "QPushButton:hover { border-color: #409eff; color: #409eff; }"
+    );
+
+    QWidget *jumpGroup = new QWidget();
+    jumpGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QHBoxLayout *jumpLayout = new QHBoxLayout(jumpGroup);
+    jumpLayout->setContentsMargins(0, 0, 0, 0);
+    jumpLayout->setSpacing(2);
+    jumpLayout->addWidget(jumpPrefix);
+    jumpLayout->addWidget(jumpEdit);
+    jumpLayout->addWidget(jumpSuffix);
+    jumpLayout->addWidget(jumpBtn);
+
+    // 2. 翻页组
+    prevBtn = new QPushButton("上一页");
+    nextBtn = new QPushButton("下一页");
+    pageLabel = new QLabel("第 1 页 / 共 1 页");
+
+    QString pageStyle = "QPushButton { height: 24px; border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 0 8px; text-align: center; margin: 0; } "
+                        "QPushButton:hover { border-color: #409eff; color: #409eff; } "
+                        "QPushButton:disabled { background: #f5f7fa; color: #c0c4cc; border-color: #e4e7ed; }";
+    prevBtn->setStyleSheet(pageStyle);
+    nextBtn->setStyleSheet(pageStyle);
+    prevBtn->setCursor(Qt::PointingHandCursor);
+    nextBtn->setCursor(Qt::PointingHandCursor);
+    pageLabel->setStyleSheet("color: #909399; font-size: 13px; margin: 0; padding: 0 4px;");
+
+    QWidget *pageGroup = new QWidget();
+    pageGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setSpacing(2);
+    pageLayout->addWidget(prevBtn);
+    pageLayout->addWidget(pageLabel);
+    pageLayout->addWidget(nextBtn);
+
+    footerLayout->addWidget(jumpGroup);
+    footerLayout->addSpacing(8);
+    footerLayout->addWidget(pageGroup);
+
+    // 绑定分页逻辑
+    connect(searchEdit, &QLineEdit::textChanged, this, &ProductModule::onSearchChanged);
+    connect(prevBtn, &QPushButton::clicked, this, &ProductModule::onPrevPage);
+    connect(nextBtn, &QPushButton::clicked, this, &ProductModule::onNextPage);
+    connect(jumpBtn, &QPushButton::clicked, this, &ProductModule::onJumpPage);
+    connect(jumpEdit, &QLineEdit::returnPressed, this, &ProductModule::onJumpPage);
+
     invLayout->addLayout(headerLayout);
     invLayout->addLayout(statLayout);
+    invLayout->addLayout(filterLayout); // 新位置：统计卡片下方
     invLayout->addWidget(prodTable);
-    invLayout->addWidget(stockInBtn);
-
-    connect(stockInBtn, &QPushButton::clicked, this, &ProductModule::onStockIn);
-    if (m_role == UserRole::STAFF) stockInBtn->setVisible(false);
+    invLayout->addWidget(statFrame);
 
     tabs->addTab(inventoryTab, "库存看板");
 
@@ -151,6 +322,7 @@ void ProductModule::setupUI() {
     addProductRow("400556677889", "除臭喷剂 300ml", "瓶", 45.00, 18, 10);
 
     updateStats();
+    updatePagination();
 }
 
 void ProductModule::setupRecordTab(QWidget *tab) {
@@ -208,7 +380,6 @@ void ProductModule::setupRecordTab(QWidget *tab) {
             "}"
             "QComboBox QAbstractItemView {"
             "   border: 1px solid #e4e7ed; background-color: #ffffff; border-radius: 4px;"
-            "   selection-background-color: #f5f7fa; selection-color: #409eff; outline: none;"
             "}"
             "QComboBox QAbstractItemView::item { height: 35px; padding-left: 10px; color: #606266; }"
             "QComboBox QAbstractItemView::item:selected { background-color: #f5f7fa; color: #409eff; border-left: 3px solid #409eff; }"
@@ -243,7 +414,7 @@ void ProductModule::setupRecordTab(QWidget *tab) {
         connect(d, QOverload<int>::of(&QComboBox::currentIndexChanged), [=](){ onFilterRecords(); });
     };
 
-    initDateGroup(sYearCombo, sMonthCombo, sDayCombo, QDate::currentDate().addDays(-30));
+    initDateGroup(sYearCombo, sMonthCombo, sDayCombo, QDate(2026, 1, 1));
     
     QLabel *toLabel = new QLabel("至");
     toLabel->setStyleSheet("color: #606266;");
@@ -261,7 +432,7 @@ void ProductModule::setupRecordTab(QWidget *tab) {
         "border-radius: 18px; "
         "border: none; "
         "font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; " /* 明确指定字体 */
-        "font-weight: bold; "
+        "font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; " /* 明确指定字体 */
         "font-size: 13px; "
         "padding: 0px;"
         "text-align: center;"
@@ -298,20 +469,19 @@ void ProductModule::setupRecordTab(QWidget *tab) {
     filterLayout->addWidget(eYearCombo);
     filterLayout->addWidget(eMonthCombo);
     filterLayout->addWidget(eDayCombo);
-    filterLayout->addSpacing(15);
-    filterLayout->addWidget(filterBtn);
-    filterLayout->addWidget(resetBtn);
     filterLayout->addStretch();
 
     layout->addLayout(filterLayout);
 
     // History record table
     recordTable = new QTableWidget();
-    recordTable->setColumnCount(6);
-    recordTable->setHorizontalHeaderLabels({"操作时间", "商品名称", "条形码", "入库数量", "供应商", "操作员"});
+    recordTable->setColumnCount(7); // 增加一列：图片
+    recordTable->setHorizontalHeaderLabels({QStringLiteral("图片"), "操作时间", "商品名称", "条形码", "入库数量", "供应商", "操作员"});
     recordTable->setShowGrid(false);
-    recordTable->setAlternatingRowColors(true);
+    recordTable->setAlternatingRowColors(false);
     recordTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    recordTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    recordTable->setFocusPolicy(Qt::NoFocus);
     recordTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     recordTable->verticalHeader()->setVisible(false);
     recordTable->verticalHeader()->setDefaultSectionSize(45);
@@ -321,22 +491,121 @@ void ProductModule::setupRecordTab(QWidget *tab) {
     recordTable->setStyleSheet(
         "QTableWidget { border: 1px solid #ebeef5; background: white; } "
         "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QHeaderView::section { background: #f5f7fa; padding: 10px; border: none; font-weight: bold; color: #606266; } "
+        "QTableWidget::item:selected { background-color: #b3d8ff; } " 
+        "QHeaderView::section { background: #f5f7fa; padding: 10px; border: none; color: #606266;  font-weight: bold; } "
     );
     
-    layout->addWidget(recordTable);
+    layout->addWidget(recordTable); // 核心修复：重新添加表格到布局
+
+    // 分页页脚 (严格对齐看板页布局：跳转组在前，翻页组在后)
+    QHBoxLayout *pageLayout = new QHBoxLayout();
+    pageLayout->setContentsMargins(10, 5, 10, 5);
+    pageLayout->setSpacing(8);
+
+    // 1. 跳转组
+    recJumpEdit = new QLineEdit();
+    recJumpEdit->setFixedWidth(36);
+    recJumpEdit->setMaxLength(3);
+    recJumpEdit->setFixedHeight(24);
+    recJumpEdit->setAlignment(Qt::AlignCenter);
+    recJumpEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0; font-size: 13px; background: white; margin: 0; } "
+        "QLineEdit:focus { border-color: #409eff; outline: none; }"
+    );
+    recJumpValidator = new QIntValidator(1, 1, this);
+    recJumpEdit->setValidator(recJumpValidator);
+
+    QLabel *recJumpPrefix = new QLabel("跳转到第");
+    recJumpPrefix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
+    QLabel *recJumpSuffix = new QLabel("页");
+    recJumpSuffix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
+
+    recJumpBtn = new QPushButton("确认");
+    recJumpBtn->setCursor(Qt::PointingHandCursor);
+    recJumpBtn->setFixedSize(44, 24);
+    recJumpBtn->setStyleSheet(
+        "QPushButton { border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 2px 0; text-align: center; margin: 0; }"
+        "QPushButton:hover { border-color: #409eff; color: #409eff; }"
+    );
+
+    QWidget *jumpGroup = new QWidget();
+    jumpGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QHBoxLayout *jumpLayout = new QHBoxLayout(jumpGroup);
+    jumpLayout->setContentsMargins(0, 0, 0, 0);
+    jumpLayout->setSpacing(2);
+    jumpLayout->addWidget(recJumpPrefix);
+    jumpLayout->addWidget(recJumpEdit);
+    jumpLayout->addWidget(recJumpSuffix);
+    jumpLayout->addWidget(recJumpBtn);
+
+    // 2. 翻页组
+    recPrevBtn = new QPushButton("上一页");
+    recNextBtn = new QPushButton("下一页");
+    recPageLabel = new QLabel("第 1 页 / 共 1 页");
+
+    QString recPageStyle = "QPushButton { height: 24px; border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 0 8px; text-align: center; margin: 0; } "
+                           "QPushButton:hover { border-color: #409eff; color: #409eff; } "
+                           "QPushButton:disabled { background: #f5f7fa; color: #c0c4cc; border-color: #e4e7ed; }";
+    recPrevBtn->setStyleSheet(recPageStyle);
+    recNextBtn->setStyleSheet(recPageStyle);
+    recPrevBtn->setCursor(Qt::PointingHandCursor);
+    recNextBtn->setCursor(Qt::PointingHandCursor);
+    recPageLabel->setStyleSheet("color: #909399; font-size: 13px; margin: 0; padding: 0 4px;");
+
+    QWidget *pageGroup = new QWidget();
+    pageGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QHBoxLayout *pageLayoutWrapper = new QHBoxLayout(pageGroup);
+    pageLayoutWrapper->setContentsMargins(0, 0, 0, 0);
+    pageLayoutWrapper->setSpacing(2);
+    pageLayoutWrapper->addWidget(recPrevBtn);
+    pageLayoutWrapper->addWidget(recPageLabel);
+    pageLayoutWrapper->addWidget(recNextBtn);
+
+    pageLayout->addStretch();
+    pageLayout->addWidget(jumpGroup);
+    pageLayout->addSpacing(8);
+    pageLayout->addWidget(pageGroup);
+    layout->addLayout(pageLayout);
+
+    connect(recPrevBtn, &QPushButton::clicked, this, &ProductModule::onRecPrevPage);
+    connect(recNextBtn, &QPushButton::clicked, this, &ProductModule::onRecNextPage);
+    connect(recJumpBtn, &QPushButton::clicked, this, &ProductModule::onRecJumpPage);
+    connect(recJumpEdit, &QLineEdit::returnPressed, this, &ProductModule::onRecJumpPage);
 
     // Inject sample records
-    StockInRecord r1 = {QDateTime::currentDateTime().addDays(-2).toString("yyyy-MM-dd HH:mm:ss"), "皇家基础全价猫粮 2kg", "690123456789", 10, "皇家宠物食品有限公司", "店长admin"};
-    StockInRecord r2 = {QDateTime::currentDateTime().addDays(-5).toString("yyyy-MM-dd HH:mm:ss"), "小鲜肉混合猫砂 6L", "690987654321", 50, "中宠贸易实业", "营业员staff"};
-    addRecordRow(r1);
-    addRecordRow(r2);
+    StockInRecord r1 = {QDateTime::currentDateTime().addDays(-2).toString("yyyy-MM-dd HH:mm:ss"), "皇家基础全价猫粮 2kg", "690123456789", 10, "皇家宠物食品有限公司", "店长admin", "E:/QT/work/PetManager/images/stores/default.png"};
+    StockInRecord r2 = {QDateTime::currentDateTime().addDays(-5).toString("yyyy-MM-dd HH:mm:ss"), "小鲜肉混合猫砂 6L", "690987654321", 50, "中宠贸易实业", "营业员staff", "E:/QT/work/PetManager/images/stores/default.png"};
     m_records << r1 << r2;
+    onFilterRecords();
 }
 
 void ProductModule::addRecordRow(const StockInRecord &record) {
     int row = recordTable->rowCount();
     recordTable->insertRow(row);
+
+    // 0. 图片列
+    QWidget *imgContainer = new QWidget();
+    QHBoxLayout *imgLayout = new QHBoxLayout(imgContainer);
+    imgLayout->setContentsMargins(5, 5, 5, 5);
+    imgLayout->setAlignment(Qt::AlignCenter);
+    
+    QLabel *imgLabel = new QLabel();
+    imgLabel->setFixedSize(40, 40);
+    imgLabel->setCursor(Qt::PointingHandCursor);
+    imgLabel->setProperty("imgPath", record.imgPath);
+    
+    QPixmap pix(record.imgPath);
+    if (!pix.isNull()) {
+        imgLabel->setPixmap(pix.scaled(40, 40, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+        imgLabel->setStyleSheet("border-radius: 4px; border: none; background: transparent;");
+    } else {
+        imgLabel->setText(QStringLiteral("无"));
+        imgLabel->setStyleSheet("font-size: 10px; color: #909399; background: #f5f7fa; border-radius: 4px;");
+    }
+    imgLabel->setAlignment(Qt::AlignCenter);
+    imgLayout->addWidget(imgLabel);
+    recordTable->setCellWidget(row, 0, imgContainer);
+    imgLabel->installEventFilter(this);
 
     auto setItem = [&](int col, const QString &text) {
         auto *item = new QTableWidgetItem(text);
@@ -344,15 +613,18 @@ void ProductModule::addRecordRow(const StockInRecord &record) {
         recordTable->setItem(row, col, item);
     };
 
-    setItem(0, record.dateTime);
-    setItem(1, record.productName);
-    setItem(2, record.barcode);
-    setItem(3, QString::number(record.quantity));
-    setItem(4, record.supplier);
-    setItem(5, record.operatorName);
+    setItem(1, record.dateTime);
+    setItem(2, record.productName);
+    setItem(3, record.barcode);
+    setItem(4, QString::number(record.quantity));
+    setItem(5, record.supplier);
+    setItem(6, record.operatorName);
 }
 
 void ProductModule::updateDays(QComboBox *y, QComboBox *m, QComboBox *d) {
+    if (!y || !m || !d) return;
+    d->blockSignals(true);
+    
     int year = y->currentData().toInt();
     int month = m->currentData().toInt();
     int oldDay = d->currentData().toInt();
@@ -368,41 +640,79 @@ void ProductModule::updateDays(QComboBox *y, QComboBox *m, QComboBox *d) {
     
     int index = d->findData(oldDay);
     if (index != -1) d->setCurrentIndex(index);
-    else d->setCurrentIndex(d->count() - 1);
+    else d->setCurrentIndex(0); // 默认指向 1 日而非最后一天
+    
     d->blockSignals(false);
 }
 
 void ProductModule::addProductRow(const QString &barcode, const QString &name, const QString &spec, 
-                                 double price, int stock, int minStock) {
+                                 double price, int stock, int minStock, const QString &imgPath) {
     int row = prodTable->rowCount();
     prodTable->insertRow(row);
 
+    // 0. 选择勾选框
+    QWidget *chkWidget = new QWidget();
+    QHBoxLayout *chkLayout = new QHBoxLayout(chkWidget);
+    chkLayout->setContentsMargins(0, 0, 0, 0);
+    QCheckBox *chkBox = new QCheckBox();
+    chkLayout->addWidget(chkBox, 0, Qt::AlignCenter);
+    prodTable->setCellWidget(row, 0, chkWidget);
+
+    // 1. 图片列
+    QWidget *imgContainer = new QWidget();
+    QHBoxLayout *imgLayout = new QHBoxLayout(imgContainer);
+    imgLayout->setContentsMargins(5, 5, 5, 5);
+    imgLayout->setAlignment(Qt::AlignCenter);
+    
+    QLabel *imgLabel = new QLabel();
+    imgLabel->setFixedSize(40, 40);
+    imgLabel->setCursor(Qt::PointingHandCursor);
+    imgLabel->setProperty("imgPath", imgPath);
+    
+    QPixmap pix(imgPath);
+    if (!pix.isNull()) {
+        imgLabel->setPixmap(pix.scaled(40, 40, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+        imgLabel->setStyleSheet("border-radius: 4px; border: none; background: transparent;");
+    } else {
+        imgLabel->setText("无图片");
+        imgLabel->setStyleSheet("font-size: 10px; color: #909399; background: #f5f7fa; border-radius: 4px;");
+    }
+    imgLabel->setAlignment(Qt::AlignCenter);
+    imgLayout->addWidget(imgLabel);
+    prodTable->setCellWidget(row, 1, imgContainer);
+
+    // 安装事件过滤器以便点击图片预览
+    imgLabel->installEventFilter(this);
+
     auto setItem = [&](int col, const QString &text, bool isBold = false) {
+        Q_UNUSED(isBold);
         QTableWidgetItem *item = new QTableWidgetItem(text);
         item->setTextAlignment(Qt::AlignCenter);
-        if (isBold) item->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
+        QFont font("Microsoft YaHei", 9);
+        item->setFont(font);
         prodTable->setItem(row, col, item);
     };
 
-    setItem(0, barcode);
-    setItem(1, name, true);
-    setItem(2, spec);
-    setItem(3, QString("￥%1").arg(price, 0, 'f', 2));
+    setItem(2, barcode);
+    setItem(3, name, true);
+    setItem(4, spec);
+    setItem(5, QString("￥%1").arg(price, 0, 'f', 2));
     
-    // 库存数值项
+    // 库存数值项 (第 6 列)
     QTableWidgetItem *stockItem = new QTableWidgetItem(QString::number(stock));
     stockItem->setTextAlignment(Qt::AlignCenter);
+    stockItem->setData(Qt::UserRole, minStock); // 存储预警阈值
     if (stock <= minStock) stockItem->setForeground(QColor("#f56c6c"));
-    prodTable->setItem(row, 4, stockItem);
+    prodTable->setItem(row, 6, stockItem);
 
-    // 状态标签
+    // 状态标签 (第 7 列)
     QWidget *tagContainer = new QWidget();
     QHBoxLayout *tagLayout = new QHBoxLayout(tagContainer);
     tagLayout->setContentsMargins(0, 0, 0, 0);
     tagLayout->setAlignment(Qt::AlignCenter);
     
     QLabel *tag = new QLabel();
-    QString baseStyle = "padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; ";
+    QString baseStyle = "padding: 2px 10px; border-radius: 10px; font-size: 11px; ";
     if (stock <= 0) {
         tag->setText("缺货");
         tag->setStyleSheet(baseStyle + "background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4;");
@@ -414,7 +724,39 @@ void ProductModule::addProductRow(const QString &barcode, const QString &name, c
         tag->setStyleSheet(baseStyle + "background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;");
     }
     tagLayout->addWidget(tag);
-    prodTable->setCellWidget(row, 5, tagContainer);
+    prodTable->setCellWidget(row, 7, tagContainer);
+
+    // 8. 操作列 (编辑与删除按钮)
+    QWidget *optContainer = new QWidget();
+    QHBoxLayout *optLayout = new QHBoxLayout(optContainer);
+    optLayout->setContentsMargins(0, 0, 0, 0);
+    optLayout->setSpacing(5);
+    optLayout->setAlignment(Qt::AlignCenter);
+
+    QPushButton *editBtn = new QPushButton("修改");
+    editBtn->setFixedSize(50, 26);
+    editBtn->setCursor(Qt::PointingHandCursor);
+    editBtn->setStyleSheet(
+        "QPushButton { background: #f0f7ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 3px; font-size: 11px; padding: 0; text-align: center; } "
+        "QPushButton:hover { background: #409eff; color: white; }"
+    );
+    connect(editBtn, &QPushButton::clicked, this, &ProductModule::onEditProduct);
+    
+    QPushButton *delBtn = new QPushButton("删除");
+    delBtn->setFixedSize(50, 26);
+    delBtn->setCursor(Qt::PointingHandCursor);
+    delBtn->setStyleSheet(
+        "QPushButton { background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 3px; font-size: 11px; padding: 0; text-align: center; } "
+        "QPushButton:hover { background: #f56c6c; color: white; }"
+    );
+    connect(delBtn, &QPushButton::clicked, this, &ProductModule::onDeleteProduct);
+
+    optLayout->addWidget(editBtn);
+    optLayout->addWidget(delBtn);
+    prodTable->setCellWidget(row, 8, optContainer);
+
+    // 同步刷新分页（仅当控件已初始化）
+    if (pageLabel) updatePagination();
 }
 
 void ProductModule::onStockIn() {
@@ -434,7 +776,7 @@ void ProductModule::onStockIn() {
         QHBoxLayout *rowLayout = new QHBoxLayout();
         QLabel *label = new QLabel(labelText);
         label->setFixedWidth(80);
-        label->setStyleSheet("color: #303133; font-weight: bold;");
+        label->setStyleSheet("color: #303133;");
         rowLayout->addWidget(label);
         rowLayout->addWidget(widget);
         formLayout->addLayout(rowLayout);
@@ -514,8 +856,6 @@ void ProductModule::onStockIn() {
         "   border: 1px solid #e4e7ed;"
         "   background-color: #ffffff;"
         "   border-radius: 4px;"
-        "   selection-background-color: #f5f7fa;"
-        "   selection-color: #409eff;"
         "   outline: none;"
         "}"
         "QComboBox QAbstractItemView::item {"
@@ -544,23 +884,72 @@ void ProductModule::onStockIn() {
     operatorCombo->addItem("李晓华 (1003)");
     operatorCombo->addItem("赵强 (1004)");
     
+    // 照片选择行
+    QString *selectedImgPath = new QString("E:/QT/work/PetManager/images/stores/default.png");
+    QWidget *photoPreviewArea = new QWidget();
+    QHBoxLayout *photoLayout = new QHBoxLayout(photoPreviewArea);
+    photoLayout->setContentsMargins(0, 0, 0, 0);
+    
+    QLabel *photoPreview = new QLabel();
+    photoPreview->setFixedSize(40, 40);
+    photoPreview->setStyleSheet("border: 1px solid #dcdfe6; border-radius: 4px; background: #f5f7fa;");
+    photoPreview->setPixmap(QPixmap(*selectedImgPath).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    
+    // 启用点击放大预览
+    photoPreview->setProperty("isProductImage", true);
+    photoPreview->setProperty("imgPath", *selectedImgPath);
+    photoPreview->installEventFilter(this);
+    photoPreview->setCursor(Qt::PointingHandCursor);
+    
+    QPushButton *chooseBtn = new QPushButton("选择照片...");
+    chooseBtn->setFixedWidth(100);
+    chooseBtn->setCursor(Qt::PointingHandCursor);
+    chooseBtn->setStyleSheet("QPushButton { background: #f5f7fa; color: #606266; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px; }");
+    
+    connect(chooseBtn, &QPushButton::clicked, [=]() {
+        QString path = QFileDialog::getOpenFileName(dialog, "选择商品照片", "E:/QT/work/PetManager/images/stores", "Images (*.png *.jpg *.jpeg)");
+        if (!path.isEmpty()) {
+            *selectedImgPath = path;
+            photoPreview->setPixmap(QPixmap(path).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            photoPreview->setProperty("imgPath", path); // 同步更新预览路径
+        }
+    });
+
+    photoLayout->addWidget(photoPreview);
+    photoLayout->addWidget(chooseBtn);
+    photoLayout->addStretch();
+    createFormRow("商品照片", photoPreviewArea);
+
+    // 预警数量行
+    QLineEdit *warningEdit = new QLineEdit();
+    warningEdit->setText("5");
+    warningEdit->setValidator(new QIntValidator(0, 9999, dialog));
+    warningEdit->setMinimumHeight(35);
+    warningEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; } "
+        "QLineEdit:focus { border-color: #409eff; }"
+    );
+    createFormRow("预警数量", warningEdit);
+
     createFormRow("操作员", operatorCombo);
 
     mainLayout->addLayout(formLayout);
 
     // 按钮区域
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    QPushButton *cancelBtn = new QPushButton("取消");
-    cancelBtn->setMinimumHeight(35);
+    QPushButton *cancelBtn = new QPushButton(QStringLiteral("取消"));
+    cancelBtn->setFixedSize(100, 36);
     cancelBtn->setStyleSheet(
-        "QPushButton { background: #f5f7fa; color: #606266; border-radius: 6px; border: 1px solid #dcdfe6; } "
+        "QPushButton { background: #f5f7fa; color: #606266; border-radius: 6px; border: 1px solid #dcdfe6; "
+        "font-size: 13px; font-family: 'Microsoft YaHei'; padding: 0; text-align: center; } "
         "QPushButton:hover { background: #e4e7ed; }"
     );
 
-    QPushButton *confirmBtn = new QPushButton("确认入库");
-    confirmBtn->setMinimumHeight(35);
+    QPushButton *confirmBtn = new QPushButton(QStringLiteral("确认入库"));
+    confirmBtn->setFixedSize(120, 36);
     confirmBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 6px; border: none; font-weight: bold; } "
+        "QPushButton { background: #409eff; color: #ffffff; border-radius: 6px; border: none; "
+        "font-size: 13px; font-family: 'Microsoft YaHei'; font-weight: bold; padding: 0; text-align: center; } "
         "QPushButton:hover { background: #66b1ff; }"
     );
 
@@ -569,6 +958,9 @@ void ProductModule::onStockIn() {
     btnLayout->addSpacing(10);
     btnLayout->addWidget(confirmBtn);
     mainLayout->addLayout(btnLayout);
+    
+    cancelBtn->update();
+    confirmBtn->update();
 
     // 连接信号
     connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
@@ -588,41 +980,46 @@ void ProductModule::onStockIn() {
         bool found = false;
         int targetRow = -1;
         for (int i = 0; i < prodTable->rowCount(); ++i) {
-            if (prodTable->item(i, 0)->text() == barcode) {
+            if (prodTable->item(i, 2)->text() == barcode) { // 条形码在索引 2
                 found = true;
                 targetRow = i;
                 break;
             }
         }
 
-        if (found && targetRow >= 0) {
-            // 更新现有商品库存
-            int currentStock = prodTable->item(targetRow, 4)->text().toInt();
-            int newStock = currentStock + quantity;
-            prodTable->item(targetRow, 4)->setText(QString::number(newStock));
+        int warningLimit = warningEdit->text().toInt();
 
-            // Update stock status
-            QWidget *tagContainer = prodTable->cellWidget(targetRow, 5);
+        if (found && targetRow >= 0) {
+            // 更新现有商品库存 (第 6 列)
+            QTableWidgetItem *sItem = prodTable->item(targetRow, 6);
+            int currentStock = sItem->text().toInt();
+            int newStock = currentStock + quantity;
+            sItem->setText(QString::number(newStock));
+
+            // 获取该商品的预警值属性
+            int currentMin = sItem->data(Qt::UserRole).toInt();
+
+            // Update stock status (第 7 列)
+            QWidget *tagContainer = prodTable->cellWidget(targetRow, 7); 
             if (tagContainer) {
                 QLabel *tag = tagContainer->findChild<QLabel*>();
                 if (tag) {
-                    QString baseStyle = "padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; ";
-                    // Assuming minStock is 10 for existing items for simplicity
+                    QString baseStyle = "padding: 2px 10px; border-radius: 10px; font-size: 11px; ";
                     if (newStock <= 0) {
-                        tag->setText("缺货");
+                        tag->setText(QStringLiteral("缺货"));
                         tag->setStyleSheet(baseStyle + "background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4;");
-                    } else if (newStock <= 10) { 
-                        tag->setText("库存告急");
-                        tag->setStyleSheet(baseStyle + "background: #fff7e6; color: #fa8c16; border: 1px solid #ffd5f1;");
+                    } else if (newStock <= currentMin) { 
+                        tag->setText(QStringLiteral("库存告急"));
+                        tag->setStyleSheet(baseStyle + "background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591;");
                     } else {
-                        tag->setText("充足");
+                        tag->setText(QStringLiteral("充足"));
                         tag->setStyleSheet(baseStyle + "background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;");
                     }
                 }
             }
         } else {
             // Add new product
-            addProductRow(barcode, name, "个", 0.00, quantity, 10);
+            addProductRow(barcode, name, QStringLiteral("个"), 0.00, quantity, warningLimit);
         }
 
         // Record stock-in history
@@ -655,45 +1052,32 @@ void ProductModule::updateStats() {
     double totalValue = 0;
 
     for (int i = 0; i < varieties; ++i) {
-        int stock = prodTable->item(i, 4)->text().toInt();
-        QString priceStr = prodTable->item(i, 3)->text().remove("￥");
-        double price = priceStr.toDouble();
+        // 列索引修正：5:单价, 6:库存
+        QTableWidgetItem *priceItem = prodTable->item(i, 5);
+        QTableWidgetItem *stockItem = prodTable->item(i, 6);
+        
+        if (!priceItem || !stockItem) continue;
+
+        int stock = stockItem->text().toInt();
+        double price = priceItem->text().remove(QStringLiteral("￥")).toDouble();
+        int minStock = stockItem->data(Qt::UserRole).toInt();
         
         totalValue += (price * stock);
 
-        QWidget *w = prodTable->cellWidget(i, 5);
-        if (w) {
-            QLabel *lbl = w->findChild<QLabel*>();
-            if (lbl && (lbl->text() == "缺货" || lbl->text() == "库存告急")) {
-                lowStock++;
-            }
+        // 使用属性判定的预警逻辑
+        if (stock <= minStock) {
+            lowStock++;
         }
     }
 
-    varietyLabel->setText(QString("%1种").arg(varieties));
-    lowStockLabel->setText(QString("%1项").arg(lowStock));
-    totalValueLabel->setText(QString("￥%1").arg(totalValue, 0, 'f', 2));
+    varietyLabel->setText(QStringLiteral("%1种").arg(varieties));
+    lowStockLabel->setText(QStringLiteral("%1项").arg(lowStock));
+    totalValueLabel->setText(QStringLiteral("￥%1").arg(totalValue, 0, 'f', 2));
 }
 
 void ProductModule::onFilterRecords() {
-    QDate start(sYearCombo->currentData().toInt(), sMonthCombo->currentData().toInt(), sDayCombo->currentData().toInt());
-    QDate end(eYearCombo->currentData().toInt(), eMonthCombo->currentData().toInt(), eDayCombo->currentData().toInt());
-    QString kw = recordSearch->text().trimmed().toLower();
-
-    recordTable->setRowCount(0);
-    for (const auto &record : m_records) {
-        QDate recordDate = QDateTime::fromString(record.dateTime, "yyyy-MM-dd HH:mm:ss").date();
-        
-        bool dateMatch = (recordDate >= start && recordDate <= end);
-        bool kwMatch = kw.isEmpty() || 
-                       record.productName.toLower().contains(kw) || 
-                       record.barcode.toLower().contains(kw) || 
-                       record.supplier.toLower().contains(kw);
-
-        if (dateMatch && kwMatch) {
-            addRecordRow(record);
-        }
-    }
+    m_recCurrentPage = 1;
+    updateRecordPagination();
 }
 
 void ProductModule::onResetRecords() {
@@ -705,7 +1089,7 @@ void ProductModule::onResetRecords() {
     eMonthCombo->blockSignals(true);
 
     recordSearch->clear();
-    QDate startInitial = QDate::currentDate().addDays(-30);
+    QDate startInitial(2026, 1, 1);
     sYearCombo->setCurrentText(QString::number(startInitial.year()) + "年");
     sMonthCombo->setCurrentIndex(startInitial.month() - 1);
     updateDays(sYearCombo, sMonthCombo, sDayCombo);
@@ -725,4 +1109,404 @@ void ProductModule::onResetRecords() {
 
     // 重新统一过滤
     onFilterRecords();
+}
+
+void ProductModule::onPreviewImage()
+{
+    // 该槽函数目前主要通过 eventFilter 触发内部逻辑
+}
+
+void ProductModule::onEditProduct()
+{
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+    
+    QPoint pos = btn->mapTo(prodTable->viewport(), QPoint(0,0));
+    int row = prodTable->rowAt(pos.y());
+    if (row < 0) return;
+
+    QString barcode = prodTable->item(row, 2)->text(); // 偏移到第 2 列
+    QString name = prodTable->item(row, 3)->text(); // 偏移到第 3 列
+    
+    QDialog *dialog = new QDialog(this);
+    dialog->setWindowTitle("修改商品详情");
+    dialog->setMinimumWidth(400);
+    dialog->setStyleSheet("QDialog { background: white; border-radius: 8px; }");
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(dialog);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(15);
+
+    QVBoxLayout *formLayout = new QVBoxLayout();
+    auto createFormRow = [&](const QString &labelText, QWidget *widget) {
+        QHBoxLayout *rowLayout = new QHBoxLayout();
+        QLabel *label = new QLabel(labelText);
+        label->setFixedWidth(80);
+        label->setStyleSheet("color: #303133; font-weight: bold;");
+        rowLayout->addWidget(label);
+        rowLayout->addWidget(widget);
+        formLayout->addLayout(rowLayout);
+    };
+
+    QLineEdit *barcodeEdit = new QLineEdit(barcode);
+    barcodeEdit->setMinimumHeight(35);
+    barcodeEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: #f5f7fa; }");
+    barcodeEdit->setReadOnly(true);
+    createFormRow("条形码", barcodeEdit);
+
+    QLineEdit *nameEdit = new QLineEdit(name);
+    nameEdit->setMinimumHeight(35);
+    nameEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; }");
+    createFormRow("商品名称", nameEdit);
+
+    QLineEdit *specEdit = new QLineEdit(prodTable->item(row, 4)->text());
+    specEdit->setMinimumHeight(35);
+    specEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; }");
+    createFormRow("规格单位", specEdit);
+
+    QLineEdit *priceEdit = new QLineEdit(prodTable->item(row, 5)->text().remove(QStringLiteral("￥")));
+    priceEdit->setMinimumHeight(35);
+    priceEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; }");
+    createFormRow("销售单价", priceEdit);
+
+    // 获取现有预警值 (库存数值列为 6)
+    int currentMinStock = prodTable->item(row, 6)->data(Qt::UserRole).toInt();
+    if (currentMinStock <= 0) currentMinStock = 5; // 兜底默认值
+
+    // 照片选择行 (编辑模式) (照片预览列为 1)
+    QString currentPath = "E:/QT/work/PetManager/images/stores/default.png";
+    QWidget *imgCell = prodTable->cellWidget(row, 1);
+    if (imgCell) {
+        QLabel *lbl = imgCell->findChild<QLabel*>();
+        if (lbl && lbl->property("imgPath").isValid()) {
+            currentPath = lbl->property("imgPath").toString();
+        }
+    }
+    
+    QString *newImgPath = new QString(currentPath);
+    QWidget *photoArea = new QWidget();
+    QHBoxLayout *pLayout = new QHBoxLayout(photoArea);
+    pLayout->setContentsMargins(0, 0, 0, 0);
+    
+    QLabel *pPreview = new QLabel();
+    pPreview->setFixedSize(40, 40);
+    pPreview->setStyleSheet("border: 1px solid #dcdfe6; border-radius: 4px;");
+    pPreview->setPixmap(QPixmap(*newImgPath).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    
+    // 启用点击放大预览
+    pPreview->setProperty("isProductImage", true);
+    pPreview->setProperty("imgPath", *newImgPath);
+    pPreview->installEventFilter(this);
+    pPreview->setCursor(Qt::PointingHandCursor);
+    
+    QPushButton *pChooseBtn = new QPushButton("更换照片...");
+    pChooseBtn->setFixedWidth(100);
+    pChooseBtn->setCursor(Qt::PointingHandCursor);
+    pChooseBtn->setStyleSheet("QPushButton { background: #f5f7fa; color: #606266; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px; }");
+    
+    connect(pChooseBtn, &QPushButton::clicked, [=]() {
+        QString path = QFileDialog::getOpenFileName(dialog, "选择商品照片", "E:/QT/work/PetManager/images/stores", "Images (*.png *.jpg *.jpeg)");
+        if (!path.isEmpty()) {
+            *newImgPath = path;
+            pPreview->setPixmap(QPixmap(path).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            pPreview->setProperty("imgPath", path); // 同步更新预览路径
+        }
+    });
+
+    pLayout->addWidget(pPreview);
+    pLayout->addWidget(pChooseBtn);
+    pLayout->addStretch();
+    // 预警数量行 (编辑)
+    QLineEdit *warningEdit = new QLineEdit(QString::number(currentMinStock));
+    warningEdit->setValidator(new QIntValidator(0, 9999, dialog));
+    warningEdit->setMinimumHeight(35);
+    warningEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; }");
+    createFormRow("预警数量", warningEdit);
+
+    createFormRow("商品照片", photoArea);
+
+    mainLayout->addLayout(formLayout);
+
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    QPushButton *cancelBtn = new QPushButton(QStringLiteral("取消"));
+    cancelBtn->setFixedSize(100, 36);
+    cancelBtn->setStyleSheet(
+        "QPushButton { background: #f5f7fa; color: #606266; border-radius: 6px; border: 1px solid #dcdfe6; "
+        "font-size: 13px; font-family: 'Microsoft YaHei'; padding: 0; text-align: center; }"
+    );
+    
+    QPushButton *saveBtn = new QPushButton(QStringLiteral("保存修改"));
+    saveBtn->setFixedSize(120, 36);
+    saveBtn->setStyleSheet(
+        "QPushButton { background: #409eff; color: #ffffff; border-radius: 6px; border: none; "
+        "font-size: 13px; font-family: 'Microsoft YaHei'; font-weight: bold; padding: 0; text-align: center; }"
+    );
+    
+    btnLayout->addStretch();
+    btnLayout->addWidget(cancelBtn);
+    btnLayout->addSpacing(10);
+    btnLayout->addWidget(saveBtn);
+    mainLayout->addLayout(btnLayout);
+    
+    cancelBtn->update();
+    saveBtn->update();
+
+    connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
+    connect(saveBtn, &QPushButton::clicked, [=](){
+        prodTable->item(row, 3)->setText(nameEdit->text());
+        prodTable->item(row, 4)->setText(specEdit->text());
+        prodTable->item(row, 5)->setText(QStringLiteral("￥") + priceEdit->text());
+        
+        // 更新预警数量属性 (第 6 列)
+        int newMin = warningEdit->text().toInt();
+        QTableWidgetItem *stockItem = prodTable->item(row, 6);
+        stockItem->setData(Qt::UserRole, newMin);
+        
+        // 重新判定状态标签颜色与文字 (第 7 列)
+        int currentStock = stockItem->text().toInt();
+        QWidget *tagCell = prodTable->cellWidget(row, 7);
+        if (tagCell) {
+            QLabel *tag = tagCell->findChild<QLabel*>();
+            if (tag) {
+                QString baseStyle = "padding: 2px 10px; border-radius: 10px; font-size: 11px; ";
+                if (currentStock <= 0) {
+                    tag->setText(QStringLiteral("缺货"));
+                    tag->setStyleSheet(baseStyle + "background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4;");
+                } else if (currentStock <= newMin) {
+                    tag->setText(QStringLiteral("库存告急"));
+                    tag->setStyleSheet(baseStyle + "background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591;");
+                } else {
+                    tag->setText(QStringLiteral("充足"));
+                    tag->setStyleSheet(baseStyle + "background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;");
+                }
+            }
+        }
+
+        // 更新图片列 (第 1 列)
+        QWidget *cellW = prodTable->cellWidget(row, 1);
+        if (cellW) {
+            QLabel *l = cellW->findChild<QLabel*>();
+            if (l) {
+                l->setProperty("imgPath", *newImgPath);
+                l->setPixmap(QPixmap(*newImgPath).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            }
+        }
+        
+        updateStats(); // 实时统计
+        dialog->accept();
+    });
+
+    dialog->exec();
+}
+
+
+void ProductModule::onPrevPage()
+{
+    if (m_currentPage > 1) {
+        m_currentPage--;
+        updatePagination();
+    }
+}
+
+void ProductModule::onRecPrevPage()
+{
+    if (m_recCurrentPage > 1) {
+        m_recCurrentPage--;
+        updateRecordPagination();
+    }
+}
+
+void ProductModule::onNextPage()
+{
+    int total = prodTable->rowCount();
+    QString kw = searchEdit->text().trimmed().toLower();
+    int visibleCount = 0;
+    for (int i = 0; i < total; ++i) {
+        bool match = false;
+        if (kw.isEmpty()) match = true;
+        else {
+            for (int col : {2, 3, 4}) { // 条码、名称、规格偏移
+                QTableWidgetItem *item = prodTable->item(i, col);
+                if (item && item->text().toLower().contains(kw)) { match = true; break; }
+            }
+        }
+        if (match) visibleCount++;
+    }
+    int totalPages = qMax(1, (visibleCount + m_pageSize - 1) / m_pageSize);
+    if (m_currentPage < totalPages) {
+        m_currentPage++;
+        updatePagination();
+    }
+}
+
+void ProductModule::onRecNextPage()
+{
+    // 获取当前过滤后的总数
+    QDate start(sYearCombo->currentData().toInt(), sMonthCombo->currentData().toInt(), sDayCombo->currentData().toInt());
+    QDate end(eYearCombo->currentData().toInt(), eMonthCombo->currentData().toInt(), eDayCombo->currentData().toInt());
+    QString kw = recordSearch->text().trimmed().toLower();
+
+    int visibleCount = 0;
+    for (const auto &record : m_records) {
+        QDate rd = QDateTime::fromString(record.dateTime, "yyyy-MM-dd HH:mm:ss").date();
+        if (rd >= start && rd <= end) {
+            if (kw.isEmpty() || record.productName.contains(kw) || record.barcode.contains(kw) || record.supplier.contains(kw)) {
+                visibleCount++;
+            }
+        }
+    }
+
+    int totalPages = qMax(1, (visibleCount + m_recPageSize - 1) / m_recPageSize);
+    if (m_recCurrentPage < totalPages) {
+        m_recCurrentPage++;
+        updateRecordPagination();
+    }
+}
+
+void ProductModule::onJumpPage()
+{
+    int page = jumpEdit->text().toInt();
+    if (page < 1) return;
+    m_currentPage = page;
+    updatePagination();
+    jumpEdit->clear();
+    jumpEdit->clearFocus();
+}
+
+void ProductModule::onRecJumpPage()
+{
+    int page = recJumpEdit->text().toInt();
+    if (page < 1) return;
+    m_recCurrentPage = page;
+    updateRecordPagination();
+    recJumpEdit->clear();
+    recJumpEdit->clearFocus();
+}
+
+void ProductModule::onSearchChanged(const QString &)
+{
+    m_currentPage = 1;
+    updatePagination();
+}
+
+void ProductModule::updatePagination()
+{
+    int total = prodTable->rowCount();
+    QString kw = searchEdit->text().trimmed().toLower();
+    
+    QList<int> visibleRows;
+    for (int i = 0; i < total; ++i) {
+        bool match = false;
+        if (kw.isEmpty()) {
+            match = true;
+        } else {
+            for (int col : {2, 3, 4}) { // 搜索列偏移
+                QTableWidgetItem *item = prodTable->item(i, col);
+                if (item && item->text().toLower().contains(kw)) {
+                    match = true;
+                    break;
+                }
+            }
+        }
+        if (match) visibleRows.append(i);
+        prodTable->setRowHidden(i, true);
+    }
+
+    int totalVisible = visibleRows.size();
+    int totalPages = qMax(1, (totalVisible + m_pageSize - 1) / m_pageSize);
+    
+    if (jumpValidator) jumpValidator->setTop(totalPages);
+    if (m_currentPage > totalPages) m_currentPage = totalPages;
+    if (m_currentPage < 1) m_currentPage = 1;
+
+    int start = (m_currentPage - 1) * m_pageSize;
+    int end = qMin(start + m_pageSize, totalVisible);
+
+    for (int i = start; i < end; ++i) {
+        prodTable->setRowHidden(visibleRows[i], false);
+    }
+
+    pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
+    prevBtn->setEnabled(m_currentPage > 1);
+    nextBtn->setEnabled(m_currentPage < totalPages);
+
+    if (totalVisible == 0) {
+        prevBtn->setEnabled(false);
+        nextBtn->setEnabled(false);
+        pageLabel->setText("第 0 页 / 共 0 页");
+    }
+}
+
+void ProductModule::updateRecordPagination() {
+    QDate start(sYearCombo->currentData().toInt(), sMonthCombo->currentData().toInt(), sDayCombo->currentData().toInt());
+    QDate end(eYearCombo->currentData().toInt(), eMonthCombo->currentData().toInt(), eDayCombo->currentData().toInt());
+    QString kw = recordSearch->text().trimmed().toLower();
+
+    QList<StockInRecord> visibleRecords;
+    for (const auto &record : m_records) {
+        QDate rd = QDateTime::fromString(record.dateTime, "yyyy-MM-dd HH:mm:ss").date();
+        if (rd >= start && rd <= end) {
+            if (kw.isEmpty() || record.productName.toLower().contains(kw) || 
+                record.barcode.toLower().contains(kw) || record.supplier.toLower().contains(kw)) {
+                visibleRecords.append(record);
+            }
+        }
+    }
+
+    int totalVisible = visibleRecords.size();
+    int totalPages = qMax(1, (totalVisible + m_recPageSize - 1) / m_recPageSize);
+
+    if (m_recCurrentPage > totalPages) m_recCurrentPage = totalPages;
+    if (m_recCurrentPage < 1) m_recCurrentPage = 1;
+    if (recJumpValidator) recJumpValidator->setTop(totalPages);
+
+    int startIdx = (m_recCurrentPage - 1) * m_recPageSize;
+    int endIdx = qMin(startIdx + m_recPageSize, totalVisible);
+
+    recordTable->setRowCount(0);
+    for (int i = startIdx; i < endIdx; ++i) {
+        addRecordRow(visibleRecords[i]);
+    }
+
+    recPageLabel->setText(QStringLiteral("第 %1 页 / 共 %2 页").arg(m_recCurrentPage).arg(totalPages));
+    recPrevBtn->setEnabled(m_recCurrentPage > 1);
+    recNextBtn->setEnabled(m_recCurrentPage < totalPages);
+
+    if (totalVisible == 0) {
+        recPrevBtn->setEnabled(false);
+        recNextBtn->setEnabled(false);
+        recPageLabel->setText(QStringLiteral("第 0 页 / 共 0 页"));
+    }
+}
+
+void ProductModule::onDeleteProduct() {
+    QMessageBox::information(this, "业务提醒", "【删除商品】\n如果该商品已有出入库业务流水，为了保障经营数据完整性，系统强烈建议将其标记为“已下架”而非硬删除。");
+}
+
+void ProductModule::onBatchDelete()
+{
+    QList<int> checkedRows;
+    for (int i = prodTable->rowCount() - 1; i >= 0; --i) {
+        QWidget *w = prodTable->cellWidget(i, 0); // 勾选列在第 0 列
+        if (w) {
+            QCheckBox *cb = w->findChild<QCheckBox*>();
+            if (cb && cb->isChecked()) {
+                checkedRows.append(i);
+            }
+        }
+    }
+    
+    if (checkedRows.isEmpty()) {
+        QMessageBox::warning(this, "批量操作", "请先勾选需要删除的商品记录。");
+        return;
+    }
+
+    if (QMessageBox::question(this, "批量删除", QString("确定要删除选中的 %1 个商品档案吗？此操作不可撤销。").arg(checkedRows.size()),
+                               QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+        for (int row : checkedRows) {
+            prodTable->removeRow(row);
+        }
+        updateStats();
+        updatePagination();
+    }
 }

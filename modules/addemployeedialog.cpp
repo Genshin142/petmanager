@@ -5,6 +5,10 @@
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
 #include <QFrame>
+#include <QFileDialog>
+#include <QEvent>
+#include <QVariant>
+#include <QFile>
 
 AddEmployeeDialog::AddEmployeeDialog(QWidget *parent) : QDialog(parent)
 {
@@ -46,7 +50,7 @@ void AddEmployeeDialog::setupUI()
 
     // 3. 标题
     titleLabel = new QLabel("录入新员工入职档案");
-    titleLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #303133;");
+    titleLabel->setStyleSheet("font-size: 18px; color: #303133;");
     mainLayout->addWidget(titleLabel);
 
     // 4. 表单区域 - 使用网格布局
@@ -115,6 +119,40 @@ void AddEmployeeDialog::setupUI()
     salarySpin->setSuffix(" 元");
     formLayout->addWidget(salarySpin, 6, 1);
 
+    // 第八行：员工照片
+    addLabel("员工照片:", 7, 0);
+    QHBoxLayout *photoLayout = new QHBoxLayout();
+    photoLayout->setContentsMargins(0, 0, 0, 0);
+    photoLayout->setSpacing(10);
+    
+    avatarPreview = new QLabel();
+    avatarPreview->setFixedSize(40, 40);
+    avatarPreview->setStyleSheet("border: 1px solid #dcdfe6; border-radius: 4px; background: #f5f7fa;");
+    avatarPreview->setPixmap(QPixmap(":/images/male.png").scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    avatarPreview->setProperty("imgPath", ":/images/male.png");
+    m_selectedImgPath = ":/images/male.png"; // 初始状态
+    avatarPreview->setCursor(Qt::PointingHandCursor);
+    avatarPreview->installEventFilter(this);
+
+    QPushButton *chooseBtn = new QPushButton("选择照片...");
+    chooseBtn->setFixedWidth(100);
+    chooseBtn->setCursor(Qt::PointingHandCursor);
+    chooseBtn->setStyleSheet("QPushButton { background: #f5f7fa; color: #606266; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px; min-height: 25px; } QPushButton:hover { border-color: #409eff; color: #409eff; }");
+    
+    connect(chooseBtn, &QPushButton::clicked, this, [this]() {
+        QString path = QFileDialog::getOpenFileName(this, "选择员工照片", "E:/QT/work/PetManager/images", "Images (*.png *.jpg *.jpeg)");
+        if (!path.isEmpty()) {
+            m_selectedImgPath = path;
+            avatarPreview->setPixmap(QPixmap(path).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            avatarPreview->setProperty("imgPath", path);
+        }
+    });
+
+    photoLayout->addWidget(avatarPreview);
+    photoLayout->addWidget(chooseBtn);
+    photoLayout->addStretch();
+    formLayout->addLayout(photoLayout, 7, 1, 1, 3);
+
     mainLayout->addLayout(formLayout);
     mainLayout->addStretch();
 
@@ -136,16 +174,18 @@ void AddEmployeeDialog::setupUI()
                          "QComboBox:focus { border-color: #409eff; background: white; } "
                          "QComboBox::drop-down { border: none; width: 24px; } "
                          "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; }";
-    QString btnStyle = "QPushButton { background: #409eff; color: white; border-radius: 4px; border: none; font-weight: bold; height: 32px; padding: 0 20px; } "
+    QString btnStyle = "QPushButton { background: #409eff; color: white; border-radius: 4px; border: none; height: 32px; padding: 0 20px; } "
                        "QPushButton:hover { background: #66b1ff; }";
     QString cancelBtnStyle = "QPushButton { background: white; color: #606266; border-radius: 4px; border: 1px solid #dcdfe6; height: 32px; padding: 0 20px; } "
                              "QPushButton:hover { border-color: #409eff; color: #409eff; }";
 
     nameEdit->setStyleSheet(inputStyle);
     roleCombo->setStyleSheet(comboStyle);
+
+    saveBtn = new QPushButton("保存并入档");
     saveBtn->setMinimumSize(140, 36);
     saveBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 4px; border: none; font-size: 13px; font-weight: bold; padding: 0 15px; } "
+        "QPushButton { background: #409eff; color: white; border-radius: 4px; border: none; font-size: 13px; padding: 0 15px; } "
         "QPushButton:hover { background: #66b1ff; } "
         "QPushButton:pressed { background: #3a8ee6; } "
     );
@@ -173,6 +213,10 @@ void AddEmployeeDialog::setupUI()
         "QComboBox::drop-down { "
         "   border: none; width: 25px; "
         "} "
+        "QComboBox::down-arrow { "
+        "   image: url(:/images/chevron-down.svg); "
+        "   width: 12px; height: 12px; "
+        "} "
         "QSpinBox::up-button, QSpinBox::down-button { border: none; background: transparent; } ";
     setStyleSheet(style);
 }
@@ -190,6 +234,14 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
     idCardEdit->setText(info.idCard);
     salarySpin->setValue(info.baseSalary);
     statusCombo->setCurrentText(info.status);
+    
+    // 头像同步
+    m_selectedImgPath = info.imgPath;
+    if (m_selectedImgPath.isEmpty() || !QFile(m_selectedImgPath).exists()) {
+        m_selectedImgPath = info.gender == "女" ? ":/images/female.png" : ":/images/male.png";
+    }
+    avatarPreview->setPixmap(QPixmap(m_selectedImgPath).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    avatarPreview->setProperty("imgPath", m_selectedImgPath);
 }
 
 EmployeeInfo AddEmployeeDialog::employeeInfo() const
@@ -205,6 +257,7 @@ EmployeeInfo AddEmployeeDialog::employeeInfo() const
     info.idCard = idCardEdit->text();
     info.baseSalary = salarySpin->value();
     info.status = statusCombo->currentText();
+    info.imgPath = m_selectedImgPath;
     return info;
 }
 
@@ -234,4 +287,60 @@ void AddEmployeeDialog::mouseMoveEvent(QMouseEvent *event)
         move(event->globalPosition().toPoint() - dragPosition);
         event->accept();
     }
+}
+
+bool AddEmployeeDialog::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::MouseButtonPress) {
+        QLabel *label = qobject_cast<QLabel*>(watched);
+        if (label && label->property("imgPath").isValid()) {
+            QString path = label->property("imgPath").toString();
+            
+            QWidget *mainWin = this->window();
+            QDialog *preview = new QDialog(mainWin, Qt::FramelessWindowHint);
+            
+            preview->setGeometry(mainWin->geometry());
+            preview->setAttribute(Qt::WA_TranslucentBackground);
+            
+            QVBoxLayout *layout = new QVBoxLayout(preview);
+            layout->setContentsMargins(0, 0, 0, 0);
+            
+            QFrame *bg = new QFrame();
+            bg->setStyleSheet("background-color: rgba(0, 0, 0, 235);");
+            layout->addWidget(bg);
+            
+            QVBoxLayout *bgLayout = new QVBoxLayout(bg);
+            bgLayout->setContentsMargins(0, 0, 0, 0);
+            bgLayout->setAlignment(Qt::AlignCenter);
+            
+            QLabel *imgLabel = new QLabel();
+            QPixmap pix(path);
+            if (!pix.isNull()) {
+                imgLabel->setPixmap(pix.scaled(400, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            }
+            imgLabel->setStyleSheet("border: none; background: white; border-radius: 10px; padding: 20px;");
+            imgLabel->setAlignment(Qt::AlignCenter);
+            bgLayout->addWidget(imgLabel);
+            
+            bg->installEventFilter(this);
+            bg->setProperty("isPreviewBg", true);
+            bg->setProperty("previewDlg", QVariant::fromValue((void*)preview));
+            bg->setCursor(Qt::PointingHandCursor);
+            
+            preview->raise();
+            connect(preview, &QDialog::finished, preview, &QDialog::deleteLater);
+            preview->show();
+            return true;
+        }
+        
+        if (watched->property("isPreviewBg").toBool()) {
+            void* ptr = watched->property("previewDlg").value<void*>();
+            if (ptr) {
+                QDialog *dlg = static_cast<QDialog*>(ptr);
+                dlg->close();
+                return true;
+            }
+        }
+    }
+    return QDialog::eventFilter(watched, event);
 }

@@ -12,6 +12,7 @@ LoginWindow::LoginWindow(QWidget *parent)
     , ui(new Ui::LoginWindow)
 {
     ui->setupUi(this);
+    setFixedSize(500, 550); // 固定登录窗口的大小，防止形变
     setWindowFlags(Qt::FramelessWindowHint); // 无边框窗口更具现代感
     setAttribute(Qt::WA_TranslucentBackground);// 设置窗口背景透明，配合阴影效果更美观
     //可移动窗口

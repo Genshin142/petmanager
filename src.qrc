@@ -4,5 +4,7 @@
         <file>images/chevron-down.svg</file>
         <file>images/search.svg</file>
         <file>images/arrow_down.png</file>
+        <file>images/male.png</file>
+        <file>images/female.png</file>
     </qresource>
 </RCC>

@@ -66,7 +66,7 @@ void AddAppointmentDialog::setupUI() {
     mainLayout->setSpacing(5);
 
     titleLabel = new QLabel("新增预约服务", this);
-    titleLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #303133; margin-bottom: 10px;");
+    titleLabel->setStyleSheet("font-size: 18px; color: #303133; margin-bottom: 10px;");
     mainLayout->addWidget(titleLabel);
 
     // 会员信息录入

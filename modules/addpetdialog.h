@@ -2,19 +2,16 @@
 #define ADDPETDIALOG_H
 
 #include <QDialog>
-#include <QString>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QLabel>
+#include <QPushButton>
+#include <QMap>
+#include "../common_types.h"
 
 namespace Ui {
 class AddPetDialog;
 }
-
-struct PetInfo {
-    QString name;
-    QString breed;
-    QString history;
-    QString vaccine;
-    QString id; // 自动生成或手动输入
-};
 
 class AddPetDialog : public QDialog
 {
@@ -24,17 +21,41 @@ public:
     explicit AddPetDialog(QWidget *parent = nullptr);
     ~AddPetDialog();
 
+    void setPetInfo(const PetInfo &info);
     PetInfo getPetInfo() const;
 
 private slots:
     void onSaveClicked();
     void onSpeciesChanged(const QString &species);
+    void onSelectImageClicked();
+    void showBigImage();
+    void hideBigImage();
 
 private:
     void setupUI();
     void initBreedData();
     Ui::AddPetDialog *ui;
     QMap<QString, QStringList> m_breedData;
+    
+    QComboBox *genderCombo;
+    QComboBox *healthCombo;
+    QLineEdit *ageYearEdit;
+    QComboBox *ageMonthCombo;
+    QComboBox *statusCombo;
+    QLineEdit *joinTimeEdit;
+    QLineEdit *ownerIdEdit;
+    QLineEdit *ownerNameEdit;
+
+    QLabel *avatarLabel;
+    QPushButton *selectImageBtn;
+    QString m_avatarPath;
+
+    // 大图预览交互
+    QWidget *m_imagePreviewOverlay;
+    QLabel *m_previewLabel;
+
+    void setupBigImageOverlay();
+    bool eventFilter(QObject *obj, QEvent *event) override;
 };
 
 #endif // ADDPETDIALOG_H

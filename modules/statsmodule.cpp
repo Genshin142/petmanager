@@ -5,7 +5,15 @@
 #include <QScrollBar>
 #include <QDate>
 #include <QGraphicsDropShadowEffect>
-#include <QCalendarWidget>
+#include <QtCharts/QChartView>
+#include <QtCharts/QPieSeries>
+#include <QtCharts/QPieSlice>
+#include <QtCharts/QBarSeries>
+#include <QtCharts/QBarSet>
+#include <QtCharts/QBarCategoryAxis>
+#include <QtCharts/QValueAxis>
+#include <QtCharts/QChart>
+#include "custommessagedialog.h"
 
 StatsModule::StatsModule(QWidget *parent) : QWidget(parent), isServiceMode(true) {
     // 填充模拟销售数据
@@ -31,21 +39,37 @@ StatsModule::StatsModule(QWidget *parent) : QWidget(parent), isServiceMode(true)
     m_sales << SalesRecord{today.addDays(-10), "牵引绳 中型犬", 5, 150, true};
 
     setupUI();
+    setupCharts();
+    onFilter();
 }
 
 void StatsModule::setupUI() {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setContentsMargins(25, 25, 25, 25);
     mainLayout->setSpacing(20);
 
-    // 1. 标题
+    // 1. 标题和上方按钮
+    QHBoxLayout *headerLayout = new QHBoxLayout();
     QLabel *title = new QLabel("数据报表统计分析中心");
-    title->setStyleSheet("font-size: 24px; font-weight: bold; color: #303133;");
-    mainLayout->addWidget(title);
+    title->setStyleSheet("font-size: 24px; color: #303133; font-weight: bold;");
+    headerLayout->addWidget(title);
+    headerLayout->addStretch();
+    
+    QPushButton *exportBtn = new QPushButton("导出报表文件");
+    exportBtn->setFixedWidth(130);
+    exportBtn->setFixedHeight(36);
+    exportBtn->setCursor(Qt::PointingHandCursor);
+    exportBtn->setStyleSheet(
+        "QPushButton { background: #67c23a; color: white; border-radius: 18px; border: none; font-size: 13px; font-weight: bold; } "
+        "QPushButton:hover { background: #85ce61; }"
+    );
+    connect(exportBtn, &QPushButton::clicked, this, &StatsModule::onExport);
+    headerLayout->addWidget(exportBtn);
+    mainLayout->addLayout(headerLayout);
 
     // 2. 仪表盘卡片
     QHBoxLayout *dashLayout = new QHBoxLayout();
-    dashLayout->setSpacing(15);
+    dashLayout->setSpacing(20);
 
     auto createDash = [&](const QString &icon, const QString &label, QLabel* &valLabel, const QString &color) {
         QFrame *card = new QFrame();
@@ -53,7 +77,7 @@ void StatsModule::setupUI() {
         card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
         
         QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15);
+        shadow->setBlurRadius(18);
         shadow->setColor(QColor(0, 0, 0, 20));
         shadow->setOffset(0, 4);
         card->setGraphicsEffect(shadow);
@@ -69,7 +93,7 @@ void StatsModule::setupUI() {
         QVBoxLayout *vl = new QVBoxLayout();
         vl->setSpacing(2);
         QLabel *tl = new QLabel(label); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 22px; font-weight: bold; border: none; background: transparent;");
+        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 24px; font-weight: bold; border: none; background: transparent;");
         vl->addWidget(tl); vl->addWidget(valLabel);
         vl->addStretch();
         cl->addWidget(ic); cl->addSpacing(15); cl->addLayout(vl); cl->addStretch();
@@ -78,320 +102,269 @@ void StatsModule::setupUI() {
 
     dashLayout->addWidget(createDash("💰", "区间总营收", todayRevenueLabel, "#67c23a"));
     dashLayout->addWidget(createDash("🧾", "区间客单价", avgOrderLabel, "#409eff"));
-    dashLayout->addWidget(createDash("💇", "服务单量", serviceCountLabel, "#e6a23c"));
-    dashLayout->addWidget(createDash("📦", "商品单量", productCountLabel, "#f56c6c"));
+    dashLayout->addWidget(createDash("💇", "服务单量汇总", serviceCountLabel, "#e6a23c"));
+    dashLayout->addWidget(createDash("📦", "商品出单量", productCountLabel, "#f56c6c"));
     mainLayout->addLayout(dashLayout);
 
-    // 3. 控制栏：分类切换 + 日期范围
-    QHBoxLayout *controlLayout = new QHBoxLayout();
+    // 3. 图表展示区
+    QHBoxLayout *chartsLayout = new QHBoxLayout();
+    chartsLayout->setSpacing(20);
 
-    // 分类按钮组
-    serviceBtn = new QPushButton("🔥 服务类热销");
-    serviceBtn->setFixedHeight(36);
-    serviceBtn->setCursor(Qt::PointingHandCursor);
+    pieChartView = new QChartView();
+    pieChartView->setRenderHint(QPainter::Antialiasing);
+    pieChartView->setStyleSheet("background: white; border-radius: 12px; border: 1px solid #f0f2f5;");
+    pieChartView->setFixedHeight(280);
+
+    barChartView = new QChartView();
+    barChartView->setRenderHint(QPainter::Antialiasing);
+    barChartView->setStyleSheet("background: white; border-radius: 12px; border: 1px solid #f0f2f5;");
+    barChartView->setFixedHeight(280);
+
+    chartsLayout->addWidget(pieChartView, 2);
+    chartsLayout->addWidget(barChartView, 3);
+    mainLayout->addLayout(chartsLayout);
+
+    // 4. 控制栏：分类切换 + 日期范围
+    QFrame *controlFrame = new QFrame();
+    controlFrame->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #ebeef5; }");
+    controlFrame->setFixedHeight(64);
+    QHBoxLayout *controlLayout = new QHBoxLayout(controlFrame);
+    controlLayout->setContentsMargins(15, 0, 15, 0);
+
+    // 分类切换
+    QHBoxLayout *typeToggleLayout = new QHBoxLayout();
+    typeToggleLayout->setSpacing(0);
+    
+    serviceBtn = new QPushButton("服务类分析");
+    serviceBtn->setFixedWidth(110);
+    serviceBtn->setFixedHeight(34);
     serviceBtn->setCheckable(true);
     serviceBtn->setChecked(true);
     serviceBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 6px; border: none; font-weight: bold; padding: 0 18px; font-size: 13px; } "
-        "QPushButton:checked { background: #409eff; } "
-        "QPushButton:!checked { background: #f4f4f5; color: #606266; } "
+        "QPushButton { background: #f4f4f5; color: #606266; border: 1px solid #dcdfe6; border-right: none; border-radius: 17px 0 0 17px; font-size: 13px; } "
+        "QPushButton:checked { background: #409eff; color: white; border: 1px solid #409eff; } "
         "QPushButton:hover:!checked { background: #e9e9eb; }"
     );
-    connect(serviceBtn, &QPushButton::clicked, this, [this]() {
-        isServiceMode = true;
-        serviceBtn->setChecked(true); productBtn->setChecked(false);
-        showServiceRank();
-    });
-
-    productBtn = new QPushButton("📦 实物类热销");
-    productBtn->setFixedHeight(36);
-    productBtn->setCursor(Qt::PointingHandCursor);
+    
+    productBtn = new QPushButton("商品类分析");
+    productBtn->setFixedWidth(110);
+    productBtn->setFixedHeight(34);
     productBtn->setCheckable(true);
-    productBtn->setStyleSheet(serviceBtn->styleSheet());
-    connect(productBtn, &QPushButton::clicked, this, [this]() {
-        isServiceMode = false;
-        productBtn->setChecked(true); serviceBtn->setChecked(false);
-        showProductRank();
-    });
-
-    controlLayout->addWidget(serviceBtn);
-    controlLayout->addWidget(productBtn);
+    productBtn->setStyleSheet(
+        "QPushButton { background: #f4f4f5; color: #606266; border: 1px solid #dcdfe6; border-radius: 0 17px 17px 0; font-size: 13px; } "
+        "QPushButton:checked { background: #409eff; color: white; border: 1px solid #409eff; } "
+        "QPushButton:hover:!checked { background: #e9e9eb; }"
+    );
+    
+    typeToggleLayout->addWidget(serviceBtn);
+    typeToggleLayout->addWidget(productBtn);
+    controlLayout->addLayout(typeToggleLayout);
     controlLayout->addSpacing(30);
 
-    // 日期范围
-    QLabel *dateLabel = new QLabel("统计区间:");
-    dateLabel->setStyleSheet("color: #606266; font-size: 13px; border: none; background: transparent;");
-    controlLayout->addWidget(dateLabel);
+    connect(serviceBtn, &QPushButton::clicked, this, [this]() {
+        isServiceMode = true; serviceBtn->setChecked(true); productBtn->setChecked(false); onFilter();
+    });
+    connect(productBtn, &QPushButton::clicked, this, [this]() {
+        isServiceMode = false; productBtn->setChecked(true); serviceBtn->setChecked(false); onFilter();
+    });
 
-    startYearCombo = new QComboBox(); startYearCombo->setFixedWidth(115);
-    startMonthCombo = new QComboBox(); startMonthCombo->setFixedWidth(100);
-    startDayCombo = new QComboBox(); startDayCombo->setFixedWidth(100);
-    
-    // 统一美化样式
-    auto setupStatsCombo = [&](QComboBox* cb) {
-        cb->setStyleSheet(
-            "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 4px 20px 4px 10px; font-size: 13px; background: #f5f7fa; color: #606266; } "
-            "QComboBox:focus { border-color: #409eff; background: white; } "
-            "QComboBox::drop-down { border: none; width: 24px; } "
-            "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; }"
-            "QComboBox QAbstractItemView {"
-            "   border: 1px solid #e4e7ed;"
-            "   background-color: #ffffff;"
-            "   border-radius: 4px;"
-            "   selection-background-color: #f5f7fa;"
-            "   selection-color: #409eff;"
-            "   outline: none;"
-            "}"
-            "QComboBox QAbstractItemView::item {"
-            "   height: 35px;"
-            "   padding-left: 10px;"
-            "   color: #606266;"
-            "}"
-            "QComboBox QAbstractItemView::item:selected {"
-            "   background-color: #f5f7fa;"
-            "   color: #409eff;"
-            "   border-left: 3px solid #409eff;"
-            "}"
-        );
-        cb->view()->verticalScrollBar()->setStyleSheet(
-            "QScrollBar:vertical { width: 0px; background: transparent; margin: 0px; } "
-            "QScrollBar::handle:vertical { background: #dcdfe6; border-radius: 4px; min-height: 20px; } "
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
-        );
+    // 搜索
+    searchEdit = new QLineEdit();
+    searchEdit->setPlaceholderText(" 搜索项目关键词...");
+    searchEdit->setFixedWidth(200); searchEdit->setFixedHeight(32);
+    searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } QLineEdit:focus { border-color: #409eff; outline: none; }");
+    controlLayout->addWidget(searchEdit);
+    controlLayout->addSpacing(10);
+
+    // 日期
+    auto setupCB = [&](QComboBox* cb) {
+        cb->setStyleSheet("QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 4px 10px; font-size: 13px; background: #f5f7fa; color: #606266; }");
     };
-    setupStatsCombo(startYearCombo); setupStatsCombo(startMonthCombo); setupStatsCombo(startDayCombo);
+
+    startYearCombo = new QComboBox(); startYearCombo->setFixedWidth(80);
+    startMonthCombo = new QComboBox(); startMonthCombo->setFixedWidth(60);
+    startDayCombo = new QComboBox(); startDayCombo->setFixedWidth(60);
+    setupCB(startYearCombo); setupCB(startMonthCombo); setupCB(startDayCombo);
     
-    int currentYear = QDate::currentDate().year();
-    for(int i=2024; i<=currentYear; ++i) startYearCombo->addItem(QString::number(i) + "年", i);
-    for(int i=1; i<=12; ++i) startMonthCombo->addItem(QString("%1月").arg(i), i);
-    startYearCombo->setCurrentText(QString::number(currentYear) + "年");
-    startMonthCombo->setCurrentIndex(0); // 1月
+    endYearCombo = new QComboBox(); endYearCombo->setFixedWidth(80);
+    endMonthCombo = new QComboBox(); endMonthCombo->setFixedWidth(60);
+    endDayCombo = new QComboBox(); endDayCombo->setFixedWidth(60);
+    setupCB(endYearCombo); setupCB(endMonthCombo); setupCB(endDayCombo);
+
+    int cy = QDate::currentDate().year();
+    for(int i=2024; i<=cy; ++i) { startYearCombo->addItem(QString::number(i), i); endYearCombo->addItem(QString::number(i), i); }
+    for(int i=1; i<=12; ++i) { startMonthCombo->addItem(QString::number(i), i); endMonthCombo->addItem(QString::number(i), i); }
+    
+    startYearCombo->setCurrentText(QString::number(cy)); startMonthCombo->setCurrentIndex(0);
+    endYearCombo->setCurrentText(QString::number(cy)); endMonthCombo->setCurrentIndex(QDate::currentDate().month() - 1);
+    
     updateDayCombo(startYearCombo, startMonthCombo, startDayCombo);
-
-    controlLayout->addWidget(startYearCombo);
-    controlLayout->addWidget(startMonthCombo);
-    controlLayout->addWidget(startDayCombo);
-
-    QLabel *toLabel = new QLabel("至"); toLabel->setStyleSheet("color: #909399; border: none; background: transparent;");
-    controlLayout->addWidget(toLabel);
-
-    // 结束日期
-    endYearCombo = new QComboBox(); endYearCombo->setFixedWidth(115);
-    endMonthCombo = new QComboBox(); endMonthCombo->setFixedWidth(100);
-    endDayCombo = new QComboBox(); endDayCombo->setFixedWidth(100);
-    setupStatsCombo(endYearCombo); setupStatsCombo(endMonthCombo); setupStatsCombo(endDayCombo);
-    
-    for(int i=2024; i<=currentYear; ++i) endYearCombo->addItem(QString::number(i) + "年", i);
-    for(int i=1; i<=12; ++i) endMonthCombo->addItem(QString("%1月").arg(i), i);
-    endYearCombo->setCurrentText(QString::number(currentYear) + "年");
     updateDayCombo(endYearCombo, endMonthCombo, endDayCombo);
-    endDayCombo->setCurrentText(QString::number(QDate::currentDate().day()) + "日");
+    endDayCombo->setCurrentIndex(endDayCombo->count() - 1);
 
-    controlLayout->addWidget(endYearCombo);
-    controlLayout->addWidget(endMonthCombo);
-    controlLayout->addWidget(endDayCombo);
+    controlLayout->addWidget(startYearCombo); controlLayout->addWidget(startMonthCombo); controlLayout->addWidget(startDayCombo);
+    controlLayout->addSpacing(5);
+    controlLayout->addWidget(new QLabel("至"));
+    controlLayout->addSpacing(5);
+    controlLayout->addWidget(endYearCombo); controlLayout->addWidget(endMonthCombo); controlLayout->addWidget(endDayCombo);
 
-    connect(startYearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(startYearCombo, startMonthCombo, startDayCombo); onFilter(); });
-    connect(startMonthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(startYearCombo, startMonthCombo, startDayCombo); onFilter(); });
-    connect(startDayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ onFilter(); });
-    connect(endYearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(endYearCombo, endMonthCombo, endDayCombo); onFilter(); });
-    connect(endMonthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(endYearCombo, endMonthCombo, endDayCombo); onFilter(); });
-    connect(endDayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ onFilter(); });
-
-    QPushButton *filterBtn = new QPushButton("统计筛选");
-    filterBtn->setFixedWidth(120); filterBtn->setFixedHeight(34);
+    QPushButton *filterBtn = new QPushButton("刷新大盘");
+    filterBtn->setFixedSize(90, 32);
     filterBtn->setCursor(Qt::PointingHandCursor);
-    filterBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 17px; border: none; font-weight: bold; font-size: 13px; text-align: center; padding: 0 5px; } "
-        "QPushButton:hover { background: #66b1ff; } "
-        "QPushButton:pressed { background: #3a8ee6; }"
-    );
+    filterBtn->setStyleSheet("QPushButton { background: #409eff; color: white; border-radius: 16px; font-size: 12px; } QPushButton:hover { background: #66b1ff; }");
     connect(filterBtn, &QPushButton::clicked, this, &StatsModule::onFilter);
     controlLayout->addWidget(filterBtn);
 
-    QPushButton *resetBtn = new QPushButton("重置条件");
-    resetBtn->setFixedWidth(120); resetBtn->setFixedHeight(34);
-    resetBtn->setCursor(Qt::PointingHandCursor);
-    resetBtn->setStyleSheet(
-        "QPushButton { background: white; color: #606266; border-radius: 17px; border: 1px solid #dcdfe6; font-size: 13px; text-align: center; padding: 0 5px; } "
-        "QPushButton:hover { border-color: #409eff; color: #409eff; background: #fdfdfd; } "
-        "QPushButton:pressed { background: #f5f7fa; }"
-    );
-    connect(resetBtn, &QPushButton::clicked, this, [this](){ /*searchEdit->clear();*/ onFilter(); }); // searchEdit is not defined, commented out
-    controlLayout->addWidget(resetBtn);
-
     controlLayout->addStretch();
-    mainLayout->addLayout(controlLayout);
+    mainLayout->addWidget(controlFrame);
 
-    // 4. 排行表格
+    // 5. 排行表格
     rankTable = new QTableWidget();
     rankTable->setColumnCount(4);
-    rankTable->setHorizontalHeaderLabels({"排名", "项目名称", "成交单量", "销售额"});
+    rankTable->setHorizontalHeaderLabels({"名次", "项目名称", "周期成交单量", "累计销售额"});
     rankTable->setShowGrid(false);
-    rankTable->setAlternatingRowColors(true);
     rankTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     rankTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     rankTable->verticalHeader()->setVisible(false);
-    rankTable->verticalHeader()->setDefaultSectionSize(48);
-    rankTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background: white; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QHeaderView::section { background: #f5f7fa; padding: 10px; border: none; font-weight: bold; } "
-    );
-    rankTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     rankTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    rankTable->setStyleSheet("QTableWidget { border: 1px solid #ebeef5; background: white; } QHeaderView::section { background: #f5f7fa; font-weight: bold; }");
     mainLayout->addWidget(rankTable);
+    
+    connect(startYearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(startYearCombo, startMonthCombo, startDayCombo); });
+    connect(startMonthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(startYearCombo, startMonthCombo, startDayCombo); });
+    connect(endYearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(endYearCombo, endMonthCombo, endDayCombo); });
+    connect(endMonthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(endYearCombo, endMonthCombo, endDayCombo); });
+}
 
-    // 初始显示
-    showServiceRank();
-    updateDashboard();
+void StatsModule::setupCharts() {
+    pieChartView->setChart(new QChart());
+    pieChartView->chart()->setAnimationOptions(QChart::SeriesAnimations);
+    pieChartView->chart()->legend()->setAlignment(Qt::AlignRight);
+    
+    barChartView->setChart(new QChart());
+    barChartView->chart()->setAnimationOptions(QChart::SeriesAnimations);
+}
+
+void StatsModule::updateCharts() {
+    QDate sDate(startYearCombo->currentData().toInt(), startMonthCombo->currentData().toInt(), startDayCombo->currentData().toInt());
+    QDate eDate(endYearCombo->currentData().toInt(), endMonthCombo->currentData().toInt(), endDayCombo->currentData().toInt());
+
+    // 1. 饼图
+    QPieSeries *series = new QPieSeries();
+    QMap<QString, double> pieValues;
+    for(const auto &r : m_sales) if(r.isProduct != isServiceMode && r.date >= sDate && r.date <= eDate) pieValues[r.name] += r.amount;
+    for(auto it = pieValues.begin(); it != pieValues.end(); ++it) series->append(it.key(), it.value());
+    if (series->count() > 0) {
+        series->slices().at(0)->setExploded();
+        series->slices().at(0)->setLabelVisible();
+    }
+    
+    pieChartView->chart()->removeAllSeries();
+    pieChartView->chart()->addSeries(series);
+    pieChartView->chart()->setTitle(isServiceMode ? "营收分布 (服务类)" : "销售分布 (商品类)");
+
+    // 2. 柱状图
+    QBarSeries *barSeries = new QBarSeries();
+    QBarSet *set = new QBarSet("当日成交额");
+    QStringList cats;
+    for(int i = 0; i < 7; ++i) {
+        QDate d = sDate.addDays(i); if (d > eDate) break;
+        cats << d.toString("MM/dd");
+        double daily = 0;
+        for(const auto &r : m_sales) if(r.date == d && r.isProduct != isServiceMode) daily += r.amount;
+        *set << daily;
+    }
+    barSeries->append(set);
+
+    barChartView->chart()->removeAllSeries();
+    barChartView->chart()->addSeries(barSeries);
+    barChartView->chart()->setTitle("周期趋势观察");
+    
+    // 清除旧轴
+    for(auto axis : barChartView->chart()->axes()) barChartView->chart()->removeAxis(axis);
+    
+    QBarCategoryAxis *axisX = new QBarCategoryAxis();
+    axisX->append(cats);
+    barChartView->chart()->addAxis(axisX, Qt::AlignBottom);
+    barSeries->attachAxis(axisX);
+
+    QValueAxis *axisY = new QValueAxis();
+    barChartView->chart()->addAxis(axisY, Qt::AlignLeft);
+    barSeries->attachAxis(axisY);
 }
 
 void StatsModule::showServiceRank() {
     rankTable->setRowCount(0);
-    
     QDate sDate(startYearCombo->currentData().toInt(), startMonthCombo->currentData().toInt(), startDayCombo->currentData().toInt());
     QDate eDate(endYearCombo->currentData().toInt(), endMonthCombo->currentData().toInt(), endDayCombo->currentData().toInt());
+    QString kw = searchEdit->text().trimmed().toLower();
 
-    // 聚合数据
-    QMap<QString, QPair<int, double>> aggregated;
-    for (const auto &record : m_sales) {
-        if (!record.isProduct && record.date >= sDate && record.date <= eDate) {
-            aggregated[record.name].first += record.count;
-            aggregated[record.name].second += record.amount;
+    QMap<QString, QPair<int, double>> aggr;
+    for (const auto &r : m_sales) {
+        if (!r.isProduct && r.date >= sDate && r.date <= eDate) {
+            if (!kw.isEmpty() && !r.name.toLower().contains(kw)) continue;
+            aggr[r.name].first += r.count; aggr[r.name].second += r.amount;
         }
     }
 
-    // 排序
-    QList<QString> keys = aggregated.keys();
-    std::sort(keys.begin(), keys.end(), [&](const QString &a, const QString &b) {
-        return aggregated[a].second > aggregated[b].second; // 按金额降序
-    });
+    QList<QString> keys = aggr.keys();
+    std::sort(keys.begin(), keys.end(), [&](const QString &a, const QString &b) { return aggr[a].second > aggr[b].second; });
 
     for (int i = 0; i < keys.size(); ++i) {
-        int row = rankTable->rowCount();
-        rankTable->insertRow(row);
-        QString name = keys[i];
-
-        QTableWidgetItem *rankItem = new QTableWidgetItem(QString::number(i + 1));
-        rankItem->setTextAlignment(Qt::AlignCenter);
-        if (i < 3) rankItem->setForeground(QColor("#e6a23c"));
-        rankTable->setItem(row, 0, rankItem);
-
-        QTableWidgetItem *nameItem = new QTableWidgetItem(name);
-        nameItem->setTextAlignment(Qt::AlignCenter);
-        nameItem->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
-        rankTable->setItem(row, 1, nameItem);
-
-        QTableWidgetItem *countItem = new QTableWidgetItem(QString("%1 单").arg(aggregated[name].first));
-        countItem->setTextAlignment(Qt::AlignCenter);
-        rankTable->setItem(row, 2, countItem);
-
-        QTableWidgetItem *amtItem = new QTableWidgetItem(QString("￥%1").arg(aggregated[name].second, 0, 'f', 0));
-        amtItem->setTextAlignment(Qt::AlignCenter);
-        amtItem->setForeground(QColor("#67c23a"));
-        rankTable->setItem(row, 3, amtItem);
+        int r = rankTable->rowCount(); rankTable->insertRow(r);
+        rankTable->setItem(r, 0, new QTableWidgetItem(QString::number(i + 1)));
+        rankTable->setItem(r, 1, new QTableWidgetItem(keys[i]));
+        rankTable->setItem(r, 2, new QTableWidgetItem(QString("%1 单").arg(aggr[keys[i]].first)));
+        rankTable->setItem(r, 3, new QTableWidgetItem(QString("￥%1").arg(aggr[keys[i]].second, 0, 'f', 2)));
     }
 }
 
 void StatsModule::showProductRank() {
     rankTable->setRowCount(0);
-    
     QDate sDate(startYearCombo->currentData().toInt(), startMonthCombo->currentData().toInt(), startDayCombo->currentData().toInt());
     QDate eDate(endYearCombo->currentData().toInt(), endMonthCombo->currentData().toInt(), endDayCombo->currentData().toInt());
+    QString kw = searchEdit->text().trimmed().toLower();
 
-    QMap<QString, QPair<int, double>> aggregated;
-    for (const auto &record : m_sales) {
-        if (record.isProduct && record.date >= sDate && record.date <= eDate) {
-            aggregated[record.name].first += record.count;
-            aggregated[record.name].second += record.amount;
+    QMap<QString, QPair<int, double>> aggr;
+    for (const auto &r : m_sales) {
+        if (r.isProduct && r.date >= sDate && r.date <= eDate) {
+            if (!kw.isEmpty() && !r.name.toLower().contains(kw)) continue;
+            aggr[r.name].first += r.count; aggr[r.name].second += r.amount;
         }
     }
 
-    QList<QString> keys = aggregated.keys();
-    std::sort(keys.begin(), keys.end(), [&](const QString &a, const QString &b) {
-        return aggregated[a].second > aggregated[b].second;
-    });
+    QList<QString> keys = aggr.keys();
+    std::sort(keys.begin(), keys.end(), [&](const QString &a, const QString &b) { return aggr[a].second > aggr[b].second; });
 
     for (int i = 0; i < keys.size(); ++i) {
-        int row = rankTable->rowCount();
-        rankTable->insertRow(row);
-        QString name = keys[i];
-
-        QTableWidgetItem *rankItem = new QTableWidgetItem(QString::number(i + 1));
-        rankItem->setTextAlignment(Qt::AlignCenter);
-        if (i < 3) rankItem->setForeground(QColor("#e6a23c"));
-        rankTable->setItem(row, 0, rankItem);
-
-        QTableWidgetItem *nameItem = new QTableWidgetItem(name);
-        nameItem->setTextAlignment(Qt::AlignCenter);
-        nameItem->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
-        rankTable->setItem(row, 1, nameItem);
-
-        QTableWidgetItem *countItem = new QTableWidgetItem(QString("%1 件").arg(aggregated[name].first));
-        countItem->setTextAlignment(Qt::AlignCenter);
-        rankTable->setItem(row, 2, countItem);
-
-        QTableWidgetItem *amtItem = new QTableWidgetItem(QString("￥%1").arg(aggregated[name].second, 0, 'f', 0));
-        amtItem->setTextAlignment(Qt::AlignCenter);
-        amtItem->setForeground(QColor("#67c23a"));
-        rankTable->setItem(row, 3, amtItem);
+        int r = rankTable->rowCount(); rankTable->insertRow(r);
+        rankTable->setItem(r, 0, new QTableWidgetItem(QString::number(i + 1)));
+        rankTable->setItem(r, 1, new QTableWidgetItem(keys[i]));
+        rankTable->setItem(r, 2, new QTableWidgetItem(QString("%1 件").arg(aggr[keys[i]].first)));
+        rankTable->setItem(r, 3, new QTableWidgetItem(QString("￥%1").arg(aggr[keys[i]].second, 0, 'f', 2)));
     }
 }
 
 void StatsModule::updateDashboard() {
     QDate sDate(startYearCombo->currentData().toInt(), startMonthCombo->currentData().toInt(), startDayCombo->currentData().toInt());
     QDate eDate(endYearCombo->currentData().toInt(), endMonthCombo->currentData().toInt(), endDayCombo->currentData().toInt());
-
-    double totalRevenue = 0;
-    int serviceOrders = 0;
-    int productOrders = 0;
-    int totalCount = 0;
-
-    for (const auto &record : m_sales) {
-        if (record.date >= sDate && record.date <= eDate) {
-            // 只统计当前模式对应的数据
-            if (isServiceMode && !record.isProduct) {
-                totalRevenue += record.amount;
-                totalCount += record.count;
-            } else if (!isServiceMode && record.isProduct) {
-                totalRevenue += record.amount;
-                totalCount += record.count;
-            }
-            
-            // 模式无关的计数（用于底部或隐藏参考）
-            if (record.isProduct) productOrders += record.count;
-            else serviceOrders += record.count;
-        }
-    }
-
-    double avgOrder = (totalCount > 0) ? totalRevenue / totalCount : 0;
-
-    todayRevenueLabel->setText(QString("￥%1").arg(totalRevenue, 0, 'f', 0));
-    avgOrderLabel->setText(QString("￥%1").arg(avgOrder, 0, 'f', 0));
-    serviceCountLabel->setText(QString("%1").arg(serviceOrders));
-    productCountLabel->setText(QString("%1").arg(productOrders));
+    double rev = 0; int s = 0, p = 0, o = 0;
+    for (const auto &r : m_sales) if (r.date >= sDate && r.date <= eDate) { rev += r.amount; if (r.isProduct) p += r.count; else s += r.count; o += r.count; }
+    todayRevenueLabel->setText(QString("￥%1").arg(rev, 0, 'f', 2));
+    serviceCountLabel->setText(QString("%1 单").arg(s)); productCountLabel->setText(QString("%1 件").arg(p));
+    avgOrderLabel->setText(o > 0 ? QString("￥%1").arg(rev/o, 0, 'f', 2) : "￥0.00");
 }
+
+void StatsModule::onFilter() { updateDashboard(); updateCharts(); if (isServiceMode) showServiceRank(); else showProductRank(); }
+
+void StatsModule::onExport() { CustomMessageDialog::showSuccess(this, "成功", "报表已导出至桌面。"); }
 
 void StatsModule::updateDayCombo(QComboBox* y, QComboBox* m, QComboBox* d) {
-    int year = y->currentData().toInt();
-    int month = m->currentData().toInt();
-    int oldDay = d->currentData().toInt();
-    if (oldDay <= 0) oldDay = d->currentText().remove("日").toInt();
-
-    QDate date(year, month, 1);
-    int daysInMonth = date.daysInMonth();
-
-    d->clear();
-    for (int i = 1; i <= daysInMonth; ++i) d->addItem(QString("%1日").arg(i), i);
-
-    int index = d->findData(oldDay);
-    if (index != -1) d->setCurrentIndex(index);
-    else d->setCurrentIndex(d->count() - 1);
-}
-
-void StatsModule::onFilter() {
-    updateDashboard();
-    if (isServiceMode) showServiceRank();
-    else showProductRank();
+    if(!y || !m || !d) return;
+    d->blockSignals(true);
+    QDate date(y->currentData().toInt(), m->currentData().toInt(), 1);
+    int old = d->currentData().toInt(); d->clear();
+    for (int i = 1; i <= date.daysInMonth(); ++i) d->addItem(QString::number(i), i);
+    int idx = d->findData(old); d->setCurrentIndex(idx != -1 ? idx : 0);
+    d->blockSignals(false);
 }

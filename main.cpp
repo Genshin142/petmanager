@@ -5,10 +5,24 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     
-    // 设置通用样式
+    // 设置全局字体，确保全程序一致（特别是表格项等非 Widget 元素）
+    QFont globalFont("Microsoft YaHei", 10);
+    a.setFont(globalFont);
+    
     a.setStyleSheet(
-        "QWidget { font-family: 'Microsoft YaHei'; font-size: 14px; }"
-        "QHeaderView::section { background-color: #f2f6fc; color: #606266; padding: 4px; border: none; font-weight: bold; }"
+        "QWidget { font-family: 'Microsoft YaHei'; } "
+        "QHeaderView::section { background-color: #f2f6fc; color: #606266; padding: 4px; border: none; }"
+        
+        // 全局约束：强制取消所有表格的交替底色与选中行的高亮变化
+        "QTableView, QTableWidget {"
+        "   alternate-background-color: white !important;" 
+        "   selection-background-color: transparent !important;"
+        "   selection-color: black !important;"
+        "}"
+        "QTableView::item:selected, QTableWidget::item:selected {"
+        "   background-color: transparent !important;"
+        "   color: black !important;"
+        "}"
         
         // 全局 ComboBox 下拉列表美化 (同步薪资管理中心样式)
         "QComboBox QAbstractItemView {"

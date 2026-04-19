@@ -25,7 +25,7 @@ void HistoryAppointmentDialog::setupUI() {
     // 标题和搜索
     QHBoxLayout *headerLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel("历史预约档案", this);
-    titleLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #303133;");
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133;");
     
     searchEdit = new QLineEdit();
     searchEdit->setPlaceholderText("搜索姓名/手机号...");
@@ -83,7 +83,7 @@ void HistoryAppointmentDialog::setupUI() {
     dayCombo = new QComboBox();
     
     QDate cur = QDate::currentDate();
-    for(int i = -1; i < 2; ++i) yearCombo->addItem(QString::number(cur.year() + i));
+    for(int i = 2026; i <= cur.year() + 1; ++i) yearCombo->addItem(QString::number(i));
     yearCombo->setCurrentText(QString::number(cur.year()));
     
     yLab = new QLabel("年"); mLab = new QLabel("月"); dLab = new QLabel("日");
@@ -141,16 +141,18 @@ void HistoryAppointmentDialog::setupUI() {
     historyTable->setColumnWidth(4, 100); // 工作人员
     historyTable->setColumnWidth(5, 80);  // 状态
 
-    historyTable->setAlternatingRowColors(true);
+    historyTable->setAlternatingRowColors(false);
     historyTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     historyTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    historyTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    historyTable->setFocusPolicy(Qt::NoFocus);
     historyTable->verticalHeader()->setVisible(false);
     historyTable->verticalHeader()->setDefaultSectionSize(50); // 增加行高以容纳两行文字
     historyTable->setShowGrid(false);
     
     historyTable->setStyleSheet(
         "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: #606266; }"
-        "QHeaderView::section { background-color: #f5f7fa; padding: 10px; border: none; font-weight: bold; color: #909399; }"
+        "QHeaderView::section { background-color: #f5f7fa; padding: 10px; border: none; color: #909399;  font-weight: bold; }"
     );
 
     layout->addWidget(historyTable);

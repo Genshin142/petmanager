@@ -12,186 +12,480 @@
 #include <QAbstractItemView>
 #include <QFont>
 #include <QColor>
+#include "addpetdialog.h"
+#include "custommessagedialog.h"
+#include <QDateTime>
+#include <QPainter>
+#include <QPainterPath>
+#include <QHeaderView>
 
-PetModule::PetModule(QWidget *parent) : QWidget(parent)
+PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pageSize(10)
 {
+    m_drawer = new PetRecordDrawer(this);
+    connect(m_drawer, &PetRecordDrawer::logAdded, this, &PetModule::onLogAdded);
+    connect(m_drawer, &PetRecordDrawer::closeRequested, this, [=](){ m_drawer->hideDrawer(); });
+    
+    this->setObjectName("PetModule");
+    this->setStyleSheet("#PetModule QPushButton { color: #606266; text-align: center; }");
+
     setupUI();
+    
+    // 默认展示第一个宠物的记录
+    if (petTable->rowCount() > 0) {
+        onCurrentCellChanged(0, 0, -1, -1);
+        petTable->selectRow(0);
+    }
 }
 
 void PetModule::setupUI()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    QHBoxLayout *rootLayout = new QHBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(0);
+
+    // 左侧主体区域
+    QWidget *mainWidget = new QWidget();
+    QVBoxLayout *mainLayout = new QVBoxLayout(mainWidget);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(20);
 
     // 1. 顶部标题与搜索
     QHBoxLayout *headerLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel("宠物数字化健康档案中心");
-    titleLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #303133;");
-
-    QHBoxLayout *filterLayout = new QHBoxLayout();
-    filterLayout->setSpacing(10);
-
-    searchEdit = new QLineEdit();
-    searchEdit->setPlaceholderText(" 搜索宠物名称、品种、主人姓名...");
-    searchEdit->setFixedWidth(280);
-    searchEdit->setFixedHeight(32);
-    searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
-        "QLineEdit:focus { border-color: #409eff; outline: none; }"
-    );
-    connect(searchEdit, &QLineEdit::textChanged, this, &PetModule::onSearch);
-    filterLayout->addWidget(searchEdit);
-
-    QPushButton *searchBtn = new QPushButton("搜 索");
-    searchBtn->setFixedWidth(110); searchBtn->setFixedHeight(34);
-    searchBtn->setCursor(Qt::PointingHandCursor);
-    searchBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 17px; border: none; font-weight: bold; font-size: 13px; text-align: center; padding: 0 5px; } "
-        "QPushButton:hover { background: #66b1ff; } "
-        "QPushButton:pressed { background: #3a8ee6; }"
-    );
-    filterLayout->addWidget(searchBtn);
-
-    QPushButton *resetBtn = new QPushButton("重 置");
-    resetBtn->setFixedWidth(100); resetBtn->setFixedHeight(34);
-    resetBtn->setCursor(Qt::PointingHandCursor);
-    resetBtn->setStyleSheet(
-        "QPushButton { background: white; color: #606266; border-radius: 17px; border: 1px solid #dcdfe6; font-size: 13px; text-align: center; padding: 0 5px; } "
-        "QPushButton:hover { border-color: #409eff; color: #409eff; background: #fdfdfd; } "
-        "QPushButton:pressed { background: #f5f7fa; }"
-    );
-    filterLayout->addWidget(resetBtn);
-    connect(resetBtn, &QPushButton::clicked, this, [this](){ searchEdit->clear(); });
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold;");
 
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
-    headerLayout->addLayout(filterLayout);
     mainLayout->addLayout(headerLayout);
 
-    // 2. 统计卡片区
+    // 2. 统计卡片区 (略，保持原样但逻辑稍加优化)
     QHBoxLayout *statLayout = new QHBoxLayout();
     auto createStatCard = [&](const QString &icon, const QString &title, QLabel* &valLabel, const QString &color) {
         QFrame *card = new QFrame();
         card->setFixedHeight(100);
-        card->setStyleSheet(QString(
-            "QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } "
-        ));
-
+        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
         QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15);
-        shadow->setColor(QColor(0, 0, 0, 30));
-        shadow->setOffset(0, 2);
+        shadow->setBlurRadius(15); shadow->setColor(QColor(0, 0, 0, 30)); shadow->setOffset(0, 2);
         card->setGraphicsEffect(shadow);
-
         QHBoxLayout *cl = new QHBoxLayout(card);
         cl->setContentsMargins(20, 15, 20, 15);
-
         QLabel *iconLabel = new QLabel(icon);
-        iconLabel->setFixedSize(50, 50);
-        iconLabel->setAlignment(Qt::AlignCenter);
+        iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
         iconLabel->setStyleSheet(QString("font-size: 24px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color));
-
-        QVBoxLayout *vl = new QVBoxLayout();
-        vl->setSpacing(2);
-        QLabel *tl = new QLabel(title);
-        tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0");
-        valLabel->setStyleSheet("color: #303133; font-size: 24px; font-weight: bold; border: none; background: transparent;");
-        vl->addWidget(tl);
-        vl->addWidget(valLabel);
-        vl->addStretch();
-
-        cl->addWidget(iconLabel);
-        cl->addSpacing(15);
-        cl->addLayout(vl);
-        cl->addStretch();
+        QVBoxLayout *vl = new QVBoxLayout(); vl->setSpacing(2);
+        QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
+        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 24px; border: none; background: transparent;");
+        vl->addWidget(tl); vl->addWidget(valLabel); vl->addStretch();
+        cl->addWidget(iconLabel); cl->addSpacing(15); cl->addLayout(vl); cl->addStretch();
         return card;
     };
-
     statLayout->addWidget(createStatCard("🐾", "在册宠物", totalPetsLabel, "#409eff"));
     statLayout->addWidget(createStatCard("🏠", "在店寄养", boardingPetsLabel, "#67c23a"));
     statLayout->addWidget(createStatCard("🛁", "洗护进行中", groomingPetsLabel, "#e6a23c"));
     mainLayout->addLayout(statLayout);
 
+    // 2.5 操作栏
+    QHBoxLayout *operationLayout = new QHBoxLayout();
+    
+    // -- 左侧：批量操作 --
+    QPushButton *batchDeleteBtn = new QPushButton("批量删除");
+    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
+    batchDeleteBtn->setFixedHeight(32);
+    batchDeleteBtn->setStyleSheet(
+        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 6px; font-size: 12px; padding: 0 15px; }"
+        "QPushButton:hover { background-color: #f56c6c; color: white; }"
+    );
+    connect(batchDeleteBtn, &QPushButton::clicked, this, &PetModule::onBatchDelete);
+    operationLayout->addWidget(batchDeleteBtn);
+    
+    operationLayout->addStretch();
+    searchEdit = new QLineEdit();
+    searchEdit->setPlaceholderText(" 搜索宠物名称、品种、主人姓名...");
+    searchEdit->setFixedWidth(280); searchEdit->setFixedHeight(32);
+    searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } QLineEdit:focus { border-color: #409eff; outline: none; }");
+    connect(searchEdit, &QLineEdit::textChanged, this, &PetModule::onSearch);
+    operationLayout->addWidget(searchEdit);
+    mainLayout->addLayout(operationLayout);
+
     // 3. 档案表格
     petTable = new QTableWidget();
-    petTable->setColumnCount(8);
-    petTable->setHorizontalHeaderLabels({"宠物ID", "宠物画像", "品种/信息", "健康状况", "疫苗保护", "当前状态", "主人ID", "主人姓名"});
-
-    petTable->setShowGrid(false);
-    petTable->setAlternatingRowColors(true);
-    petTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    petTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    petTable->verticalHeader()->setVisible(false);
-    petTable->verticalHeader()->setDefaultSectionSize(70);
+    petTable->setColumnCount(12); // 增加至 12 列
+    petTable->setHorizontalHeaderLabels({
+        "选择", "宠物ID", "宠物信息", "所属主人", "基本属性", "健康状态", 
+        "疫苗接种", "以往病例", "饮食禁忌", "在店状态", "入店时间", "操作"
+    });
+    
+    // 设置列宽策略
+    petTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    petTable->setColumnWidth(0, 48);  // 选择
+    petTable->setColumnWidth(1, 80);  // ID
+    petTable->setColumnWidth(2, 180); // 宠物信息
+    petTable->setColumnWidth(3, 110); // 所属主人
+    petTable->setColumnWidth(4, 130); // 基本属性
+    petTable->setColumnWidth(5, 80);  // 健康状态
+    petTable->setColumnWidth(6, 120); // 疫苗接种 (增加宽度以容纳完整按钮)
+    petTable->setColumnWidth(7, 100); // 以往病例
+    petTable->setColumnWidth(8, 120); // 饮食禁忌
+    petTable->setColumnWidth(9, 85);  // 在店状态
+    petTable->setColumnWidth(10, 95); // 入店时间
+    petTable->setColumnWidth(11, 130); // 操作
+    petTable->horizontalHeader()->setSectionResizeMode(11, QHeaderView::Stretch);
 
     petTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; outline: none; } "
+        "QTableWidget { border: 1px solid #ebeef5; background-color: white; alternate-background-color: white; color: black; outline: none; } "
         "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; color: #606266; font-weight: bold; font-size: 13px; } "
+        "QTableWidget::item:selected { background-color: #b3d8ff; color: black; } " 
+        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; color: #606266; font-size: 13px;  font-weight: bold; } "
     );
 
-    QHeaderView *header = petTable->horizontalHeader();
-    header->setDefaultAlignment(Qt::AlignCenter);
-    header->setSectionResizeMode(QHeaderView::Stretch);
-    petTable->setColumnWidth(0, 70);   // ID
-    petTable->setColumnWidth(2, 140);  // 品种
-    petTable->setColumnWidth(5, 90);   // 状态
+    petTable->setShowGrid(false);
+    petTable->setAlternatingRowColors(false); // 关键修改：关闭交替背景色，消除灰色行
+    petTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    petTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    petTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    petTable->setFocusPolicy(Qt::NoFocus); // 关键修复：消除鼠标点击单元格后残留的灰色焦点背景
+    petTable->verticalHeader()->setVisible(false);
+    petTable->verticalHeader()->setDefaultSectionSize(65);
+
+    connect(petTable, &QTableWidget::currentCellChanged, this, &PetModule::onCurrentCellChanged);
 
     mainLayout->addWidget(petTable);
 
-    // 注入演示数据
-    addPetRow("P1001", "二哈", "哈士奇", "男", "2岁", "健康 (轻微掉毛)", "2025-10-12 (已齐)", "寄养中", "M1001", "张三");
-    addPetRow("P1002", "团团", "布偶猫", "女", "1岁", "过敏体质 (避开牛肉类)", "2025-08-20 (已齐)", "正常", "M1002", "李四");
-    addPetRow("P1003", "旺财", "金毛犬", "男", "4岁", "由于年龄偏大 建议轻量运动", "2025-12-05 (已齐)", "洗护中", "M1003", "王五");
-    addPetRow("P1004", "小雪", "萨摩耶", "女", "2岁", "良好", "2026-01-15 (预约)", "寄养中", "M1004", "赵六");
+    // 4. 底部工具栏
+    QFrame *statFrame = new QFrame();
+    statFrame->setFixedHeight(45);
+    statFrame->setStyleSheet("QFrame { background: #f8f9fb; border-top: 1px solid #ebeef5; padding: 0 12px; }");
+    QHBoxLayout *footerLayout = new QHBoxLayout(statFrame);
+    footerLayout->addStretch();
 
+    // 1. 跳转组
+    jumpEdit = new QLineEdit();
+    jumpEdit->setFixedWidth(36);
+    jumpEdit->setMaxLength(3);
+    jumpEdit->setFixedHeight(24);
+    jumpEdit->setAlignment(Qt::AlignCenter);
+    jumpEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0; font-size: 13px; background: white; margin: 0; } "
+        "QLineEdit:focus { border-color: #409eff; outline: none; }"
+    );
+    jumpValidator = new QIntValidator(1, 1, this);
+    jumpEdit->setValidator(jumpValidator);
+
+    QLabel *jumpPrefix = new QLabel("跳转到第");
+    jumpPrefix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
+    QLabel *jumpSuffix = new QLabel("页");
+    jumpSuffix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
+
+    jumpBtn = new QPushButton("确认");
+    jumpBtn->setCursor(Qt::PointingHandCursor);
+    jumpBtn->setFixedSize(44, 24);
+    jumpBtn->setStyleSheet(
+        "QPushButton { border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 2px 0; text-align: center; margin: 0; }"
+        "QPushButton:hover { border-color: #409eff; color: #409eff; }"
+    );
+
+    QWidget *jumpGroup = new QWidget();
+    jumpGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QHBoxLayout *jumpLayout = new QHBoxLayout(jumpGroup);
+    jumpLayout->setContentsMargins(0, 0, 0, 0);
+    jumpLayout->setSpacing(2);
+    jumpLayout->addWidget(jumpPrefix);
+    jumpLayout->addWidget(jumpEdit);
+    jumpLayout->addWidget(jumpSuffix);
+    jumpLayout->addWidget(jumpBtn);
+
+    // 2. 翻页组
+    prevBtn = new QPushButton("上一页");
+    nextBtn = new QPushButton("下一页");
+    pageLabel = new QLabel("第 1 页 / 共 1 页");
+
+    QString pageStyle = "QPushButton { height: 24px; border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 0 8px; text-align: center; margin: 0; } "
+                        "QPushButton:hover { border-color: #409eff; color: #409eff; } "
+                        "QPushButton:disabled { background: #f5f7fa; color: #c0c4cc; border-color: #e4e7ed; }";
+    prevBtn->setStyleSheet(pageStyle);
+    nextBtn->setStyleSheet(pageStyle);
+    prevBtn->setCursor(Qt::PointingHandCursor);
+    nextBtn->setCursor(Qt::PointingHandCursor);
+    pageLabel->setStyleSheet("color: #909399; font-size: 13px; margin: 0; padding: 0 4px;");
+
+    QWidget *pageGroup = new QWidget();
+    pageGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setSpacing(2);
+    pageLayout->addWidget(prevBtn);
+    pageLayout->addWidget(pageLabel);
+    pageLayout->addWidget(nextBtn);
+    pageGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // 核心修复：防止被拉伸导致间距变大
+
+    footerLayout->addWidget(jumpGroup);
+    footerLayout->addSpacing(8);
+    footerLayout->addWidget(pageGroup);
+
+    mainLayout->addWidget(statFrame);
+    
+    // 将主区域添加进根布局
+    rootLayout->addWidget(mainWidget, 1);
+    rootLayout->addWidget(m_drawer, 0);
+
+    connect(prevBtn, &QPushButton::clicked, this, &PetModule::onPrevPage);
+    connect(nextBtn, &QPushButton::clicked, this, &PetModule::onNextPage);
+    connect(jumpBtn, &QPushButton::clicked, this, &PetModule::onJumpPage);
+    connect(jumpEdit, &QLineEdit::returnPressed, this, &PetModule::onJumpPage);
+
+    // 注入演示数据
+    auto addDemo = [&](const QString &id, const QString &name, const QString &species, const QString &breed, const QString &gender, const QString &age, const QString &status, const QString &ownerId, const QString &ownerName, 
+                       const QString &vaccine = "已接种", const QString &medical = "无", const QString &diet = "常规饮食", const QString &roomNo = "", const QString &avatar = "") {
+        PetInfo info;
+        info.id = id; info.name = name; info.species = species; info.breed = breed; 
+        info.gender = gender; info.age = age; info.status = status;
+        info.ownerId = ownerId; info.ownerName = ownerName;
+        info.health = "健康"; 
+        info.medicalHistory = medical; 
+        info.vaccine = vaccine;
+        info.dietary = diet;
+        info.joinTime = "2026-03-10";
+        info.roomNo = roomNo; // 关联房号
+        // 动态分配头像路径
+        if (!avatar.isEmpty()) {
+            info.avatarPath = "images/pets/" + avatar;
+        } else {
+            info.avatarPath = ":/images/load_img.jpg"; // 默认图
+        }
+        addPetRow(info);
+
+        // 为每个宠物生成模拟记录 (Mock activity logs)
+        QList<PetActivityLog> logs;
+        QString today = QDate::currentDate().toString("yyyy-MM-dd");
+        QString yesterday = QDate::currentDate().addDays(-1).toString("yyyy-MM-dd");
+
+        auto addLog = [&](const QString &time, const QString &type, const QString &icon, const QString &remark, const QString &room = "", const QString &opName = "店员小利") {
+            PetActivityLog log;
+            log.time = time; log.type = type; log.icon = icon; log.remark = remark;
+            log.isAlert = (type == "异常");
+            log.operatorName = opName;
+            log.roomNo = room; // 固化历史房号
+            logs.append(log);
+        };
+
+        if (status == "寄养中") {
+            addLog(today + " 09:30", "投喂", "🍖", QString("[%1] 早饭吃得很干净，精神头很足。").arg(name), info.roomNo, "王波");
+            addLog(today + " 14:20", "检查", "🩺", QString("[%1] 体温 38.5℃，心率正常，状态非常健康。").arg(name), info.roomNo, "店员小利");
+            addLog(yesterday + " 10:15", "洗护", "🛁", QString("[%1] 进行了深层除臭洗护，毛发亮泽。").arg(name), info.roomNo, "张师傅");
+            addLog(yesterday + " 18:00", "备注", "📝", QString("[%1] 和其他小伙伴在操场玩得很开心。").arg(name), info.roomNo, "王波");
+        } else if (status == "洗护中") {
+            addLog(today + " 16:10", "洗护", "🛁", QString("[%1] 正在进行基础清洁，目前正在吹干毛发。").arg(name), info.roomNo, "张师傅");
+            addLog(yesterday + " 11:30", "检查", "🩺", QString("[%1] 入店检查：体表无寄生虫，皮肤状况良好。").arg(name), info.roomNo, "店员小利");
+        } else {
+            // 已离店的宠物也保留一些历史轨迹
+            addLog(yesterday + " 08:30", "投喂", "🍖", QString("[%1] 早饭光盘行动。").arg(name), "A-01", "王波");
+            addLog(yesterday + " 17:00", "离店", "👋", QString("[%1] 主人已准时接走，本次寄养结束。").arg(name), "A-01", "店长");
+        }
+        m_activityLogs[info.id] = logs;
+
+        // 生成模拟疫苗档案
+        QList<VaccineRecord> vaccines;
+        if (vaccine != "未接种") {
+            vaccines.append({"猫三联 (第一针)", "2026-01-10", "2027-01-10"});
+            vaccines.append({"猫三联 (第二针)", "2026-02-01", "2027-02-01"});
+            if (species == "狗") {
+                vaccines.append({"狂犬疫苗", "2026-02-15", "2027-02-15"});
+            }
+        }
+        m_vaccineRecords[info.id] = vaccines;
+    };
+
+    addDemo("P1001", "团团", "猫", "波斯猫", "母", "3岁", "离店", "M001", "张三", "已接种(三联)", "无", "不吃禽类", "", "persian.png");
+    addDemo("P1002", "豆豆", "狗", "柴犬", "公", "1岁", "寄养中", "M002", "李芳", "已接种", "曾患皮肤病", "常规饮食", "001", "golden.png");
+    addDemo("P1003", "小雪", "猫", "布偶", "母", "2岁", "寄养中", "M003", "王波", "已接种", "无", "需拌湿粮", "002", "snow.jpg");
+    addDemo("P1004", "可乐", "狗", "金毛", "公", "4岁", "待寄养", "M004", "赵四", "未接种", "无", "常规饮食", "", "balu.jpg");
+    addDemo("P1005", "咪咪", "猫", "银渐层", "母", "2岁", "离店", "M002", "李芳", "已接种", "无", "常规饮食", "", "siamese.png");
+    addDemo("P1006", "旺财", "狗", "金毛犬", "公", "4岁", "洗护中", "M003", "王五", "已接种", "无", "鸡肉过敏", "008", "golden.png");
+    addDemo("P1007", "小雪", "狗", "萨摩耶", "母", "2岁", "寄养中", "M004", "赵六", "已接种", "无", "常规饮食", "C-05", "husky.png");
+    addDemo("P1008", "可可", "狗", "泰迪", "母", "3岁", "离店", "M004", "赵六", "已接种", "无", "常规饮食", "", "siamese.png");
+    addDemo("P1009", "大黑", "狗", "拉布拉多", "公", "1岁", "离店", "M005", "孙七", "已接种", "无", "常规饮食", "", "husky.png");
+    addDemo("P1010", "皮皮", "狗", "柯基", "公", "2岁", "洗护中", "M006", "周八", "已接种", "无", "常规饮食", "009", "golden.png");
+    addDemo("P1011", "球球", "猫", "英短蓝猫", "母", "2岁", "离店", "M007", "吴九", "已接种", "无", "常规饮食", "", "persian.png");
+    addDemo("P1012", "花花", "猫", "加菲猫", "母", "4岁", "离店", "M007", "吴九", "已接种", "无", "常规饮食", "", "siamese.png");
+
+    updateStats();
+    updatePagination();
+}
+
+void PetModule::addPet(const PetInfo &info)
+{
+    addPetRow(info);
     updateStats();
 }
 
-void PetModule::addPetRow(const QString &id, const QString &name, const QString &breed,
-                          const QString &gender, const QString &age, const QString &health,
-                          const QString &vaccine, const QString &status, const QString &ownerId, const QString &owner)
+void PetModule::addPetRow(const PetInfo &info)
 {
+    m_petData[info.id] = info; // 核心缓存：确保点击事件能通过 ID 找到完整信息
+    
     int row = petTable->rowCount();
     petTable->insertRow(row);
 
-    auto setItem = [&](int col, const QString &text, bool bold = false) {
-        QTableWidgetItem *item = new QTableWidgetItem(text);
-        item->setTextAlignment(Qt::AlignCenter);
-        if (bold) item->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
-        petTable->setItem(row, col, item);
-    };
+    // 0. 选择勾选框
+    QWidget *chkWidget = new QWidget();
+    QHBoxLayout *chkLayout = new QHBoxLayout(chkWidget);
+    chkLayout->setContentsMargins(0, 0, 0, 0);
+    QCheckBox *chkBox = new QCheckBox();
+    chkLayout->addWidget(chkBox, 0, Qt::AlignCenter);
+    petTable->setCellWidget(row, 0, chkWidget);
 
-    setItem(0, id);
-    setItem(1, name, true);
-    setItem(2, QString("%1 · %2 · %3").arg(breed, gender, age));
+    // 1. ID
+    QTableWidgetItem *idItem = new QTableWidgetItem(info.id);
+    idItem->setTextAlignment(Qt::AlignCenter);
+    idItem->setForeground(QColor("#909399"));
+    petTable->setItem(row, 1, idItem);
 
-    // 健康状况
-    QTableWidgetItem *healthItem = new QTableWidgetItem(health);
+    // 2. 宠物信息 (头像 + 姓名 + 品种)
+    QWidget *infoWidget = new QWidget();
+    QHBoxLayout *infoLayout = new QHBoxLayout(infoWidget);
+    infoLayout->setContentsMargins(10, 5, 10, 5);
+    infoLayout->setSpacing(12);
+
+    QLabel *avatarImg = new QLabel();
+    avatarImg->setFixedSize(45, 45);
+    avatarImg->setStyleSheet("border-radius: 22px; background: #f0f2f5; ");
+    
+    QPixmap pix(info.avatarPath); 
+    if (pix.isNull()) pix.load(":/images/load_img.jpg"); 
+    
+    // 圆形裁剪渲染
+    QPixmap target(45, 45);
+    target.fill(Qt::transparent);
+    QPainter painter(&target);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPainterPath path;
+    path.addEllipse(0, 0, 45, 45);
+    painter.setClipPath(path);
+    painter.drawPixmap(0, 0, 45, 45, pix.scaled(45, 45, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    avatarImg->setPixmap(target);
+    
+    QVBoxLayout *nameV = new QVBoxLayout();
+    nameV->setSpacing(2);
+    QLabel *nameL = new QLabel(info.name);
+    nameL->setStyleSheet("font-weight: bold; color: #303133; font-size: 14px;");
+    QLabel *breedL = new QLabel(info.breed);
+    breedL->setStyleSheet("color: #909399; font-size: 12px;");
+    nameV->addWidget(nameL); nameV->addWidget(breedL);
+    
+    infoLayout->addWidget(avatarImg);
+    infoLayout->addLayout(nameV);
+    infoLayout->addStretch();
+
+    // 关键：确保点击这些区域能穿透到表格
+    infoWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
+    avatarImg->setAttribute(Qt::WA_TransparentForMouseEvents);
+    nameL->setAttribute(Qt::WA_TransparentForMouseEvents);
+    breedL->setAttribute(Qt::WA_TransparentForMouseEvents);
+    petTable->setCellWidget(row, 2, infoWidget);
+
+    // 3. 所属主人
+    QTableWidgetItem *ownerItem = new QTableWidgetItem(QString("%1 (%2)").arg(info.ownerName, info.ownerId));
+    ownerItem->setTextAlignment(Qt::AlignCenter);
+    petTable->setItem(row, 3, ownerItem);
+
+    // 4. 基本属性 (性别 · 年龄)
+    QString genderIcon = (info.gender == "公") ? "♂" : "♀";
+    QTableWidgetItem *attrItem = new QTableWidgetItem(QString("%1 %2 · %3").arg(genderIcon, info.species, info.age));
+    attrItem->setTextAlignment(Qt::AlignCenter);
+    petTable->setItem(row, 4, attrItem);
+
+    // 5. 健康状态
+    QTableWidgetItem *healthItem = new QTableWidgetItem(info.health);
     healthItem->setTextAlignment(Qt::AlignCenter);
-    healthItem->setFont(QFont("Microsoft YaHei", 8));
-    petTable->setItem(row, 3, healthItem);
+    if (info.health != "健康") healthItem->setForeground(QColor("#e6a23c"));
+    petTable->setItem(row, 5, healthItem);
 
-    setItem(4, vaccine);
+    // 6. 疫苗接种 (按钮化)
+    QWidget *vacWrap = new QWidget();
+    QHBoxLayout *vacL = new QHBoxLayout(vacWrap);
+    vacL->setContentsMargins(0,0,0,0); 
+    vacL->setAlignment(Qt::AlignCenter);
+    
+    QPushButton *vacBtn = new QPushButton();
+    vacBtn->setText(info.vaccine); // 明确设置文本
+    vacBtn->setFixedSize(105, 26); // 微调尺寸，确保在 120px 列宽中完美居中
+    vacBtn->setCursor(Qt::PointingHandCursor);
+    
+    // 使用更具体的样式声明，防止被父级样式覆盖
+    if (info.vaccine == "未接种") {
+        vacBtn->setStyleSheet(
+            "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 4px; font-size: 11px; font-weight: bold; padding: 0; text-align: center; } "
+            "QPushButton:hover { background-color: #f56c6c; color: white; }"
+        );
+    } else {
+        vacBtn->setStyleSheet(
+            "QPushButton { background-color: #ecf5ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 4px; font-size: 11px; font-weight: bold; padding: 0; text-align: center; } "
+            "QPushButton:hover { background-color: #409eff; color: white; }"
+        );
+    }
+    
+    connect(vacBtn, &QPushButton::clicked, this, [this, info]() {
+        VaccineDetailDialog dlg(info.name, m_vaccineRecords.value(info.id), this->window());
+        dlg.exec();
+    });
+    
+    vacL->addWidget(vacBtn);
+    petTable->setCellWidget(row, 6, vacWrap);
 
-    // 状态标签
-    QWidget *statusContainer = new QWidget();
-    QHBoxLayout *statusLayout = new QHBoxLayout(statusContainer);
-    statusLayout->setContentsMargins(0, 0, 0, 0);
-    statusLayout->setAlignment(Qt::AlignCenter);
-    QLabel *statusTag = new QLabel(status);
-    QString tagStyle = "padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; ";
-    if (status == "正常") tagStyle += "background-color: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;";
-    else if (status == "寄养中") tagStyle += "background-color: #ecf5ff; color: #409eff; border: 1px solid #d9ecff;";
-    else tagStyle += "background-color: #fdf6ec; color: #e6a23c; border: 1px solid #faecd8;";
-    statusTag->setStyleSheet(tagStyle);
-    statusLayout->addWidget(statusTag);
-    petTable->setCellWidget(row, 5, statusContainer);
+    // 7. 以往病例
+    QTableWidgetItem *medItem = new QTableWidgetItem(info.medicalHistory);
+    medItem->setTextAlignment(Qt::AlignCenter);
+    medItem->setFont(QFont("Microsoft YaHei", 8));
+    if (info.medicalHistory != "无" && info.medicalHistory != "暂无病史") medItem->setForeground(QColor("#f56c6c"));
+    petTable->setItem(row, 7, medItem);
 
-    setItem(6, ownerId);
-    setItem(7, owner);
+    // 8. 饮食禁忌
+    QTableWidgetItem *dietItem = new QTableWidgetItem(info.dietary);
+    dietItem->setTextAlignment(Qt::AlignCenter);
+    dietItem->setFont(QFont("Microsoft YaHei", 8));
+    if (info.dietary != "常规饮食") dietItem->setForeground(QColor("#e6a23c"));
+    petTable->setItem(row, 8, dietItem);
+
+    // 9. 在店状态标签
+    QWidget *statusWrap = new QWidget();
+    QHBoxLayout *statusL = new QHBoxLayout(statusWrap);
+    statusL->setContentsMargins(0, 0, 0, 0); statusL->setAlignment(Qt::AlignCenter);
+    QLabel *tag = new QLabel(info.status);
+    tag->setFixedSize(60, 24); tag->setAlignment(Qt::AlignCenter);
+    tag->setFont(QFont("Microsoft YaHei", 8));
+    if (info.status == "寄养中") tag->setStyleSheet("background: #ecf5ff; color: #409eff; border-radius: 4px;");
+    else if (info.status == "洗护中") tag->setStyleSheet("background: #fdf6ec; color: #e6a23c; border-radius: 4px;");
+    else if (info.status == "离店") tag->setStyleSheet("background: #f4f4f5; color: #909399; border-radius: 4px;");
+    else tag->setStyleSheet("background: #f0f9eb; color: #67c23a; border-radius: 4px;");
+    statusL->addWidget(tag);
+    statusWrap->setAttribute(Qt::WA_TransparentForMouseEvents);
+    tag->setAttribute(Qt::WA_TransparentForMouseEvents);
+    petTable->setCellWidget(row, 9, statusWrap);
+
+    // 10. 入店时间
+    QTableWidgetItem *timeItem = new QTableWidgetItem(info.joinTime);
+    timeItem->setTextAlignment(Qt::AlignCenter);
+    timeItem->setForeground(QColor("#909399"));
+    petTable->setItem(row, 10, timeItem);
+
+    // 11. 管理操作
+    QWidget *btnWrap = new QWidget();
+    QHBoxLayout *btnL = new QHBoxLayout(btnWrap);
+    btnL->setContentsMargins(0, 0, 0, 0); btnL->setSpacing(5); btnL->setAlignment(Qt::AlignCenter);
+    
+    auto createActBtn = [&](const QString &text, const QString &style) {
+        QPushButton *b = new QPushButton(text);
+        b->setFixedSize(50, 26); b->setCursor(Qt::PointingHandCursor);
+        b->setStyleSheet(style);
+        return b;
+    };
+    QPushButton *editB = createActBtn("修改", "QPushButton { background: #f0f7ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 3px; font-size: 11px; padding: 0; text-align: center; } QPushButton:hover { background: #409eff; color: white; }");
+    QPushButton *delB = createActBtn("删除", "QPushButton { background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 3px; font-size: 11px; padding: 0; text-align: center; } QPushButton:hover { background: #f56c6c; color: white; }");
+    connect(editB, &QPushButton::clicked, this, &PetModule::onEditPet);
+    connect(delB, &QPushButton::clicked, this, &PetModule::onDeletePet);
+    btnL->addWidget(editB); btnL->addWidget(delB);
+    petTable->setCellWidget(row, 11, btnWrap);
+
+    updatePagination();
 }
 
 void PetModule::updateStats()
@@ -201,8 +495,8 @@ void PetModule::updateStats()
     int grooming = 0;
 
     for (int i = 0; i < total; ++i) {
-        if (petTable->isRowHidden(i)) continue; // 排除被搜索隐藏的行
-        QWidget *w = petTable->cellWidget(i, 5);
+        if (petTable->isRowHidden(i)) continue;
+        QWidget *w = petTable->cellWidget(i, 9); // 状态列索引变为 9
         if (w) {
             QLabel *lbl = w->findChild<QLabel*>();
             if (lbl) {
@@ -221,6 +515,49 @@ void PetModule::updateStats()
     groomingPetsLabel->setText(QString("%1只").arg(grooming));
 }
 
+void PetModule::filterByMemberAndHighlightPet(const QString &memberName, const QString &petName)
+{
+    // 1. 恢复所有行（取消之前可能遗留的高亮），使用空画刷恢复以避免破坏交替行背景色(斑马纹)
+    for (int i = 0; i < petTable->rowCount(); ++i) {
+        for (int j = 0; j < petTable->columnCount(); ++j) {
+            QTableWidgetItem *item = petTable->item(i, j);
+            if (item) {
+                item->setBackground(QBrush()); // 恢复默认值
+            }
+        }
+    }
+
+    // 2. 显示所有宠物信息 (清除搜索)，并彻底清除表格的焦点和零散的选中项
+    searchEdit->clear();
+    onSearch("");
+
+    petTable->clearSelection();
+    petTable->clearFocus();
+    petTable->setCurrentItem(nullptr);
+    
+    // 3. 在所有记录中，寻找特定的宠物并高亮、定位
+    for (int i = 0; i < petTable->rowCount(); ++i) {
+        if (!petTable->isRowHidden(i)) {
+            QTableWidgetItem *nameItem = petTable->item(i, 2); // 宠物姓名在第 2 列
+            QTableWidgetItem *ownerItem = petTable->item(i, 3); // 主人在第 3 列
+
+            if (nameItem && ownerItem) {
+                QString currentPetName = nameItem->text();
+
+                // 同时匹配宠物名字和主人名字 (由于格式为 "张三 (M001)", 可使用 startsWith 匹配前缀)
+                if (currentPetName == petName && ownerItem->text().startsWith(memberName + " ")) {
+                    // 让表格平滑地滚动到该选项并将其置中显示
+                    petTable->scrollToItem(nameItem, QAbstractItemView::PositionAtCenter);
+                    
+                    // 使用标准的选中机制，依靠上面配置的 #b3d8ff selection-background-color 来强势高亮整行
+                    petTable->selectRow(i);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 void PetModule::onSearch(const QString &keyword)
 {
     QString kw = keyword.trimmed().toLower();
@@ -230,8 +567,8 @@ void PetModule::onSearch(const QString &keyword)
             continue;
         }
         bool match = false;
-        // 搜索列: 0=宠物ID, 1=名称, 2=品种信息, 6=主人ID, 7=主人姓名
-        QList<int> searchCols = {0, 1, 2, 6, 7};
+        // 搜索列: 1=ID, 2=姓名, 3=主人, 4=基本信息
+        QList<int> searchCols = {1, 2, 3, 4};
         for (int col : searchCols) {
             QTableWidgetItem *item = petTable->item(i, col);
             if (item && item->text().toLower().contains(kw)) {
@@ -241,5 +578,252 @@ void PetModule::onSearch(const QString &keyword)
         }
         petTable->setRowHidden(i, !match);
     }
+    m_currentPage = 1;
     updateStats();
+    updatePagination();
+}
+
+void PetModule::onEditPet()
+{
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    for (int i = 0; i < petTable->rowCount(); ++i) {
+        QWidget *w = petTable->cellWidget(i, 9); // 操作列迁往第 9 列
+        if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
+             QString petId = petTable->item(i, 1)->text(); // ID 迁往第 1 列
+             if (!m_petData.contains(petId)) break;
+             
+             PetInfo info = m_petData[petId];
+             
+             AddPetDialog dlg(this);
+             dlg.setPetInfo(info);
+             if (dlg.exec() == QDialog::Accepted) {
+                 PetInfo newInfo = dlg.getPetInfo();
+                 m_petData[petId] = newInfo; // 更新缓存
+                 petTable->removeRow(i);
+                 addPetRow(newInfo);
+                 updateStats();
+             }
+             break;
+        }
+    }
+}
+
+void PetModule::onDeletePet()
+{
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    for (int i = 0; i < petTable->rowCount(); ++i) {
+        QWidget *w = petTable->cellWidget(i, 9);
+        if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
+            if (CustomMessageDialog::confirm(this, "删除确认", "确定要永久删除该宠物档案吗？")) {
+                petTable->removeRow(i);
+                updateStats();
+            }
+            break;
+        }
+    }
+}
+
+void PetModule::onBatchDelete()
+{
+    QList<int> checkedRows;
+    for (int i = petTable->rowCount() - 1; i >= 0; --i) {
+        QWidget *w = petTable->cellWidget(i, 0); // 勾选列在第 0 列
+        if (w) {
+            QCheckBox *cb = w->findChild<QCheckBox*>();
+            if (cb && cb->isChecked()) {
+                checkedRows.append(i);
+            }
+        }
+    }
+    
+    if (checkedRows.isEmpty()) {
+        CustomMessageDialog::showWarning(this, "批量操作", "请先勾选需要删除的宠物档案。");
+        return;
+    }
+
+    if (CustomMessageDialog::confirm(this, "批量删除", QString("确定要删除选中的 %1 个宠物档案吗？此操作不可撤销。").arg(checkedRows.size()))) {
+        for (int row : checkedRows) {
+            petTable->removeRow(row);
+        }
+        updateStats();
+        updatePagination();
+    }
+}
+
+void PetModule::onPrevPage()
+{
+    if (m_currentPage > 1) {
+        m_currentPage--;
+        updatePagination();
+    }
+}
+
+void PetModule::onNextPage()
+{
+    // 计算总页数以防止越界
+    int total = petTable->rowCount();
+    QString kw = searchEdit->text().trimmed().toLower();
+    int visibleCount = 0;
+    if (kw.isEmpty()) {
+        visibleCount = total;
+    } else {
+        for (int i = 0; i < total; ++i) {
+            for (int col : {1, 2, 3, 4}) { // 搜索列偏移
+                QTableWidgetItem *item = petTable->item(i, col);
+                if (item && item->text().toLower().contains(kw)) {
+                    visibleCount++;
+                    break;
+                }
+            }
+        }
+    }
+    int totalPages = qMax(1, (visibleCount + m_pageSize - 1) / m_pageSize);
+    if (m_currentPage < totalPages) {
+        m_currentPage++;
+        updatePagination();
+    }
+}
+
+void PetModule::onJumpPage()
+{
+    int page = jumpEdit->text().toInt();
+    if (page < 1) return;
+    
+    m_currentPage = page;
+    updatePagination();
+    jumpEdit->clear();
+    jumpEdit->clearFocus();
+}
+
+void PetModule::updatePagination()
+{
+    int total = petTable->rowCount();
+    QString kw = searchEdit->text().trimmed().toLower();
+    
+    QList<int> visibleRows;
+    for (int i = 0; i < total; ++i) {
+        bool match = false;
+        if (kw.isEmpty()) {
+            match = true;
+        } else {
+            QList<int> searchCols = {0, 1, 2, 3};
+            for (int col : searchCols) {
+                QTableWidgetItem *item = petTable->item(i, col);
+                if (item && item->text().toLower().contains(kw)) {
+                    match = true;
+                    break;
+                }
+            }
+        }
+        if (match) visibleRows.append(i);
+        petTable->setRowHidden(i, true);
+    }
+
+    int totalVisible = visibleRows.size();
+    int totalPages = qMax(1, (totalVisible + m_pageSize - 1) / m_pageSize);
+    
+    if (jumpValidator) jumpValidator->setTop(totalPages);
+
+    if (m_currentPage > totalPages) m_currentPage = totalPages;
+    if (m_currentPage < 1) m_currentPage = 1;
+
+    int start = (m_currentPage - 1) * m_pageSize;
+    int end = qMin(start + m_pageSize, totalVisible);
+
+    for (int i = start; i < end; ++i) {
+        petTable->setRowHidden(visibleRows[i], false);
+    }
+
+    pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
+    prevBtn->setEnabled(m_currentPage > 1);
+    nextBtn->setEnabled(m_currentPage < totalPages);
+
+    if (totalVisible == 0) {
+        prevBtn->setEnabled(false);
+        nextBtn->setEnabled(false);
+        pageLabel->setText("第 0 页 / 共 0 页");
+    }
+}
+
+
+bool PetModule::eventFilter(QObject *watched, QEvent *event) {
+    Q_UNUSED(watched);
+    Q_UNUSED(event);
+    return QWidget::eventFilter(watched, event);
+}
+
+void PetModule::onCurrentCellChanged(int row, int column, int prevRow, int prevCol)
+{
+    Q_UNUSED(prevRow); Q_UNUSED(prevCol); Q_UNUSED(column);
+    if (row < 0) return; // 只要行有效就同步，不再拦截操作列，防止数据错位
+
+    QTableWidgetItem *idItem = petTable->item(row, 1); // ID 偏移到第 1 列
+    if (!idItem) return;
+
+    QString petId = idItem->text();
+    if (m_petData.contains(petId)) {
+        PetInfo info = m_petData[petId];
+        QList<FosterBatch> batches;
+        
+        if (info.status == "寄养中") {
+            FosterBatch b1;
+            b1.id = "B20260410"; b1.startTime = "2026-04-10"; b1.endTime = "至今"; b1.isActive = true;
+            batches.append(b1);
+        }
+        
+        m_drawer->setPet(info, m_activityLogs[petId], batches);
+        // 如果抽屉没开，点击行会自动展开。如果已开，会自动同步
+        if (!m_drawer->isOpened()) {
+            m_drawer->showDrawer();
+        }
+    }
+}
+
+void PetModule::onLogAdded(const QString &petId, const PetActivityLog &log)
+{
+    m_activityLogs[petId].append(log);
+    
+    // 找到对应的行并更新状态点
+    for (int i = 0; i < petTable->rowCount(); ++i) {
+        if (petTable->item(i, 1) && petTable->item(i, 1)->text() == petId) { // ID 偏移到第 1 列
+            updateRowStatus(i);
+            break;
+        }
+    }
+}
+
+void PetModule::onQuickAction()
+{
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) return;
+
+    QString petId = btn->property("petId").toString();
+    QString type = btn->property("actionType").toString();
+
+    PetActivityLog log;
+    log.type = type;
+    log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+    log.remark = "通过列表快捷键记录";
+    log.icon = (type == "投喂") ? "🍖" : "🛁";
+    log.isAlert = (type == "异常");
+
+    onLogAdded(petId, log);
+
+    // 如果抽屉当前显示的正好是这只宠物，同步更新抽屉显示
+    if (m_drawer->isOpened() && petTable->currentRow() >= 0) {
+        QTableWidgetItem *idItem = petTable->item(petTable->currentRow(), 1); // ID 偏移到第 1 列
+        if (idItem && idItem->text() == petId) {
+            m_drawer->addLogItem(log);
+        }
+    }
+}
+
+void PetModule::updateRowStatus(int row)
+{
+    // “今日动态”列已移除，此函数不再执行具体操作
+    Q_UNUSED(row);
 }

@@ -6,10 +6,10 @@
 #include <QGraphicsDropShadowEffect>
 #include <QFrame>
 
-CustomMessageDialog::CustomMessageDialog(const QString &title, const QString &content, bool isConfirm, QWidget *parent)
+CustomMessageDialog::CustomMessageDialog(const QString &title, const QString &content, DialogType type, QWidget *parent)
     : QDialog(parent)
 {
-    setupUI(title, content, isConfirm);
+    setupUI(title, content, type);
 }
 
 CustomMessageDialog::~CustomMessageDialog()
@@ -18,21 +18,34 @@ CustomMessageDialog::~CustomMessageDialog()
 
 void CustomMessageDialog::showWarning(QWidget *parent, const QString &title, const QString &content)
 {
-    CustomMessageDialog dialog(title, content, false, parent); // Pass false for isConfirm
+    CustomMessageDialog dialog(title, content, Warning, parent);
+    dialog.exec();
+}
+
+void CustomMessageDialog::showSuccess(QWidget *parent, const QString &title, const QString &content)
+{
+    CustomMessageDialog dialog(title, content, Success, parent);
     dialog.exec();
 }
 
 bool CustomMessageDialog::confirm(QWidget *parent, const QString &title, const QString &content)
 {
-    CustomMessageDialog dialog(title, content, true, parent); // Pass true for isConfirm
+    CustomMessageDialog dialog(title, content, Confirm, parent);
     return dialog.exec() == QDialog::Accepted;
 }
 
-void CustomMessageDialog::setupUI(const QString &title, const QString &content, bool isConfirm)
+void CustomMessageDialog::setupUI(const QString &title, const QString &content, DialogType type)
 {
-    // 隐藏边框，背景透明
+    // 隐藏边框，背景透明，确保它作为子弹窗存在
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
+
+    // 自动居中父窗口
+    if (parentWidget()) {
+        this->setParent(parentWidget());
+        QPoint centerPos = parentWidget()->geometry().center();
+        this->move(centerPos.x() - 210, centerPos.y() - 100);
+    }
 
     // 主布局，留出阴影边距
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -63,29 +76,35 @@ void CustomMessageDialog::setupUI(const QString &title, const QString &content, 
 
     // 标题
     QLabel *titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #303133;");
+    titleLabel->setStyleSheet("font-size: 18px; color: #303133; font-weight: bold;");
     containerLayout->addWidget(titleLabel);
 
     // 内容区（横向：图标 + 文字）
     QHBoxLayout *contentLayout = new QHBoxLayout();
     contentLayout->setSpacing(15);
 
-    // 这里由于没有现成的图标，我们用一个彩色的 QLabel 模拟
-    QLabel *iconLabel = new QLabel("!");
-    iconLabel->setFixedSize(36, 36);
+    // 图标和颜色逻辑
+    QLabel *iconLabel = new QLabel();
+    iconLabel->setFixedSize(40, 40);
     iconLabel->setAlignment(Qt::AlignCenter);
-    iconLabel->setStyleSheet(
-        "background-color: #fef0f0; "
-        "color: #f56c6c; "
-        "font-size: 20px; "
-        "font-weight: bold; "
-        "border-radius: 18px;"
-    );
+    
+    QString iconStyle;
+    if (type == Success) {
+        iconLabel->setText("✓");
+        iconStyle = "background-color: #f0f9eb; color: #67c23a; border-radius: 20px; font-size: 24px;";
+    } else if (type == Warning) {
+        iconLabel->setText("!");
+        iconStyle = "background-color: #fef0f0; color: #f56c6c; border-radius: 20px; font-size: 24px; font-weight: bold;";
+    } else { // Confirm
+        iconLabel->setText("?");
+        iconStyle = "background-color: #edf2fc; color: #409eff; border-radius: 20px; font-size: 24px;";
+    }
+    iconLabel->setStyleSheet(iconStyle);
     contentLayout->addWidget(iconLabel);
 
     QLabel *msgLabel = new QLabel(content);
     msgLabel->setWordWrap(true);
-    msgLabel->setStyleSheet("font-size: 14px; color: #606266; line-height: 1.5;");
+    msgLabel->setStyleSheet("font-size: 14px; color: #606266; line-height: 1.6;");
     contentLayout->addWidget(msgLabel, 1);
     
     containerLayout->addLayout(contentLayout);
@@ -95,53 +114,44 @@ void CustomMessageDialog::setupUI(const QString &title, const QString &content, 
     btnLayout->setContentsMargins(0, 10, 0, 0);
     btnLayout->addStretch();
 
-    if (isConfirm) {
+    if (type == Confirm) {
         QPushButton *cancelBtn = new QPushButton("取消");
         cancelBtn->setCursor(Qt::PointingHandCursor);
-        cancelBtn->setFixedSize(80, 32);
+        cancelBtn->setFixedSize(100, 40);
         cancelBtn->setStyleSheet(
             "QPushButton {"
-            "   background-color: #f4f4f5;"
+            "   background-color: white;"
             "   color: #606266;"
-            "   border: none;"
-            "   border-radius: 4px;"
+            "   border: 1px solid #dcdfe6;"
+            "   border-radius: 20px;"
             "   font: 14px 'Microsoft YaHei';"
-            "   text-align: center;"
-            "   padding: 0px;"
+            "   text-align: center; padding: 0px;"
             "}"
-            "QPushButton:hover { background-color: #e9e9eb; }"
+            "QPushButton:hover { background-color: #f5f7fa; color: #409eff; border-color: #c6e2ff; }"
         );
         connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
         btnLayout->addWidget(cancelBtn);
-        btnLayout->addSpacing(10);
+        btnLayout->addSpacing(15);
     }
     
-    QPushButton *okBtn = new QPushButton("确认");
+    QPushButton *okBtn = new QPushButton(type == Success ? "知道了" : "确认");
     okBtn->setCursor(Qt::PointingHandCursor);
-    okBtn->setFixedSize(90, 34);
-    okBtn->setStyleSheet(
-        "QPushButton {"
-        "   background-color: #409eff;"
-        "   color: #ffffff;"
-        "   border: none;"
-        "   border-radius: 4px;"
-        "   font: 14px 'Microsoft YaHei', 'Segoe UI', sans-serif;"
-        "   text-align: center;"  /* 👈 添加这一行强制文字水平居中 */
-        "   padding: 0px;"        /* 建议：如果不需要严格为0，可以删掉这行或改为合适的内边距 */
-        "   margin: 0px;"
-        "}"
-        "QPushButton:hover {"
-        "   background-color: #66b1ff;"
-        "}"
-        "QPushButton:pressed {"
-        "   background-color: #3a8ee6;"
-        "}"
-        );
+    okBtn->setFixedSize(110, 40);
+    
+    QString baseStyle = "border: none; border-radius: 20px; font: bold 14px 'Microsoft YaHei'; text-align: center; padding: 0px;";
+    if (type == Success) {
+        okBtn->setStyleSheet("QPushButton { background-color: #67c23a; color: #ffffff; " + baseStyle + " }");
+    } else if (type == Warning) {
+        okBtn->setStyleSheet("QPushButton { background-color: #f56c6c; color: #ffffff; " + baseStyle + " }");
+    } else {
+        okBtn->setStyleSheet("QPushButton { background-color: #409eff; color: #ffffff; " + baseStyle + " }");
+    }
+    
     connect(okBtn, &QPushButton::clicked, this, &QDialog::accept);
     btnLayout->addWidget(okBtn);
     
     containerLayout->addLayout(btnLayout);
 
     // 固定宽度
-    setFixedWidth(450);
+    setFixedWidth(420);
 }

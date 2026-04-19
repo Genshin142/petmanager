@@ -20,9 +20,15 @@ private:
                            const QString &type, double amount, double commission);
     void updateSummary();
     void updateDayCombo(QComboBox* yearCombo, QComboBox* monthCombo, QComboBox* dayCombo);
+    void updatePagination();
     
 private slots:
     void onFilter();
+    void onPrevPage();
+    void onNextPage();
+    void onJumpPage();
+    void onBatchVerify();
+    void onVerifySingle();
 
 private:
     QTableWidget *perfTable;
@@ -31,7 +37,25 @@ private:
     QLabel *productRevenueLabel;
     QLabel *totalCommLabel;
 
+    struct PerfRecord {
+        QString date;
+        QString empId;
+        QString empName;
+        QString type;
+        double amount;
+        double commission;
+        bool isVerified; // true=已入账/核销
+    };
+    QList<PerfRecord> m_perfData;
 
+    // 分页组件
+    int m_currentPage = 1;
+    int m_pageSize = 10;
+    QLabel *pageLabel;
+    QLineEdit *jumpEdit;
+    QPushButton *prevBtn;
+    QPushButton *nextBtn;
+    class QIntValidator *jumpValidator;
     // 筛选组件
     QLineEdit *searchEdit;
     

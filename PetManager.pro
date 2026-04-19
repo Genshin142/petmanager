@@ -1,4 +1,4 @@
-QT       += core gui network widgets svg
+QT       += core gui network widgets svg charts
 
 CONFIG += c++17
 
@@ -26,7 +26,9 @@ SOURCES += \
     modules/historyappointmentdialog.cpp \
     modules/performancemodule.cpp \
     modules/addemployeedialog.cpp \
-    modules/salarymodule.cpp
+    modules/salarymodule.cpp \
+    modules/petrecorddrawer.cpp \
+    modules/custom_calendar_edit.cpp
 
 HEADERS += \
     loginwindow.h \
@@ -47,7 +49,12 @@ HEADERS += \
     modules/addpetdialog.h \
     modules/performancemodule.h \
     modules/addemployeedialog.h \
-    modules/salarymodule.h
+    modules/salarymodule.h \
+    modules/petrecorddrawer.h \
+    modules/pettimelinemodel.h \
+    modules/timelinedelegate.h \
+    modules/compactcalendar.h \
+    modules/custom_calendar_edit.h
 
 FORMS += \
     loginwindow.ui \

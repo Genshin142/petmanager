@@ -3,6 +3,9 @@
 #include <QGraphicsDropShadowEffect>
 #include <QDate>
 #include "custommessagedialog.h"
+#include <QFileDialog>
+#include <QPainter>
+#include <QPainterPath>
 
 AddPetDialog::AddPetDialog(QWidget *parent) :
     QDialog(parent),
@@ -22,72 +25,194 @@ void AddPetDialog::setupUI()
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
 
-    // 阴影效果
+    // 1. 初始化成员变量
+    genderCombo = new QComboBox();
+    genderCombo->addItems({"公", "母"});
+    ageYearEdit = new QLineEdit();
+    ageYearEdit->setFixedWidth(80);
+    ageMonthCombo = new QComboBox();
+    for (int i = 1; i <= 12; ++i) ageMonthCombo->addItem(QString::number(i));
+    ageMonthCombo->setFixedWidth(80);
+    healthCombo = new QComboBox();
+    healthCombo->addItems({"健康", "良好", "一般", "亚健康", "疾病中", "康复中"});
+    ownerIdEdit = new QLineEdit();
+    ownerIdEdit->setReadOnly(true);
+    ownerNameEdit = new QLineEdit();
+    ownerNameEdit->setReadOnly(true);
+    statusCombo = new QComboBox();
+    statusCombo->addItems({"寄养中", "洗护中", "离店"});
+    joinTimeEdit = new QLineEdit();
+    joinTimeEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
+
+    // 初始化头像 UI
+    avatarLabel = new QLabel();
+    avatarLabel->setFixedSize(90, 90);
+    avatarLabel->setStyleSheet("border-radius: 45px; background: #f5f7fa; border: 1px solid #dcdfe6;");
+    avatarLabel->setAlignment(Qt::AlignCenter);
+    avatarLabel->setCursor(Qt::PointingHandCursor);
+    avatarLabel->installEventFilter(this); // 安装过滤器以响应点击
+    
+    selectImageBtn = new QPushButton("上传照片");
+    selectImageBtn->setFixedWidth(100);
+    selectImageBtn->setCursor(Qt::PointingHandCursor);
+    selectImageBtn->setStyleSheet(
+        "QPushButton { background: white; color: #606266; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px; font-size: 12px; } "
+        "QPushButton:hover { border-color: #409eff; color: #409eff; }"
+    );
+    connect(selectImageBtn, &QPushButton::clicked, this, &AddPetDialog::onSelectImageClicked);
+
+    // 2. 窗口阴影
     QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
     shadow->setBlurRadius(25);
     shadow->setColor(QColor(0, 0, 0, 50));
     shadow->setOffset(0, 5);
     ui->bgFrame->setGraphicsEffect(shadow);
 
-    // 样式美化
+    // 3. 【恢复】系统统一的高级美化样式 (QSS)
     QString qss =
         "QLabel { color: #606266; font-size: 14px; }"
+        "QLineEdit { "
+        "   border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 12px; height: 34px; background: white; color: #606266; "
+        "} "
+        "QLineEdit:focus { border-color: #409eff; } "
+        "QComboBox { "
+        "   border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 12px; height: 34px; background: white; color: #606266; "
+        "} "
+        "QComboBox:hover { border-color: #c0c4cc; } "
+        "QComboBox:focus { border-color: #409eff; } "
+        "QComboBox::drop-down { border: none; width: 30px; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; height: 14px; } "
         "QComboBox QAbstractItemView { "
-        "   border: 1px solid #ebeef5; "
-        "   border-radius: 4px; "
-        "   background-color: white; "
-        "   outline: none; "
-        "   padding: 4px 0px; "
+        "   border: 1px solid #ebeef5; border-radius: 4px; background-color: white; outline: none; padding: 4px 0px; "
         "} "
         "QComboBox QAbstractItemView::item { "
-        "   height: 35px; "
-        "   padding-left: 12px; "
-        "   color: #606266; "
-        "   background-color: white; "
+        "   height: 35px; padding-left: 12px; color: #606266; "
         "} "
         "QComboBox QAbstractItemView::item:selected { "
-        "   background-color: #f0f7ff; "
-        "   color: #409eff; "
-        "   border-left: 3px solid #409eff; "
-        "}"
+        "   background-color: #f0f7ff; color: #409eff; border-left: 3px solid #409eff; "
+        "} "
         "QPushButton#saveBtn { "
-        "   background-color: #409eff; color: white; border: none; border-radius: 4px; "
-        "   padding: 0px; text-align: center; font: 14px 'Microsoft YaHei'; "
-        "}"
+        "   background-color: #409eff; color: white; border-radius: 4px; font: 14px 'Microsoft YaHei'; border: none; padding: 10px 30px; "
+        "} "
+        "QPushButton#saveBtn:hover { background-color: #66b1ff; } "
         "QPushButton#cancelBtn { "
-        "   background-color: #f4f4f5; color: #606266; border: none; border-radius: 4px; "
-        "   padding: 0px; text-align: center; font: 14px 'Microsoft YaHei'; "
-        "}"
-        "QPushButton:hover { opacity: 0.8; }";
+        "   background-color: #f4f4f5; color: #606266; border-radius: 4px; font: 14px 'Microsoft YaHei'; border: none; padding: 10px 30px; "
+        "} "
+        "QPushButton#cancelBtn:hover { background-color: #e9e9eb; }";
     
     this->setStyleSheet(qss);
-    ui->saveBtn->setFixedSize(90, 34);
-    ui->cancelBtn->setFixedSize(80, 34);
+    
+    // 取消固定高度，交由系统根据 padding 和 font-size 自然撑开，确保文字不被切割
+    ui->saveBtn->setMinimumWidth(100);
+    ui->cancelBtn->setMinimumWidth(80);
+    
+    // 只读字段特殊样式
+    QString readOnlyStyle = "background-color: #f5f7fa; color: #909399; border: 1px solid #dcdfe6;";
+    ownerIdEdit->setStyleSheet(readOnlyStyle);
+    ownerNameEdit->setStyleSheet(readOnlyStyle);
+
+    // 4. 【安全插入】保留原生 UI 结构，直接对原有布局进行优化与行插入
+    ui->formLayout->setVerticalSpacing(16);
+    ui->formLayout->setContentsMargins(0, 15, 0, 15);
+    
+    ui->nameEdit->setPlaceholderText("请输入宠物姓名");
+    ui->historyEdit->setPlaceholderText("如有患病或过敏说明，请填写");
 
     initBreedData();
-    
     ui->speciesCombo->addItems(m_breedData.keys());
-    connect(ui->speciesCombo, &QComboBox::currentTextChanged, this, &AddPetDialog::onSpeciesChanged);
-    
-    // 初始触发一次加载第一个大类的品种
-    onSpeciesChanged(ui->speciesCombo->currentText());
 
-    // 初始化年月日
     int currentYear = QDate::currentDate().year();
-    for(int y = currentYear - 10; y <= currentYear ; ++y)
-        ui->yearCombo->addItem(QString::number(y));
-    for(int m = 1; m <= 12; ++m) 
-        ui->monthCombo->addItem(QString::number(m).rightJustified(2, '0'));
-    for(int d = 1; d <= 31; ++d) 
-        ui->dayCombo->addItem(QString::number(d).rightJustified(2, '0'));
+    for(int y = currentYear - 10; y <= currentYear ; ++y) ui->yearCombo->addItem(QString::number(y));
+    for(int m = 1; m <= 12; ++m) ui->monthCombo->addItem(QString::number(m).rightJustified(2, '0'));
+    for(int d = 1; d <= 31; ++d) ui->dayCombo->addItem(QString::number(d).rightJustified(2, '0'));
 
-    // 设置默认值为今天
-    ui->yearCombo->setCurrentText(QString::number(currentYear));
-    ui->monthCombo->setCurrentText(QString::number(QDate::currentDate().month()).rightJustified(2, '0'));
-    ui->dayCombo->setCurrentText(QString::number(QDate::currentDate().day()).rightJustified(2, '0'));
+    // 5. 动态插入新字段
+    // 在最上方插入照片选择行
+    QWidget *avatarRow = new QWidget();
+    QHBoxLayout *avatarLayout = new QHBoxLayout(avatarRow);
+    avatarLayout->setContentsMargins(0, 0, 0, 0);
+    avatarLayout->setSpacing(20);
+    avatarLayout->addWidget(avatarLabel);
+    avatarLayout->addWidget(selectImageBtn);
+    avatarLayout->addStretch();
+    ui->formLayout->insertRow(0, "宠物照片:", avatarRow);
 
+    // 性别与年龄插入
+    ui->formLayout->insertRow(3, "性别选择:", genderCombo);
+    
+    QWidget *ageWidget = new QWidget();
+    QHBoxLayout *ageLayout = new QHBoxLayout(ageWidget);
+    ageLayout->setContentsMargins(0, 0, 0, 0);
+    ageLayout->addWidget(ageYearEdit);
+    ageLayout->addWidget(new QLabel("岁"));
+    ageLayout->addWidget(ageMonthCombo);
+    ageLayout->addWidget(new QLabel("月"));
+    ageLayout->addStretch();
+    
+    ui->formLayout->insertRow(3, "宠物年龄:", ageWidget);
+    ui->formLayout->insertRow(4, "健康状态:", healthCombo);
+
+    // 在原有布局的尾部，追加主人相关信息
+    ui->formLayout->addRow("主人ID:", ownerIdEdit);
+    ui->formLayout->addRow("主人姓名:", ownerNameEdit);
+    ui->formLayout->addRow("在店状态:", statusCombo);
+    ui->formLayout->addRow("入店时间:", joinTimeEdit);
+
+    // 6. 信号连接
+    connect(ui->speciesCombo, &QComboBox::currentTextChanged, this, &AddPetDialog::onSpeciesChanged);
+    onSpeciesChanged(ui->speciesCombo->currentText());
     connect(ui->saveBtn, &QPushButton::clicked, this, &AddPetDialog::onSaveClicked);
     connect(ui->cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+
+    setupBigImageOverlay();
+}
+
+void AddPetDialog::setupBigImageOverlay()
+{
+    m_imagePreviewOverlay = new QWidget(this);
+    m_imagePreviewOverlay->setObjectName("PreviewOverlay");
+    m_imagePreviewOverlay->setStyleSheet("#PreviewOverlay { background-color: rgba(0, 0, 0, 180); border-radius: 12px; }");
+    m_imagePreviewOverlay->hide();
+    m_imagePreviewOverlay->installEventFilter(this); // 点击遮罩任意位置关闭
+    
+    QVBoxLayout *previewL = new QVBoxLayout(m_imagePreviewOverlay);
+    m_previewLabel = new QLabel();
+    m_previewLabel->setAlignment(Qt::AlignCenter);
+    previewL->addWidget(m_previewLabel);
+}
+
+bool AddPetDialog::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == avatarLabel && event->type() == QEvent::MouseButtonRelease) {
+        showBigImage();
+        return true;
+    }
+    if (obj == m_imagePreviewOverlay && event->type() == QEvent::MouseButtonRelease) {
+        hideBigImage();
+        return true;
+    }
+    return QDialog::eventFilter(obj, event);
+}
+
+void AddPetDialog::showBigImage()
+{
+    QPixmap pix(m_avatarPath);
+    if (pix.isNull()) pix.load(":/images/load_img.jpg");
+    
+    // 确保遮罩覆盖整个对话框区域 (考虑到整体边框阴影)
+    m_imagePreviewOverlay->setGeometry(ui->bgFrame->geometry());
+    
+    // 限制预览图最大尺寸为窗口宽度的 90%
+    int maxWidth = ui->bgFrame->width() * 0.9;
+    m_previewLabel->setPixmap(pix.scaled(maxWidth, maxWidth, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    
+    m_imagePreviewOverlay->show();
+    m_imagePreviewOverlay->raise(); // 确保遮罩层在最顶层展示
+}
+
+void AddPetDialog::hideBigImage()
+{
+    m_imagePreviewOverlay->hide();
 }
 
 void AddPetDialog::initBreedData()
@@ -103,12 +228,104 @@ void AddPetDialog::initBreedData()
     m_breedData["其他"] = {"蜜袋鼯", "龙猫", "荷兰猪", "其他"};
 }
 
+void AddPetDialog::onSelectImageClicked()
+{
+    QString defaultPath = "E:/QT/work/PetManager/images/pets";
+    QString fileName = QFileDialog::getOpenFileName(this, "选择宠物照片", defaultPath, "Images (*.png *.jpg *.jpeg *.bmp)");
+    if (fileName.isEmpty()) return;
+
+    m_avatarPath = fileName;
+    
+    // 渲染圆形预览
+    QPixmap pixmap(fileName);
+    if (pixmap.isNull()) return;
+
+    QSize size(90, 90);
+    QPixmap target(size);
+    target.fill(Qt::transparent);
+    QPainter painter(&target);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPainterPath path;
+    path.addEllipse(0, 0, size.width(), size.height());
+    painter.setClipPath(path);
+    painter.drawPixmap(0, 0, size.width(), size.height(), 
+                       pixmap.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    avatarLabel->setPixmap(target);
+}
+
 void AddPetDialog::onSpeciesChanged(const QString &species)
 {
     ui->breedCombo->clear();
     if (m_breedData.contains(species)) {
         ui->breedCombo->addItems(m_breedData[species]);
     }
+}
+
+void AddPetDialog::setPetInfo(const PetInfo &info)
+{
+    // 安全检查：只有当 titleLabel 存在时才设置文本，防止空指针崩溃
+    if (ui->titleLabel) {
+        ui->titleLabel->setText("修改宠物档案信息");
+    }
+    
+    if (ui->nameEdit) ui->nameEdit->setText(info.name);
+    if (ui->speciesCombo) ui->speciesCombo->setCurrentText(info.species);
+    if (ui->breedCombo) ui->breedCombo->setCurrentText(info.breed);
+    if (ui->historyEdit) {
+        healthCombo->setCurrentText(info.health);
+        ui->historyEdit->setText(info.medicalHistory);
+    }
+    
+    if (ownerIdEdit) ownerIdEdit->setText(info.ownerId);
+    if (ownerNameEdit) ownerNameEdit->setText(info.ownerName);
+    
+    // 疫苗日期解析: YYYY-MM-DD
+    QStringList parts = info.vaccine.split('-');
+    if (parts.size() >= 3) {
+        ui->yearCombo->setCurrentText(parts[0]);
+        ui->monthCombo->setCurrentText(parts[1]);
+        ui->dayCombo->setCurrentText(parts[2]);
+    }
+
+    genderCombo->setCurrentText(info.gender);
+    
+    // 解析年龄字符串，例如 "3岁", "6个月", "1岁零2个月"
+    QString ageStr = info.age;
+    ageYearEdit->clear();
+    
+    if (ageStr.contains("岁")) {
+        QStringList yearParts = ageStr.split("岁");
+        ageYearEdit->setText(yearParts[0].trimmed());
+        if (yearParts.size() > 1 && (yearParts[1].contains("个月") || yearParts[1].contains("月"))) {
+            QString monthStr = yearParts[1];
+            monthStr.replace("零", "").replace("个月", "").replace("月", "");
+            ageMonthCombo->setCurrentText(monthStr.trimmed());
+        }
+    } else if (ageStr.contains("月")) {
+        QString monthStr = ageStr;
+        monthStr.replace("个月", "").replace("月", "");
+        ageMonthCombo->setCurrentText(monthStr.trimmed());
+    }
+
+    statusCombo->setCurrentText(info.status);
+    joinTimeEdit->setText(info.joinTime.isEmpty() ? QDate::currentDate().toString("yyyy-MM-dd") : info.joinTime);
+
+    // 处理头像显示
+    m_avatarPath = info.avatarPath;
+    QPixmap pixmap(m_avatarPath);
+    if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
+    
+    QSize size(90, 90);
+    QPixmap target(size);
+    target.fill(Qt::transparent);
+    QPainter p(&target);
+    p.setRenderHint(QPainter::Antialiasing);
+    QPainterPath path;
+    path.addEllipse(0, 0, size.width(), size.height());
+    p.setClipPath(path);
+    p.drawPixmap(0, 0, size.width(), size.height(), 
+                 pixmap.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    avatarLabel->setPixmap(target);
 }
 
 void AddPetDialog::onSaveClicked()
@@ -144,14 +361,36 @@ PetInfo AddPetDialog::getPetInfo() const
 {
     PetInfo info;
     info.name = ui->nameEdit->text();
+    info.species = ui->speciesCombo->currentText();
     info.breed = ui->breedCombo->currentText();
-    info.history = ui->historyEdit->text();
+    info.health = healthCombo->currentText();
+    QString medHist = ui->historyEdit->text().trimmed();
+    info.medicalHistory = medHist.isEmpty() ? "暂无病史" : medHist;
     info.vaccine = QString("%1-%2-%3")
                     .arg(ui->yearCombo->currentText())
                     .arg(ui->monthCombo->currentText())
                     .arg(ui->dayCombo->currentText());
+    
+    info.gender = genderCombo->currentText();
+    QString y = ageYearEdit->text().trimmed();
+    QString m = ageMonthCombo->currentText();
+    if (!y.isEmpty() && !m.isEmpty()) {
+        info.age = QString("%1岁零%2个月").arg(y, m);
+    } else if (!y.isEmpty()) {
+        info.age = QString("%1岁").arg(y);
+    } else if (!m.isEmpty()) {
+        info.age = QString("%1个月").arg(m);
+    } else {
+        info.age = "未知";
+    }
+    info.status = statusCombo->currentText();
+    info.joinTime = joinTimeEdit->text();
+    info.ownerId = ownerIdEdit->text();
+    info.ownerName = ownerNameEdit->text();
+    info.avatarPath = m_avatarPath; // 保存照片路径
+    
     // 简单生成一个 ID
-    static int idCounter = 1000;
-    info.id = QString::number(++idCounter);
+    static int idCounter = 1010;
+    info.id = QString("P%1").arg(++idCounter);
     return info;
 }

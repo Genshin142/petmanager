@@ -7,6 +7,8 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QIntValidator>
+#include <QDate>
+#include <QComboBox>
 
 AddMemberDialog::AddMemberDialog(QWidget *parent) :
     QDialog(parent),
@@ -41,8 +43,8 @@ AddMemberDialog::AddMemberDialog(QWidget *parent) :
         "QLineEdit, QComboBox {"
         "   border: 1px solid #dcdfe6;"
         "   border-radius: 4px;"
-        "   padding: 5px 10px;"
-        "   padding-right: 30px;" // 为右侧箭头留出空间
+        "   padding: 5px 4px;"
+        "   padding-right: 18px;" // 极简内边距，确保小控件内容可见
         "   font-size: 14px;"
         "   background-color: #f5f7fa;"
         "   min-height: 25px;"
@@ -55,7 +57,7 @@ AddMemberDialog::AddMemberDialog(QWidget *parent) :
         "QComboBox::drop-down {"
         "   subcontrol-origin: padding;"
         "   subcontrol-position: top right;"
-        "   width: 30px;"
+        "   width: 15px;"
         "   border: none;"
         "}"
         "QComboBox::down-arrow {"
@@ -72,8 +74,6 @@ AddMemberDialog::AddMemberDialog(QWidget *parent) :
         "   border: 1px solid #dcdfe6;"
         "   padding: 5px;"
         "   background-color: #ffffff;"
-        "   selection-background-color: #409eff;"
-        "   selection-color: #ffffff;"
         "   outline: none;"
         "}"
         "QPushButton {"
@@ -92,21 +92,64 @@ AddMemberDialog::AddMemberDialog(QWidget *parent) :
         "}"
     );
 
+    // 新增模式下隐藏会员ID行（ID为自增）
+    ui->label_id->setVisible(false);
+    ui->idEdit->setVisible(false);
+
+    // 初始化性别下拉列表
+    ui->genderCombo->addItems({"男", "女"});
+    
+    // 初始化生日选择器 (三组合框模式)
+    int currentYear = QDate::currentDate().year();
+    for (int y = currentYear; y >= currentYear - 80; --y) {
+        ui->yearCombo->addItem(QString::number(y));
+    }
+    for (int m = 1; m <= 12; ++m) {
+        ui->monthCombo->addItem(QString::number(m).rightJustified(2, '0'));
+    }
+
+    auto updateDays = [this]() {
+        int year = ui->yearCombo->currentText().toInt();
+        int month = ui->monthCombo->currentText().toInt();
+        int days = QDate(year, month, 1).daysInMonth();
+        
+        QString currentDay = ui->dayCombo->currentText();
+        ui->dayCombo->clear();
+        for (int d = 1; d <= days; ++d) {
+            ui->dayCombo->addItem(QString::number(d).rightJustified(2, '0'));
+        }
+        int idx = ui->dayCombo->findText(currentDay);
+        if (idx != -1) ui->dayCombo->setCurrentIndex(idx);
+    };
+
+    connect(ui->yearCombo, &QComboBox::currentTextChanged, this, updateDays);
+    connect(ui->monthCombo, &QComboBox::currentTextChanged, this, updateDays);
+    
+    // 初始触发一次生成日
+    updateDays();
+    
+    // 设置宽度样式
+    ui->yearCombo->setFixedWidth(95);
+    ui->monthCombo->setFixedWidth(75);
+    ui->dayCombo->setFixedWidth(75);
+    
+    // 默认值
+    ui->yearCombo->setCurrentText("2000");
+    ui->monthCombo->setCurrentText("01");
+    ui->dayCombo->setCurrentText("01");
+
     // 初始化会员等级下拉列表
     ui->levelCombo->addItem("普通会员");
-    ui->levelCombo->addItem("白银会员");
     ui->levelCombo->addItem("黄金会员");
     ui->levelCombo->addItem("铂金会员");
     ui->levelCombo->addItem("钻石会员");
+    ui->levelCombo->setCurrentText("普通会员");
 
     // 修改现有的 buttonBox 样式
     QPushButton *saveBtn = ui->buttonBox->button(QDialogButtonBox::Save);
     QPushButton *cancelBtn = ui->buttonBox->button(QDialogButtonBox::Cancel);
     
-    // 为数值输入框增加校验
-    ui->balanceEdit->setValidator(new QDoubleValidator(0, 999999.99, 2, this));
-    ui->consumeAmtEdit->setValidator(new QDoubleValidator(0, 999999.99, 2, this));
-    ui->pointsEdit->setValidator(new QIntValidator(0, 999999, this));
+    // 移除已删除字段的校验器 (balanceEdit, consumeAmtEdit, pointsEdit)
     
     if (saveBtn) {
         saveBtn->setCursor(Qt::PointingHandCursor);
@@ -132,11 +175,20 @@ MemberInfo AddMemberDialog::getMemberInfo() const
     MemberInfo info;
     info.id = ui->idEdit->text();
     info.name = ui->nameEdit->text();
+    info.gender = ui->genderCombo->currentText();
     info.phone = ui->phoneEdit->text();
     info.level = ui->levelCombo->currentText();
-    info.balance = ui->balanceEdit->text().toDouble();
-    info.consume_amt = ui->consumeAmtEdit->text().toDouble();
-    info.points = ui->pointsEdit->text().toInt();
+    
+    // 从三组合框拼接生日字符串
+    info.birthday = QString("%1-%2-%3")
+            .arg(ui->yearCombo->currentText())
+            .arg(ui->monthCombo->currentText())
+            .arg(ui->dayCombo->currentText());
+    
+    // 财务字段初始化为0（对于新会员）或保持原值
+    info.balance = 0.0;
+    info.consume_amt = 0.0;
+    info.points = 0;
     return info;
 }
 
@@ -148,33 +200,41 @@ void AddMemberDialog::setInitialData(const MemberInfo &info)
         titleLabel->setText("修改会员信息");
     }
 
+    // 编辑模式下显示ID（只读）
+    ui->label_id->setVisible(true);
+    ui->idEdit->setVisible(true);
+    ui->idEdit->setReadOnly(true);
+    ui->idEdit->setStyleSheet(ui->idEdit->styleSheet() + "QLineEdit { background-color: #ebeef5; color: #909399; }");
+
     // 填充数据
     ui->idEdit->setText(info.id);
     ui->nameEdit->setText(info.name);
     ui->phoneEdit->setText(info.phone);
-    ui->balanceEdit->setText(QString::number(info.balance, 'f', 2));
-    ui->consumeAmtEdit->setText(QString::number(info.consume_amt, 'f', 2));
-    ui->pointsEdit->setText(QString::number(info.points));
+    
+    // 性别定位
+    int gIdx = ui->genderCombo->findText(info.gender);
+    if (gIdx != -1) ui->genderCombo->setCurrentIndex(gIdx);
+    
+    // 生日定位 (拆分字符串到三组合框)
+    QStringList dateParts = info.birthday.split("-");
+    if (dateParts.size() == 3) {
+        ui->yearCombo->setCurrentText(dateParts[0]);
+        ui->monthCombo->setCurrentText(dateParts[1]);
+        ui->dayCombo->setCurrentText(dateParts[2]);
+    }
     
     // 选中对应的等级
     int index = ui->levelCombo->findText(info.level);
     if (index != -1) {
         ui->levelCombo->setCurrentIndex(index);
     }
-    
-    // 编辑模式下手机号通常不允许修改，或者作为主键
-    // ui->phoneEdit->setEnabled(false); 
 }
 
 void AddMemberDialog::accept()
 {
-    if (ui->idEdit->text().trimmed().isEmpty()) {
-        CustomMessageDialog::showWarning(this, "输入错误", "会员ID不能为空！");
-        return;
-    }
     if (ui->nameEdit->text().trimmed().isEmpty() || ui->phoneEdit->text().trimmed().isEmpty()) {
         CustomMessageDialog::showWarning(this, "输入错误", "会员姓名和手机号不能为空！");
-        return; // 直接返回，不再调用基类的 accept()
+        return;
     }
     QDialog::accept();
 }

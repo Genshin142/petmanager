@@ -15,14 +15,41 @@ public:
 
 private:
     void setupUI();
-    void addOrderRow(const QDate &date, const QString &orderId, const QString &memberId, const QString &memberName,
-                     const QString &item, double unitPrice, int qty, double discount);
+    void updatePagination();
     void updateTotal();
+
+    struct OrderRecord {
+        QString date;
+        QString orderId;
+        QString memberId;
+        QString memberName;
+        QString item;
+        double unitPrice;
+        int qty;
+        double discount;
+        double total;
+    };
+    QList<OrderRecord> m_orderData;
+
+    // 分页组件
+    int m_currentPage = 1;
+    int m_pageSize = 10;
+    QLabel *pageLabel;
+    class QLineEdit *jumpEdit;
+    class QPushButton *prevBtn;
+    class QPushButton *nextBtn;
+    class QIntValidator *jumpValidator;
 
 private slots:
     void onFilter();
     void updateDayCombo(QComboBox* y, QComboBox* m, QComboBox* d);
     void initDateGroup(QComboBox* y, QComboBox* m, QComboBox* d, const QDate &initDate);
+    
+    void onPrevPage();
+    void onNextPage();
+    void onJumpPage();
+    void onBatchDelete();
+    void onDeleteSingle();
 
 private:
     QTableWidget *orderTable;

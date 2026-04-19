@@ -55,109 +55,119 @@
      <property name="verticalSpacing">
       <number>15</number>
      </property>
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_id">
-       <property name="text">
-        <string>会员ID：</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QLineEdit" name="idEdit">
-       <property name="placeholderText">
-        <string>请输入会员ID (如: M001)</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="label">
-       <property name="text">
-        <string>会员姓名：</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QLineEdit" name="nameEdit">
-       <property name="placeholderText">
-        <string>请输入姓名</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="0">
-      <widget class="QLabel" name="label_2">
-       <property name="text">
-        <string>手机号码：</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="1">
-      <widget class="QLineEdit" name="phoneEdit">
-       <property name="placeholderText">
-        <string>请输入手机号</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QLabel" name="label_3">
-       <property name="text">
-        <string>会员等级：</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QComboBox" name="levelCombo"/>
-     </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="label_balance">
-       <property name="text">
-        <string>储值余额：</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="1">
-      <widget class="QLineEdit" name="balanceEdit">
-       <property name="placeholderText">
-        <string>请输入储值余额, 例如: 0.00</string>
-       </property>
-       <property name="text">
-        <string>0.00</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="0">
-      <widget class="QLabel" name="label_4">
-       <property name="text">
-        <string>累计消费：</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="1">
-      <widget class="QLineEdit" name="consumeAmtEdit">
-       <property name="placeholderText">
-        <string>请输入累计消费金额, 例如: 0.00</string>
-       </property>
-       <property name="text">
-        <string>0.00</string>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="0">
-      <widget class="QLabel" name="label_points">
-       <property name="text">
-        <string>可用积分：</string>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="1">
-      <widget class="QLineEdit" name="pointsEdit">
-       <property name="placeholderText">
-        <string>请输入可用积分, 例如: 0</string>
-       </property>
-       <property name="text">
-        <string>0</string>
-       </property>
-      </widget>
-     </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_id">
+        <property name="text">
+         <string>会员ID：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="idEdit">
+        <property name="placeholderText">
+         <string>请输入会员ID (如: M001)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>会员姓名：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="nameEdit">
+        <property name="placeholderText">
+         <string>请输入姓名</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_gender">
+        <property name="text">
+         <string>会员性别：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="genderCombo"/>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>手机号码：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLineEdit" name="phoneEdit">
+        <property name="placeholderText">
+         <string>请输入手机号</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>会员等级：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="levelCombo"/>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="label_birthday">
+        <property name="text">
+         <string>会员生日：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <layout class="QHBoxLayout" name="birthdayLayout">
+        <property name="spacing">
+         <number>5</number>
+        </property>
+        <item>
+         <widget class="QComboBox" name="yearCombo">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_year">
+          <property name="text">
+           <string>年</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="monthCombo"/>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_month">
+          <property name="text">
+           <string>月</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="dayCombo"/>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_day">
+          <property name="text">
+           <string>日</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
     </layout>
    </item>
    <item>

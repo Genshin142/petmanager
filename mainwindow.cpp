@@ -18,6 +18,8 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     , m_role(role)
 {
     ui->setupUi(this);
+    this->setWindowState(Qt::WindowMaximized); // 默认启动最大化铺满全屏
+    
     initSidebar();
     initModules(role);
 
@@ -100,9 +102,27 @@ void MainWindow::initModules(UserRole role)
     ui->stack->addWidget(perfMod);     // index 7
     ui->stack->addWidget(statsMod);    // index 8
     ui->stack->addWidget(salaryMod);   // index 9
+
+    // 跨模块同步逻辑
+    connect(memberMod, &MemberModule::sig_petAdded, petMod, &PetModule::addPet);
+    connect(memberMod, &MemberModule::sig_requestPetJump, this, &MainWindow::onJumpToPetRequested);
 }
 
 void MainWindow::onNavClicked(int id)
 {
     ui->stack->setCurrentIndex(id);
+}
+
+void MainWindow::onJumpToPetRequested(const QString &memberName, const QString &petName)
+{
+    // 1. 切换左侧导航按钮状态 (PetModule ID 为 2)
+    ui->navPet->setChecked(true);
+    
+    // 2. 切换右侧堆栈页面
+    ui->stack->setCurrentIndex(2);
+    
+    // 3. 执行 PetModule 内部针对会员的筛选以及宠物的高亮定位
+    if (petMod) {
+        petMod->filterByMemberAndHighlightPet(memberName, petName);
+    }
 }

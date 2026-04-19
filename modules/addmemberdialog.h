@@ -11,8 +11,10 @@ class AddMemberDialog;
 struct MemberInfo {
     QString id;
     QString name;
+    QString gender;      // 性别 (先生/女士/保密)
     QString phone;
     QString level;
+    QString birthday;    // 生日 (yyyy-MM-dd)
     double balance;      // 储值余额
     double consume_amt;  // 累计消费金额
     int points;         // 当前可用积分
