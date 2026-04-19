@@ -136,13 +136,13 @@ void AppointmentModule::setupUI() {
     apptTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch); 
 
     apptTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; outline: none; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; } " 
-        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; border-bottom: 1px solid #ebeef5; color: #606266; font-size: 13px; font-weight: bold; } "
-        "QCheckBox::indicator { width: 16px; height: 16px; }"
-        "QCheckBox::indicator:unchecked { border: 1px solid #dcdfe6; background: white; border-radius: 2px; }"
-        "QCheckBox::indicator:checked { image: url(:/images/check.svg); background: #409eff; border: 1px solid #409eff; border-radius: 2px; }"
+        "QTableWidget { border: 1px solid #E2E8F0; background-color: white; color: #1E293B; outline: none; border-radius: 8px; } "
+        "QTableWidget::item { border-bottom: 1px solid #F1F5F9; padding: 10px; } "
+        "QTableWidget::item:selected { background-color: #EFF6FF; color: #1E40AF; } " 
+        "QHeaderView::section { background-color: #1E40AF; color: white; padding: 12px; border: none; font-size: 13px; font-weight: 600; } "
+        "QCheckBox::indicator { width: 18px; height: 18px; }"
+        "QCheckBox::indicator:unchecked { border: 2px solid #D1D5DB; background: white; border-radius: 4px; }"
+        "QCheckBox::indicator:checked { background: #1E40AF; border: 2px solid #1E40AF; border-radius: 4px; }"
     );
     apptTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     layout->addWidget(apptTable);
@@ -156,29 +156,32 @@ void AppointmentModule::setupUI() {
     pageLayout->addStretch();
 
     pageLabel = new QLabel("第 1 页 / 共 1 页");
-    pageLabel->setStyleSheet("color: #606266; font-size: 13px;");
+    pageLabel->setStyleSheet("color: #64748B; font-size: 13px; font-weight: 500;");
     
-    QLabel *jumpLbl1 = new QLabel("跳转到"); jumpLbl1->setStyleSheet("color: #606266; font-size: 13px;");
+    QLabel *jumpLbl1 = new QLabel("跳转至"); jumpLbl1->setStyleSheet("color: #64748B; font-size: 13px;");
     jumpEdit = new QLineEdit();
-    jumpEdit->setFixedSize(40, 26);
+    jumpEdit->setFixedSize(45, 28);
     jumpEdit->setAlignment(Qt::AlignCenter);
     jumpValidator = new QIntValidator(1, 1, this);
     jumpEdit->setValidator(jumpValidator);
-    jumpEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; background: white; } QLineEdit:focus { border-color: #409eff; }");
-    QLabel *jumpLbl2 = new QLabel("页"); jumpLbl2->setStyleSheet("color: #606266; font-size: 13px;");
+    jumpEdit->setStyleSheet("QLineEdit { border: 1px solid #E2E8F0; border-radius: 4px; background: white; font-weight: 600; } QLineEdit:focus { border-color: #1E40AF; }");
+    QLabel *jumpLbl2 = new QLabel("页"); jumpLbl2->setStyleSheet("color: #64748B; font-size: 13px;");
     
     QPushButton *goBtn = new QPushButton("确认");
-    goBtn->setFixedSize(40, 26);
+    goBtn->setFixedSize(50, 28);
     goBtn->setCursor(Qt::PointingHandCursor);
-    goBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; font-size: 12px; } QPushButton:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }");
+    goBtn->setStyleSheet(
+        "QPushButton { background: white; border: 1px solid #E2E8F0; border-radius: 4px; color: #64748B; font-size: 12px; font-weight: 600; } "
+        "QPushButton:hover { color: #1E40AF; border-color: #1E40AF; background: #F8FAFC; }"
+    );
     
     prevBtn = new QPushButton("上一页");
-    prevBtn->setFixedSize(60, 26);
+    prevBtn->setFixedSize(70, 28);
     prevBtn->setCursor(Qt::PointingHandCursor);
     prevBtn->setStyleSheet(goBtn->styleSheet());
     
     nextBtn = new QPushButton("下一页");
-    nextBtn->setFixedSize(60, 26);
+    nextBtn->setFixedSize(70, 28);
     nextBtn->setCursor(Qt::PointingHandCursor);
     nextBtn->setStyleSheet(goBtn->styleSheet());
 
@@ -278,12 +281,13 @@ void AppointmentModule::updatePagination() {
         apptTable->setItem(r, 4, createItem(info.station));
         apptTable->setItem(r, 5, createItem(info.staff));
         
-        // 检测冲突改变背景色
+        // 检测冲突改变背景色 (升级为更醒目的琥珀警示色)
         QString cKey = info.date + "|" + info.hour + "|" + info.staff;
         if (conflictMap[cKey] > 1) {
             for (int col = 1; col <= 5; ++col) {
-                apptTable->item(r, col)->setBackground(QColor("#fff0f0")); // 淡红色冲突警告
-                apptTable->item(r, col)->setToolTip("警告：同一时间同一员工身负多单！");
+                apptTable->item(r, col)->setBackground(QColor("#FFFBEB")); // 琥珀色淡背景
+                apptTable->item(r, col)->setForeground(QColor("#B45309")); // 琥珀深色文字
+                apptTable->item(r, col)->setToolTip("【系统警报】该时段工作人员任务冲突，请协调处理！");
             }
         }
 
@@ -300,12 +304,12 @@ void AppointmentModule::updatePagination() {
             return b;
         };
 
-        QPushButton *finishBtn = createActBtn("完成", "QPushButton { background: #f0f9eb; color: #67c23a; border: 1px solid #c2e7b0; border-radius: 3px; font-size: 11px; padding: 0; }"
-                                                      "QPushButton:hover { background: #67c23a; color: white; }");
-        QPushButton *editBtn = createActBtn("编辑", "QPushButton { background: #ecf5ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 3px; font-size: 11px; padding: 0; }"
-                                                    "QPushButton:hover { background: #409eff; color: white; }");
-        QPushButton *cancelBtn = createActBtn("取消", "QPushButton { background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 3px; font-size: 11px; padding: 0; }"
-                                                      "QPushButton:hover { background: #f56c6c; color: white; }");
+        QPushButton *finishBtn = createActBtn("完成", "QPushButton { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; border-radius: 4px; font-size: 11px; font-weight: 600; } "
+                                                      "QPushButton:hover { background: #059669; color: white; }");
+        QPushButton *editBtn = createActBtn("编辑", "QPushButton { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; border-radius: 4px; font-size: 11px; font-weight: 600; } "
+                                                    "QPushButton:hover { background: #1E40AF; color: white; }");
+        QPushButton *cancelBtn = createActBtn("驳回", "QPushButton { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; border-radius: 4px; font-size: 11px; font-weight: 600; } "
+                                                       "QPushButton:hover { background: #DC2626; color: white; }");
         
         // 绑定隐藏参数
         finishBtn->setProperty("idx", i); // 绑定过滤数组的全局索引

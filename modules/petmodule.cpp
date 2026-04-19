@@ -589,7 +589,7 @@ void PetModule::onEditPet()
     if (!btn) return;
 
     for (int i = 0; i < petTable->rowCount(); ++i) {
-        QWidget *w = petTable->cellWidget(i, 9); // 操作列迁往第 9 列
+        QWidget *w = petTable->cellWidget(i, 11); // 操作列在第 11 列 (0-indexed)
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
              QString petId = petTable->item(i, 1)->text(); // ID 迁往第 1 列
              if (!m_petData.contains(petId)) break;
@@ -616,7 +616,7 @@ void PetModule::onDeletePet()
     if (!btn) return;
 
     for (int i = 0; i < petTable->rowCount(); ++i) {
-        QWidget *w = petTable->cellWidget(i, 9);
+        QWidget *w = petTable->cellWidget(i, 11); // 操作列在第 11 列
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
             if (CustomMessageDialog::confirm(this, "删除确认", "确定要永久删除该宠物档案吗？")) {
                 petTable->removeRow(i);

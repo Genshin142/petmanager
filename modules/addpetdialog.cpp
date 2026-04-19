@@ -121,10 +121,6 @@ void AddPetDialog::setupUI()
     initBreedData();
     ui->speciesCombo->addItems(m_breedData.keys());
 
-    int currentYear = QDate::currentDate().year();
-    for(int y = currentYear - 10; y <= currentYear ; ++y) ui->yearCombo->addItem(QString::number(y));
-    for(int m = 1; m <= 12; ++m) ui->monthCombo->addItem(QString::number(m).rightJustified(2, '0'));
-    for(int d = 1; d <= 31; ++d) ui->dayCombo->addItem(QString::number(d).rightJustified(2, '0'));
 
     // 5. 动态插入新字段
     // 在最上方插入照片选择行
@@ -279,13 +275,6 @@ void AddPetDialog::setPetInfo(const PetInfo &info)
     if (ownerIdEdit) ownerIdEdit->setText(info.ownerId);
     if (ownerNameEdit) ownerNameEdit->setText(info.ownerName);
     
-    // 疫苗日期解析: YYYY-MM-DD
-    QStringList parts = info.vaccine.split('-');
-    if (parts.size() >= 3) {
-        ui->yearCombo->setCurrentText(parts[0]);
-        ui->monthCombo->setCurrentText(parts[1]);
-        ui->dayCombo->setCurrentText(parts[2]);
-    }
 
     genderCombo->setCurrentText(info.gender);
     
@@ -336,23 +325,6 @@ void AddPetDialog::onSaveClicked()
         return;
     }
 
-    // 疫苗日期校验
-    int year = ui->yearCombo->currentText().toInt();
-    int month = ui->monthCombo->currentText().toInt();
-    int day = ui->dayCombo->currentText().toInt();
-    
-    QDate selectedDate(year, month, day);
-    QDate today = QDate::currentDate();
-
-    if (!selectedDate.isValid()) {
-        CustomMessageDialog::showWarning(this, "日期错误", "所选日期不合法，请检查月份和天数。");
-        return;
-    }
-
-    if (selectedDate > today) {
-        CustomMessageDialog::showWarning(this, "日期超限", "疫苗接种日期不能超过今天，请重新选择。");
-        return;
-    }
 
     accept();
 }
@@ -366,10 +338,7 @@ PetInfo AddPetDialog::getPetInfo() const
     info.health = healthCombo->currentText();
     QString medHist = ui->historyEdit->text().trimmed();
     info.medicalHistory = medHist.isEmpty() ? "暂无病史" : medHist;
-    info.vaccine = QString("%1-%2-%3")
-                    .arg(ui->yearCombo->currentText())
-                    .arg(ui->monthCombo->currentText())
-                    .arg(ui->dayCombo->currentText());
+    info.vaccine = "已接种"; // 默认占位符，实际由疫苗模块管理
     
     info.gender = genderCombo->currentText();
     QString y = ageYearEdit->text().trimmed();

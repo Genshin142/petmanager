@@ -57,11 +57,12 @@ void StatsModule::setupUI() {
     
     QPushButton *exportBtn = new QPushButton("导出报表文件");
     exportBtn->setFixedWidth(130);
-    exportBtn->setFixedHeight(36);
+    exportBtn->setFixedHeight(38);
     exportBtn->setCursor(Qt::PointingHandCursor);
     exportBtn->setStyleSheet(
-        "QPushButton { background: #67c23a; color: white; border-radius: 18px; border: none; font-size: 13px; font-weight: bold; } "
-        "QPushButton:hover { background: #85ce61; }"
+        "QPushButton { background: #F59E0B; color: white; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; } "
+        "QPushButton:hover { background: #D97706; transform: translateY(-1px); } "
+        "QPushButton:pressed { background: #B45309; }"
     );
     connect(exportBtn, &QPushButton::clicked, this, &StatsModule::onExport);
     headerLayout->addWidget(exportBtn);
@@ -73,30 +74,39 @@ void StatsModule::setupUI() {
 
     auto createDash = [&](const QString &icon, const QString &label, QLabel* &valLabel, const QString &color) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
+        card->setFixedHeight(110);
+        // 使用设计系统中的深邃蓝阴影和圆角
+        card->setStyleSheet(
+            "QFrame { background: white; border-radius: 12px; border: 1px solid #E2E8F0; } "
+            "QFrame:hover { border-color: #3B82F6; }"
+        );
         
         QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(18);
-        shadow->setColor(QColor(0, 0, 0, 20));
+        shadow->setBlurRadius(20);
+        shadow->setColor(QColor(30, 64, 175, 25)); // 带蓝色的深邃阴影
         shadow->setOffset(0, 4);
         card->setGraphicsEffect(shadow);
 
         QHBoxLayout *cl = new QHBoxLayout(card);
-        cl->setContentsMargins(20, 15, 20, 15);
+        cl->setContentsMargins(22, 18, 22, 18);
 
         QLabel *ic = new QLabel(icon);
-        ic->setFixedSize(50, 50);
+        ic->setFixedSize(54, 54);
         ic->setAlignment(Qt::AlignCenter);
-        ic->setStyleSheet(QString("font-size: 24px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color));
+        // 玻璃拟态背景
+        ic->setStyleSheet(QString(
+            "font-size: 26px; color: %1; background: #F1F5F9; border-radius: 12px; border: none;"
+        ).arg(color));
 
         QVBoxLayout *vl = new QVBoxLayout();
-        vl->setSpacing(2);
-        QLabel *tl = new QLabel(label); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 24px; font-weight: bold; border: none; background: transparent;");
+        vl->setSpacing(4);
+        QLabel *tl = new QLabel(label); 
+        tl->setStyleSheet("color: #64748B; font-size: 13px; font-weight: 500; border: none; background: transparent;");
+        valLabel = new QLabel("0"); 
+        valLabel->setStyleSheet("color: #1E3A8A; font-size: 26px; font-weight: 700; border: none; background: transparent;");
         vl->addWidget(tl); vl->addWidget(valLabel);
         vl->addStretch();
-        cl->addWidget(ic); cl->addSpacing(15); cl->addLayout(vl); cl->addStretch();
+        cl->addWidget(ic); cl->addSpacing(18); cl->addLayout(vl); cl->addStretch();
         return card;
     };
 
@@ -136,24 +146,24 @@ void StatsModule::setupUI() {
     typeToggleLayout->setSpacing(0);
     
     serviceBtn = new QPushButton("服务类分析");
-    serviceBtn->setFixedWidth(110);
-    serviceBtn->setFixedHeight(34);
+    serviceBtn->setFixedWidth(120);
+    serviceBtn->setFixedHeight(36);
     serviceBtn->setCheckable(true);
     serviceBtn->setChecked(true);
     serviceBtn->setStyleSheet(
-        "QPushButton { background: #f4f4f5; color: #606266; border: 1px solid #dcdfe6; border-right: none; border-radius: 17px 0 0 17px; font-size: 13px; } "
-        "QPushButton:checked { background: #409eff; color: white; border: 1px solid #409eff; } "
-        "QPushButton:hover:!checked { background: #e9e9eb; }"
+        "QPushButton { background: #F8FAFC; color: #64748B; border: 1px solid #E2E8F0; border-right: none; border-radius: 8px 0 0 8px; font-size: 13px; font-weight: 600; } "
+        "QPushButton:checked { background: #1E40AF; color: white; border: 1px solid #1E40AF; } "
+        "QPushButton:hover:!checked { background: #F1F5F9; }"
     );
     
     productBtn = new QPushButton("商品类分析");
-    productBtn->setFixedWidth(110);
-    productBtn->setFixedHeight(34);
+    productBtn->setFixedWidth(120);
+    productBtn->setFixedHeight(36);
     productBtn->setCheckable(true);
     productBtn->setStyleSheet(
-        "QPushButton { background: #f4f4f5; color: #606266; border: 1px solid #dcdfe6; border-radius: 0 17px 17px 0; font-size: 13px; } "
-        "QPushButton:checked { background: #409eff; color: white; border: 1px solid #409eff; } "
-        "QPushButton:hover:!checked { background: #e9e9eb; }"
+        "QPushButton { background: #F8FAFC; color: #64748B; border: 1px solid #E2E8F0; border-radius: 0 8px 8px 0; font-size: 13px; font-weight: 600; } "
+        "QPushButton:checked { background: #1E40AF; color: white; border: 1px solid #1E40AF; } "
+        "QPushButton:hover:!checked { background: #F1F5F9; }"
     );
     
     typeToggleLayout->addWidget(serviceBtn);
@@ -171,8 +181,11 @@ void StatsModule::setupUI() {
     // 搜索
     searchEdit = new QLineEdit();
     searchEdit->setPlaceholderText(" 搜索项目关键词...");
-    searchEdit->setFixedWidth(200); searchEdit->setFixedHeight(32);
-    searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } QLineEdit:focus { border-color: #409eff; outline: none; }");
+    searchEdit->setFixedWidth(200); searchEdit->setFixedHeight(34);
+    searchEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #E2E8F0; border-radius: 8px; padding: 0 15px; font-size: 13px; background: white; color: #1E293B; } "
+        "QLineEdit:focus { border-color: #1E40AF; border-width: 2px; }"
+    );
     controlLayout->addWidget(searchEdit);
     controlLayout->addSpacing(10);
 
@@ -227,7 +240,11 @@ void StatsModule::setupUI() {
     rankTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     rankTable->verticalHeader()->setVisible(false);
     rankTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    rankTable->setStyleSheet("QTableWidget { border: 1px solid #ebeef5; background: white; } QHeaderView::section { background: #f5f7fa; font-weight: bold; }");
+    rankTable->setStyleSheet(
+        "QTableWidget { border: 1px solid #E2E8F0; background: white; border-radius: 8px; gridline-color: #F1F5F9; } "
+        "QHeaderView::section { background: #1E40AF; color: white; font-weight: 600; padding: 10px; border: none; } "
+        "QTableWidget::item { padding: 10px; color: #1E293B; }"
+    );
     mainLayout->addWidget(rankTable);
     
     connect(startYearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](){ updateDayCombo(startYearCombo, startMonthCombo, startDayCombo); });
@@ -253,10 +270,23 @@ void StatsModule::updateCharts() {
     QPieSeries *series = new QPieSeries();
     QMap<QString, double> pieValues;
     for(const auto &r : m_sales) if(r.isProduct != isServiceMode && r.date >= sDate && r.date <= eDate) pieValues[r.name] += r.amount;
-    for(auto it = pieValues.begin(); it != pieValues.end(); ++it) series->append(it.key(), it.value());
-    if (series->count() > 0) {
-        series->slices().at(0)->setExploded();
-        series->slices().at(0)->setLabelVisible();
+    for(auto it = pieValues.begin(); it != pieValues.end(); ++it) {
+        series->append(it.key(), it.value());
+    }
+    
+    // 注入品牌配色方案 (蓝橙渐变色系)
+    QList<QColor> colors;
+    colors << QColor("#1E40AF") << QColor("#3B82F6") << QColor("#F59E0B") << QColor("#60A5FA") << QColor("#FBBF24");
+    
+    for (int i = 0; i < series->slices().count(); ++i) {
+        QPieSlice *slice = series->slices().at(i);
+        slice->setColor(colors.at(i % colors.size()));
+        slice->setBorderWidth(2);
+        slice->setBorderColor(Qt::white);
+        if (i == 0) {
+            slice->setExploded();
+            slice->setLabelVisible();
+        }
     }
     
     pieChartView->chart()->removeAllSeries();
@@ -274,6 +304,8 @@ void StatsModule::updateCharts() {
         for(const auto &r : m_sales) if(r.date == d && r.isProduct != isServiceMode) daily += r.amount;
         *set << daily;
     }
+    set->setColor(QColor("#1E40AF"));
+    set->setBorderColor(QColor("#1E40AF"));
     barSeries->append(set);
 
     barChartView->chart()->removeAllSeries();

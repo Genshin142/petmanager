@@ -110,47 +110,6 @@
           </property>
          </widget>
         </item>
-        <item row="3" column="0">
-         <widget class="QLabel" name="label_4">
-          <property name="text">
-           <string>最近疫苗:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <layout class="QHBoxLayout" name="dateLayout">
-          <item>
-           <widget class="QComboBox" name="yearCombo"/>
-          </item>
-          <item>
-           <widget class="QLabel" name="labelYear">
-            <property name="text">
-             <string>年</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="monthCombo"/>
-          </item>
-          <item>
-           <widget class="QLabel" name="labelMonth">
-            <property name="text">
-             <string>月</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="dayCombo"/>
-          </item>
-          <item>
-           <widget class="QLabel" name="labelDay">
-            <property name="text">
-             <string>日</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
        </layout>
       </item>
       <item>
