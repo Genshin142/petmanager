@@ -34,6 +34,7 @@ public:
 
 signals:
     void logAdded(const QString &petId, const PetActivityLog &log);
+    void avatarClicked(const QString &path);
     void closeRequested();
 
 private slots:
@@ -43,8 +44,6 @@ private slots:
     void onToggleCalendar();
     void onEditLog(const QModelIndex &index);
     void onDeleteLog(const QModelIndex &index);
-    void showBigImage();
-    void hideBigImage();
 
 private:
     void setupUI();
@@ -87,9 +86,6 @@ private:
     QWidget *m_tipPanel;
     QLabel *m_tipLabel;
     
-    // 大图预览交互
-    QWidget *m_imagePreviewOverlay;
-    QLabel *m_previewLabel;
     
     QPropertyAnimation *m_animation;
     QPropertyAnimation *m_calendarAnimation;

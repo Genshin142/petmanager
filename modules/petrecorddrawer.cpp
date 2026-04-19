@@ -102,18 +102,6 @@ void PetRecordDrawer::setupUI()
     infoLayout->addStretch();
     petHeaderLayout->addLayout(infoLayout);
 
-    // --- 初始化大图预览遮罩层 ---
-    m_imagePreviewOverlay = new QWidget(this);
-    m_imagePreviewOverlay->setObjectName("PreviewOverlay");
-    m_imagePreviewOverlay->setStyleSheet("#PreviewOverlay { background-color: rgba(0, 0, 0, 180); }");
-    m_imagePreviewOverlay->hide();
-    m_imagePreviewOverlay->installEventFilter(this); // 点击遮罩任意位置关闭
-    
-    QVBoxLayout *previewL = new QVBoxLayout(m_imagePreviewOverlay);
-    m_previewLabel = new QLabel();
-    m_previewLabel->setAlignment(Qt::AlignCenter);
-    previewL->addWidget(m_previewLabel);
-
     mainLayout->addWidget(petHeader);
 
     // --- 1. 动态状态头 (Dynamic Header) ---
@@ -213,7 +201,7 @@ void PetRecordDrawer::setupUI()
 
     // --- 4. 操作录入区 (Input Bar) ---
     m_bottomStack = new QStackedWidget();
-    m_bottomStack->setFixedHeight(170); // 增加高度以容纳更大的输入框
+    m_bottomStack->setFixedHeight(220); // 进一步增加总高度以适配大输入框
 
     m_recordPanel = new QWidget();
     m_recordPanel->setStyleSheet("background-color: white; border-top: 1px solid #f0f2f5;");
@@ -248,7 +236,7 @@ void PetRecordDrawer::setupUI()
 
     m_remarkEdit = new QTextEdit();
     m_remarkEdit->setPlaceholderText("请输入今日记录内容...");
-    m_remarkEdit->setFixedHeight(85); // 从 60 增加到 85
+    m_remarkEdit->setFixedHeight(130); // 从 85 增加到 130，提供更广阔的输入面积
     m_remarkEdit->setStyleSheet("QTextEdit { border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px 8px; font-size: 13px; }");
 
     inputRow->addWidget(typeTypeL);
@@ -520,35 +508,8 @@ void PetRecordDrawer::onToggleCalendar()
 bool PetRecordDrawer::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == m_avatarLabel && event->type() == QEvent::MouseButtonRelease) {
-        showBigImage();
-        return true;
-    }
-    if (obj == m_imagePreviewOverlay && event->type() == QEvent::MouseButtonRelease) {
-        hideBigImage();
+        emit avatarClicked(m_currentPet.avatarPath);
         return true;
     }
     return QWidget::eventFilter(obj, event);
-}
-
-void PetRecordDrawer::showBigImage()
-{
-    if (m_currentPet.id.isEmpty()) return;
-    
-    QPixmap pix(m_currentPet.avatarPath);
-    if (pix.isNull()) pix.load(":/images/load_img.jpg");
-    
-    // 确保遮罩覆盖整个抽屉区域
-    m_imagePreviewOverlay->setGeometry(rect());
-    
-    // 限制预览图最大尺寸为抽屉宽度的 90%
-    int maxWidth = width() * 0.9;
-    m_previewLabel->setPixmap(pix.scaled(maxWidth, maxWidth, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    
-    m_imagePreviewOverlay->show();
-    m_imagePreviewOverlay->raise(); // 确保遮罩层在最顶层展示
-}
-
-void PetRecordDrawer::hideBigImage()
-{
-    m_imagePreviewOverlay->hide();
 }

@@ -113,25 +113,6 @@ private:
         painter->setPen(QPen(QColor("#ebeef5"), 1));
         painter->drawRoundedRect(bubbleRect, 8, 8);
 
-        // 绘制按钮 (编辑 & 删除) - 工业级悬浮感
-        QRect editBtnRect(bubbleRect.right() - 55, bubbleRect.top() + 5, 22, 22);
-        QRect delBtnRect(bubbleRect.right() - 28, bubbleRect.top() + 5, 22, 22);
-
-        // 编辑按钮
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor("#409eff15"));
-        painter->drawRoundedRect(editBtnRect, 4, 4);
-        painter->setPen(QColor("#409eff"));
-        painter->setFont(QFont("Segoe UI Emoji", 9));
-        painter->drawText(editBtnRect, Qt::AlignCenter, "✏️");
-
-        // 删除按钮
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor("#f56c6c15"));
-        painter->drawRoundedRect(delBtnRect, 4, 4);
-        painter->setPen(QColor("#f56c6c"));
-        painter->drawText(delBtnRect, Qt::AlignCenter, "🗑️");
-
         // Bubble Triangle
         QPainterPath path;
         path.moveTo(bubbleRect.left(), bubbleRect.top() + 15);
@@ -143,7 +124,7 @@ private:
         // Text Content
         painter->setPen(QColor("#606266"));
         painter->setFont(QFont("Microsoft YaHei", 10));
-        QRect textRect = bubbleRect.adjusted(12, 10, -60, -10); // 为右侧按钮留出空间
+        QRect textRect = bubbleRect.adjusted(12, 10, -12, -10); // 移除按钮后，恢复文字区域宽度
         
         QTextDocument doc;
         doc.setHtml(QString("<div style='line-height: 1.2;'><b>%1:</b> %2</div>").arg(typeStr, contentStr));
@@ -174,17 +155,7 @@ private:
             QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
             QRect bubbleRect(option.rect.left() + 75, option.rect.top() + 10, option.rect.width() - 95, option.rect.height() - 20);
             
-            QRect editBtnRect(bubbleRect.right() - 55, bubbleRect.top() + 5, 22, 22);
-            QRect delBtnRect(bubbleRect.right() - 28, bubbleRect.top() + 5, 22, 22);
-
-            if (editBtnRect.contains(mouseEvent->pos())) {
-                emit editRequested(index);
-                return true;
-            }
-            if (delBtnRect.contains(mouseEvent->pos())) {
-                emit deleteRequested(index);
-                return true;
-            }
+            // 已移除修改/删除按钮交互
         }
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     }

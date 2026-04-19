@@ -65,6 +65,12 @@ private:
     
     QPoint dragPosition;
     QString m_id;
+
+    // 大图预览交互
+    QWidget *m_imagePreviewOverlay;
+    QLabel *m_previewLabel;
+    void showBigImage(const QString &path);
+    void hideBigImage();
 };
 
 #endif // ADDEMPLOYEEDIALOG_H

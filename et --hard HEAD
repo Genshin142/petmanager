@@ -1,0 +1,41 @@
+[33mcommit d46228be63f60fd81d3ab8e5f466da1e10702fd7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Genshin142 <362345943@qq.com>
+Date:   Sun Apr 19 19:30:46 2026 +0800
+
+    保留第一版本
+
+[33mcommit 74c688c803dbb6aa851a823d4901c86a86f579c5[m
+Author: Genshin142 <362345943@qq.com>
+Date:   Sun Apr 19 19:05:05 2026 +0800
+
+    存档
+
+[33mcommit de78602684a3a7c8d6adf7d6d12370e38b61f4a5[m
+Author: Genshin142 <362345943@qq.com>
+Date:   Wed Mar 18 12:51:26 2026 +0800
+
+    中期修改完成
+
+[33mcommit 61b4a16d93d65d35188ee285883f006e1eb188a5[m
+Author: Genshin142 <362345943@qq.com>
+Date:   Sun Mar 15 23:48:43 2026 +0800
+
+    会员管理界面完成
+
+[33mcommit 67a316a0c9ac42b826962e01b22320edddc12f2a[m
+Author: Genshin142 <362345943@qq.com>
+Date:   Sun Mar 15 22:59:01 2026 +0800
+
+    chore: 从版本控制中移除 build 目录
+
+[33mcommit 47f19fa5352256af15dac698f439da27d509ff44[m
+Author: Genshin142 <362345943@qq.com>
+Date:   Sun Mar 15 22:55:35 2026 +0800
+
+    首次提交版本
+
+[33mcommit 1b44b566e4f8a9cf052b020d636ce06cc03db00d[m
+Author: Genshin142 <362345943@qq.com>
+Date:   Sun Mar 15 22:54:27 2026 +0800
+
+    first commit

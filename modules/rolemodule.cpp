@@ -27,58 +27,59 @@ RoleModule::RoleModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_p
 }
 
 bool RoleModule::eventFilter(QObject *watched, QEvent *event) {
-    if (event->type() == QEvent::MouseButtonPress) {
-        QLabel *label = qobject_cast<QLabel*>(watched);
-        if (label && label->property("imgPath").isValid()) {
-            QString path = label->property("imgPath").toString();
-            
-            QWidget *mainWin = this->window();
-            QDialog *preview = new QDialog(mainWin, Qt::FramelessWindowHint);
-            
-            preview->setGeometry(mainWin->geometry());
-            preview->setAttribute(Qt::WA_TranslucentBackground);
-            
-            QVBoxLayout *layout = new QVBoxLayout(preview);
-            layout->setContentsMargins(0, 0, 0, 0);
-            
-            QFrame *bg = new QFrame();
-            bg->setStyleSheet("background-color: rgba(0, 0, 0, 235);");
-            layout->addWidget(bg);
-            
-            QVBoxLayout *bgLayout = new QVBoxLayout(bg);
-            bgLayout->setContentsMargins(0, 0, 0, 0);
-            bgLayout->setAlignment(Qt::AlignCenter);
-            
-            QLabel *imgLabel = new QLabel();
-            QPixmap pix(path);
-            if (!pix.isNull()) {
-                imgLabel->setPixmap(pix.scaled(400, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            }
-            imgLabel->setStyleSheet("border: none; background: white; border-radius: 10px; padding: 20px;");
-            imgLabel->setAlignment(Qt::AlignCenter);
-            bgLayout->addWidget(imgLabel);
-            
-            bg->installEventFilter(this);
-            bg->setProperty("isPreviewBg", true);
-            bg->setProperty("previewDlg", QVariant::fromValue((void*)preview));
-            bg->setCursor(Qt::PointingHandCursor);
-            
-            preview->raise();
-            connect(preview, &QDialog::finished, preview, &QDialog::deleteLater);
-            preview->show();
+    if (event->type() == QEvent::MouseButtonRelease) {
+        // 1. 如果点击的是头像，直接放大
+        if (watched->property("imgPath").isValid()) {
+            showBigImage(watched->property("imgPath").toString());
             return true;
         }
         
-        if (watched->property("isPreviewBg").toBool()) {
-            void* ptr = watched->property("previewDlg").value<void*>();
-            if (ptr) {
-                QDialog *dlg = static_cast<QDialog*>(ptr);
-                dlg->close();
-                return true;
-            }
+        // 2. 如果点击的是头像周边的信息区域，手动选中该行
+        if (watched->property("row").isValid()) {
+            int row = watched->property("row").toInt();
+            empTable->selectRow(row);
+            return true;
         }
     }
+    
+    // 3. 处理遮罩层点击（关闭预览）
+    if (watched == m_imagePreviewOverlay && event->type() == QEvent::MouseButtonRelease) {
+        hideBigImage();
+        return true;
+    }
+    
     return QWidget::eventFilter(watched, event);
+}
+
+void RoleModule::showBigImage(const QString &path)
+{
+    if (path.isEmpty()) return;
+    
+    QPixmap pix(path);
+    if (pix.isNull()) return;
+    
+    // 关键优化：给图片本身加白底，而不是给整个 Label 加背景
+    QPixmap whiteBg(pix.size());
+    whiteBg.fill(Qt::white);
+    QPainter p(&whiteBg);
+    p.drawPixmap(0, 0, pix);
+    p.end();
+    
+    // 确保遮罩覆盖整个模块区域
+    m_imagePreviewOverlay->setGeometry(rect());
+    
+    // 限制预览图最大尺寸
+    int maxWidth = qMin(width() * 0.8, 600.0);
+    int maxHeight = qMin(height() * 0.8, 600.0);
+    m_previewLabel->setPixmap(whiteBg.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    
+    m_imagePreviewOverlay->show();
+    m_imagePreviewOverlay->raise();
+}
+
+void RoleModule::hideBigImage()
+{
+    m_imagePreviewOverlay->hide();
 }
 
 QPixmap RoleModule::createCircularAvatar(const QPixmap &src, int size)
@@ -269,6 +270,19 @@ void RoleModule::setupUI()
     header->setSectionResizeMode(10, QHeaderView::Fixed); empTable->setColumnWidth(10, 200);  // 操作
 
     mainLayout->addWidget(empTable);
+
+    // --- 初始化全屏大图预览层 ---
+    m_imagePreviewOverlay = new QWidget(this);
+    m_imagePreviewOverlay->setObjectName("EmployeePreviewOverlay");
+    m_imagePreviewOverlay->setStyleSheet("#EmployeePreviewOverlay { background-color: rgba(0, 0, 0, 220); }"); // 加深背景
+    m_imagePreviewOverlay->hide();
+    m_imagePreviewOverlay->installEventFilter(this); // 点击遮罩任意位置关闭
+    
+    QVBoxLayout *previewL = new QVBoxLayout(m_imagePreviewOverlay);
+    m_previewLabel = new QLabel();
+    m_previewLabel->setAlignment(Qt::AlignCenter);
+    m_previewLabel->setStyleSheet("border: none; background: transparent;"); 
+    previewL->addWidget(m_previewLabel, 0, Qt::AlignCenter);
 
     // ═══════════════════════════════════════════
     // 5. 底部统计+分页栏
@@ -461,14 +475,14 @@ void RoleModule::addEmployeeRow(const QString &id, const QString &name, const QS
 
     nameLayout->addWidget(avatarLabel);
     nameLayout->addWidget(nameLabel);
-    // 核心修复：移除底部的 addStretch() 防止该列所有控件受到弹簧影响而被挤压向左边边缘
+    
+    nameContainer->setProperty("row", row);
+    nameContainer->installEventFilter(this);
+    nameContainer->setCursor(Qt::PointingHandCursor);
+    
     empTable->setCellWidget(row, 2, nameContainer);
     
-    // 同时设置一个隐藏的 item 方便搜索和编辑时读取
-    QTableWidgetItem *nameHidden = new QTableWidgetItem(name);
-    nameHidden->setTextAlignment(Qt::AlignCenter);
-    nameHidden->setForeground(Qt::transparent); // 设置前后景为透明防止底层复现文字干扰 UI
-    empTable->setItem(row, 2, nameHidden);
+    empTable->setCellWidget(row, 2, nameContainer);
 
     // 第3列：职位
     setItem(3, role);
@@ -565,8 +579,20 @@ void RoleModule::updatePagination()
         bool textMatch = searchText.isEmpty();
         if (!textMatch) {
             for (int col : {1, 2, 5}) {
-                QTableWidgetItem *item = empTable->item(i, col);
-                if (item && item->text().toLower().contains(searchText)) {
+                QString cellText;
+                if (col == 2) {
+                    // 从 Widget 中提取姓名
+                    QWidget *w = empTable->cellWidget(i, 2);
+                    if (w) {
+                        QLabel *lbl = w->findChildren<QLabel*>().last(); // 姓名标签通常在后面
+                        if (lbl) cellText = lbl->text();
+                    }
+                } else {
+                    QTableWidgetItem *item = empTable->item(i, col);
+                    if (item) cellText = item->text();
+                }
+
+                if (cellText.toLower().contains(searchText)) {
                     textMatch = true;
                     break;
                 }

@@ -73,6 +73,12 @@ private:
     QMap<QString, QList<PetActivityLog>> m_activityLogs;
     QMap<QString, QList<VaccineRecord>> m_vaccineRecords;
     QMap<QString, PetInfo> m_petData; // 缓存原始数据
+
+    // 大图预览交互
+    QWidget *m_imagePreviewOverlay;
+    QLabel *m_previewLabel;
+    void showBigImage(const QString &path);
+    void hideBigImage();
 };
 
 // 详情弹窗：疫苗接种档案

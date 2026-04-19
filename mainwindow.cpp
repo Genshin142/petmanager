@@ -55,6 +55,8 @@ void MainWindow::initSidebar()
 
     // 为管理员专属模块添加标识
     ui->navRole->setText("员工与角色 (管理员)");
+    ui->navPet->setText("宠物档案中心");
+    ui->navFoster->setText("寄养管理中心");
     ui->navPerformance->setText("业绩核销 (管理员)");
     ui->navStats->setText("数据报表 (管理员)");
 

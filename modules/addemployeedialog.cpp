@@ -9,6 +9,7 @@
 #include <QEvent>
 #include <QVariant>
 #include <QFile>
+#include <QPainter>
 
 AddEmployeeDialog::AddEmployeeDialog(QWidget *parent) : QDialog(parent)
 {
@@ -219,6 +220,9 @@ void AddEmployeeDialog::setupUI()
         "} "
         "QSpinBox::up-button, QSpinBox::down-button { border: none; background: transparent; } ";
     setStyleSheet(style);
+
+    // --- 初始化大图预览层 (这里我们延迟创建，或者直接在 showBigImage 中即时创建) ---
+    m_imagePreviewOverlay = nullptr; 
 }
 
 void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
@@ -291,56 +295,77 @@ void AddEmployeeDialog::mouseMoveEvent(QMouseEvent *event)
 
 bool AddEmployeeDialog::eventFilter(QObject *watched, QEvent *event)
 {
-    if (event->type() == QEvent::MouseButtonPress) {
-        QLabel *label = qobject_cast<QLabel*>(watched);
-        if (label && label->property("imgPath").isValid()) {
-            QString path = label->property("imgPath").toString();
-            
-            QWidget *mainWin = this->window();
-            QDialog *preview = new QDialog(mainWin, Qt::FramelessWindowHint);
-            
-            preview->setGeometry(mainWin->geometry());
-            preview->setAttribute(Qt::WA_TranslucentBackground);
-            
-            QVBoxLayout *layout = new QVBoxLayout(preview);
-            layout->setContentsMargins(0, 0, 0, 0);
-            
-            QFrame *bg = new QFrame();
-            bg->setStyleSheet("background-color: rgba(0, 0, 0, 235);");
-            layout->addWidget(bg);
-            
-            QVBoxLayout *bgLayout = new QVBoxLayout(bg);
-            bgLayout->setContentsMargins(0, 0, 0, 0);
-            bgLayout->setAlignment(Qt::AlignCenter);
-            
-            QLabel *imgLabel = new QLabel();
-            QPixmap pix(path);
-            if (!pix.isNull()) {
-                imgLabel->setPixmap(pix.scaled(400, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            }
-            imgLabel->setStyleSheet("border: none; background: white; border-radius: 10px; padding: 20px;");
-            imgLabel->setAlignment(Qt::AlignCenter);
-            bgLayout->addWidget(imgLabel);
-            
-            bg->installEventFilter(this);
-            bg->setProperty("isPreviewBg", true);
-            bg->setProperty("previewDlg", QVariant::fromValue((void*)preview));
-            bg->setCursor(Qt::PointingHandCursor);
-            
-            preview->raise();
-            connect(preview, &QDialog::finished, preview, &QDialog::deleteLater);
-            preview->show();
+    if (event->type() == QEvent::MouseButtonRelease) {
+        // 1. 点击头像弹出放大
+        if (watched == avatarPreview && watched->property("imgPath").isValid()) {
+            showBigImage(watched->property("imgPath").toString());
             return true;
         }
         
-        if (watched->property("isPreviewBg").toBool()) {
-            void* ptr = watched->property("previewDlg").value<void*>();
-            if (ptr) {
-                QDialog *dlg = static_cast<QDialog*>(ptr);
-                dlg->close();
-                return true;
-            }
+        // 2. 点击预览层及其内容关闭放大
+        if (m_imagePreviewOverlay && (watched == m_imagePreviewOverlay || watched->parent() == m_imagePreviewOverlay)) {
+            hideBigImage();
+            return true;
         }
     }
     return QDialog::eventFilter(watched, event);
+}
+
+void AddEmployeeDialog::showBigImage(const QString &path)
+{
+    if (path.isEmpty()) return;
+    
+    QPixmap pix(path);
+    if (pix.isNull()) return;
+    
+    // 完全照搬宠物逻辑：给图片加白底，且白底大小严格跟随图片
+    QPixmap whiteBg(pix.size());
+    whiteBg.fill(Qt::white);
+    QPainter p(&whiteBg);
+    p.drawPixmap(0, 0, pix);
+    p.end();
+
+    // 我们需要通过 parentWidget 向上找真正的主窗口用于定位
+    QWidget *topWin = this->parentWidget() ? this->parentWidget()->window() : this->window();
+
+    // 关键修正：将预览窗设为 this 的子窗口，这样它才能在模态对话框之上显示并接收点击
+    QDialog *preview = new QDialog(this, Qt::FramelessWindowHint);
+    // 依然让它对齐主窗口的全屏位置
+    preview->setGeometry(topWin->geometry());
+    preview->setAttribute(Qt::WA_TranslucentBackground);
+    
+    QVBoxLayout *layout = new QVBoxLayout(preview);
+    layout->setContentsMargins(0, 0, 0, 0);
+    
+    QFrame *bg = new QFrame();
+    bg->setStyleSheet("background-color: rgba(0, 0, 0, 220);");
+    layout->addWidget(bg);
+    
+    QVBoxLayout *bgLayout = new QVBoxLayout(bg);
+    bgLayout->setContentsMargins(0, 0, 0, 0);
+    bgLayout->setAlignment(Qt::AlignCenter);
+    
+    QLabel *imgLabel = new QLabel();
+    imgLabel->setAlignment(Qt::AlignCenter);
+    imgLabel->setStyleSheet("border: none; background: transparent;"); // 纯净样式
+    
+    int maxWidth = qMin(topWin->width() * 0.8, 600.0);
+    int maxHeight = qMin(topWin->height() * 0.8, 600.0);
+    imgLabel->setPixmap(whiteBg.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    bgLayout->addWidget(imgLabel, 0, Qt::AlignCenter);
+    
+    preview->installEventFilter(this);
+    connect(preview, &QDialog::finished, preview, &QDialog::deleteLater);
+    m_imagePreviewOverlay = preview; 
+    preview->show();
+    preview->raise();
+}
+
+void AddEmployeeDialog::hideBigImage()
+{
+    if (m_imagePreviewOverlay) {
+        QDialog *dlg = qobject_cast<QDialog*>(m_imagePreviewOverlay);
+        if (dlg) dlg->close();
+        m_imagePreviewOverlay = nullptr;
+    }
 }

@@ -35,6 +35,8 @@ private slots:
     void onNextPage();
     void onJumpPage();
     void updatePagination();
+    void showBigImage(const QString &path);
+    void hideBigImage();
 
 private:
     QTableWidget *empTable;
@@ -61,6 +63,10 @@ private:
     // 默认头像缓存
     QPixmap m_maleAvatar;
     QPixmap m_femaleAvatar;
+
+    // 大图预览交互
+    QWidget *m_imagePreviewOverlay;
+    QLabel *m_previewLabel;
 };
 
 #endif // ROLEMODULE_H
