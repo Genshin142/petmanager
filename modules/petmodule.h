@@ -12,12 +12,119 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QPainter>
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QFrame>
 #include "custommessagedialog.h"
 #include <QTimer>
 #include <QDateEdit>
 #include "custom_calendar_edit.h"
 #include "petrecorddrawer.h"
 #include <QMap>
+#include <QMouseEvent>
+#include <QStyledItemDelegate>
+#include <QHelpEvent>
+#include <QApplication>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QGraphicsDropShadowEffect>
+
+// --- 高级悬浮气泡提示控件 ---
+class FloatingTooltip : public QWidget {
+    Q_OBJECT
+public:
+    explicit FloatingTooltip(QWidget *parent = nullptr) : QWidget(nullptr) {
+        setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint | Qt::WindowStaysOnTopHint);
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        (void)parent;
+        
+        m_bg = new QFrame(this);
+        m_bg->setObjectName("TooltipBG");
+        m_bg->setStyleSheet("#TooltipBG { background: rgba(48, 49, 51, 210); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 30); }");
+        
+        QVBoxLayout *layout = new QVBoxLayout(this);
+        m_label = new QLabel();
+        m_label->setWordWrap(true);
+        m_label->setStyleSheet("color: #ffffff; font-size: 13px; font-family: 'Microsoft YaHei'; line-height: 1.4;");
+        layout->addWidget(m_label);
+        layout->setContentsMargins(15, 12, 15, 12);
+        
+        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
+        shadow->setBlurRadius(15);
+        shadow->setColor(QColor(0, 0, 0, 100));
+        shadow->setOffset(0, 4);
+        m_bg->setGraphicsEffect(shadow);
+    }
+
+    void showText(const QPoint &pos, const QString &text) {
+        if (text.isEmpty()) return;
+        m_label->setText(text);
+        
+        // 动态调整宽度，最大 320
+        int idealWidth = m_label->fontMetrics().horizontalAdvance(text) + 40;
+        m_label->setFixedWidth(qMin(320, idealWidth));
+        adjustSize();
+        
+        QPoint targetPos = pos + QPoint(15, 15);
+        // 简单的屏幕边界检查
+        QRect screen = QGuiApplication::primaryScreen()->geometry();
+        if (targetPos.x() + width() > screen.right()) targetPos.setX(pos.x() - width() - 5);
+        if (targetPos.y() + height() > screen.bottom()) targetPos.setY(pos.y() - height() - 5);
+        
+        move(targetPos);
+        if (!isVisible()) show();
+        raise();
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        m_bg->setGeometry(rect());
+        QWidget::resizeEvent(event);
+    }
+
+private:
+    QLabel *m_label;
+    QFrame *m_bg;
+};
+
+// --- 自定义单元格代理：处理文本省略与气泡触发 ---
+class CustomTooltipDelegate : public QStyledItemDelegate {
+    Q_OBJECT
+public:
+    explicit CustomTooltipDelegate(FloatingTooltip *tooltip, QObject *parent = nullptr) 
+        : QStyledItemDelegate(parent), m_tooltip(tooltip) {}
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+
+        // 稍微缩减可用宽度，确保省略号更容易触发
+        int availableWidth = opt.rect.width() - 15; 
+
+        if (opt.fontMetrics.horizontalAdvance(opt.text) > availableWidth) {
+            opt.text = opt.fontMetrics.elidedText(opt.text, Qt::ElideRight, availableWidth);
+        }
+
+        QStyledItemDelegate::paint(painter, opt, index);
+    }
+
+    bool helpEvent(QHelpEvent *event, QAbstractItemView *view, const QStyleOptionViewItem &option, const QModelIndex &index) override {
+        if (event->type() == QEvent::ToolTip) {
+            QString fullText = index.data(Qt::DisplayRole).toString().trimmed();
+            // 只有当文字有实际内容且不是占位符时才显示气泡
+            if (!fullText.isEmpty() && fullText != "无" && fullText != "常规饮食") {
+                m_tooltip->showText(event->globalPos(), fullText);
+                return true;
+            }
+        }
+        if (m_tooltip) m_tooltip->hide();
+        return QStyledItemDelegate::helpEvent(event, view, option, index);
+    }
+
+private:
+    FloatingTooltip *m_tooltip;
+};
 
 class PetModule : public QWidget
 {
@@ -77,6 +184,7 @@ private:
     // 大图预览交互
     QWidget *m_imagePreviewOverlay;
     QLabel *m_previewLabel;
+    class FloatingTooltip *m_floatingTooltip;
     void showBigImage(const QString &path);
     void hideBigImage();
 };

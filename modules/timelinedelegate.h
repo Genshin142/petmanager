@@ -152,9 +152,6 @@ private:
 
     bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index) override {
         if (event->type() == QEvent::MouseButtonRelease) {
-            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-            QRect bubbleRect(option.rect.left() + 75, option.rect.top() + 10, option.rect.width() - 95, option.rect.height() - 20);
-            
             // 已移除修改/删除按钮交互
         }
         return QStyledItemDelegate::editorEvent(event, model, option, index);

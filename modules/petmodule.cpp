@@ -19,6 +19,10 @@
 #include <QPainterPath>
 #include <QCheckBox>
 #include <QFile>
+#include <QToolTip>
+#include <QApplication>
+#include <QHelpEvent>
+#include <QStyledItemDelegate>
 
 PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pageSize(10)
 {
@@ -30,6 +34,25 @@ PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pag
     this->setStyleSheet("#PetModule QPushButton { color: #606266; text-align: center; }");
 
     setupUI();
+    
+    // 初始化悬浮气泡
+    m_floatingTooltip = new FloatingTooltip(this);
+    
+    // 应用自定义代理到以往病例(7)和饮食禁忌(8)
+    auto *delegate = new CustomTooltipDelegate(m_floatingTooltip, this);
+    petTable->setItemDelegateForColumn(7, delegate);
+    petTable->setItemDelegateForColumn(8, delegate);
+    
+    // 开启鼠标追踪，确保气泡响应灵敏
+    petTable->setMouseTracking(true);
+    petTable->viewport()->setMouseTracking(true);
+
+    // 双击单元格进入编辑
+    connect(petTable, &QTableWidget::cellDoubleClicked, this, [this](int /*row*/, int col) {
+        if (col == 7 || col == 8) {
+            onEditPet();
+        }
+    });
     
     if (petTable->rowCount() > 0) {
         onCurrentCellChanged(0, 0, -1, -1);
@@ -791,6 +814,25 @@ bool PetModule::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_imagePreviewOverlay && event->type() == QEvent::MouseButtonRelease) {
         hideBigImage();
         return true;
+    }
+
+    // 鼠标离开表格区域时隐藏气泡
+    if (watched == petTable->viewport() && event->type() == QEvent::Leave) {
+        if (m_floatingTooltip) m_floatingTooltip->hide();
+    }
+
+    // 关键：实时追踪鼠标，实现“操作流极快”的即时气泡提示
+    if (watched == petTable->viewport() && event->type() == QEvent::MouseMove) {
+        QMouseEvent *me = static_cast<QMouseEvent*>(event);
+        QModelIndex index = petTable->indexAt(me->pos());
+        if (index.isValid() && (index.column() == 7 || index.column() == 8)) {
+            QString text = index.data(Qt::DisplayRole).toString().trimmed();
+            if (!text.isEmpty() && text != "无" && text != "常规饮食") {
+                m_floatingTooltip->showText(me->globalPos(), text);
+                return false; 
+            }
+        }
+        if (m_floatingTooltip) m_floatingTooltip->hide();
     }
     
     return QWidget::eventFilter(watched, event);

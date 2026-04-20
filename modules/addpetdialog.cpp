@@ -6,6 +6,7 @@
 #include <QFileDialog>
 #include <QPainter>
 #include <QPainterPath>
+#include <QTextEdit>
 
 AddPetDialog::AddPetDialog(QWidget *parent) :
     QDialog(parent),
@@ -116,7 +117,24 @@ void AddPetDialog::setupUI()
     ui->formLayout->setContentsMargins(0, 15, 0, 15);
     
     ui->nameEdit->setPlaceholderText("请输入宠物姓名");
-    ui->historyEdit->setPlaceholderText("如有患病或过敏说明，请填写");
+    
+    // 初始化 QTextEdit 版本的病史和饮食禁忌
+    historyTextEdit = new QTextEdit();
+    historyTextEdit->setPlaceholderText("请输入详细病史、过敏源或特殊身体状况...");
+    historyTextEdit->setFixedHeight(70);
+    
+    dietaryTextEdit = new QTextEdit();
+    dietaryTextEdit->setPlaceholderText("请输入宠物饮食禁忌、偏好或特殊喂食要求...");
+    dietaryTextEdit->setFixedHeight(70);
+
+    // 统一 QTextEdit 样式
+    QString textEditQss = "QTextEdit { border: 1px solid #dcdfe6; border-radius: 4px; padding: 8px; background: white; color: #606266; font-size: 13px; } "
+                          "QTextEdit:focus { border-color: #409eff; }";
+    historyTextEdit->setStyleSheet(textEditQss);
+    dietaryTextEdit->setStyleSheet(textEditQss);
+
+    // 隐藏并移除原有的 QLineEdit
+    ui->historyEdit->hide();
 
     initBreedData();
     ui->speciesCombo->addItems(m_breedData.keys());
@@ -151,6 +169,8 @@ void AddPetDialog::setupUI()
     // 在原有布局的尾部，追加主人相关信息
     ui->formLayout->addRow("主人ID:", ownerIdEdit);
     ui->formLayout->addRow("主人姓名:", ownerNameEdit);
+    ui->formLayout->addRow("病史详情:", historyTextEdit);
+    ui->formLayout->addRow("饮食禁忌:", dietaryTextEdit);
     ui->formLayout->addRow("在店状态:", statusCombo);
     ui->formLayout->addRow("入店时间:", joinTimeEdit);
 
@@ -259,6 +279,7 @@ void AddPetDialog::onSpeciesChanged(const QString &species)
 
 void AddPetDialog::setPetInfo(const PetInfo &info)
 {
+    m_currentId = info.id;
     // 安全检查：只有当 titleLabel 存在时才设置文本，防止空指针崩溃
     if (ui->titleLabel) {
         ui->titleLabel->setText("修改宠物档案信息");
@@ -267,9 +288,12 @@ void AddPetDialog::setPetInfo(const PetInfo &info)
     if (ui->nameEdit) ui->nameEdit->setText(info.name);
     if (ui->speciesCombo) ui->speciesCombo->setCurrentText(info.species);
     if (ui->breedCombo) ui->breedCombo->setCurrentText(info.breed);
-    if (ui->historyEdit) {
+    if (historyTextEdit) {
         healthCombo->setCurrentText(info.health);
-        ui->historyEdit->setText(info.medicalHistory);
+        historyTextEdit->setText(info.medicalHistory);
+    }
+    if (dietaryTextEdit) {
+        dietaryTextEdit->setText(info.dietary);
     }
     
     if (ownerIdEdit) ownerIdEdit->setText(info.ownerId);
@@ -336,8 +360,10 @@ PetInfo AddPetDialog::getPetInfo() const
     info.species = ui->speciesCombo->currentText();
     info.breed = ui->breedCombo->currentText();
     info.health = healthCombo->currentText();
-    QString medHist = ui->historyEdit->text().trimmed();
-    info.medicalHistory = medHist.isEmpty() ? "暂无病史" : medHist;
+    QString medHist = historyTextEdit->toPlainText().trimmed();
+    info.medicalHistory = medHist.isEmpty() ? "无" : medHist;
+    QString dietary = dietaryTextEdit->toPlainText().trimmed();
+    info.dietary = dietary.isEmpty() ? "常规饮食" : dietary;
     info.vaccine = "已接种"; // 默认占位符，实际由疫苗模块管理
     
     info.gender = genderCombo->currentText();
@@ -359,7 +385,11 @@ PetInfo AddPetDialog::getPetInfo() const
     info.avatarPath = m_avatarPath; // 保存照片路径
     
     // 简单生成一个 ID
-    static int idCounter = 1010;
-    info.id = QString("P%1").arg(++idCounter);
+    if (m_currentId.isEmpty()) {
+        static int idCounter = 1010;
+        info.id = QString("P%1").arg(++idCounter);
+    } else {
+        info.id = m_currentId;
+    }
     return info;
 }

@@ -45,10 +45,13 @@ private:
     QLineEdit *joinTimeEdit;
     QLineEdit *ownerIdEdit;
     QLineEdit *ownerNameEdit;
+    class QTextEdit *historyTextEdit;
+    class QTextEdit *dietaryTextEdit;
 
     QLabel *avatarLabel;
     QPushButton *selectImageBtn;
     QString m_avatarPath;
+    QString m_currentId;
 
     // 大图预览交互
     QWidget *m_imagePreviewOverlay;
