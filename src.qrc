@@ -6,5 +6,18 @@
         <file>images/arrow_down.png</file>
         <file>images/male.png</file>
         <file>images/female.png</file>
+        <file>images/foster_bath.png</file>
+        <file>images/foster_bath_2.png</file>
+        <file>images/foster_outdoor.png</file>
+        <file>images/foster_outdoor_2.png</file>
+        <file>images/foster_outdoor_3.png</file>
+        <file>images/foster_outdoor_4.png</file>
+        <file>images/foster_outdoor_5.png</file>
+        <file>images/foster_outdoor_6.png</file>
+        <file>images/foster_sleep.png</file>
+        <file>images/foster_sleep_2.png</file>
+
+        <file>images/close.png</file>
+
     </qresource>
 </RCC>

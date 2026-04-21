@@ -8,16 +8,84 @@
 #include <QPainterPath>
 #include <QIcon>
 
+#include <QComboBox>
+#include <QScrollBar>
+#include <QAbstractItemView>
+
+// 影像留档专用的沉浸式弹窗
+class PetMediaArchiveDialog : public QDialog {
+public:
+    PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent = nullptr) : QDialog(parent) {
+        setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
+        setAttribute(Qt::WA_TranslucentBackground);
+        
+        QVBoxLayout *mainLayout = new QVBoxLayout(this);
+        mainLayout->setAlignment(Qt::AlignCenter);
+
+        QFrame *container = new QFrame();
+        container->setFixedSize(850, 750); // 调整为 850x750 的正大尺寸
+        container->setStyleSheet("QFrame { background: white; border: 2px solid #ebeef5; border-radius: 24px; } QLabel { background: transparent; }");
+        
+        QVBoxLayout *content = new QVBoxLayout(container);
+        content->setContentsMargins(30, 25, 30, 25);
+
+        QHBoxLayout *header = new QHBoxLayout();
+        QLabel *titleL = new QLabel(QString("📸 %1 的分类影像档案").arg(petName));
+        titleL->setStyleSheet("font-size: 18px; font-weight: bold; color: #18181B; border: none;");
+        
+        // 定义一个简单的可点击 Label 替代按钮，确保文字 100% 渲染
+        class LabelBtn : public QLabel {
+        public:
+            explicit LabelBtn(const QString &text, QWidget *parent = nullptr) : QLabel(text, parent) {
+                setFixedSize(80, 32);
+                setAlignment(Qt::AlignCenter);
+                setCursor(Qt::PointingHandCursor);
+                setStyleSheet(
+                    "QLabel { "
+                    "  background-color: #f0f2f5; "
+                    "  color: #1d1d1f; "
+                    "  border: 1px solid #d1d1d6; "
+                    "  border-radius: 8px; "
+                    "  font-size: 14px; "
+                    "  font-weight: bold; "
+                    "} "
+                    "QLabel:hover { "
+                    "  background-color: #e5e5ea; "
+                    "}"
+                );
+            }
+        protected:
+            void mousePressEvent(QMouseEvent *) override {
+                if (auto *d = qobject_cast<QDialog*>(window())) d->accept();
+            }
+        };
+
+        LabelBtn *closeBtn = new LabelBtn("关闭");
+        
+        header->addWidget(titleL);
+        header->addStretch();
+        header->addWidget(closeBtn);
+        
+        content->addLayout(header);
+        content->addSpacing(10);
+
+        MediaGallery *gallery = new MediaGallery();
+        gallery->setMedia(media);
+        content->addWidget(gallery, 1);
+
+        mainLayout->addWidget(container);
+    }
+};
+
 PetRecordDrawer::PetRecordDrawer(QWidget *parent) : QWidget(parent), m_isOpened(false)
 {
-    m_timelineModel = new PetTimelineModel(this);
-    m_timelineDelegate = new TimelineDelegate(this);
+    m_timelineWidget = new PetTimelineWidget(this);
 
     setupUI();
     
     // 连接时间轴委派器的修改/删除信号
-    connect(m_timelineDelegate, &TimelineDelegate::editRequested, this, &PetRecordDrawer::onEditLog);
-    connect(m_timelineDelegate, &TimelineDelegate::deleteRequested, this, &PetRecordDrawer::onDeleteLog);
+    connect(m_timelineWidget->delegate(), &TimelineDelegate::editRequested, this, &PetRecordDrawer::onEditLog);
+    connect(m_timelineWidget->delegate(), &TimelineDelegate::deleteRequested, this, &PetRecordDrawer::onDeleteLog);
 
     setFixedWidth(0);
     
@@ -37,7 +105,7 @@ void PetRecordDrawer::setupUI()
 
     // --- 0. 宠物信息头 (Pet Information Header - RESTORED) ---
     QWidget *petHeader = new QWidget();
-    petHeader->setFixedHeight(190); // 进一步增加高度 (160->190) 以适应新增的房号 Badge
+    petHeader->setFixedHeight(170); // 调整为更紧凑的高度
     petHeader->setStyleSheet("background: white; border-bottom: 1px solid #f0f2f5;");
     QVBoxLayout *petHeaderLayout = new QVBoxLayout(petHeader);
     petHeaderLayout->setContentsMargins(20, 10, 20, 15);
@@ -75,26 +143,54 @@ void PetRecordDrawer::setupUI()
     m_ownerLabel->setStyleSheet("font-size: 14px; color: #b2bec3; border: none;"); // 增加 border: none
     
     m_statusBadge = new QLabel();
-    m_statusBadge->setFixedWidth(120);
-    m_statusBadge->setFixedHeight(22);
+    m_statusBadge->setFixedHeight(28); // 统一高度为 28px
     m_statusBadge->setAlignment(Qt::AlignCenter);
     m_statusBadge->setStyleSheet(
         "QLabel { "
-        "background-color: #f0f9eb; "
-        "color: #67c23a; "
-        "border: 1px solid #e1f3d8; "
-        "border-radius: 4px; "
-        "font-size: 12px; "
-        "font-weight: bold; "
+        "  background-color: #f0f9eb; "
+        "  color: #67c23a; "
+        "  border: 1px solid #e1f3d8; "
+        "  border-radius: 6px; " // 统一圆角
+        "  font-size: 13px; " // 统一字号
+        "  font-weight: bold; "
+        "  padding: 0px 10px; " // 增加内边距
         "} "
     );
     m_statusBadge->hide(); // 默认隐藏
     
+    m_archiveBtn = new QPushButton("📸 影像留档");
+    m_archiveBtn->setFixedHeight(28); // 仅固定高度，宽度自适应
+    m_archiveBtn->setMinimumWidth(100); 
+    m_archiveBtn->setCursor(Qt::PointingHandCursor);
+    m_archiveBtn->setStyleSheet(
+        "QPushButton { "
+        "  background-color: #fdf6ec; "
+        "  color: #e6a23c; "
+        "  border: 1px solid #faecd8; "
+        "  border-radius: 6px; "
+        "  font-size: 13px; "
+        "  font-weight: bold; "
+        "  padding: 0px 15px; " // 增加内边距
+        "} "
+        "QPushButton:hover { background-color: #e6a23c; color: white; }"
+    );
+    connect(m_archiveBtn, &QPushButton::clicked, this, [this]() {
+        PetMediaArchiveDialog dlg(m_currentPet.name, m_currentMedia, this->window());
+        dlg.exec();
+    });
+
+    QHBoxLayout *badgeRow = new QHBoxLayout();
+    badgeRow->setContentsMargins(0, 0, 0, 0);
+    badgeRow->setSpacing(10); // 增加间距
+    badgeRow->addWidget(m_statusBadge);
+    badgeRow->addWidget(m_archiveBtn);
+    badgeRow->addStretch();
+
     nameLayout->addWidget(m_nameLabel);
     nameLayout->addWidget(m_breedLabel);
-    nameLayout->addWidget(m_statusBadge);
-    nameLayout->addSpacing(5);
+    nameLayout->addLayout(badgeRow);
     nameLayout->addWidget(m_ownerLabel);
+    nameLayout->addStretch(); // 底部留白，确保文字顶对齐
 
     infoLayout->addWidget(m_avatarLabel);
     infoLayout->addSpacing(20); // 增加头像与文字间距
@@ -138,6 +234,7 @@ void PetRecordDrawer::setupUI()
     m_bodyArea = new QWidget();
     QVBoxLayout *bodyAreaLayout = new QVBoxLayout(m_bodyArea);
     bodyAreaLayout->setContentsMargins(0, 0, 0, 0);
+    bodyAreaLayout->setSpacing(0);
 
     QWidget *overlayWidget = new QWidget();
     QGridLayout *overlayLayout = new QGridLayout(overlayWidget);
@@ -160,17 +257,7 @@ void PetRecordDrawer::setupUI()
     emptyL->addWidget(emptyIcon);
     emptyL->addWidget(emptyText);
 
-    // 前端列表
-    m_timelineView = new QListView();
-    m_timelineView->setModel(m_timelineModel);
-    m_timelineView->setItemDelegate(m_timelineDelegate);
-    m_timelineView->setResizeMode(QListView::Adjust); // 关键修复：当视图宽度变化时自动重新计算项布局
-    m_timelineView->setSelectionMode(QAbstractItemView::NoSelection);
-    m_timelineView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    m_timelineView->setStyleSheet("QListView { border: none; background: transparent; } ");
-    
-    overlayLayout->addWidget(m_emptyPlaceholder, 0, 0);
-    overlayLayout->addWidget(m_timelineView, 0, 0);
+    overlayLayout->addWidget(m_timelineWidget, 0, 0);
     
     bodyAreaLayout->addWidget(overlayWidget);
     contentGrid->addWidget(m_bodyArea, 0, 0);
@@ -277,11 +364,15 @@ void PetRecordDrawer::setupUI()
     mainLayout->addWidget(m_bottomStack);
 }
 
-void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &logs, const QList<FosterBatch> &batches)
+void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &logs, const QList<PetMedia> &media, const QList<FosterBatch> &batches)
 {
     Q_UNUSED(batches);
     m_currentPet = info;
     m_allLogs = logs;
+    m_currentMedia = media;
+    
+    // 始终显示影像按钮 (即使没有照片也要保留入口)
+    m_archiveBtn->show();
     
     // 1. Restore Pet Info UI
     m_nameLabel->setText(info.name);
@@ -316,7 +407,7 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     m_statusDateLabel->setText(QDate::currentDate().toString("yyyy-MM-dd"));
 
     // 3. Timeline Data
-    m_timelineModel->setLogs(logs);
+    m_timelineWidget->setLogs(logs);
     
     // 4. Calendar logic
     QDate fosterStart = QDate::fromString(info.joinTime, "yyyy-MM-dd");
@@ -335,45 +426,27 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
 
     updateEmptyState();
     updateBatchStatus(info.status);
-
-    // 关键修复：确保切换宠物后，时间轴视图强制回到顶部，避免停留在上一个宠物的旧偏移位置
-    if (m_timelineModel->rowCount() > 0) {
-        m_timelineView->scrollTo(m_timelineModel->index(0), QAbstractItemView::PositionAtTop);
-    }
 }
 
 void PetRecordDrawer::updateEmptyState()
 {
-    bool hasRows = m_timelineModel->rowCount() > 0;
-    m_timelineView->setVisible(hasRows);
-    m_emptyPlaceholder->setVisible(!hasRows);
+    // 空状态逻辑已封装在 PetTimelineWidget 中
 }
 
 void PetRecordDrawer::updateBatchStatus(const QString &status)
 {
-    m_bottomStack->setVisible(true);
-
-    if (status == "寄养中") {
-        m_bottomStack->setCurrentIndex(0);
-        m_addBtn->setText("提交今日记录");
-    } else {
-        m_bottomStack->setCurrentIndex(1);
-        if (status == "离店") {
-            m_tipLabel->setText("宠物已离店，无法记录表现记录。");
-        } else {
-            m_tipLabel->setText(QString("当前处于%1状态，暂无法记录表现。").arg(status));
-        }
-    }
+    Q_UNUSED(status);
+    // 该界面现在仅用于查阅历史，不再提供录入功能，故隐藏底部的录入/提示堆栈
+    m_bottomStack->setVisible(false);
 }
 
 void PetRecordDrawer::addLogItem(const PetActivityLog &log)
 {
     m_allLogs.append(log);
-    m_timelineModel->setLogs(m_allLogs);
-    updateEmptyState();
+    m_timelineWidget->setLogs(m_allLogs);
     
     // 自动滚动到底部以查看最新添加的记录
-    m_timelineView->scrollTo(m_timelineModel->index(m_timelineModel->rowCount() - 1), QAbstractItemView::PositionAtBottom);
+    m_timelineWidget->view()->scrollTo(m_timelineWidget->model()->index(m_timelineWidget->model()->rowCount() - 1), QAbstractItemView::PositionAtBottom);
     
     // Update Calendar (三态映射)
     QSet<QDate> done, doing, danger;
@@ -388,13 +461,7 @@ void PetRecordDrawer::addLogItem(const PetActivityLog &log)
 void PetRecordDrawer::onCalendarClicked(const QDate &date)
 {
     m_statusDateLabel->setText(date.toString("yyyy-MM-dd"));
-    
-    QString dateStr = date.toString("yyyy-MM-dd");
-    int row = m_timelineModel->findFirstIndexForDate(dateStr);
-    if (row != -1) {
-        m_timelineView->scrollTo(m_timelineModel->index(row), QAbstractItemView::PositionAtTop);
-        m_timelineModel->setHighlight(row + 1); 
-    }
+    m_timelineWidget->scrollToDate(date.toString("yyyy-MM-dd"));
     
     // 选定日期后自动折叠日历
     onToggleCalendar();
@@ -448,11 +515,8 @@ void PetRecordDrawer::onDeleteLog(const QModelIndex &index)
     // 删除功能：弹出确认框
     if (CustomMessageDialog::confirm(this, "确认删除", "确定要永久移除这条表现记录吗？")) {
         int row = index.row();
-        // 简单处理：如果 model 只有 log（没有 header），直接按 row 删除
-        // 复杂处理：根据数据 ID 或时间戳匹配 m_allLogs 移除
         m_allLogs.removeAt(row); 
-        m_timelineModel->setLogs(m_allLogs);
-        updateEmptyState();
+        m_timelineWidget->setLogs(m_allLogs);
         
         // 同步更新日历状态点
         QSet<QDate> done, doing, danger;
@@ -473,10 +537,10 @@ void PetRecordDrawer::onBatchChanged(int index)
 void PetRecordDrawer::showDrawer()
 {
     m_isOpened = true;
-    m_timelineView->doItemsLayout(); // 展开前强制重新计算内饰布局，防止气泡宽度缓存错误
+    m_timelineWidget->view()->doItemsLayout(); // 展开前强制重新计算内饰布局，防止气泡宽度缓存错误
     m_animation->stop();
     m_animation->setStartValue(width());
-    m_animation->setEndValue(330); // 适度增加宽度至 330px
+    m_animation->setEndValue(450); // 增加宽度至 450px，确保长标签内容完全显示
     m_animation->start();
 }
 

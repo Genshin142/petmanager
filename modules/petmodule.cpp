@@ -1,4 +1,5 @@
 #include "petmodule.h"
+#include "petdatamanager.h"
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QTableWidget>
@@ -39,13 +40,14 @@ PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pag
     m_floatingTooltip = new FloatingTooltip(this);
     
     // 应用自定义代理到以往病例(7)和饮食禁忌(8)
-    auto *delegate = new CustomTooltipDelegate(m_floatingTooltip, this);
+    auto *delegate = new CustomTooltipDelegate(this);
     petTable->setItemDelegateForColumn(7, delegate);
     petTable->setItemDelegateForColumn(8, delegate);
     
-    // 开启鼠标追踪，确保气泡响应灵敏
+    // 开启鼠标追踪并安装事件过滤器，确保气泡响应灵敏
     petTable->setMouseTracking(true);
     petTable->viewport()->setMouseTracking(true);
+    petTable->viewport()->installEventFilter(this);
 
     // 双击单元格进入编辑
     connect(petTable, &QTableWidget::cellDoubleClicked, this, [this](int /*row*/, int col) {
@@ -262,78 +264,56 @@ void PetModule::setupUI()
     connect(jumpBtn, &QPushButton::clicked, this, &PetModule::onJumpPage);
     connect(jumpEdit, &QLineEdit::returnPressed, this, &PetModule::onJumpPage);
 
-    auto addDemo = [&](const QString &id, const QString &name, const QString &species, const QString &breed, const QString &gender, const QString &age, const QString &status, const QString &ownerId, const QString &ownerName, 
-                       const QString &vaccine = "已接种", const QString &medical = "无", const QString &diet = "常规饮食", const QString &roomNo = "", const QString &avatar = "") {
-        PetInfo info;
-        info.id = id; info.name = name; info.species = species; info.breed = breed; 
-        info.gender = gender; info.age = age; info.status = status;
-        info.ownerId = ownerId; info.ownerName = ownerName;
-        info.health = "健康"; 
-        info.medicalHistory = medical; 
-        info.vaccine = vaccine;
-        info.dietary = diet;
-        info.joinTime = "2026-03-10";
-        info.roomNo = roomNo;
-        if (!avatar.isEmpty()) {
-            info.avatarPath = "images/pets/" + avatar;
-        } else {
-            info.avatarPath = ":/images/load_img.jpg";
-        }
-        addPetRow(info);
-
-        QList<PetActivityLog> logs;
-        QString today = QDate::currentDate().toString("yyyy-MM-dd");
-        QString yesterday = QDate::currentDate().addDays(-1).toString("yyyy-MM-dd");
-
-        auto addLog = [&](const QString &time, const QString &type, const QString &icon, const QString &remark, const QString &room = "", const QString &opName = "店员小利") {
-            PetActivityLog log;
-            log.time = time; log.type = type; log.icon = icon; log.remark = remark;
-            log.isAlert = (type == "异常");
-            log.operatorName = opName;
-            log.roomNo = room;
-            logs.append(log);
-        };
-
-        if (status == "寄养中") {
-            addLog(today + " 09:30", "投喂", "🍖", QString("[%1] 早饭吃得很干净，精神头很足。").arg(name), info.roomNo, "王波");
-            addLog(today + " 14:20", "检查", "🩺", QString("[%1] 体温 38.5℃，心率正常，状态非常健康。").arg(name), info.roomNo, "店员小利");
-            addLog(yesterday + " 10:15", "洗护", "🛁", QString("[%1] 进行了深层除臭洗护，毛发亮泽。").arg(name), info.roomNo, "张师傅");
-            addLog(yesterday + " 18:00", "备注", "📝", QString("[%1] 和其他小伙伴在操场玩得很开心。").arg(name), info.roomNo, "王波");
-        } else if (status == "洗护中") {
-            addLog(today + " 16:10", "洗护", "🛁", QString("[%1] 正在进行基础清洁，目前正在吹干毛发。").arg(name), info.roomNo, "张师傅");
-            addLog(yesterday + " 11:30", "检查", "🩺", QString("[%1] 入店检查：体表无寄生虫，皮肤状况良好。").arg(name), info.roomNo, "店员小利");
-        } else {
-            addLog(yesterday + " 08:30", "投喂", "🍖", QString("[%1] 早饭光盘行动。").arg(name), "A-01", "王波");
-            addLog(yesterday + " 17:00", "离店", "👋", QString("[%1] 主人已准时接走，本次寄养结束。").arg(name), "A-01", "店长");
-        }
-        m_activityLogs[info.id] = logs;
-
-        QList<VaccineRecord> vaccines;
-        if (vaccine != "未接种") {
-            vaccines.append({"猫三联 (第一针)", "2026-01-10", "2027-01-10"});
-            vaccines.append({"猫三联 (第二针)", "2026-02-01", "2027-02-01"});
-            if (species == "狗") {
-                vaccines.append({"狂犬疫苗", "2026-02-15", "2027-02-15"});
+    // 数据同步增强：对接中央数据管理器
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [this]() {
+        QTimer::singleShot(50, this, [this]() {
+            refreshTable();
+            updateStats();
+        });
+    });
+    connect(PetDataManager::instance(), &PetDataManager::petDataChanged, this, [this](const QString &id) {
+        QTimer::singleShot(50, this, [this, id]() {
+            // 数据一致性修复：同步更新档案抽屉
+            if (m_drawer->isVisible()) {
+                 PetInfo info = PetDataManager::instance()->getPet(id);
+                 QList<PetActivityLog> logs = PetDataManager::instance()->getLogs(id);
+                 QList<PetMedia> media = PetDataManager::instance()->getMedia(id);
+                 // 如果 ID 匹配，则原位刷新抽屉内容
+                 m_drawer->setPet(info, logs, media);
             }
-        }
-        m_vaccineRecords[info.id] = vaccines;
-    };
+            refreshTable();
+        });
+    });
 
-    addDemo("P1001", "团团", "猫", "波斯猫", "母", "3岁", "离店", "M001", "张三", "已接种(三联)", "无", "不吃禽类", "", "persian.png");
-    addDemo("P1002", "豆豆", "狗", "柴犬", "公", "1岁", "寄养中", "M002", "李芳", "已接种", "曾患皮肤病", "常规饮食", "001", "golden.png");
-    addDemo("P1003", "小雪", "猫", "布偶", "母", "2岁", "寄养中", "M003", "王波", "已接种", "无", "需拌湿粮", "002", "snow.jpg");
-    addDemo("P1004", "可乐", "狗", "金毛", "公", "4岁", "待寄养", "M004", "赵四", "未接种", "无", "常规饮食", "", "balu.jpg");
-    addDemo("P1005", "咪咪", "猫", "银渐层", "母", "2岁", "离店", "M002", "李芳", "已接种", "无", "常规饮食", "", "siamese.png");
-    addDemo("P1006", "旺财", "狗", "金毛犬", "公", "4岁", "洗护中", "M003", "王五", "已接种", "无", "鸡肉过敏", "008", "golden.png");
-    addDemo("P1007", "小雪", "狗", "萨摩耶", "母", "2岁", "寄养中", "M004", "赵六", "已接种", "无", "常规饮食", "C-05", "husky.png");
-    addDemo("P1008", "可可", "狗", "泰迪", "母", "3岁", "离店", "M004", "赵六", "已接种", "无", "常规饮食", "", "siamese.png");
-    addDemo("P1009", "大黑", "狗", "拉布拉多", "公", "1岁", "离店", "M005", "孙七", "已接种", "无", "常规饮食", "", "husky.png");
-    addDemo("P1010", "皮皮", "狗", "柯基", "公", "2岁", "洗护中", "M006", "周八", "已接种", "无", "常规饮食", "009", "golden.png");
-    addDemo("P1011", "球球", "猫", "英短蓝猫", "母", "2岁", "离店", "M007", "吴九", "已接种", "无", "常规饮食", "", "persian.png");
-    addDemo("P1012", "花花", "猫", "加菲猫", "母", "4岁", "离店", "M007", "吴九", "已接种", "无", "常规饮食", "", "siamese.png");
-
+    refreshTable();
     updateStats();
     updatePagination();
+}
+
+void PetModule::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    // 每次进入模块时，确保首行被选中以同步侧边栏数据
+    if (petTable->rowCount() > 0) {
+        petTable->selectRow(0);
+        onCurrentCellChanged(0, 0, -1, -1);
+    }
+}
+
+void PetModule::refreshTable()
+{
+    petTable->setRowCount(0);
+    QList<PetInfo> allPets = PetDataManager::instance()->allPets();
+    for (const auto &info : allPets) {
+        addPetRow(info);
+    }
+    updatePagination();
+
+    // 关键修复：刷新表格后默认选中首行，确保详情抽屉同步刷新
+    if (petTable->rowCount() > 0) {
+        petTable->selectRow(0);
+        onCurrentCellChanged(0, 0, -1, -1);
+    }
 }
 
 void PetModule::addPet(const PetInfo &info)
@@ -344,7 +324,6 @@ void PetModule::addPet(const PetInfo &info)
 
 void PetModule::addPetRow(const PetInfo &info)
 {
-    m_petData[info.id] = info;
     
     int row = petTable->rowCount();
     petTable->insertRow(row);
@@ -444,7 +423,7 @@ void PetModule::addPetRow(const PetInfo &info)
     }
     
     connect(vacBtn, &QPushButton::clicked, this, [this, info]() {
-        VaccineDetailDialog dlg(info.name, m_vaccineRecords.value(info.id), this->window());
+        VaccineDetailDialog dlg(info.name, PetDataManager::instance()->getVaccines(info.id), this->window());
         dlg.exec();
     });
     
@@ -467,52 +446,21 @@ void PetModule::addPetRow(const PetInfo &info)
     QHBoxLayout *statusL = new QHBoxLayout(statusWrap);
     statusL->setContentsMargins(0, 0, 0, 0); statusL->setAlignment(Qt::AlignCenter);
     
-    QComboBox *statusBox = new QComboBox();
-    statusBox->setCursor(Qt::PointingHandCursor);
-    statusBox->addItems({"待寄养", "寄养中", "洗护中", "离店"});
-    statusBox->setFixedSize(90, 32); 
-    statusBox->setCurrentText(info.status);
+    QLabel *statusTag = new QLabel(info.status);
+    statusTag->setFixedSize(90, 28);
+    statusTag->setAlignment(Qt::AlignCenter);
     
-    auto updateBoxStyle = [statusBox](const QString &st) {
-        QString bgColor, textColor, borderColor;
-        if (st == "寄养中") { bgColor = "#ecf5ff"; textColor = "#409eff"; borderColor = "#b3d8ff"; }
-        else if (st == "洗护中") { bgColor = "#fdf6ec"; textColor = "#e6a23c"; borderColor = "#faecd8"; }
-        else if (st == "离店") { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e4e7ed"; }
-        else { bgColor = "#f0f9eb"; textColor = "#67c23a"; borderColor = "#e1f3d8"; }
+    QString bgColor, textColor, borderColor;
+    if (info.status == "寄养中") { bgColor = "#ecf5ff"; textColor = "#409eff"; borderColor = "#b3d8ff"; }
+    else if (info.status == "洗护中") { bgColor = "#fdf6ec"; textColor = "#e6a23c"; borderColor = "#faecd8"; }
+    else if (info.status == "离店") { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e4e7ed"; }
+    else { bgColor = "#f0f9eb"; textColor = "#67c23a"; borderColor = "#e1f3d8"; }
 
-        // 100% 照搬会员界面 QSS 架构
-        QString style = QString(
-            "QComboBox { "
-            "   border: 1px solid %3; "
-            "   border-radius: 6px; "
-            "   padding: 0 0 0 22px; " /* 视觉居中补足 */
-            "   background: %1; "
-            "   color: %2; "
-            "   font-size: 13px; "
-            "   font-weight: bold; "
-            "} "
-            "QComboBox:hover { border-color: %2; } "
-            "QComboBox::drop-down { border: none; width: 24px; } "
-            "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
-            "QComboBox QAbstractItemView { border: 1px solid #ebeef5; border-radius: 6px; background-color: white; outline: none; padding: 4px 0px; } "
-            "QComboBox QAbstractItemView::item { height: 35px; padding-left: 12px; color: #606266; } "
-            "QComboBox QAbstractItemView::item:selected { background-color: #f0f7ff; color: #409eff; } "
-        ).arg(bgColor, textColor, borderColor);
+    statusTag->setStyleSheet(QString(
+        "background-color: %1; color: %2; border: 1px solid %3; border-radius: 14px; font-size: 12px; font-weight: bold;"
+    ).arg(bgColor, textColor, borderColor));
 
-        statusBox->setStyleSheet(style);
-    };
-    
-    updateBoxStyle(info.status);
-    
-    connect(statusBox, &QComboBox::currentTextChanged, this, [=](const QString &newStatus) {
-        updateBoxStyle(newStatus);
-        if (m_petData.contains(info.id)) {
-            m_petData[info.id].status = newStatus;
-        }
-        updateStats();
-    });
-
-    statusL->addWidget(statusBox);
+    statusL->addWidget(statusTag);
     petTable->setCellWidget(row, 9, statusWrap);
 
     QTableWidgetItem *timeItem = new QTableWidgetItem(info.joinTime);
@@ -550,9 +498,9 @@ void PetModule::updateStats()
         if (petTable->isRowHidden(i)) continue;
         QWidget *w = petTable->cellWidget(i, 9);
         if (w) {
-            QComboBox *box = w->findChild<QComboBox*>();
-            if (box) {
-                QString st = box->currentText();
+            QLabel *tag = w->findChild<QLabel*>();
+            if (tag) {
+                QString st = tag->text();
                 if (st == "寄养中") boarding++;
                 else if (st == "洗护中") grooming++;
             }
@@ -636,17 +584,15 @@ void PetModule::onEditPet()
         QWidget *w = petTable->cellWidget(i, 11);
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
              QString petId = petTable->item(i, 1)->text();
-             if (!m_petData.contains(petId)) break;
-             
-             PetInfo info = m_petData[petId];
+             PetInfo info = PetDataManager::instance()->getPet(petId);
+             if (info.id.isEmpty()) break;
              
              AddPetDialog dlg(this);
              dlg.setPetInfo(info);
              if (dlg.exec() == QDialog::Accepted) {
                   PetInfo newInfo = dlg.getPetInfo();
-                  m_petData[petId] = newInfo;
-                  petTable->removeRow(i);
-                  addPetRow(newInfo);
+                  PetDataManager::instance()->updatePet(newInfo);
+                  // 移除手动 removeRow 和 addPetRow，由 PetDataManager 信号触发 refreshTable 保持排序
                   updateStats();
              }
              break;
@@ -662,9 +608,9 @@ void PetModule::onDeletePet()
     for (int i = 0; i < petTable->rowCount(); ++i) {
         QWidget *w = petTable->cellWidget(i, 11);
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
+            QString petId = petTable->item(i, 1)->text();
             if (CustomMessageDialog::confirm(this, "删除确认", "确定要永久删除该宠物档案吗？")) {
-                petTable->removeRow(i);
-                updateStats();
+                PetDataManager::instance()->removePet(petId);
             }
             break;
         }
@@ -691,10 +637,9 @@ void PetModule::onBatchDelete()
 
     if (CustomMessageDialog::confirm(this, "批量删除", QString("确定要删除选中的 %1 个宠物档案吗？此操作不可撤销。").arg(checkedRows.size()))) {
         for (int row : checkedRows) {
-            petTable->removeRow(row);
+            QString petId = petTable->item(row, 1)->text();
+            PetDataManager::instance()->removePet(petId);
         }
-        updateStats();
-        updatePagination();
     }
 }
 
@@ -825,14 +770,33 @@ bool PetModule::eventFilter(QObject *watched, QEvent *event) {
     if (watched == petTable->viewport() && event->type() == QEvent::MouseMove) {
         QMouseEvent *me = static_cast<QMouseEvent*>(event);
         QModelIndex index = petTable->indexAt(me->pos());
+        
         if (index.isValid() && (index.column() == 7 || index.column() == 8)) {
             QString text = index.data(Qt::DisplayRole).toString().trimmed();
-            if (!text.isEmpty() && text != "无" && text != "常规饮食") {
-                m_floatingTooltip->showText(me->globalPos(), text);
+            
+            // 【关键修复3】：智能判断。使用单元格实际字体计算宽度
+            QTableWidgetItem *item = petTable->item(index.row(), index.column());
+            QFont font = item ? item->font() : petTable->font();
+            QFontMetrics fm(font);
+            int availableWidth = petTable->columnWidth(index.column()) - 15;
+            bool isTruncated = fm.horizontalAdvance(text) > availableWidth;
+
+            // 只有当“文字真正被截断” 或者是 “有意义的特殊内容” 时，才显示气泡
+            // 如果你希望只有截断才显示，可以去掉后面的条件；但通常有意义的内容悬停显示更符合直觉
+            if ((isTruncated || (text != "无" && text != "常规饮食" && text != "暂无病史")) && !text.isEmpty()) {
+                if (m_lastHoveredIndex != index) {
+                    m_floatingTooltip->showText(me->globalPosition().toPoint(), text);
+                    m_lastHoveredIndex = index;
+                }
                 return false; 
             }
         }
-        if (m_floatingTooltip) m_floatingTooltip->hide();
+        
+        // 鼠标移出目标列、移到空白处、或者文字没有被截断时，平滑隐藏气泡
+        if (m_floatingTooltip && m_floatingTooltip->isVisible()) {
+            m_floatingTooltip->hide();
+            m_lastHoveredIndex = QModelIndex();
+        }
     }
     
     return QWidget::eventFilter(watched, event);
@@ -871,8 +835,8 @@ void PetModule::onCurrentCellChanged(int row, int column, int prevRow, int prevC
     if (!idItem) return;
 
     QString petId = idItem->text();
-    if (m_petData.contains(petId)) {
-        PetInfo info = m_petData[petId];
+    PetInfo info = PetDataManager::instance()->getPet(petId);
+    if (!info.id.isEmpty()) {
         QList<FosterBatch> batches;
         
         if (info.status == "寄养中") {
@@ -881,16 +845,14 @@ void PetModule::onCurrentCellChanged(int row, int column, int prevRow, int prevC
             batches.append(b1);
         }
         
-        m_drawer->setPet(info, m_activityLogs[petId], batches);
+        m_drawer->setPet(info, PetDataManager::instance()->getLogs(petId), PetDataManager::instance()->getMedia(petId), batches);
     }
 }
 
 void PetModule::onLogAdded(const QString &petId, const PetActivityLog &log)
 {
-    if (m_activityLogs.contains(petId)) {
-        m_activityLogs[petId].insert(0, log);
-        onCurrentCellChanged(petTable->currentRow(), 0, -1, -1);
-    }
+    PetDataManager::instance()->addActivityLog(petId, log);
+    onCurrentCellChanged(petTable->currentRow(), 0, -1, -1);
 }
 
 void PetModule::onQuickAction()

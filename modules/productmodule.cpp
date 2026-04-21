@@ -200,6 +200,7 @@ void ProductModule::setupUI() {
     prodTable->setAlternatingRowColors(false);
     prodTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     prodTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    prodTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     prodTable->setFocusPolicy(Qt::NoFocus);
     prodTable->verticalHeader()->setVisible(false);
     prodTable->verticalHeader()->setDefaultSectionSize(55);

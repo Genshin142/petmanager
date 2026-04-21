@@ -87,8 +87,8 @@ private:
         painter->setPen(QPen(QColor("#f0f2f5"), 2));
         painter->drawLine(option.rect.left() + 15, option.rect.top(), option.rect.left() + 15, option.rect.bottom());
 
-        // 2. 圆点
-        QRect dotRect(option.rect.left() + 5, option.rect.top() + 15, 20, 20);
+        // 2. 轴点 (改为小圆点，去除大图标)
+        QRect dotRect(option.rect.left() + 11, option.rect.top() + 20, 8, 8);
         QColor themeColor = "#409eff";
         if (typeStr == "投喂") themeColor = "#67c23a";
         else if (typeStr == "洗护") themeColor = "#e6a23c";
@@ -97,15 +97,11 @@ private:
         painter->setBrush(themeColor);
         painter->setPen(Qt::NoPen);
         painter->drawEllipse(dotRect);
-        
-        painter->setPen(Qt::white);
-        painter->setFont(QFont("Segoe UI Emoji", 10));
-        painter->drawText(dotRect, Qt::AlignCenter, iconStr);
 
         // 3. 时间
         painter->setPen(QColor("#C0C4CC"));
         painter->setFont(QFont("Arial", 9));
-        painter->drawText(option.rect.left() + 35, option.rect.top() + 30, timeStr);
+        painter->drawText(option.rect.left() + 30, option.rect.top() + 28, timeStr);
 
         // 4. 气泡
         QRect bubbleRect(option.rect.left() + 75, option.rect.top() + 10, option.rect.width() - 95, option.rect.height() - 20);
@@ -121,13 +117,13 @@ private:
         painter->drawPath(path);
         painter->fillPath(path, QColor(248, 249, 251));
 
-        // Text Content
+        // Text Content (将图标移动到文字内部)
         painter->setPen(QColor("#606266"));
         painter->setFont(QFont("Microsoft YaHei", 10));
-        QRect textRect = bubbleRect.adjusted(12, 10, -12, -10); // 移除按钮后，恢复文字区域宽度
+        QRect textRect = bubbleRect.adjusted(12, 10, -12, -10);
         
         QTextDocument doc;
-        doc.setHtml(QString("<div style='line-height: 1.2;'><b>%1:</b> %2</div>").arg(typeStr, contentStr));
+        doc.setHtml(QString("<div style='line-height: 1.4;'>%1 <b>%2:</b> %3</div>").arg(iconStr, typeStr, contentStr));
         doc.setTextWidth(textRect.width());
         
         painter->save();

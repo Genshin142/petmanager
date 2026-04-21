@@ -176,6 +176,7 @@ void MemberModule::setupUI()
     memTable->setAlternatingRowColors(false);
     memTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     memTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    memTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     memTable->setFocusPolicy(Qt::NoFocus);
     memTable->verticalHeader()->setVisible(false);
     memTable->verticalHeader()->setDefaultSectionSize(48); // 统一行高，确保按钮放得下

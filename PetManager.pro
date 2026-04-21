@@ -28,7 +28,8 @@ SOURCES += \
     modules/addemployeedialog.cpp \
     modules/salarymodule.cpp \
     modules/petrecorddrawer.cpp \
-    modules/custom_calendar_edit.cpp
+    modules/custom_calendar_edit.cpp \
+    modules/petdatamanager.cpp
 
 HEADERS += \
     loginwindow.h \
@@ -54,7 +55,9 @@ HEADERS += \
     modules/pettimelinemodel.h \
     modules/timelinedelegate.h \
     modules/compactcalendar.h \
-    modules/custom_calendar_edit.h
+    modules/pettimelinewidget.h \
+    modules/custom_calendar_edit.h \
+    modules/petdatamanager.h
 
 FORMS += \
     loginwindow.ui \

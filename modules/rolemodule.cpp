@@ -211,7 +211,7 @@ void RoleModule::setupUI()
     statusFilterCombo = new QComboBox();
     statusFilterCombo->setFixedWidth(100);
     statusFilterCombo->setFixedHeight(32);
-    statusFilterCombo->addItems({"全部状态", "正常", "请假", "离职"});
+    statusFilterCombo->addItems({"全部状态", "在岗", "离岗", "请假", "离职"});
     statusFilterCombo->setStyleSheet(
         "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; background: white; font-size: 13px; } "
         "QComboBox::drop-down { border: none; width: 24px; } "
@@ -382,13 +382,14 @@ void RoleModule::setupUI()
 
 void RoleModule::addSampleData()
 {
-    addEmployeeRow("E001", "李四", "高级美容师", "正常", "男", 28, "13800138000", "lisi@pet.com", "440106199601011234", 3500, 15000, 2250);
+    addEmployeeRow("E001", "李四", "高级美容师", "在岗", "男", 28, "13800138000", "lisi@pet.com", "440106199601011234", 3500, 15000, 2250);
     addEmployeeRow("E002", "王五", "店员", "请假", "女", 24, "13911223344", "wangwu@pet.com", "440106200005204321", 3000, 3000, 450);
-    addEmployeeRow("E003", "张三", "实习生", "正常", "男", 21, "13755667788", "zhangsan@pet.com", "440106200310105566", 1200, 0, 0);
-    addEmployeeRow("E004", "赵六", "宠物医生", "正常", "男", 35, "15088996677", "zhaoliu@pet.com", "440106198912128899", 6500, 40000, 5600);
-    addEmployeeRow("E005", "孙梅", "店长", "正常", "女", 32, "13612345678", "sunmei@pet.com", "440106199201011122", 8000, 0, 0);
+    addEmployeeRow("E003", "张三", "实习生", "在岗", "男", 21, "13755667788", "zhangsan@pet.com", "440106200310105566", 1200, 0, 0);
+    addEmployeeRow("E004", "赵六", "宠物医生", "在岗", "男", 35, "15088996677", "zhaoliu@pet.com", "440106198912128899", 6500, 40000, 5600);
+    addEmployeeRow("E005", "孙梅", "店长", "在岗", "女", 32, "13612345678", "sunmei@pet.com", "440106199201011122", 8000, 0, 0);
     addEmployeeRow("E006", "周莉", "高级美容师", "请假", "女", 27, "13698765432", "zhouli@pet.com", "440106199505053344", 3500, 12000, 1800);
-    addEmployeeRow("E007", "吴刚", "店员", "离职", "男", 22, "13587654321", "wugang@pet.com", "440106200202025566", 2800, 0, 0);
+    addEmployeeRow("E007", "吴刚", "店员", "离岗", "男", 22, "13587654321", "wugang@pet.com", "440106200202025566", 2800, 0, 0);
+    addEmployeeRow("E008", "陈七", "店员", "离职", "女", 26, "13511223344", "chenqi@pet.com", "440106199808081122", 3000, 0, 0);
 }
 
 void RoleModule::updateStats()
@@ -403,7 +404,7 @@ void RoleModule::updateStats()
             QLabel* tag = statusWidget->findChild<QLabel*>();
             if (tag) {
                 if (tag->text() != "离职") totalEmp++; // 在职人数不含离职
-                if (tag->text() == "正常") todayAttend++;
+                if (tag->text() == "在岗") todayAttend++;
             }
         }
     }
@@ -416,11 +417,24 @@ void RoleModule::updateStats()
 
 void RoleModule::addEmployeeRow(const QString &id, const QString &name, const QString &role, const QString &status, 
                                 const QString &gender, int age, const QString &phone, const QString &email, const QString &idCard,
-                                double baseSalary, double /*performance*/, double commission, const QString &imgPath)
+                                double baseSalary, double performance, double commission, const QString &imgPath)
 {
-    Q_UNUSED(commission);
     int row = empTable->rowCount();
     empTable->insertRow(row);
+    setEmployeeRowData(row, id, name, role, status, gender, age, phone, email, idCard, baseSalary, performance, commission, imgPath);
+}
+
+void RoleModule::addEmployeeRowInPlace(int row, const EmployeeInfo &info)
+{
+    setEmployeeRowData(row, info.id, info.name, info.role, info.status, info.gender, info.age, 
+                       info.phone, info.email, info.idCard, info.baseSalary, 0, 0, info.imgPath);
+}
+
+void RoleModule::setEmployeeRowData(int row, const QString &id, const QString &name, const QString &role, const QString &status, 
+                                    const QString &gender, int age, const QString &phone, const QString &email, const QString &idCard,
+                                    double baseSalary, double /*performance*/, double commission, const QString &imgPath)
+{
+    Q_UNUSED(commission);
 
     auto setItem = [&](int col, const QString &text, const QColor &color = QColor()) {
         QTableWidgetItem *item = new QTableWidgetItem(text);
@@ -481,8 +495,6 @@ void RoleModule::addEmployeeRow(const QString &id, const QString &name, const QS
     nameContainer->setCursor(Qt::PointingHandCursor);
     
     empTable->setCellWidget(row, 2, nameContainer);
-    
-    empTable->setCellWidget(row, 2, nameContainer);
 
     // 第3列：职位
     setItem(3, role);
@@ -506,9 +518,10 @@ void RoleModule::addEmployeeRow(const QString &id, const QString &name, const QS
     sLayout->setAlignment(Qt::AlignCenter);
     QLabel *statusTag = new QLabel(status);
     QString tagStyle = "padding: 2px 8px; border-radius: 10px; font-size: 11px; ";
-    if (status == "正常") tagStyle += "background-color: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;";
+    if (status == "在岗") tagStyle += "background-color: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;";
     else if (status == "请假") tagStyle += "background-color: #fdf6ec; color: #e6a23c; border: 1px solid #faecd8;";
-    else if (status == "离职") tagStyle += "background-color: #f4f4f5; color: #909399; border: 1px solid #e4e7ed;";
+    else if (status == "离岗") tagStyle += "background-color: #f4f4f5; color: #909399; border: 1px solid #e4e7ed;";
+    else if (status == "离职") tagStyle += "background-color: #303133; color: #ffffff; border: none;";
     else tagStyle += "background-color: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2;";
     statusTag->setStyleSheet(tagStyle);
     sLayout->addWidget(statusTag);
@@ -703,7 +716,20 @@ void RoleModule::onEditEmployee()
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
              EmployeeInfo info;
              info.id = empTable->item(i, 1)->text();
-             info.name = empTable->item(i, 2)->text();
+             
+             // 核心修复：从第2列的 CellWidget 中安全提取数据
+             QWidget *nameW = empTable->cellWidget(i, 2);
+             if (nameW) {
+                 QList<QLabel*> lbls = nameW->findChildren<QLabel*>();
+                 for (QLabel *l : lbls) {
+                     if (l->property("imgPath").isValid()) {
+                         info.imgPath = l->property("imgPath").toString();
+                     } else {
+                         info.name = l->text(); // 提取姓名
+                     }
+                 }
+             }
+
              info.role = empTable->item(i, 3)->text();
              
              // 解析性别·年龄
@@ -713,44 +739,29 @@ void RoleModule::onEditEmployee()
              info.age = parts.value(1).replace("岁", "").trimmed().toInt();
              
              info.phone = empTable->item(i, 5)->text();
-             
-             // 最新补充字段
              info.email = empTable->item(i, 6)->text();
              info.idCard = empTable->item(i, 7)->text();
              
              // 状态
              QWidget *statusW = empTable->cellWidget(i, 8);
              QLabel *statusLbl = statusW ? statusW->findChild<QLabel*>() : nullptr;
-             info.status = statusLbl ? statusLbl->text() : "正常";
+             info.status = statusLbl ? statusLbl->text() : "在岗";
              
              // 底薪
              QString salary = empTable->item(i, 9)->text();
              info.baseSalary = salary.remove("￥").toDouble();
              
-             // 头像路径
-             QWidget *nameW = empTable->cellWidget(i, 2);
-             if (nameW) {
-                 QList<QLabel*> lbls = nameW->findChildren<QLabel*>();
-                 for (QLabel *l : lbls) {
-                     if (l->property("imgPath").isValid()) {
-                         info.imgPath = l->property("imgPath").toString();
-                         break;
-                     }
-                 }
-             }
-             
-             // 去除了之前的占位代码，目前在上方已经提取实际数据
-
              AddEmployeeDialog dlg(this);
              dlg.setEmployeeInfo(info);
              if (dlg.exec() == QDialog::Accepted) {
-                 EmployeeInfo newInfo = dlg.employeeInfo();
-                 empTable->removeRow(i);
-                 addEmployeeRow(newInfo.id, newInfo.name, newInfo.role, newInfo.status, newInfo.gender, 
-                                newInfo.age, newInfo.phone, newInfo.email, newInfo.idCard, 
-                                newInfo.baseSalary, 0, 0, newInfo.imgPath);
-                 updateStats();
-                 updatePagination();
+                  EmployeeInfo newInfo = dlg.employeeInfo();
+                  // 优化：原位更新数据，不改变行索引
+                  empTable->removeRow(i);
+                  // 在原索引处插入，保持顺序
+                  empTable->insertRow(i);
+                  addEmployeeRowInPlace(i, newInfo);
+                  updateStats();
+                  updatePagination();
              }
              break;
         }
@@ -765,7 +776,13 @@ void RoleModule::onDeleteEmployee()
     for (int i = 0; i < empTable->rowCount(); ++i) {
         QWidget *w = empTable->cellWidget(i, 10);
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
-            QString name = empTable->item(i, 2) ? empTable->item(i, 2)->text() : "";
+            QString name;
+            QWidget *nameW = empTable->cellWidget(i, 2);
+            if (nameW) {
+                QLabel *nameLbl = nameW->findChildren<QLabel*>().last();
+                if (nameLbl) name = nameLbl->text();
+            }
+            
             if (CustomMessageDialog::confirm(this, "删除确认", QString("确定要删除员工 [%1] 的档案吗？").arg(name))) {
                 empTable->removeRow(i);
                 updateStats();

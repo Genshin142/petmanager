@@ -11,6 +11,9 @@
 #include <QPainter>
 #include <QVBoxLayout>
 #include <QGraphicsDropShadowEffect>
+#include <QComboBox>
+#include <QTextEdit>
+#include "../common_types.h"
 
 class QPropertyAnimation;
 
@@ -71,13 +74,120 @@ public:
         layout->addWidget(bigAvatar);
         if (parent) resize(parent->size());
     }
-
 protected:
-    void mousePressEvent(QMouseEvent *) override { accept(); }
     void paintEvent(QPaintEvent *) override {
-        QPainter painter(this);
-        painter.fillRect(rect(), QColor(0, 0, 0, 180));
+        QPainter p(this);
+        p.fillRect(rect(), QColor(0, 0, 0, 180));
     }
+    void mousePressEvent(QMouseEvent *) override {
+        accept();
+    }
+};
+
+// 全屏图片预览弹窗
+class FullImagePreviewDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit FullImagePreviewDialog(const QString &path, QWidget *parent = nullptr);
+protected:
+    void paintEvent(QPaintEvent *) override;
+    void mousePressEvent(QMouseEvent *) override { accept(); }
+};
+
+// 可点击的图片标签
+class ClickableLabel : public QLabel {
+    Q_OBJECT
+public:
+    explicit ClickableLabel(QWidget *parent = nullptr);
+signals:
+    void clicked();
+protected:
+    void mouseReleaseEvent(QMouseEvent *e) override;
+};
+
+// 内部使用的记录条目卡片
+class HistoryItemCard : public QFrame {
+    Q_OBJECT
+public:
+    HistoryItemCard(const QString &petName, const QString &roomInfo, const QString &period, const QString &status = "已完成", QWidget *parent = nullptr);
+    void setSelected(bool selected);
+signals:
+    void clicked();
+protected:
+    void mousePressEvent(class QMouseEvent *event) override;
+};
+
+// 顶部总结卡片
+class SummaryCard : public QFrame {
+    Q_OBJECT
+public:
+    explicit SummaryCard(QWidget *parent = nullptr);
+};
+
+// 影像记录展示区
+class MediaGallery : public QWidget {
+    Q_OBJECT
+public:
+    explicit MediaGallery(QWidget *parent = nullptr);
+    void setMedia(const QList<PetMedia> &media);
+};
+
+// 影像详情预览弹窗
+class MediaDetailDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit MediaDetailDialog(const PetMedia &media, QWidget *parent = nullptr);
+protected:
+    void paintEvent(class QPaintEvent *event) override;
+    void mousePressEvent(class QMouseEvent *event) override;
+};
+
+// 影像与日志录入弹窗
+class MediaUploadDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit MediaUploadDialog(const QString &petId, QWidget *parent = nullptr);
+    void paintEvent(QPaintEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
+signals:
+    void recordAdded(const QString &category, const QString &log, const QStringList &images);
+private slots:
+    void onUploadClicked();
+private:
+    void setupUI();
+
+    QFrame *m_previewArea;
+    QLabel *m_uIcon;
+    QLabel *m_uText;
+    QComboBox *m_typeCombo;
+    QComboBox *m_logTypeCombo;
+    QComboBox *m_operatorCombo;
+    QTextEdit *m_logEdit;
+    QString m_petId;
+    QStringList m_filePaths;
+};
+
+// 寄养明细容器：整合 Summary, Media, Timeline 和 Financials
+class FosterHistoryDetailWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit FosterHistoryDetailWidget(QWidget *parent = nullptr);
+    void setDetails(const QList<PetActivityLog> &logs, const QList<PetMedia> &media);
+private:
+    class PetTimelineWidget *m_timeline;
+    MediaGallery *m_gallery;
+};
+
+// 往期记录详情弹窗：解决“弹窗叠抽屉”的层级冲突，提供更宽的历史纵览视图
+class HistoryRecordDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit HistoryRecordDialog(int roomId, const QString &petId = "", const QString &petName = "", QWidget *parent = nullptr);
+protected:
+    void paintEvent(QPaintEvent *event) override;
+private:
+    void setupUI(int roomId, const QString &petId, const QString &petName);
+    QList<HistoryItemCard*> m_cards;
 };
 
 // 带遮罩的动态详情弹窗（根据房间状态展示不同内容）
@@ -87,12 +197,13 @@ public:
     explicit FosterDetailDialog(int roomId, const QString &status, const QString &petId, const QString &petName, const QString &petBreed = "", const QString &ownerName = "", QWidget *parent = nullptr);
 signals:
     void requestBooking(int roomId);
-    void requestHistory(int roomId);
+    void requestHistory(int roomId, const QString &petId, const QString &petName);
 protected:
     void paintEvent(QPaintEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 private:
     void buildOccupiedView(QVBoxLayout *layout, int roomId, const QString &petId, const QString &petName, const QString &petBreed, const QString &ownerName);
+    void buildBookedView(QVBoxLayout *layout, int roomId, const QString &petId, const QString &petName, const QString &petBreed, const QString &ownerName);
     void buildFreeView(QVBoxLayout *layout, int roomId);
     void buildCleaningView(QVBoxLayout *layout, int roomId);
     QString m_status;
@@ -125,6 +236,7 @@ private:
     QLabel *totalRoomsLabel;
     QLabel *occupiedLabel;
     QLabel *freeLabel;
+    QLabel *bookedLabel;
     QLabel *cleaningLabel;
     QDateEdit *forecastDateEdit;
     

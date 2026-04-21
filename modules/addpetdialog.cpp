@@ -134,7 +134,7 @@ void AddPetDialog::setupUI()
     dietaryTextEdit->setStyleSheet(textEditQss);
 
     // 隐藏并移除原有的 QLineEdit
-    ui->historyEdit->hide();
+    ui->formLayout->removeRow(ui->historyEdit);
 
     initBreedData();
     ui->speciesCombo->addItems(m_breedData.keys());

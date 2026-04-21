@@ -7,6 +7,7 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QIntValidator>
+#include "addemployeedialog.h"
 
 class RoleModule : public QWidget
 {
@@ -20,6 +21,10 @@ private:
     void addEmployeeRow(const QString &id, const QString &name, const QString &role, const QString &status, 
                         const QString &gender, int age, const QString &phone, const QString &email, const QString &idCard,
                         double baseSalary, double performance, double commission, const QString &imgPath = "");
+    void addEmployeeRowInPlace(int row, struct EmployeeInfo const &info);
+    void setEmployeeRowData(int row, const QString &id, const QString &name, const QString &role, const QString &status, 
+                            const QString &gender, int age, const QString &phone, const QString &email, const QString &idCard,
+                            double baseSalary, double performance, double commission, const QString &imgPath);
     void updateStats();
     void addSampleData();
     QPixmap createCircularAvatar(const QPixmap &src, int size);

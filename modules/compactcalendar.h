@@ -24,11 +24,14 @@ public:
         setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
         setHorizontalHeaderFormat(QCalendarWidget::SingleLetterDayNames);
         
+        // 强制设置一个合理的最小尺寸，防止由于容器限制导致的过度收缩
+        setMinimumSize(320, 340);
+        
         // --- 1. 深度 UI 美化 (琥珀色系) ---
         setStyleSheet(
             "QCalendarWidget { background-color: white; border: none; border-radius: 12px; } "
             "QCalendarWidget QWidget#qt_calendar_navigationbar { "
-            "   background-color: white; border-bottom: 0px solid transparent; min-height: 45px; "
+            "   background-color: white; border-bottom: 0px solid transparent; min-height: 48px; "
             "} "
             "QCalendarWidget QToolButton { "
             "   color: #2d3436; font-weight: bold; border-radius: 6px; padding: 2px 5px; "
@@ -45,7 +48,7 @@ public:
             "   padding-bottom: 8px; border: none; "
             "} "
             // 下拉列表样式 (工业级加固)
-            "QComboBox { border: 1px solid #f0f2f5; border-radius: 6px; padding: 0 10px; min-height: 28px; background: white; font-size: 13px; font-weight: bold; color: #2d3436; text-align: center; } "
+            "QComboBox { border: 1px solid #f0f2f5; border-radius: 6px; padding: 0 8px; min-height: 28px; background: white; font-size: 13px; font-weight: bold; color: #2d3436; text-align: center; } "
             "QComboBox:hover { border-color: #ff9f43; } "
             "QComboBox::drop-down { border: none; width: 18px; } "
             "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 10px; height: 10px; } "
@@ -66,35 +69,39 @@ public:
             m_yearCombo = new QComboBox(navBar);
             
             for(int i = 1; i <= 12; ++i) m_monthCombo->addItem(QString("%1月").arg(i), i);
-            for(int i = 2020; i <= 2035; ++i) m_yearCombo->addItem(QString("%1年").arg(i), i);
+            for(int i = 2022; i <= 2035; ++i) m_yearCombo->addItem(QString("%1年").arg(i), i);
 
-            m_monthCombo->setFixedWidth(75);
-            m_yearCombo->setFixedWidth(85);
+            // 稍微收缩宽度，确保小屏也能并排
+            m_monthCombo->setFixedWidth(68);
+            m_yearCombo->setFixedWidth(80);
 
-            // 将下拉框放入导航栏并实现紧凑居中 (对照疫苗模版)
-            QHBoxLayout *navLayout = qobject_cast<QHBoxLayout*>(navBar->layout());
-            if (navLayout) {
-                // 清理所有旧的布局内容，重新按模版顺序插入
-                // 默认顺序：[Prev] [Stretch] [Year] [Month] [Next] [Stretch]
-                navLayout->setContentsMargins(10, 0, 10, 0);
-                navLayout->setSpacing(10); // 按钮与下拉框之间的紧凑间距
-                
-                // 核心：在左右两端各放一个弹簧，把所有组件挤到中间
-                navLayout->insertStretch(0, 1);       // 最左侧弹簧
-                
-                // 找到并移动箭头按钮到中间
-                QToolButton *prevBtn = findChild<QToolButton*>("qt_calendar_prevmonth");
-                QToolButton *nextBtn = findChild<QToolButton*>("qt_calendar_nextmonth");
-                
-                // 重新插入顺序：[Stretch] [Prev] [Year] [Month] [Next] [Stretch]
-                // 注意：insertWidget 会移动已有的 widget
-                navLayout->insertWidget(1, prevBtn);
-                navLayout->insertWidget(2, m_yearCombo);
-                navLayout->insertWidget(3, m_monthCombo);
-                navLayout->insertWidget(4, nextBtn);
-                
-                navLayout->addStretch(1);             // 最右侧弹簧
+            // 核心修复：彻底接管导航栏布局，防止因原有布局项未清除导致的重叠
+            QToolButton *prevBtn = findChild<QToolButton*>("qt_calendar_prevmonth");
+            QToolButton *nextBtn = findChild<QToolButton*>("qt_calendar_nextmonth");
+
+            if (navBar->layout()) {
+                QLayoutItem *item;
+                while ((item = navBar->layout()->takeAt(0)) != nullptr) {
+                    delete item; // 仅删除布局项，保留 Widget
+                }
+                delete navBar->layout();
             }
+
+            QHBoxLayout *navLayout = new QHBoxLayout(navBar);
+            navLayout->setContentsMargins(10, 0, 10, 0);
+            navLayout->setSpacing(6); 
+            
+            // 重新排列：[Stretch] [Prev] [Year] [Month] [Next] [Stretch]
+            navLayout->addStretch(1);
+            if (prevBtn) navLayout->addWidget(prevBtn);
+            navLayout->addSpacing(2);
+            navLayout->addWidget(m_yearCombo);
+            navLayout->addWidget(m_monthCombo);
+            navLayout->addSpacing(2);
+            if (nextBtn) navLayout->addWidget(nextBtn);
+            navLayout->addStretch(1);
+            
+            navBar->setLayout(navLayout);
 
             // 同步逻辑：下拉框改变 -> 更新日历
             auto syncToCalendar = [this]() {

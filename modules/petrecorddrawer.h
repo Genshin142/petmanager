@@ -11,10 +11,10 @@
 #include <QPropertyAnimation>
 #include <QListView>
 #include <QStackedWidget>
-#include "pettimelinemodel.h"
-#include "timelinedelegate.h"
+#include "pettimelinewidget.h"
 #include "compactcalendar.h"
 #include "../common_types.h"
+#include "fostermodule.h"
 
 class PetRecordDrawer : public QWidget
 {
@@ -23,7 +23,7 @@ class PetRecordDrawer : public QWidget
 
 public:
     explicit PetRecordDrawer(QWidget *parent = nullptr);
-    void setPet(const PetInfo &info, const QList<PetActivityLog> &logs, const QList<FosterBatch> &batches = {});
+    void setPet(const PetInfo &info, const QList<PetActivityLog> &logs, const QList<PetMedia> &media = {}, const QList<FosterBatch> &batches = {});
     void addLogItem(const PetActivityLog &log);
     
     void updateBatchStatus(const QString &status);
@@ -60,6 +60,7 @@ private:
     QLabel *m_breedLabel;
     QLabel *m_ownerLabel;
     QLabel *m_statusBadge; // 新增寄养房号标签
+    QPushButton *m_archiveBtn; // 影像留档入口按钮
 
     // New Header Elements
     QLabel *m_statusDateLabel;
@@ -69,10 +70,8 @@ private:
     // Body Area
     QWidget *m_bodyArea;
     QWidget *m_emptyPlaceholder;
-    QListView *m_timelineView;
-    
-    PetTimelineModel *m_timelineModel;
-    TimelineDelegate *m_timelineDelegate;
+    PetTimelineWidget *m_timelineWidget;
+    QList<PetMedia> m_currentMedia;
 
     CompactCalendar *m_calendar;
 

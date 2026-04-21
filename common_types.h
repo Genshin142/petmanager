@@ -14,9 +14,9 @@ struct PetActivityLog {
     QString type;    // "投喂", "洗护", "检查", "备注", "异常"
     QString remark;
     QString icon;    // 用于渲染的图标表情
-    bool isAlert;    // 是否为健康预警（呕吐、生病等）
-    QString operatorName; // 经办人
-    QString roomNo;       // 发生时的房号
+    bool isAlert = false;    // 是否为健康预警（呕吐、生病等）
+    QString operatorName = ""; // 经办人
+    QString roomNo = "";       // 发生时的房号
 };
 
 struct VaccineRecord {
@@ -32,7 +32,15 @@ struct FosterBatch {
     bool isActive;   // 是否当前寄养中
 };
 
+struct PetMedia {
+    QStringList urls;
+    QString type; // "image", "video"
+    QString title;
+    QStringList timestamps;
+};
+
 struct PetInfo {
+
     QString id;
     QString name;
     QString species;

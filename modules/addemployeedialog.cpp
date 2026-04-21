@@ -92,7 +92,7 @@ void AddEmployeeDialog::setupUI()
 
     addLabel("当前状态:", 2, 2);
     statusCombo = new QComboBox();
-    statusCombo->addItems({"正常", "请假", "离职"});
+    statusCombo->addItems({"在岗", "离岗", "请假", "离职"});
     formLayout->addWidget(statusCombo, 2, 3);
 
     // 第四行：手机号 (跨行?) 不，还是正常排列
