@@ -40,6 +40,7 @@ public:
     // 房间与寄养业务逻辑
     bool isRoomAvailable(int roomId, const QDate &start, const QDate &end) const;
     void executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note = "");
+    void executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight);
 
 signals:
     void petDataChanged(const QString &petId);

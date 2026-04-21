@@ -42,6 +42,9 @@ void PetDataManager::initMockData()
         if (status == "寄养中" || status == "洗护中" || status == "在店") {
             info.fosterStartTime = QDate::currentDate().addDays(-10).toString("yyyy-MM-dd");
             info.fosterEndTime = QDate::currentDate().addDays(5).toString("yyyy-MM-dd");
+        } else if (status == "待寄养" || status == "已预约") {
+            info.fosterStartTime = QDate::currentDate().addDays(1).toString("yyyy-MM-dd");
+            info.fosterEndTime = QDate::currentDate().addDays(8).toString("yyyy-MM-dd");
         }
         m_pets[info.id] = info;
 
@@ -66,11 +69,13 @@ void PetDataManager::initMockData()
         } else if (status == "洗护中") {
             addLog(today + " 16:10", "洗护", "🛁", QString("[%1] 正在进行基础清洁，目前正在吹干毛发。").arg(name), info.roomNo, "张师傅");
             addLog(yesterday + " 11:30", "检查", "🩺", QString("[%1] 入店检查：体表无寄生虫，皮肤状况良好。").arg(name), info.roomNo, "店员小利");
-        } else {
+        } else if (status == "在店") {
             addLog(yesterday + " 08:30", "投喂", "🍖", QString("[%1] 早饭光盘行动。").arg(name), "A-01", "王波");
-            addLog(yesterday + " 17:00", "离店", "👋", QString("[%1] 主人已准时接走，本次寄养结束。").arg(name), "A-01", "店长");
+            addLog(yesterday + " 17:00", "备注", "👋", QString("[%1] 状态良好。").arg(name), "A-01", "店长");
         }
         m_activityLogs[info.id] = logs;
+        
+        // ... (疫苗与影像保持不变)
 
         QList<VaccineRecord> vaccines;
         if (vaccine != "未接种") {
@@ -103,10 +108,10 @@ void PetDataManager::initMockData()
         // 模拟一条活跃记录
         if (status == "寄养中" || status == "洗护中" || status == "在店") {
             batches << FosterBatch{"B-CUR", info.fosterStartTime, "至今", true};
+            // 仅对活跃宠物模拟历史记录，保持预约/待入宠物的“洁净”状态
+            batches << FosterBatch{"B-HIS-1", "2026-03-01", "2026-03-10", false};
+            batches << FosterBatch{"B-HIS-2", "2026-02-10", "2026-02-20", false};
         }
-        // 模拟两条历史记录
-        batches << FosterBatch{"B-HIS-1", "2026-03-01", "2026-03-10", false};
-        batches << FosterBatch{"B-HIS-2", "2026-02-10", "2026-02-20", false};
         m_historyBatches[info.id] = batches;
     };
 
@@ -237,7 +242,43 @@ void PetDataManager::executeCheckIn(int roomId, const QString &petId, const QDat
     log.remark = QString("办理入住 Room %1。起始体重：%2 kg。备注：%3").arg(roomId).arg(weight).arg(note.isEmpty() ? "无" : note);
     log.operatorName = "系统管理员";
     log.roomNo = QString::number(roomId);
+    // 开启新篇章：如果是正式办理入住，清空之前的模拟动态，确保“刚入住没有记录”
+    m_activityLogs[petId].clear();
     addActivityLog(petId, log);
+    
+    // 创建实时批次记录，确保它出现在列表首位
+    FosterBatch batch{"B-CUR-" + QDateTime::currentDateTime().toString("yyyyMMdd"), start.toString("yyyy-MM-dd"), "至今", true};
+    m_historyBatches[petId].prepend(batch);
+
+    notifyGlobalDataChanged();
+    notifyPetDataChanged(petId);
+}
+
+void PetDataManager::executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight) {
+    if (!m_pets.contains(petId)) return;
+
+    PetInfo &info = m_pets[petId];
+    info.status = "已预约";
+    info.roomNo = QString::number(roomId);
+    info.fosterStartTime = start.toString("yyyy-MM-dd");
+    info.fosterEndTime = end.toString("yyyy-MM-dd");
+    info.weight = weight;
+
+    // 清空历史模拟动态，确保预约时时间轴是干净的
+    m_activityLogs[petId].clear();
+
+    PetActivityLog log;
+    log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+    log.type = "备注";
+    log.icon = "📅";
+    log.remark = QString("房位预约成功：Room %1。预登记体重：%2 kg").arg(roomId).arg(weight);
+    log.operatorName = "系统管理员";
+    log.roomNo = QString::number(roomId);
+    addActivityLog(petId, log);
+
+    // 创建预约批次记录
+    FosterBatch batch{"B-BOOK-" + QDateTime::currentDateTime().toString("yyyyMMdd"), start.toString("yyyy-MM-dd"), end.toString("yyyy-MM-dd"), true};
+    m_historyBatches[petId].prepend(batch);
 
     notifyGlobalDataChanged();
     notifyPetDataChanged(petId);

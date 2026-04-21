@@ -99,11 +99,18 @@ void CustomCalendarEdit::popCalendar() {
 
     QPoint globalPos = mapToGlobal(QPoint(0, height() + 2));
     
-    // 检查屏幕高度，防止出屏
+    // 检查屏幕范围，防止出屏
     QScreen *screen = QGuiApplication::screenAt(globalPos);
     QRect screenRect = screen ? screen->availableGeometry() : QRect(0,0,1920,1080);
-    if (globalPos.y() + m_widget->height() > screenRect.height()) {
+    
+    // 垂直方向检查
+    if (globalPos.y() + m_widget->height() > screenRect.bottom()) {
         globalPos.setY(mapToGlobal(QPoint(0,0)).y() - m_widget->height() - 2);
+    }
+    
+    // 水平方向检查 (解决右侧日期日历显示不全问题)
+    if (globalPos.x() + m_widget->width() > screenRect.right()) {
+        globalPos.setX(mapToGlobal(QPoint(width(), 0)).x() - m_widget->width());
     }
     
     m_widget->move(globalPos);

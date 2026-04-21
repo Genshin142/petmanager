@@ -209,6 +209,15 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
         textCol->addWidget(breedTag);
         textCol->addWidget(idTag);
 
+        // 加载真实头像
+        PetInfo info = PetDataManager::instance()->getPet(petId);
+        if (!info.avatarPath.isEmpty() && QFile::exists(info.avatarPath)) {
+            m_avatar->setText("");
+            QPixmap pix(info.avatarPath);
+            m_avatar->setPixmap(pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            m_avatar->setStyleSheet("border-radius: 32px; border: 2px solid rgba(255,255,255,0.5); overflow: hidden;");
+        }
+
         infoRow->addWidget(m_avatar);
         infoRow->addLayout(textCol, 1);
         layout->addLayout(infoRow);
@@ -274,6 +283,15 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
         textCol->addWidget(nameLabel);
         textCol->addWidget(breedTag);
         textCol->addWidget(idTag);
+
+        // 加载真实头像
+        PetInfo info = PetDataManager::instance()->getPet(petId);
+        if (!info.avatarPath.isEmpty() && QFile::exists(info.avatarPath)) {
+            m_avatar->setText("");
+            QPixmap pix(info.avatarPath);
+            m_avatar->setPixmap(pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            m_avatar->setStyleSheet("border-radius: 32px; border: 2px solid #B37FEB; overflow: hidden;");
+        }
 
         infoRow->addWidget(m_avatar);
         infoRow->addLayout(textCol, 1);
@@ -1034,7 +1052,7 @@ MediaGallery::MediaGallery(QWidget *parent) : QWidget(parent) {
 
 void MediaGallery::setMedia(const QList<PetMedia> &mediaList) {
     // 1. 定义固定分类并预填充
-    QStringList fixedTitles = {"运动", "洗澡", "喂食", "睡觉"};
+    QStringList fixedTitles = {"运动", "洗澡", "喂食", "睡觉", "入住存证", "离店存证"};
     QMap<QString, PetMedia> groups;
     for (const QString &title : fixedTitles) {
         PetMedia m; m.title = title; m.type = "image";
@@ -1044,8 +1062,16 @@ void MediaGallery::setMedia(const QList<PetMedia> &mediaList) {
     // 2. 将传入影像映射到固定分类 (支持同义词映射)
     for (const auto &m : mediaList) {
         QString targetTitle = m.title;
+        // 移除常见的“记录”后缀以便归类
+        if (targetTitle.endsWith("记录")) targetTitle.chop(2);
+        if (targetTitle.endsWith("照片")) targetTitle.chop(2);
+        if (targetTitle.endsWith("存证")) targetTitle.chop(0); // 存证保留
+
         if (targetTitle == "洗护") targetTitle = "洗澡";
         if (targetTitle == "投喂") targetTitle = "喂食";
+        if (targetTitle == "运动记录") targetTitle = "运动";
+        if (targetTitle == "入住存证照片") targetTitle = "入住存证";
+        if (targetTitle == "离店存证照片") targetTitle = "离店存证";
 
         if (groups.contains(targetTitle)) {
             groups[targetTitle].urls.append(m.urls);
@@ -1110,6 +1136,8 @@ void MediaGallery::setMedia(const QList<PetMedia> &mediaList) {
             else if (title == "洗澡") iconL->setText("🛁");
             else if (title == "喂食") iconL->setText("🍖");
             else if (title == "睡觉") iconL->setText("💤");
+            else if (title == "入住存证") iconL->setText("🏢");
+            else if (title == "离店存证") iconL->setText("📦");
             else iconL->setText("📸");
             cl->addWidget(iconL);
             cl->addStretch();
@@ -2014,48 +2042,68 @@ bool FosterActionPanel::eventFilter(QObject *obj, QEvent *event) {
 void FosterActionPanel::showCheckInForm(int roomId) {
     m_currentWidget = new QWidget();
     m_currentWidget->setStyleSheet(
-        "QLabel { color: #606266; font-weight: 600; font-size: 13px; border: none; background: transparent; } "
+        "QLabel#FieldLabel { color: #606266; font-size: 13px; font-weight: 600; } "
         "QLineEdit, QDoubleSpinBox, QTextEdit { "
-        "   border: 1px solid #dcdfe6; border-radius: 8px; padding: 8px 12px; background: #fcfcfd; font-size: 13px; color: #303133; "
+        "   border: 1px solid #dcdfe6; border-radius: 6px; padding: 6px 12px; background: #fcfcfd; font-size: 13px; color: #303133; "
         "} "
         "QLineEdit:focus, QDoubleSpinBox:focus, QTextEdit:focus { "
         "   border-color: #409eff; background: white; outline: none; "
         "} "
-        "QDoubleSpinBox::up-button, QDoubleSpinBox::down-button { border: none; background: transparent; width: 20px; } "
+        "QLabel#RoomTag { background: #f0f2f5; color: #909399; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px; } "
+        "QPushButton#PhotoBtn { "
+        "   background: #f8fafc; border: 1px dashed #cbd5e0; border-radius: 6px; color: #64748b; font-size: 13px; text-align: left; padding: 0 12px; "
+        "} "
+        "QPushButton#PhotoBtn:hover { background: #f1f5f9; border-color: #409eff; } "
+        "QDoubleSpinBox::up-button, QDoubleSpinBox::down-button { border: none; background: transparent; width: 0px; } "
     );
 
     QVBoxLayout *mainLayout = new QVBoxLayout(m_currentWidget);
-    mainLayout->setContentsMargins(15, 15, 15, 15);
-    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(16);
 
-    // 1. 标题
+    // --- 1. 头部区域 ---
     QHBoxLayout *headerLayout = new QHBoxLayout();
-    QLabel *iconLbl = new QLabel("🏨");
-    iconLbl->setStyleSheet("font-size: 20px; background: #f0f7ff; padding: 8px; border-radius: 10px;");
-    QLabel *title = new QLabel(QString("入住安排 · Room %1").arg(roomId));
-    title->setStyleSheet("font-size: 18px; font-weight: 900; color: #1a1a1a;");
-    headerLayout->addWidget(iconLbl);
-    headerLayout->addWidget(title);
+    headerLayout->setSpacing(12);
+    
+    QLabel *iconLabel = new QLabel("🏨");
+    iconLabel->setFixedSize(36, 36);
+    iconLabel->setAlignment(Qt::AlignCenter);
+    iconLabel->setStyleSheet("font-size: 18px; background: #ecf5ff; color: #409eff; border-radius: 8px;");
+    
+    QLabel *titleLabel = new QLabel("入住安排");
+    titleLabel->setStyleSheet("font-size: 18px; font-weight: 800; color: #1a1a1a;");
+    QLabel *roomTag = new QLabel(QString("ROOM %1").arg(roomId));
+    roomTag->setObjectName("RoomTag");
+    
+    headerLayout->addWidget(iconLabel);
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addWidget(roomTag);
     headerLayout->addStretch();
     mainLayout->addLayout(headerLayout);
+    
+    QFrame *line = new QFrame();
+    line->setFrameShape(QFrame::HLine); line->setFrameShadow(QFrame::Plain);
+    line->setStyleSheet("color: #f0f2f5;");
+    mainLayout->addWidget(line);
 
-    // 2. 增强型搜索
-    // 2. 表单网格
-    QGridLayout *grid = new QGridLayout();
-    grid->setSpacing(12);
-    grid->setColumnStretch(0, 1);
-    grid->setColumnStretch(1, 1);
+    // --- 2. 核心表单区 (QGridLayout) ---
+    QGridLayout *formGrid = new QGridLayout();
+    formGrid->setSpacing(12);
+    formGrid->setVerticalSpacing(15);
+    formGrid->setColumnStretch(0, 1);
+    formGrid->setColumnStretch(1, 1);
 
     auto createLabel = [](const QString &txt) {
         QLabel *l = new QLabel(txt);
-        l->setStyleSheet("color: #606266; font-size: 13px; font-weight: 600;");
+        l->setObjectName("FieldLabel");
         return l;
     };
 
-    grid->addWidget(createLabel("🔍 选择宠物"), 0, 0);
+    // 宠物搜索
+    formGrid->addWidget(createLabel("🔍 选择宠物"), 0, 0, 1, 2);
     QLineEdit *petSearch = new QLineEdit();
-    petSearch->setPlaceholderText(" 输入宠物名 / 品种 / 主人姓名 搜索...");
-    petSearch->setFixedHeight(38);
+    petSearch->setPlaceholderText("输入宠物名 / 品种 / 主人姓名 搜索...");
+    petSearch->setFixedHeight(44);
     auto updateCompleter = [=](QLineEdit *edit) {
         QStringList petStrings;
         for (const auto& p : PetDataManager::instance()->allPets()) {
@@ -2067,18 +2115,17 @@ void FosterActionPanel::showCheckInForm(int roomId) {
         edit->setCompleter(completer);
     };
     updateCompleter(petSearch);
-    grid->addWidget(petSearch, 1, 0, 1, 2);
+    formGrid->addWidget(petSearch, 1, 0, 1, 2);
 
     // 日期行
-    grid->addWidget(createLabel("📅 入住日期"), 2, 0);
-    grid->addWidget(createLabel("🚪 预计离店"), 2, 1);
+    formGrid->addWidget(createLabel("📅 入住日期"), 2, 0);
+    formGrid->addWidget(createLabel("📅 预计离店"), 2, 1);
     
     CustomCalendarEdit *startEdit = new CustomCalendarEdit();
-    startEdit->setFixedHeight(36);
+    startEdit->setFixedHeight(44);
     startEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
-    
     CustomCalendarEdit *endEdit = new CustomCalendarEdit();
-    endEdit->setFixedHeight(36);
+    endEdit->setFixedHeight(44);
     endEdit->setText(QDate::currentDate().addDays(7).toString("yyyy-MM-dd"));
     
     connect(startEdit, &QLineEdit::textChanged, this, [=](const QString &text) {
@@ -2090,86 +2137,67 @@ void FosterActionPanel::showCheckInForm(int roomId) {
             }
         }
     });
-
-    grid->addWidget(startEdit, 3, 0);
-    grid->addWidget(endEdit, 3, 1);
+    formGrid->addWidget(startEdit, 3, 0);
+    formGrid->addWidget(endEdit, 3, 1);
 
     // 体重与照片
-    grid->addWidget(createLabel("⚖️ 当前体重"), 4, 0);
-    grid->addWidget(createLabel("🖼️ 入住照片"), 4, 1);
+    formGrid->addWidget(createLabel("⚖️ 当前体重"), 4, 0);
+    formGrid->addWidget(createLabel("🖼️ 入住照片"), 4, 1);
 
-    QWidget *weightBox = new QWidget();
-    QHBoxLayout *weightH = new QHBoxLayout(weightBox);
-    weightH->setContentsMargins(0, 0, 0, 0); weightH->setSpacing(8);
     QDoubleSpinBox *weightSpin = new QDoubleSpinBox();
     weightSpin->setRange(0.1, 150.0); weightSpin->setDecimals(1);
-    weightSpin->setFixedHeight(36); weightSpin->setFixedWidth(80);
+    weightSpin->setSuffix(" kg");
+    weightSpin->setFixedHeight(44);
     weightSpin->setValue(5.0);
-    QLabel *unit = new QLabel("kg");
-    unit->setStyleSheet("font-weight: normal; color: #909399;");
-    weightH->addWidget(weightSpin);
-    weightH->addWidget(unit);
-    weightH->addStretch();
-    grid->addWidget(weightBox, 5, 0, Qt::AlignTop);
+    formGrid->addWidget(weightSpin, 5, 0);
 
-    QLabel *thumbLabel = new QLabel("📸 上传");
-    thumbLabel->setFixedSize(65, 65);
-    thumbLabel->setAlignment(Qt::AlignCenter);
-    thumbLabel->setCursor(Qt::PointingHandCursor);
-    thumbLabel->setStyleSheet("background: #f8fafc; border: 1.5px dashed #cbd5e0; border-radius: 8px; color: #94a3b8; font-size: 10px;");
-    grid->addWidget(thumbLabel, 5, 1);
+    QPushButton *photoBtn = new QPushButton("📸 点击上传凭证...");
+    photoBtn->setObjectName("PhotoBtn");
+    photoBtn->setFixedHeight(44);
+    formGrid->addWidget(photoBtn, 5, 1);
 
-    mainLayout->addLayout(grid);
+    mainLayout->addLayout(formGrid);
 
-    QStringList stayPhotos;
-    auto updateThumb = [=, &stayPhotos](const QString &path) {
-        if (path.isEmpty()) return;
-        QPixmap pix(path);
-        thumbLabel->setPixmap(pix.scaled(76, 76, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-        thumbLabel->setStyleSheet("border: 2px solid #10b981; border-radius: 12px; overflow: hidden;");
-    };
-
-    // 使用 eventFilter 或简单的按钮模拟点击 thumbLabel
-    thumbLabel->installEventFilter(this); // 需要在 FosterActionPanel 中处理点击
-
-    // 3. 备注
+    // --- 3. 备注区 ---
     mainLayout->addWidget(createLabel("✍️ 入住备注"));
     QTextEdit *noteEdit = new QTextEdit();
-    noteEdit->setPlaceholderText("特殊习惯、健康细节...");
-    noteEdit->setFixedHeight(60);
+    noteEdit->setPlaceholderText("习惯、健康细节...");
+    noteEdit->setFixedHeight(80);
     mainLayout->addWidget(noteEdit);
+
     mainLayout->addSpacing(10);
 
-    // 6. 按钮区分
+    // --- 4. 底部操作区 ---
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    btnLayout->setSpacing(15);
+    btnLayout->setSpacing(12);
+    btnLayout->addStretch();
 
     QPushButton *bookBtn = new QPushButton("预约入住");
-    bookBtn->setFixedHeight(42);
+    bookBtn->setFixedHeight(40);
     bookBtn->setCursor(Qt::PointingHandCursor);
     bookBtn->setStyleSheet(
-        "QPushButton { background: transparent; color: #7c3aed; border: 2px solid #7c3aed; border-radius: 12px; font-weight: 800; } "
+        "QPushButton { background: white; color: #7c3aed; border: 1.5px solid #7c3aed; border-radius: 8px; font-weight: bold; padding: 0 20px; } "
         "QPushButton:hover { background: #f5f3ff; }"
     );
 
     QPushButton *confirmBtn = new QPushButton("立即办理入住");
-    confirmBtn->setFixedHeight(42);
+    confirmBtn->setFixedHeight(40);
     confirmBtn->setCursor(Qt::PointingHandCursor);
     confirmBtn->setStyleSheet(
-        "QPushButton { background: #10b981; color: white; border: none; border-radius: 12px; font-weight: 800; font-size: 15px; } "
+        "QPushButton { background: #10b981; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; padding: 0 25px; } "
         "QPushButton:hover { background: #059669; }"
     );
 
-    btnLayout->addWidget(bookBtn, 1);
-    btnLayout->addSpacing(10);
-    btnLayout->addWidget(confirmBtn, 2);
+    btnLayout->addWidget(bookBtn);
+    btnLayout->addWidget(confirmBtn);
     mainLayout->addLayout(btnLayout);
+    mainLayout->addStretch();
 
-    // 图片上传事件捕获逻辑 (需在 FosterActionPanel::eventFilter 中支持)
-    // 这里为了简便，给 thumbLabel 关联一个属性
-    thumbLabel->setProperty("action", "upload_checkin_photo");
-
-    auto handleBusiness = [this, roomId, petSearch, startEdit, endEdit, weightSpin, noteEdit, &stayPhotos](bool isBooking) {
+    // 逻辑绑定
+    m_avatarLabel = new QLabel(); // 占位
+    photoBtn->setProperty("action", "upload_checkin_photo");
+    
+    auto handleBusiness = [this, roomId, petSearch, startEdit, endEdit, weightSpin, noteEdit, photoBtn](bool isBooking) {
         QString text = petSearch->text();
         int idStart = text.lastIndexOf("(");
         int idEnd = text.lastIndexOf(")");
@@ -2183,15 +2211,23 @@ void FosterActionPanel::showCheckInForm(int roomId) {
                     weightSpin->value(),
                     noteEdit->toPlainText()
                 );
-                if (!stayPhotos.isEmpty()) {
-                    PetMedia media;
-                    media.urls = stayPhotos; media.type = "image";
-                    media.title = "入住存证照片";
-                    media.timestamps << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-                    PetDataManager::instance()->addMedia(petId, media);
-                }
             } else {
-                PetDataManager::instance()->notifyGlobalDataChanged();
+                PetDataManager::instance()->executeBooking(
+                    roomId, petId,
+                    QDate::fromString(startEdit->text(), "yyyy-MM-dd"),
+                    QDate::fromString(endEdit->text(), "yyyy-MM-dd"),
+                    weightSpin->value()
+                );
+            }
+            
+            // 同步影像资料 (无论是预约还是入住，只要上传了照片就存入档案)
+            QStringList photos = photoBtn->property("photos").toStringList();
+            if (!photos.isEmpty()) {
+                PetMedia media;
+                media.urls = photos; media.type = "image";
+                media.title = "入住存证照片";
+                media.timestamps << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+                PetDataManager::instance()->addMedia(petId, media);
             }
             showEmptyPlaceholder();
         }
@@ -2199,9 +2235,18 @@ void FosterActionPanel::showCheckInForm(int roomId) {
 
     connect(bookBtn, &QPushButton::clicked, this, [=]() { handleBusiness(true); });
     connect(confirmBtn, &QPushButton::clicked, this, [=]() { handleBusiness(false); });
-    
-    // 临时保存 thumbLabel 指针以便 eventFilter 使用
-    m_avatarLabel = thumbLabel; 
+    connect(photoBtn, &QPushButton::clicked, this, [=]() {
+        QStringList files = QFileDialog::getOpenFileNames(this, "选择入住照片", "", "Images (*.png *.jpg *.jpeg)");
+        if (!files.isEmpty()) {
+            photoBtn->setProperty("photos", files);
+            photoBtn->setText(QString("✅ 已上传 (%1) - 点击更换").arg(files.size()));
+            photoBtn->setStyleSheet(
+                "QPushButton#PhotoBtn { "
+                "   background: #f0fdf4; border: 1.5px solid #10b981; border-radius: 6px; color: #10b981; font-weight: bold; font-size: 13px; text-align: left; padding: 0 12px; "
+                "} "
+            );
+        }
+    });
 
     m_contentLayout->addWidget(m_currentWidget);
 }
@@ -2249,8 +2294,8 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
     
     // --- 周期切换按钮 (移至姓名右侧) ---
     QPushButton *periodBtn = new QPushButton();
-    auto updatePeriodText = [periodBtn](const QString &start, const QString &end) {
-        QString displayEnd = (end.isEmpty() || end == "至今") ? "至今" : end;
+    auto updatePeriodText = [periodBtn, info](const QString &start, const QString &end) {
+        QString displayEnd = (end == "至今" || end.isEmpty()) ? (info.fosterEndTime.isEmpty() ? "未设定" : info.fosterEndTime) : end;
         periodBtn->setText(QString("%1 ~ %2").arg(start, displayEnd));
     };
     
@@ -2322,21 +2367,21 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
     QLabel *dateOutTitle = new QLabel("🚪 离店时间");
     dateOutTitle->setStyleSheet("color: #909399; font-size: 10px; border: none; background: transparent;");
     
-    auto addTimeRow = [&](const QString &l1, QLabel *v1, QLabel *title2, QLabel *v2) {
+    auto addTimeRow = [&](QLabel *title1Obj, QLabel *v1, QLabel *title2Obj, QLabel *v2) {
         QHBoxLayout *r = new QHBoxLayout();
-        auto makePart = [&](const QString &l, QLabel *v, QLabel *titleObj = nullptr) {
+        auto makePart = [&](QLabel *title, QLabel *v) {
             QVBoxLayout *c = new QVBoxLayout(); c->setSpacing(2);
-            QLabel *title = titleObj ? titleObj : new QLabel(l);
             title->setStyleSheet("color: #909399; font-size: 10px; border: none; background: transparent;");
             c->addWidget(title); c->addWidget(v);
             return c;
         };
-        r->addLayout(makePart(l1, v1), 1);
-        r->addLayout(makePart("", v2, title2), 1);
+        r->addLayout(makePart(title1Obj, v1), 1);
+        r->addLayout(makePart(title2Obj, v2), 1);
         cardLayout->addLayout(r);
     };
 
-    addTimeRow("🏠 入住时间", dateInL, dateOutTitle, dateOutL);
+    QLabel *dateInTitle = new QLabel("🏠 入住时间");
+    addTimeRow(dateInTitle, dateInL, dateOutTitle, dateOutL);
     QLabel *emptyPlaceholder = new QLabel();
     emptyPlaceholder->setStyleSheet("border: none; background: transparent;");
     addRow("⏱️ 入住天数", durationL, "", emptyPlaceholder); // 占位
@@ -2353,7 +2398,8 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
         durationL->setText(QString("%1 天").arg(d));
         
         if (b.isActive) {
-            dateOutTitle->setText("🚪 预计离店时间");
+            dateInTitle->setText(status == "booked" ? "📅 预计入住时间" : "🏠 入住时间");
+            dateOutTitle->setText(status == "booked" ? "🚪 预计离店时间" : "🚪 预计离店时间");
             dateOutL->setText(info.fosterEndTime.isEmpty() ? "尚未设定" : info.fosterEndTime);
             
             weightInL->setText(QString("%1 kg").arg(info.weight, 0, 'f', 1));
@@ -2440,7 +2486,8 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
         
         auto batches = PetDataManager::instance()->getHistoryBatches(petId);
         for (const auto &b : batches) {
-            QString labelText = QString("%1 ~ %2 (%3)").arg(b.startTime, b.endTime, b.isActive ? "当前入住" : "往期记录");
+            QString displayEnd = (b.endTime == "至今" || b.endTime.isEmpty()) ? (info.fosterEndTime.isEmpty() ? "未设定" : info.fosterEndTime) : b.endTime;
+            QString labelText = QString("%1 ~ %2 (%3)").arg(b.startTime, displayEnd, b.isActive ? "当前入住" : "往期记录");
             QAction *act = menu->addAction(labelText);
             if (b.isActive) {
                 QFont f = act->font(); f.setBold(true); act->setFont(f);
