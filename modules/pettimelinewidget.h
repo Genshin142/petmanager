@@ -36,7 +36,15 @@ public:
         m_view->setResizeMode(QListView::Adjust);
         m_view->setSelectionMode(QAbstractItemView::NoSelection);
         m_view->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-        m_view->setStyleSheet("QListView { border: none; background: transparent; } ");
+        m_view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        m_view->setStyleSheet(
+            "QListView { border: none; background: transparent; } "
+            "QScrollBar:vertical { background: transparent; width: 6px; margin: 0px; } "
+            "QScrollBar::handle:vertical { background: #e0e0e0; min-height: 20px; border-radius: 3px; } "
+            "QScrollBar::handle:vertical:hover { background: #d0d0d0; } "
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; } "
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+        );
 
         layout->addWidget(m_emptyPlaceholder);
         layout->addWidget(m_view);

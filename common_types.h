@@ -57,6 +57,9 @@ struct PetInfo {
     QString ownerName;
     QString avatarPath; // 宠物头像路径
     QString roomNo;     // 当前寄养房号 (寄养中显示)
+    QString fosterStartTime; // 寄养开始时间
+    QString fosterEndTime;   // 寄养结束时间
+    double weight = 0.0;    // 当前体重 (kg)
 };
 
 Q_DECLARE_METATYPE(PetInfo)

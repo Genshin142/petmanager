@@ -34,6 +34,13 @@ public:
     void updateVaccines(const QString &petId, const QList<VaccineRecord> &records);
     QList<VaccineRecord> getVaccines(const QString &petId) const;
 
+    // 寄养记录管理
+    QList<FosterBatch> getHistoryBatches(const QString &petId) const;
+
+    // 房间与寄养业务逻辑
+    bool isRoomAvailable(int roomId, const QDate &start, const QDate &end) const;
+    void executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note = "");
+
 signals:
     void petDataChanged(const QString &petId);
     void globalDataChanged();
@@ -48,6 +55,7 @@ private:
     QMap<QString, QList<PetActivityLog>> m_activityLogs;
     QMap<QString, QList<PetMedia>> m_petMedia;
     QMap<QString, QList<VaccineRecord>> m_vaccineRecords;
+    QMap<QString, QList<FosterBatch>> m_historyBatches;
 };
 
 #endif // PETDATAMANAGER_H

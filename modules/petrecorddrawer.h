@@ -62,20 +62,22 @@ private:
     QLabel *m_statusBadge; // 新增寄养房号标签
     QPushButton *m_archiveBtn; // 影像留档入口按钮
 
-    // New Header Elements
-    QLabel *m_statusDateLabel;
-    QPushButton *m_toggleCalendarBtn;
-    QWidget *m_calendarContainer;
-
     // Body Area
-    QWidget *m_bodyArea;
-    QWidget *m_emptyPlaceholder;
     PetTimelineWidget *m_timelineWidget;
     QList<PetMedia> m_currentMedia;
+    QList<FosterBatch> m_currentBatches;
 
-    CompactCalendar *m_calendar;
+    // 新增：与寄养模块一致的摘要卡片成员
+    QWidget *m_detailCard;
+    QLabel *m_weightInVal;
+    QLabel *m_weightOutVal;
+    QLabel *m_dateInVal;
+    QLabel *m_dateOutVal;
+    QLabel *m_durationVal;
+    QLabel *m_dateOutTitle;
+    QPushButton *m_periodBtn;
 
-    QStackedWidget *m_bottomStack; // For switching between Record and Departed status
+    QStackedWidget *m_bottomStack; 
     QWidget *m_recordPanel;
     QComboBox *m_typeCombo;
     QComboBox *m_operatorCombo;

@@ -77,7 +77,9 @@ private:
     }
 
     void drawItem(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const {
-        QString timeStr = index.data(PetTimelineModel::TimeRole).toString().section(' ', 1, 1);
+        QString fullTime = index.data(PetTimelineModel::TimeRole).toString();
+        QString timeStr = fullTime.contains(' ') ? fullTime.split(' ').last() : fullTime;
+        if (timeStr.length() > 5) timeStr = timeStr.right(5); // 确保只显示 HH:mm
         QString typeStr = index.data(PetTimelineModel::TypeRole).toString();
         QString contentStr = index.data(PetTimelineModel::ContentRole).toString();
         QString iconStr = index.data(PetTimelineModel::IconRole).toString();
@@ -106,7 +108,7 @@ private:
         // 4. 气泡
         QRect bubbleRect(option.rect.left() + 75, option.rect.top() + 10, option.rect.width() - 95, option.rect.height() - 20);
         painter->setBrush(QColor(248, 249, 251));
-        painter->setPen(QPen(QColor("#ebeef5"), 1));
+        painter->setPen(Qt::NoPen);
         painter->drawRoundedRect(bubbleRect, 8, 8);
 
         // Bubble Triangle
@@ -114,6 +116,7 @@ private:
         path.moveTo(bubbleRect.left(), bubbleRect.top() + 15);
         path.lineTo(bubbleRect.left() - 6, bubbleRect.top() + 20);
         path.lineTo(bubbleRect.left(), bubbleRect.top() + 25);
+        painter->setPen(Qt::NoPen);
         painter->drawPath(path);
         painter->fillPath(path, QColor(248, 249, 251));
 

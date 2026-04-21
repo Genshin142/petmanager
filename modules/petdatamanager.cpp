@@ -1,6 +1,7 @@
 #include "petdatamanager.h"
 #include <QDebug>
 #include <QDate>
+#include <QRandomGenerator>
 
 PetDataManager* PetDataManager::m_instance = nullptr;
 
@@ -30,12 +31,17 @@ void PetDataManager::initMockData()
         info.medicalHistory = medical; 
         info.vaccine = vaccine;
         info.dietary = diet;
+        info.weight = 10.0 + (QRandomGenerator::global()->bounded(150) / 10.0); // 随机 10-25kg
         info.joinTime = "2026-03-10";
         info.roomNo = roomNo;
         if (!avatar.isEmpty()) {
             info.avatarPath = "images/pets/" + avatar;
         } else {
             info.avatarPath = ":/images/load_img.jpg";
+        }
+        if (status == "寄养中" || status == "洗护中" || status == "在店") {
+            info.fosterStartTime = QDate::currentDate().addDays(-10).toString("yyyy-MM-dd");
+            info.fosterEndTime = QDate::currentDate().addDays(5).toString("yyyy-MM-dd");
         }
         m_pets[info.id] = info;
 
@@ -78,20 +84,30 @@ void PetDataManager::initMockData()
 
         QList<PetMedia> medias;
         if (name == "小雪" && species == "猫") {
-            medias << PetMedia{QStringList{":/images/foster_bath.png"}, "image", "洗澡", QStringList{"2026-04-18"}}
-                   << PetMedia{QStringList{":/images/foster_bath_2.png"}, "image", "洗澡", QStringList{"2026-04-15"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor.png"}, "image", "运动", QStringList{"2026-04-20"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_2.png"}, "image", "运动", QStringList{"2026-04-19"}}
-                   << PetMedia{QStringList{":/images/foster_sleep.png"}, "image", "睡觉", QStringList{"2026-04-20"}}
-                   << PetMedia{QStringList{":/images/foster_sleep_2.png"}, "image", "睡觉", QStringList{"2026-04-17"}}
-                   << PetMedia{QStringList{":/images/load_img.jpg"}, "image", "喂食", QStringList{"2026-04-20"}};
-        } else if (name == "豆豆") {
-            medias << PetMedia{QStringList{":/images/foster_outdoor_3.png"}, "image", "运动", QStringList{"2026-04-20"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_4.png"}, "image", "运动", QStringList{"2026-04-20"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_5.png"}, "image", "运动", QStringList{"2026-04-20"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_6.png"}, "image", "运动", QStringList{"2026-04-20"}};
+            medias << PetMedia{QStringList{":/images/foster_bath.png"}, "image", "洗澡", QStringList{"2026-04-18 14:20"}}
+                   << PetMedia{QStringList{":/images/foster_bath_2.png"}, "image", "洗澡", QStringList{"2026-04-15 10:15"}}
+                   << PetMedia{QStringList{":/images/foster_outdoor.png"}, "image", "运动", QStringList{"2026-04-20 09:30"}}
+                   << PetMedia{QStringList{":/images/foster_outdoor_2.png"}, "image", "运动", QStringList{"2026-04-19 16:45"}}
+                   << PetMedia{QStringList{":/images/foster_sleep.png"}, "image", "睡觉", QStringList{"2026-04-20 13:00"}}
+                   << PetMedia{QStringList{":/images/foster_sleep_2.png"}, "image", "睡觉", QStringList{"2026-04-17 11:20"}}
+                   << PetMedia{QStringList{":/images/load_img.jpg"}, "image", "喂食", QStringList{"2026-04-20 18:10"}};
+        } else if (name == "豆豆" || name == "皮皮") {
+            medias << PetMedia{QStringList{":/images/foster_outdoor_3.png"}, "image", "运动", QStringList{"2026-04-20 10:15"}}
+                   << PetMedia{QStringList{":/images/foster_outdoor_4.png"}, "image", "运动", QStringList{"2026-04-20 10:20"}}
+                   << PetMedia{QStringList{":/images/foster_outdoor_5.png"}, "image", "运动", QStringList{"2026-04-20 10:35"}}
+                   << PetMedia{QStringList{":/images/foster_outdoor_6.png"}, "image", "运动", QStringList{"2026-04-20 10:45"}};
         }
         m_petMedia[info.id] = medias;
+
+        QList<FosterBatch> batches;
+        // 模拟一条活跃记录
+        if (status == "寄养中" || status == "洗护中" || status == "在店") {
+            batches << FosterBatch{"B-CUR", info.fosterStartTime, "至今", true};
+        }
+        // 模拟两条历史记录
+        batches << FosterBatch{"B-HIS-1", "2026-03-01", "2026-03-10", false};
+        batches << FosterBatch{"B-HIS-2", "2026-02-10", "2026-02-20", false};
+        m_historyBatches[info.id] = batches;
     };
 
     addDemo("P1001", "团团", "猫", "波斯猫", "母", "3岁", "在店", "M001", "张三", "已接种(三联)", "无", "不吃禽类，对深海鱼油成分有轻微排斥反应", "103", "persian.png");
@@ -187,4 +203,42 @@ void PetDataManager::updateVaccines(const QString &petId, const QList<VaccineRec
 QList<VaccineRecord> PetDataManager::getVaccines(const QString &petId) const
 {
     return m_vaccineRecords.value(petId);
+}
+
+QList<FosterBatch> PetDataManager::getHistoryBatches(const QString &petId) const {
+    return m_historyBatches.value(petId);
+}
+
+bool PetDataManager::isRoomAvailable(int roomId, const QDate &start, const QDate &end) const {
+    Q_UNUSED(start); Q_UNUSED(end);
+    QString roomStr = QString::number(roomId);
+    for (const auto &pet : m_pets) {
+        if (pet.status == "寄养中" && pet.roomNo == roomStr) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void PetDataManager::executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note) {
+    if (!m_pets.contains(petId)) return;
+
+    PetInfo &info = m_pets[petId];
+    info.status = "寄养中";
+    info.roomNo = QString::number(roomId);
+    info.fosterStartTime = start.toString("yyyy-MM-dd");
+    info.fosterEndTime = end.toString("yyyy-MM-dd");
+    info.weight = weight;
+
+    PetActivityLog log;
+    log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+    log.type = "检查";
+    log.icon = "⚖️";
+    log.remark = QString("办理入住 Room %1。起始体重：%2 kg。备注：%3").arg(roomId).arg(weight).arg(note.isEmpty() ? "无" : note);
+    log.operatorName = "系统管理员";
+    log.roomNo = QString::number(roomId);
+    addActivityLog(petId, log);
+
+    notifyGlobalDataChanged();
+    notifyPetDataChanged(petId);
 }

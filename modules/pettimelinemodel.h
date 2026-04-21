@@ -49,7 +49,7 @@ public:
         // 2. Group by date and add headers
         QString lastDate;
         for (const auto &log : sortedLogs) {
-            QString curDate = QDateTime::fromString(log.time, "yyyy-MM-dd HH:mm").toString("yyyy-MM-dd");
+            QString curDate = log.time.contains(' ') ? log.time.split(' ').first() : (log.time.length() >= 10 ? log.time.left(10) : log.time);
             if (curDate != lastDate) {
                 TimelineItem header;
                 header.isHeader = true;

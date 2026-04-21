@@ -65,7 +65,7 @@ PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pag
 void PetModule::setupUI()
 {
     QHBoxLayout *rootLayout = new QHBoxLayout(this);
-    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setContentsMargins(0, 0, 15, 0); // 整体左移一点，预留右边缘间距
     rootLayout->setSpacing(0);
 
     QWidget *mainWidget = new QWidget();
@@ -135,17 +135,17 @@ void PetModule::setupUI()
     
     petTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     petTable->setColumnWidth(0, 48);
-    petTable->setColumnWidth(1, 80);
+    petTable->setColumnWidth(1, 60);
     petTable->setColumnWidth(2, 180);
-    petTable->setColumnWidth(3, 110);
-    petTable->setColumnWidth(4, 130);
+    petTable->setColumnWidth(3, 100);
+    petTable->setColumnWidth(4, 110);
     petTable->setColumnWidth(5, 80);
-    petTable->setColumnWidth(6, 120);
+    petTable->setColumnWidth(6, 100);
     petTable->setColumnWidth(7, 100);
     petTable->setColumnWidth(8, 120);
     petTable->setColumnWidth(9, 115);
     petTable->setColumnWidth(10, 95);
-    petTable->setColumnWidth(11, 130);
+    petTable->setColumnWidth(11, 150);
     petTable->horizontalHeader()->setSectionResizeMode(11, QHeaderView::Stretch);
 
     petTable->setStyleSheet(
@@ -241,7 +241,7 @@ void PetModule::setupUI()
     rootLayout->addWidget(mainWidget, 1);
     
     // 恢复右侧常驻面板：设置为固定宽度且默认显示
-    m_drawer->setFixedWidth(380);
+    m_drawer->setFixedWidth(450);
     m_drawer->show(); 
     rootLayout->addWidget(m_drawer);
 
@@ -278,8 +278,9 @@ void PetModule::setupUI()
                  PetInfo info = PetDataManager::instance()->getPet(id);
                  QList<PetActivityLog> logs = PetDataManager::instance()->getLogs(id);
                  QList<PetMedia> media = PetDataManager::instance()->getMedia(id);
+                 QList<FosterBatch> batches = PetDataManager::instance()->getHistoryBatches(id);
                  // 如果 ID 匹配，则原位刷新抽屉内容
-                 m_drawer->setPet(info, logs, media);
+                 m_drawer->setPet(info, logs, media, batches);
             }
             refreshTable();
         });
@@ -469,12 +470,13 @@ void PetModule::addPetRow(const PetInfo &info)
     petTable->setItem(row, 10, timeItem);
 
     QWidget *btnWrap = new QWidget();
+    btnWrap->setMinimumWidth(140);
     QHBoxLayout *btnL = new QHBoxLayout(btnWrap);
-    btnL->setContentsMargins(0, 0, 0, 0); btnL->setSpacing(5); btnL->setAlignment(Qt::AlignCenter);
+    btnL->setContentsMargins(5, 0, 5, 0); btnL->setSpacing(8); btnL->setAlignment(Qt::AlignCenter);
     
     auto createActBtn = [&](const QString &text, const QString &style) {
         QPushButton *b = new QPushButton(text);
-        b->setFixedSize(50, 26); b->setCursor(Qt::PointingHandCursor);
+        b->setFixedSize(60, 28); b->setCursor(Qt::PointingHandCursor);
         b->setStyleSheet(style);
         return b;
     };
@@ -837,14 +839,7 @@ void PetModule::onCurrentCellChanged(int row, int column, int prevRow, int prevC
     QString petId = idItem->text();
     PetInfo info = PetDataManager::instance()->getPet(petId);
     if (!info.id.isEmpty()) {
-        QList<FosterBatch> batches;
-        
-        if (info.status == "寄养中") {
-            FosterBatch b1;
-            b1.id = "B20260410"; b1.startTime = "2026-04-10"; b1.endTime = "至今"; b1.isActive = true;
-            batches.append(b1);
-        }
-        
+        QList<FosterBatch> batches = PetDataManager::instance()->getHistoryBatches(petId);
         m_drawer->setPet(info, PetDataManager::instance()->getLogs(petId), PetDataManager::instance()->getMedia(petId), batches);
     }
 }

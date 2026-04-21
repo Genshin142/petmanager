@@ -37,9 +37,7 @@ void AddPetDialog::setupUI()
     healthCombo = new QComboBox();
     healthCombo->addItems({"健康", "良好", "一般", "亚健康", "疾病中", "康复中"});
     ownerIdEdit = new QLineEdit();
-    ownerIdEdit->setReadOnly(true);
     ownerNameEdit = new QLineEdit();
-    ownerNameEdit->setReadOnly(true);
     statusCombo = new QComboBox();
     statusCombo->addItems({"待寄养", "寄养中", "洗护中", "离店"});
     joinTimeEdit = new QLineEdit();
@@ -107,11 +105,6 @@ void AddPetDialog::setupUI()
     ui->saveBtn->setMinimumWidth(100);
     ui->cancelBtn->setMinimumWidth(80);
     
-    // 只读字段特殊样式
-    QString readOnlyStyle = "background-color: #f5f7fa; color: #909399; border: 1px solid #dcdfe6;";
-    ownerIdEdit->setStyleSheet(readOnlyStyle);
-    ownerNameEdit->setStyleSheet(readOnlyStyle);
-
     // 4. 【安全插入】保留原生 UI 结构，直接对原有布局进行优化与行插入
     ui->formLayout->setVerticalSpacing(16);
     ui->formLayout->setContentsMargins(0, 15, 0, 15);

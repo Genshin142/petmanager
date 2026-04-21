@@ -3,6 +3,8 @@
 
 #include <QWidget>
 #include <QLabel>
+#include <QPushButton>
+#include <QAbstractButton>
 #include <QGridLayout>
 #include <QDateEdit>
 #include <QFrame>
@@ -16,6 +18,7 @@
 #include "../common_types.h"
 
 class QPropertyAnimation;
+class CompactCalendar;
 
 class FosterCard : public QFrame {
     Q_OBJECT
@@ -167,6 +170,15 @@ private:
     QStringList m_filePaths;
 };
 
+// 影像留档专用的沉浸式弹窗 (与宠物模块保持一致)
+class PetMediaArchiveDialog : public QDialog {
+    Q_OBJECT
+public:
+    PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent = nullptr);
+protected:
+    void paintEvent(QPaintEvent *event) override;
+};
+
 // 寄养明细容器：整合 Summary, Media, Timeline 和 Financials
 class FosterHistoryDetailWidget : public QWidget {
     Q_OBJECT
@@ -209,6 +221,40 @@ private:
     QString m_status;
 };
 
+class PillButton : public QPushButton {
+    Q_OBJECT
+public:
+    explicit PillButton(const QString &text, const QString &accentColor, QWidget *parent = nullptr);
+private slots:
+    void updateStyle();
+private:
+    QString m_accent;
+};
+
+class FosterActionPanel : public QFrame {
+    Q_OBJECT
+public:
+    explicit FosterActionPanel(QWidget *parent = nullptr);
+    void updatePanel(int roomId, const QString &status, const QString &petId = "", const QString &petName = "");
+    bool hasUnsavedChanges() const;
+    void resetChanges();
+
+signals:
+    void avatarClicked(const QString &path);
+
+private:
+    void setupUI();
+    void showEmptyPlaceholder();
+    void showCheckInForm(int roomId);
+    void showManagementView(int roomId, const QString &petId, const QString &status);
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
+    QVBoxLayout *m_contentLayout;
+    QWidget *m_currentWidget = nullptr;
+    QLabel *m_avatarLabel = nullptr;
+    PetInfo m_currentInfo;
+};
+
 class FosterModule : public QWidget {
     Q_OBJECT
 public:
@@ -230,6 +276,11 @@ private slots:
     void onForecastDateChanged(const QDate &date);
     void onCardClicked();
     void onToggleViewMode(); // 切换看板/时间轴模式
+    void showBigImage(const QString &path);
+    void hideBigImage();
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     QGridLayout *roomGrid;
@@ -244,7 +295,12 @@ private:
     QWidget *m_gridContainer;
     bool m_isTimelineMode = false;
     QDate m_currentForecastDate;
-    class CompactCalendar *m_calendar;
+    CompactCalendar *m_calendar;
+    FosterActionPanel *m_actionPanel;
+
+    // 大图预览组件
+    QWidget *m_imagePreviewOverlay = nullptr;
+    QLabel *m_previewLabel = nullptr;
 };
 
 #endif
