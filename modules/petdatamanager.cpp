@@ -115,24 +115,43 @@ void PetDataManager::initMockData()
         m_historyBatches[info.id] = batches;
     };
 
-    addDemo("P1001", "团团", "猫", "波斯猫", "母", "3岁", "在店", "M001", "张三", "已接种(三联)", "无", "不吃禽类，对深海鱼油成分有轻微排斥反应", "103", "persian.png");
-    addDemo("P1002", "豆豆", "狗", "柴犬", "公", "1岁", "寄养中", "M002", "李芳", "已接种", "曾患严重真菌性皮肤病（已痊愈）", "常规饮食", "101", "golden.png");
-    addDemo("P1003", "小雪", "猫", "布偶", "母", "2岁", "洗护中", "M003", "王波", "已接种", "无", "建议喂食兔肉或鸭肉配方", "102", "snow.jpg");
-    addDemo("P1004", "可乐", "狗", "金毛", "公", "4岁", "待寄养", "M004", "赵四", "未接种", "后腿关节有轻微陈旧性劳损", "常规饮食", "105", "balu.jpg");
+    addDemo("P1001", "团团", "猫", "波斯猫", "母", "3岁", "寄养中", "M001", "张三", "已接种(三联)", "无", "不吃禽类", "103", "persian.png");
+    m_pets["P1001"].fosterStartTime = QDate::currentDate().addDays(-4).toString("yyyy-MM-dd");
+
+    addDemo("P1002", "豆豆", "狗", "柴犬", "公", "1岁", "寄养中", "M002", "李芳", "已接种", "无", "常规饮食", "101", "golden.png");
+    m_pets["P1002"].fosterStartTime = QDate::currentDate().addDays(-2).toString("yyyy-MM-dd");
+
+    addDemo("P1003", "小雪", "猫", "布偶", "母", "2岁", "寄养中", "M003", "王波", "已接种", "无", "建议喂食兔肉", "102", "snow.jpg");
+    m_pets["P1003"].fosterStartTime = QDate::currentDate().addDays(-13).toString("yyyy-MM-dd");
+
+    addDemo("P1004", "旺财", "狗", "金毛", "公", "4岁", "寄养中", "M004", "赵四", "未接种", "无", "常规饮食", "106", "golden.png");
+    m_pets["P1004"].fosterStartTime = QDate::currentDate().addDays(-2).toString("yyyy-MM-dd");
+
     addDemo("P1005", "芝麻", "猫", "英短", "公", "1岁", "待寄养", "M005", "陈志勇", "已接种", "无", "喜欢吃冻干", "108", "persian.png");
-    addDemo("P1006", "包子", "狗", "法斗", "母", "2岁", "寄养中", "M006", "孙美玲", "已接种", "呼吸道较短，注意温控", "少食多餐", "106", "snow.jpg");
-    addDemo("P1007", "咖啡", "狗", "泰迪", "公", "5岁", "待寄养", "M007", "周杰", "已接种", "无", "常规饮食", "112", "golden.png");
-    addDemo("P1008", "糯米", "猫", "加菲猫", "母", "2岁", "在店", "M008", "吴静", "已接种", "鼻泪管易堵塞，需每日擦拭", "常规饮食", "115", "persian.png");
-    addDemo("P1005", "咪咪", "猫", "银渐层", "母", "2岁", "离店", "M002", "李芳", "已接种", "幼年时期曾患猫鼻支，季节交替时易出现打喷嚏症状", "常规饮食", "", "siamese.png");
-    addDemo("P1006", "旺财", "狗", "金毛犬", "公", "4岁", "洗护中", "M003", "王五", "已接种", "无", "严重鸡肉过敏，禁止喂食含鸡油、鸡肉粉的任何零食", "106", "golden.png");
-    addDemo("P1007", "小雪", "狗", "萨摩耶", "母", "2岁", "寄养中", "M004", "赵六", "已接种", "无", "肠胃敏感，仅限喂食皇家处方粮，严禁乱喂路边草木", "107", "husky.png");
-    addDemo("P1008", "可可", "狗", "泰迪", "母", "3岁", "离店", "M004", "赵六", "已接种", "耳道结构复杂，容易滋生耳螨，建议每周使用耳漂清洁", "常规饮食", "", "siamese.png");
-    addDemo("P1009", "大黑", "狗", "拉布拉多", "公", "1岁", "离店", "M005", "孙七", "已接种", "暂无病史", "贪吃容易暴饮暴食，需配合慢食盆控制进食速度", "", "husky.png");
-    addDemo("P1010", "皮皮", "狗", "柯基", "公", "2岁", "洗护中", "M006", "周八", "已接种", "脊椎压力较大，洗护时请勿长时间保持站立或倒立姿势", "常规饮食", "110", "golden.png");
+    
+    addDemo("P1006", "包子", "狗", "法斗", "母", "2岁", "寄养中", "M006", "孙美玲", "已接种", "无", "少食多餐", "107", "snow.jpg");
+    m_pets["P1006"].fosterStartTime = QDate::currentDate().addDays(-4).toString("yyyy-MM-dd");
+
+    addDemo("P1007", "糯米", "猫", "加菲猫", "母", "2岁", "寄养中", "M008", "吴静", "已接种", "无", "常规饮食", "115", "persian.png");
+    m_pets["P1007"].fosterStartTime = QDate::currentDate().addDays(-12).toString("yyyy-MM-dd");
+
+    addDemo("P1008", "可可", "狗", "泰迪", "母", "3岁", "寄养中", "M004", "赵六", "已接种", "无", "常规饮食", "104", "siamese.png");
+    m_pets["P1008"].fosterStartTime = QDate::currentDate().addDays(-12).toString("yyyy-MM-dd");
+
+    addDemo("P1009", "大黑", "狗", "拉布拉多", "公", "1岁", "离店", "M005", "孙七", "已接种", "无", "常规饮食", "", "husky.png");
+    
+    addDemo("P1010", "皮皮", "狗", "柯基", "公", "2岁", "寄养中", "M006", "周八", "已接种", "无", "常规饮食", "110", "golden.png");
+    m_pets["P1010"].fosterStartTime = QDate::currentDate().addDays(-4).toString("yyyy-MM-dd");
+
     addDemo("P1011", "球球", "猫", "英短蓝猫", "母", "2岁", "离店", "M007", "吴九", "已接种", "无", "常规饮食", "", "persian.png");
-    addDemo("P1012", "花花", "猫", "加菲猫", "母", "4岁", "离店", "M007", "吴九", "已接种", "鼻腔较短，运动后呼吸音较重，需注意降温避暑", "常规饮食", "", "siamese.png");
-    addDemo("P1013", "布丁", "猫", "金渐层", "公", "2岁", "寄养中", "M008", "钱十", "已接种", "曾有泌尿系统结石史，需每日保证饮水量，严禁喂食高钙零食", "仅限处方粮", "113", "load_img.jpg");
-    addDemo("P1014", "奥利奥", "狗", "边牧", "公", "3岁", "在店", "M009", "陈十一", "已接种", "无", "对人工色素敏感，禁止喂食彩色狗粮，建议添加煮熟的西兰花", "114", "load_img.jpg");
+    
+    addDemo("P1012", "花花", "猫", "加菲猫", "母", "4岁", "离店", "M007", "吴九", "已接种", "无", "常规饮食", "", "siamese.png");
+    
+    addDemo("P1013", "布丁", "猫", "金渐层", "公", "2岁", "寄养中", "M008", "钱十", "已接种", "无", "仅限处方粮", "113", "load_img.jpg");
+    m_pets["P1013"].fosterStartTime = QDate::currentDate().addDays(-3).toString("yyyy-MM-dd");
+
+    addDemo("P1014", "奥利奥", "狗", "边牧", "公", "3岁", "寄养中", "M009", "陈十一", "已接种", "无", "常规饮食", "114", "load_img.jpg");
+    m_pets["P1014"].fosterStartTime = QDate::currentDate().addDays(-10).toString("yyyy-MM-dd");
 }
 
 void PetDataManager::updatePet(const PetInfo &info)
@@ -215,11 +234,26 @@ QList<FosterBatch> PetDataManager::getHistoryBatches(const QString &petId) const
 }
 
 bool PetDataManager::isRoomAvailable(int roomId, const QDate &start, const QDate &end) const {
-    Q_UNUSED(start); Q_UNUSED(end);
     QString roomStr = QString::number(roomId);
+    
     for (const auto &pet : m_pets) {
-        if (pet.status == "寄养中" && pet.roomNo == roomStr) {
-            return false;
+        // 仅对“寄养中”或“已预约”的宠物进行时间重叠校验
+        if (pet.roomNo == roomStr && (pet.status == "寄养中" || pet.status == "已预约")) {
+            QDate stayStart = QDate::fromString(pet.fosterStartTime, "yyyy-MM-dd");
+            QString endStr = pet.fosterEndTime;
+            QDate stayEnd;
+            
+            if (endStr == "至今" || endStr.isEmpty()) {
+                // 如果是“至今”，视为一个非常远的日期，或者如果是“寄养中”，至少涵盖到今天
+                stayEnd = QDate::currentDate().addYears(1); 
+            } else {
+                stayEnd = QDate::fromString(endStr, "yyyy-MM-dd");
+            }
+
+            // 严谨的区间重叠判定：(StartA <= EndB) && (EndA >= StartB)
+            if (start <= stayEnd && end >= stayStart) {
+                return false; // 存在冲突
+            }
         }
     }
     return true;
@@ -235,16 +269,8 @@ void PetDataManager::executeCheckIn(int roomId, const QString &petId, const QDat
     info.fosterEndTime = end.toString("yyyy-MM-dd");
     info.weight = weight;
 
-    PetActivityLog log;
-    log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-    log.type = "检查";
-    log.icon = "⚖️";
-    log.remark = QString("办理入住 Room %1。起始体重：%2 kg。备注：%3").arg(roomId).arg(weight).arg(note.isEmpty() ? "无" : note);
-    log.operatorName = "系统管理员";
-    log.roomNo = QString::number(roomId);
     // 开启新篇章：如果是正式办理入住，清空之前的模拟动态，确保“刚入住没有记录”
     m_activityLogs[petId].clear();
-    addActivityLog(petId, log);
     
     // 创建实时批次记录，确保它出现在列表首位
     FosterBatch batch{"B-CUR-" + QDateTime::currentDateTime().toString("yyyyMMdd"), start.toString("yyyy-MM-dd"), "至今", true};
@@ -266,15 +292,6 @@ void PetDataManager::executeBooking(int roomId, const QString &petId, const QDat
 
     // 清空历史模拟动态，确保预约时时间轴是干净的
     m_activityLogs[petId].clear();
-
-    PetActivityLog log;
-    log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-    log.type = "备注";
-    log.icon = "📅";
-    log.remark = QString("房位预约成功：Room %1。预登记体重：%2 kg").arg(roomId).arg(weight);
-    log.operatorName = "系统管理员";
-    log.roomNo = QString::number(roomId);
-    addActivityLog(petId, log);
 
     // 创建预约批次记录
     FosterBatch batch{"B-BOOK-" + QDateTime::currentDateTime().toString("yyyyMMdd"), start.toString("yyyy-MM-dd"), end.toString("yyyy-MM-dd"), true};

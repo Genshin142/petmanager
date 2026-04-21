@@ -57,7 +57,9 @@ HEADERS += \
     modules/compactcalendar.h \
     modules/pettimelinewidget.h \
     modules/custom_calendar_edit.h \
-    modules/petdatamanager.h
+    modules/petdatamanager.h \
+    modules/fosterganttmodel.h \
+    modules/fosterganttdelegate.h
 
 FORMS += \
     loginwindow.ui \

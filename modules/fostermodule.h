@@ -245,8 +245,11 @@ signals:
 private:
     void setupUI();
     void showEmptyPlaceholder();
-    void showCheckInForm(int roomId);
+    void clearContentLayout();
+public:
+    void showCheckInForm(int roomId = -1, const QDate &startDate = QDate());
     void showManagementView(int roomId, const QString &petId, const QString &status);
+    void showMaintenanceView(int roomId, const QString &status);
     bool eventFilter(QObject *obj, QEvent *event) override;
 
     QVBoxLayout *m_contentLayout;
@@ -293,6 +296,10 @@ private:
     
     QScrollArea *m_scrollArea;
     QWidget *m_gridContainer;
+    class QStackedWidget *m_viewStack;
+    class QTableView *m_ganttView;
+    class FosterGanttModel *m_ganttModel;
+    
     bool m_isTimelineMode = false;
     QDate m_currentForecastDate;
     CompactCalendar *m_calendar;
