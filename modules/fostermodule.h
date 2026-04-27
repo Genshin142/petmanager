@@ -11,6 +11,8 @@
 #include <QDialog>
 #include <QScrollArea>
 #include <QPainter>
+#include <QPainterPath>
+#include <QFile>
 #include <QVBoxLayout>
 #include <QGraphicsDropShadowEffect>
 #include <QComboBox>
@@ -54,20 +56,38 @@ private:
 class AvatarZoomDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit AvatarZoomDialog(const QString &iconText, QWidget *parent = nullptr) : QDialog(parent) {
+    explicit AvatarZoomDialog(const QString &pathOrText, QWidget *parent = nullptr) : QDialog(parent) {
         setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
         setAttribute(Qt::WA_TranslucentBackground);
         
         QVBoxLayout *layout = new QVBoxLayout(this);
         layout->setAlignment(Qt::AlignCenter);
         
-        QLabel *bigAvatar = new QLabel(iconText);
-        bigAvatar->setFixedSize(320, 320);
+        QLabel *bigAvatar = new QLabel();
+        bigAvatar->setFixedSize(360, 360);
         bigAvatar->setAlignment(Qt::AlignCenter);
-        bigAvatar->setStyleSheet(
-            "font-size: 160px; background: white; border-radius: 160px; "
-            "border: 4px solid white;"
-        );
+        
+        if (pathOrText.startsWith(":/") || QFile::exists(pathOrText)) {
+            QPixmap pix(pathOrText);
+            if (!pix.isNull()) {
+                // 绘制大圆头像
+                QPixmap target(360, 360);
+                target.fill(Qt::transparent);
+                QPainter p(&target);
+                p.setRenderHint(QPainter::Antialiasing);
+                QPainterPath path;
+                path.addEllipse(0, 0, 360, 360);
+                p.setClipPath(path);
+                p.drawPixmap(0, 0, 360, 360, pix.scaled(360, 360, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                bigAvatar->setPixmap(target);
+            }
+        } else {
+            bigAvatar->setText(pathOrText);
+            bigAvatar->setStyleSheet(
+                "font-size: 160px; background: white; border-radius: 180px; "
+                "border: 4px solid white; color: #409eff;"
+            );
+        }
         
         QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
         shadow->setBlurRadius(50);
@@ -80,7 +100,7 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter p(this);
-        p.fillRect(rect(), QColor(0, 0, 0, 180));
+        p.fillRect(rect(), QColor(0, 0, 0, 200));
     }
     void mousePressEvent(QMouseEvent *) override {
         accept();
@@ -174,7 +194,7 @@ private:
 class PetMediaArchiveDialog : public QDialog {
     Q_OBJECT
 public:
-    PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent = nullptr);
+    PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent = nullptr, const QString &startDate = "", const QString &endDate = "");
 protected:
     void paintEvent(QPaintEvent *event) override;
 };
@@ -241,6 +261,8 @@ public:
 
 signals:
     void avatarClicked(const QString &path);
+    void dataChanged();
+    void bookingConfirmed(); // 新增：预约或入住成功后的信号
 
 private:
     void setupUI();
@@ -256,6 +278,8 @@ public:
     QWidget *m_currentWidget = nullptr;
     QLabel *m_avatarLabel = nullptr;
     PetInfo m_currentInfo;
+    QString m_currentPeriodStart;
+    QString m_currentPeriodEnd;
 };
 
 class FosterModule : public QWidget {

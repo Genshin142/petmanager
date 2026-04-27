@@ -20,6 +20,7 @@ public:
         IsAlertRole,
         HighlightRole,
         OperatorRole,
+        OperatorAvatarRole,
         RoomNoRole       // 新增房号索引
     };
 
@@ -84,6 +85,7 @@ public:
             case IsAlertRole: return item.log.isAlert;
             case HighlightRole: return item.highlight;
             case OperatorRole: return item.isHeader ? "" : item.log.operatorName;
+            case OperatorAvatarRole: return item.isHeader ? "" : item.log.operatorAvatar;
             case RoomNoRole: return item.isHeader ? "" : item.log.roomNo;
         }
         return QVariant();

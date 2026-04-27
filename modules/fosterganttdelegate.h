@@ -46,7 +46,22 @@ public:
             path.addRect(rect.adjusted(-1, 0, 1, 0)); // 中间部分完全填充
         }
 
-        painter->fillPath(path, bgColor);
+        if (status == "maintenance") {
+            painter->fillPath(path, bgColor);
+            painter->save();
+            painter->setClipPath(path);
+            QPen hatchPen(textColor, 1);
+            QColor c = textColor;
+            c.setAlpha(80);
+            hatchPen.setColor(c);
+            painter->setPen(hatchPen);
+            for (int x = rect.left() - rect.height(); x < rect.right(); x += 8) {
+                painter->drawLine(x, rect.bottom(), x + rect.height(), rect.top());
+            }
+            painter->restore();
+        } else {
+            painter->fillPath(path, bgColor);
+        }
         
         // 绘制文字 (仅在开头或中间绘制)
         if (isStart || index.column() % 3 == 0) {

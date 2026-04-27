@@ -10,6 +10,7 @@ namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class QPushButton;
+class QVBoxLayout;
 
 class MemberModule;
 class RoleModule;
@@ -21,6 +22,7 @@ class CheckoutModule;
 class StatsModule;
 class PerformanceModule;
 class SalaryModule;
+class LogisticsModule;
 
 class MainWindow : public QMainWindow
 {
@@ -33,6 +35,7 @@ public:
 private slots:
     void onNavClicked(int id);
     void onJumpToPetRequested(const QString &memberName, const QString &petName);
+    void updateBadges();
 
 private:
     Ui::MainWindow *ui;
@@ -49,10 +52,15 @@ private:
     StatsModule *statsMod;
     PerformanceModule *perfMod;
     SalaryModule *salaryMod;
+    LogisticsModule *logisticsMod;
     QPushButton *navSalary;
-
+    QPushButton *navLogistics;
+    
+    
     void initSidebar();
     void initModules(UserRole role);
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
     UserRole m_role;
 };
 #endif // MAINWINDOW_H

@@ -41,6 +41,12 @@ public:
     bool isRoomAvailable(int roomId, const QDate &start, const QDate &end) const;
     void executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note = "");
     void executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight);
+    void executeCancelBooking(int roomId, const QString &petId);
+
+    // 房间状态周期管理 (维护/清洁)
+    void addRoomStatusPeriod(int roomId, const RoomStatusPeriod &period);
+    void removeRoomStatusPeriod(int roomId, const QString &type = "");
+    QList<RoomStatusPeriod> getRoomStatusPeriods(int roomId) const;
 
 signals:
     void petDataChanged(const QString &petId);
@@ -57,6 +63,7 @@ private:
     QMap<QString, QList<PetMedia>> m_petMedia;
     QMap<QString, QList<VaccineRecord>> m_vaccineRecords;
     QMap<QString, QList<FosterBatch>> m_historyBatches;
+    QMap<int, QList<RoomStatusPeriod>> m_roomStatusPeriods;
 };
 
 #endif // PETDATAMANAGER_H

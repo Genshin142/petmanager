@@ -1,0 +1,52 @@
+<h2>如何提升性别符号的辨识度？</h2>
+<p class="subtitle">当前蓝色背景下的蓝色符号 (♂) 难以辨认，请选择您倾向的改进方案：</p>
+
+<div class="options">
+  <div class="option" data-choice="badge" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>独立徽章化</h3>
+      <p>为符号添加独立的半透明背景，使其与卡片背景分离。</p>
+      <div class="mockup" style="background: #4A90E2; padding: 10px; border-radius: 8px; margin-top: 10px;">
+        <span style="color: white; font-weight: bold;">金渐层 · </span>
+        <span style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; color: #409eff; font-weight: bold;">♂</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="dot" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>高亮色块点</h3>
+      <p>使用明亮的实心圆点作为背景，符号设为白色，视觉冲击力最强。</p>
+      <div class="mockup" style="background: #4A90E2; padding: 10px; border-radius: 8px; margin-top: 10px;">
+        <span style="color: white; font-weight: bold;">金渐层 · </span>
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #409eff; border-radius: 50%; color: white; font-size: 12px; font-weight: bold;">♂</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="contrast" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>自适应对比度</h3>
+      <p>根据背景色自动调整，在蓝色卡片上使用亮蓝色或白色，并加深描边。</p>
+      <div class="mockup" style="background: #4A90E2; padding: 10px; border-radius: 8px; margin-top: 10px;">
+        <span style="color: white; font-weight: bold;">金渐层 · </span>
+        <span style="color: white; font-weight: bold; text-shadow: 0 0 2px #409eff, 0 0 4px #409eff;">♂</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="label" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>放弃符号，改用文字标签</h3>
+      <p>直接显示“公/母”文字，并用颜色区分背景，最直观。</p>
+      <div class="mockup" style="background: #4A90E2; padding: 10px; border-radius: 8px; margin-top: 10px;">
+        <span style="color: white; font-weight: bold;">金渐层 · </span>
+        <span style="background: #409eff; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">公</span>
+      </div>
+    </div>
+  </div>
+</div>

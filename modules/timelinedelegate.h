@@ -136,17 +136,41 @@ private:
 
         // 5. Footer Info
         QString opStr = index.data(PetTimelineModel::OperatorRole).toString();
+        QString opAvatar = index.data(PetTimelineModel::OperatorAvatarRole).toString();
         QString roomStr = index.data(PetTimelineModel::RoomNoRole).toString();
         if (opStr.isEmpty()) opStr = "系统生成";
         
-        QString footerText = QString("经办人: %1").arg(opStr);
+        QString footerText = opStr;
         if (!roomStr.isEmpty()) {
-            footerText = QString("房间: %1 | 经办人: %2").arg(roomStr, opStr);
+            footerText = QString("房号: %1 | %2").arg(roomStr, opStr);
         }
 
-        painter->setPen(QColor("#909399"));
-        painter->setFont(QFont("Microsoft YaHei", 9));
-        painter->drawText(bubbleRect.adjusted(12, 0, -12, -8), Qt::AlignBottom | Qt::AlignRight, footerText);
+        // 绘制经办人头像 (小圆头像)
+        if (!opAvatar.isEmpty()) {
+            QPixmap opPix(opAvatar);
+            if (!opPix.isNull()) {
+                painter->save();
+                QRect avatarRect(bubbleRect.right() - 22, bubbleRect.bottom() - 22, 16, 16);
+                QPainterPath path;
+                path.addEllipse(avatarRect);
+                painter->setClipPath(path);
+                painter->drawPixmap(avatarRect, opPix.scaled(16, 16, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                painter->restore();
+                
+                // 绘制文字，预留出头像空间
+                painter->setPen(QColor("#909399"));
+                painter->setFont(QFont("Microsoft YaHei", 9));
+                painter->drawText(bubbleRect.adjusted(12, 0, -28, -8), Qt::AlignBottom | Qt::AlignRight, footerText);
+            } else {
+                painter->setPen(QColor("#909399"));
+                painter->setFont(QFont("Microsoft YaHei", 9));
+                painter->drawText(bubbleRect.adjusted(12, 0, -12, -8), Qt::AlignBottom | Qt::AlignRight, footerText);
+            }
+        } else {
+            painter->setPen(QColor("#909399"));
+            painter->setFont(QFont("Microsoft YaHei", 9));
+            painter->drawText(bubbleRect.adjusted(12, 0, -12, -8), Qt::AlignBottom | Qt::AlignRight, footerText);
+        }
     }
 
     bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index) override {

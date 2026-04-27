@@ -90,26 +90,25 @@ public:
             }
         }
 
-        // 如果没有宠物，检查是否处于模拟维护/清洁状态 (逻辑同步 FosterModule)
-        if (roomId % 15 == 0 || roomId % 12 == 0) {
-            QString status = (roomId % 15 == 0) ? "maintenance" : "cleaning";
-            // 模拟维护周期：当前日期及之后一天
-            QDate s = QDate::currentDate();
-            QDate e = s.addDays(1);
+        // 如果没有宠物，检查是否处于维护/清洁状态 (逻辑同步 FosterModule)
+        auto periods = PetDataManager::instance()->getRoomStatusPeriods(roomId);
+        for (const auto &p : periods) {
+            QDate s = QDate::fromString(p.startTime.split(" ").first(), "yyyy-MM-dd");
+            QDate e = QDate::fromString(p.endTime.split(" ").first(), "yyyy-MM-dd");
             
             if (date >= s && date <= e) {
-                if (role == Qt::DisplayRole) return (status == "maintenance") ? "维护" : "清洁";
-                if (role == StatusRole) return status;
+                if (role == Qt::DisplayRole) return (p.type == "maintenance") ? "维护" : "清洁";
+                if (role == StatusRole) return p.type;
                 if (role == StayStartRole) return s;
                 if (role == StayEndRole) return e;
                 if (role == IsStartRole) return date == s;
                 if (role == IsEndRole) return date == e;
                 
                 if (role == Qt::BackgroundRole) {
-                    return (status == "maintenance") ? QColor("#fff7e6") : QColor("#f6ffed");
+                    return (p.type == "maintenance") ? QColor("#fff7e6") : QColor("#f6ffed");
                 }
                 if (role == Qt::ForegroundRole) {
-                    return (status == "maintenance") ? QColor("#fa8c16") : QColor("#52c41a");
+                    return (p.type == "maintenance") ? QColor("#fa8c16") : QColor("#52c41a");
                 }
             }
         }

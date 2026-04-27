@@ -135,7 +135,7 @@ void PetModule::setupUI()
     
     petTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     petTable->setColumnWidth(0, 48);
-    petTable->setColumnWidth(1, 60);
+    petTable->setColumnWidth(1, 80);
     petTable->setColumnWidth(2, 180);
     petTable->setColumnWidth(3, 100);
     petTable->setColumnWidth(4, 110);
@@ -408,7 +408,7 @@ void PetModule::addPetRow(const PetInfo &info)
     
     QPushButton *vacBtn = new QPushButton();
     vacBtn->setText(info.vaccine);
-    vacBtn->setFixedSize(105, 26);
+    vacBtn->setFixedSize(88, 26);
     vacBtn->setCursor(Qt::PointingHandCursor);
     
     if (info.vaccine == "未接种") {
@@ -452,9 +452,10 @@ void PetModule::addPetRow(const PetInfo &info)
     statusTag->setAlignment(Qt::AlignCenter);
     
     QString bgColor, textColor, borderColor;
-    if (info.status == "寄养中") { bgColor = "#ecf5ff"; textColor = "#409eff"; borderColor = "#b3d8ff"; }
-    else if (info.status == "洗护中") { bgColor = "#fdf6ec"; textColor = "#e6a23c"; borderColor = "#faecd8"; }
-    else if (info.status == "离店") { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e4e7ed"; }
+    if (info.status.contains("寄养中")) { bgColor = "#ecf5ff"; textColor = "#409eff"; borderColor = "#b3d8ff"; }
+    else if (info.status.contains("洗护中")) { bgColor = "#fdf6ec"; textColor = "#e6a23c"; borderColor = "#faecd8"; }
+    else if (info.status.contains("在途")) { bgColor = "#e1f3d8"; textColor = "#67c23a"; borderColor = "#b7eb8f"; }
+    else if (info.status.contains("回家")) { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e4e7ed"; }
     else { bgColor = "#f0f9eb"; textColor = "#67c23a"; borderColor = "#e1f3d8"; }
 
     statusTag->setStyleSheet(QString(
@@ -503,8 +504,8 @@ void PetModule::updateStats()
             QLabel *tag = w->findChild<QLabel*>();
             if (tag) {
                 QString st = tag->text();
-                if (st == "寄养中") boarding++;
-                else if (st == "洗护中") grooming++;
+                if (st.contains("寄养中")) boarding++;
+                else if (st.contains("洗护中")) grooming++;
             }
         }
     }

@@ -38,8 +38,9 @@ void AddPetDialog::setupUI()
     healthCombo->addItems({"健康", "良好", "一般", "亚健康", "疾病中", "康复中"});
     ownerIdEdit = new QLineEdit();
     ownerNameEdit = new QLineEdit();
+    ownerPhoneEdit = new QLineEdit();
     statusCombo = new QComboBox();
-    statusCombo->addItems({"待寄养", "寄养中", "洗护中", "离店"});
+    statusCombo->addItems({"待入店 (在家)", "接送中 (在途)", "在店 (寄养中)", "在店 (洗护中)", "已离店 (回家)"});
     joinTimeEdit = new QLineEdit();
     joinTimeEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
 
@@ -162,6 +163,7 @@ void AddPetDialog::setupUI()
     // 在原有布局的尾部，追加主人相关信息
     ui->formLayout->addRow("主人ID:", ownerIdEdit);
     ui->formLayout->addRow("主人姓名:", ownerNameEdit);
+    ui->formLayout->addRow("联系电话:", ownerPhoneEdit);
     ui->formLayout->addRow("病史详情:", historyTextEdit);
     ui->formLayout->addRow("饮食禁忌:", dietaryTextEdit);
     ui->formLayout->addRow("在店状态:", statusCombo);
@@ -291,6 +293,7 @@ void AddPetDialog::setPetInfo(const PetInfo &info)
     
     if (ownerIdEdit) ownerIdEdit->setText(info.ownerId);
     if (ownerNameEdit) ownerNameEdit->setText(info.ownerName);
+    if (ownerPhoneEdit) ownerPhoneEdit->setText(info.ownerPhone);
     
 
     genderCombo->setCurrentText(info.gender);
@@ -375,6 +378,7 @@ PetInfo AddPetDialog::getPetInfo() const
     info.joinTime = joinTimeEdit->text();
     info.ownerId = ownerIdEdit->text();
     info.ownerName = ownerNameEdit->text();
+    info.ownerPhone = ownerPhoneEdit->text();
     info.avatarPath = m_avatarPath; // 保存照片路径
     
     // 简单生成一个 ID

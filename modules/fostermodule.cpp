@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFrame>
+#include "logisticsmanager.h"
 #include <QGraphicsDropShadowEffect>
 #include <QScrollArea>
 #include <QDateEdit>
@@ -20,12 +21,41 @@
 #include <QMouseEvent>
 #include <QRandomGenerator>
 #include <QPainter>
+#include <QPainterPath>
+#include <QFile>
 #include <QPushButton>
 #include <QTimer>
 #include <QKeyEvent>
 #include <QWheelEvent>
 #include <QProgressBar>
 #include <QAbstractButton>
+#include <QBuffer>
+#include <QByteArray>
+
+// 辅助函数：生成圆点形式的性别徽章 HTML (解决 Qt 不支持 HTML border-radius 的问题)
+static QString getGenderBadgeHtml(const QString &gender) {
+    if (gender != "公" && gender != "母") return "";
+    QPixmap pix(24, 24);
+    pix.fill(Qt::transparent);
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setBrush(gender == "公" ? QColor("#409eff") : QColor("#f56c6c"));
+    p.setPen(Qt::NoPen);
+    p.drawEllipse(0, 0, 24, 24);
+    p.setPen(Qt::white);
+    QFont f = p.font();
+    f.setBold(true);
+    f.setPixelSize(16);
+    p.setFont(f);
+    p.drawText(pix.rect(), Qt::AlignCenter, gender == "公" ? "♂" : "♀");
+    p.end();
+
+    QByteArray ba;
+    QBuffer bu(&ba);
+    bu.open(QIODevice::WriteOnly);
+    pix.save(&bu, "PNG");
+    return QString("<img src='data:image/png;base64,%1' width='16' height='16' style='vertical-align: middle;'>").arg(QString(ba.toBase64()));
+}
 #include <QTextEdit>
 #include <QComboBox>
 #include <QScrollBar>
@@ -159,6 +189,21 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
     iconLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
     topRow->addWidget(roomLabel);
+    
+    // 新增：接送物流标识 (🚚)
+    if (!petId.isEmpty()) {
+        auto tasks = LogisticsManager::instance()->getTasksForPet(petId);
+        for (const auto &task : tasks) {
+            if (task.status != "已完成") {
+                QLabel *truckIcon = new QLabel("🚚");
+                truckIcon->setStyleSheet("font-size: 13px; margin-left: 5px;");
+                truckIcon->setToolTip(QString("接送服务: %1 (%2)").arg(task.type, task.status));
+                topRow->addWidget(truckIcon);
+                break; // 只要有一个未完成任务就显示图标
+            }
+        }
+    }
+
     topRow->addStretch();
     topRow->addWidget(iconLabel);
     layout->addLayout(topRow);
@@ -196,8 +241,11 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
         QLabel *nameLabel = new QLabel(petName);
         nameLabel->setStyleSheet(QString("color: %1; font-size: 17px; font-weight: 900;").arg(textColor));
 
-        // 品种徽章 (小)
-        QLabel *breedTag = new QLabel(petBreed);
+        // 品种徽章 (小) + 性别
+        PetInfo info = PetDataManager::instance()->getPet(petId);
+        QString genderHtml = getGenderBadgeHtml(info.gender);
+        QLabel *breedTag = new QLabel(QString("%1 · %2").arg(petBreed, genderHtml));
+        
         QString breedBg = (status == "occupied") ? "rgba(255,255,255,0.2)" : "rgba(74, 144, 226, 0.1)";
         QString breedText = (status == "occupied") ? "white" : "#4A90E2";
         breedTag->setStyleSheet(QString(
@@ -215,12 +263,29 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
         textCol->addWidget(idTag);
 
         // 加载真实头像
-        PetInfo info = PetDataManager::instance()->getPet(petId);
-        if (!info.avatarPath.isEmpty() && QFile::exists(info.avatarPath)) {
+        if (!info.avatarPath.isEmpty() && (info.avatarPath.startsWith(":/") || QFile::exists(info.avatarPath))) {
             m_avatar->setText("");
             QPixmap pix(info.avatarPath);
-            m_avatar->setPixmap(pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-            m_avatar->setStyleSheet("border-radius: 32px; border: 2px solid rgba(255,255,255,0.5); overflow: hidden;");
+            if (!pix.isNull()) {
+                // 手动进行圆形剪裁，解决 QSS border-radius 对 Pixmap 失效的问题
+                QPixmap target(64, 64);
+                target.fill(Qt::transparent);
+                QPainter p(&target);
+                p.setRenderHint(QPainter::Antialiasing);
+                QPainterPath path;
+                path.addEllipse(0, 0, 64, 64);
+                p.setClipPath(path);
+                p.drawPixmap(0, 0, 64, 64, pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                
+                // 手动绘制内边框，确保与圆形图像完美贴合
+                p.setClipping(false);
+                p.setPen(QPen(QColor(255, 255, 255, 120), 2));
+                p.drawEllipse(1, 1, 62, 62);
+
+                m_avatar->setPixmap(target);
+                m_avatar->setStyleSheet("background: transparent; border: none;");
+                m_avatar->setProperty("avatarPath", info.avatarPath); // 记录路径用于放大
+            }
         }
 
         infoRow->addWidget(m_avatar);
@@ -293,11 +358,21 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
 
         // 加载真实头像
         PetInfo info = PetDataManager::instance()->getPet(petId);
-        if (!info.avatarPath.isEmpty() && QFile::exists(info.avatarPath)) {
+        if (!info.avatarPath.isEmpty() && (info.avatarPath.startsWith(":/") || QFile::exists(info.avatarPath))) {
             m_avatar->setText("");
             QPixmap pix(info.avatarPath);
-            m_avatar->setPixmap(pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-            m_avatar->setStyleSheet("border-radius: 32px; border: 2px solid #B37FEB; overflow: hidden;");
+            if (!pix.isNull()) {
+                QPixmap target(64, 64);
+                target.fill(Qt::transparent);
+                QPainter p(&target);
+                p.setRenderHint(QPainter::Antialiasing);
+                QPainterPath path;
+                path.addEllipse(0, 0, 64, 64);
+                p.setClipPath(path);
+                p.drawPixmap(0, 0, 64, 64, pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                m_avatar->setPixmap(target);
+                m_avatar->setProperty("avatarPath", info.avatarPath);
+            }
         }
 
         infoRow->addWidget(m_avatar);
@@ -362,8 +437,14 @@ void FosterCard::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
         // 判定是否点击了头像区域
         if (m_avatar && m_avatar->geometry().contains(event->pos())) {
-            AvatarZoomDialog dlg(m_avatar->text(), this->window());
-            dlg.exec();
+            QString path = m_avatar->property("avatarPath").toString();
+            if (!path.isEmpty()) {
+                FullImagePreviewDialog dlg(path, this->window());
+                dlg.exec();
+            } else {
+                AvatarZoomDialog dlg(m_avatar->text(), this->window());
+                dlg.exec();
+            }
         } else {
             emit clicked();
         }
@@ -491,7 +572,9 @@ void FosterDetailDialog::buildBookedView(QVBoxLayout *layout, int roomId, const 
     QLabel *nameLabel = new QLabel(petName.isEmpty() ? "预约宠物" : petName);
     nameLabel->setStyleSheet("color: #531DAB; font-size: 22px; font-weight: 900;");
     
-    QLabel *breedLabel = new QLabel(petBreed.isEmpty() ? "预约待入" : petBreed);
+    PetInfo info = PetDataManager::instance()->getPet(petId);
+    QString genderHtml = getGenderBadgeHtml(info.gender);
+    QLabel *breedLabel = new QLabel(QString("%1 · %2").arg(petBreed.isEmpty() ? "预约待入" : petBreed, genderHtml));
     breedLabel->setStyleSheet(
         "color: #722ED1; font-size: 13px; font-weight: bold; background: rgba(114, 46, 209, 0.1); "
         "border-radius: 6px; padding: 4px 12px;"
@@ -507,6 +590,33 @@ void FosterDetailDialog::buildBookedView(QVBoxLayout *layout, int roomId, const 
     
     petInfo->addLayout(nameRow);
     petInfo->addWidget(idLabel);
+
+    // 加载真实头像
+    if (!info.avatarPath.isEmpty() && (info.avatarPath.startsWith(":/") || QFile::exists(info.avatarPath))) {
+        avatar->setText("");
+        QPixmap pix(info.avatarPath);
+        if (!pix.isNull()) {
+            QPixmap target(72, 72);
+            target.fill(Qt::transparent);
+            QPainter p(&target);
+            p.setRenderHint(QPainter::Antialiasing);
+            QPainterPath path;
+            path.addEllipse(0, 0, 72, 72);
+            p.setClipPath(path);
+            p.drawPixmap(0, 0, 72, 72, pix.scaled(72, 72, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            
+            // 手动绘制内边框
+            p.setClipping(false);
+            // 动态选择边框颜色：紫色(Booked) 或 蓝色(Occupied)
+            QColor borderColor = (m_status == "booked") ? QColor(179, 127, 235, 180) : QColor(74, 144, 226, 150);
+            p.setPen(QPen(borderColor, 2));
+            p.drawEllipse(1, 1, 70, 70);
+
+            avatar->setPixmap(target);
+            avatar->setStyleSheet("background: transparent; border: none;");
+            avatar->setProperty("avatarPath", info.avatarPath);
+        }
+    }
 
     petRow->addWidget(avatar);
     petRow->addSpacing(10);
@@ -605,7 +715,9 @@ void FosterDetailDialog::buildOccupiedView(QVBoxLayout *layout, int roomId, cons
     QLabel *nameLabel = new QLabel(petName.isEmpty() ? "未知宠物" : petName);
     nameLabel->setStyleSheet("color: #303133; font-size: 22px; font-weight: 900;");
     
-    QLabel *breedLabel = new QLabel(petBreed.isEmpty() ? "通用/未知" : petBreed);
+    PetInfo info = PetDataManager::instance()->getPet(petId);
+    QString genderHtml = getGenderBadgeHtml(info.gender);
+    QLabel *breedLabel = new QLabel(QString("%1 · %2").arg(petBreed.isEmpty() ? "通用/未知" : petBreed, genderHtml));
     breedLabel->setStyleSheet(
         "color: #4A90E2; font-size: 13px; font-weight: bold; background: rgba(74, 144, 226, 0.1); "
         "border-radius: 6px; padding: 4px 12px;"
@@ -622,6 +734,24 @@ void FosterDetailDialog::buildOccupiedView(QVBoxLayout *layout, int roomId, cons
     
     petInfo->addLayout(nameRow);
     petInfo->addWidget(idLabel);
+
+    // 加载真实头像
+    if (!info.avatarPath.isEmpty() && (info.avatarPath.startsWith(":/") || QFile::exists(info.avatarPath))) {
+        avatar->setText("");
+        QPixmap pix(info.avatarPath);
+        if (!pix.isNull()) {
+            QPixmap target(72, 72);
+            target.fill(Qt::transparent);
+            QPainter p(&target);
+            p.setRenderHint(QPainter::Antialiasing);
+            QPainterPath path;
+            path.addEllipse(0, 0, 72, 72);
+            p.setClipPath(path);
+            p.drawPixmap(0, 0, 72, 72, pix.scaled(72, 72, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            avatar->setPixmap(target);
+            avatar->setProperty("avatarPath", info.avatarPath);
+        }
+    }
 
     petRow->addWidget(avatar);
     petRow->addSpacing(10);
@@ -1357,7 +1487,7 @@ void FosterHistoryDetailWidget::setDetails(const QList<PetActivityLog> &logs, co
 // PetMediaArchiveDialog 实现
 // ========================
 
-PetMediaArchiveDialog::PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent) : QDialog(parent) {
+PetMediaArchiveDialog::PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent, const QString &startDate, const QString &endDate) : QDialog(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
     
@@ -1397,9 +1527,36 @@ PetMediaArchiveDialog::PetMediaArchiveDialog(const QString &petName, const QList
     
     content->addLayout(header);
     content->addSpacing(15);
+    
+    // 根据日期范围过滤影像 (如果提供了范围)
+    QList<PetMedia> filteredMedia;
+    if (!startDate.isEmpty()) {
+        QDate s = QDate::fromString(startDate, "yyyy-MM-dd");
+        QDate e = (endDate == "至今" || endDate.isEmpty()) ? QDate::currentDate() : QDate::fromString(endDate, "yyyy-MM-dd");
+        
+        for (const auto &m : media) {
+            PetMedia fm = m;
+            fm.urls.clear();
+            fm.timestamps.clear();
+            for (int i = 0; i < m.urls.size(); ++i) {
+                QString ts = m.timestamps.size() > i ? m.timestamps[i] : "";
+                QDate d = QDate::fromString(ts.split(" ").first(), "yyyy-MM-dd");
+                if (d.isValid() && d >= s && d <= e) {
+                    fm.urls.append(m.urls[i]);
+                    fm.timestamps.append(ts);
+                }
+            }
+            if (!fm.urls.isEmpty()) {
+                filteredMedia.append(fm);
+            }
+        }
+        titleL->setText(QString("📸 %1 的分类影像档案 (%2 ~ %3)").arg(petName, startDate, endDate));
+    } else {
+        filteredMedia = media;
+    }
 
     MediaGallery *gallery = new MediaGallery();
-    gallery->setMedia(media);
+    gallery->setMedia(filteredMedia);
     content->addWidget(gallery, 1);
 
     mainLayout->addWidget(container);
@@ -1691,7 +1848,7 @@ void MediaUploadDialog::setupUI() {
     QLabel *typeLbl = new QLabel("影像类别:");
     typeLbl->setStyleSheet("font-size: 13px; font-weight: bold; color: #606266;");
     m_typeCombo = new QComboBox();
-    m_typeCombo->addItems({"运动", "洗护", "饮食", "睡觉", "医疗", "其他"});
+    m_typeCombo->addItems({"运动", "洗护", "饮食", "睡觉", "医疗", "入住存证", "离店存证", "其他"});
     m_typeCombo->setFixedHeight(32);
     m_typeCombo->setStyleSheet(
         "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; font-size: 12px; background: #f0f7ff; color: #409eff; font-weight: bold; } "
@@ -1900,8 +2057,14 @@ bool FosterDetailDialog::eventFilter(QObject *watched, QEvent *event) {
         QLabel *label = qobject_cast<QLabel*>(watched);
         if (label) {
             if (label->property("isAvatar").toBool()) {
-                AvatarZoomDialog dlg(label->text(), this->window());
-                dlg.exec();
+                QString path = label->property("avatarPath").toString();
+                if (!path.isEmpty()) {
+                    FullImagePreviewDialog dlg(path, this->window());
+                    dlg.exec();
+                } else {
+                    AvatarZoomDialog dlg(label->text(), this->window());
+                    dlg.exec();
+                }
                 return true;
             }
             if (label->property("isBack").toBool()) {
@@ -2198,6 +2361,7 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
     noteEdit->setFixedHeight(80);
     mainLayout->addWidget(noteEdit);
 
+
     mainLayout->addSpacing(10);
 
     // --- 4. 底部操作区 ---
@@ -2248,6 +2412,55 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
 
     mainLayout->addLayout(btnLayout);
 
+    // --- 5. 房态维护区 (仅对特定房间开启) ---
+    if (roomId != -1) {
+        mainLayout->addSpacing(30);
+        QFrame *maintLine = new QFrame(); maintLine->setFixedHeight(1); maintLine->setStyleSheet("background: #f0f2f5;");
+        mainLayout->addWidget(maintLine);
+        mainLayout->addSpacing(10);
+        
+        QLabel *maintTitle = createLabel("⚙️ 房态管控 (仅限空置期)");
+        mainLayout->addWidget(maintTitle);
+        
+        QHBoxLayout *maintBtns = new QHBoxLayout();
+        maintBtns->setSpacing(12);
+        
+        QPushButton *maintBtn = new QPushButton("🔧 开启维护模式");
+        maintBtn->setFixedHeight(46);
+        maintBtn->setCursor(Qt::PointingHandCursor);
+        maintBtn->setStyleSheet("QPushButton { background: #fff7e6; color: #fa8c16; border: 1.5px solid #ffd591; border-radius: 8px; font-weight: bold; font-size: 13px; padding: 0 10px; } QPushButton:hover { background: #ffe7ba; }");
+        
+        QPushButton *deepCleanBtn = new QPushButton("🧹 启动深度清洁");
+        deepCleanBtn->setFixedHeight(46);
+        deepCleanBtn->setCursor(Qt::PointingHandCursor);
+        deepCleanBtn->setStyleSheet("QPushButton { background: #f6ffed; color: #52c41a; border: 1.5px solid #b7eb8f; border-radius: 8px; font-weight: bold; font-size: 13px; padding: 0 10px; } QPushButton:hover { background: #d9f7be; }");
+        
+        maintBtns->addWidget(maintBtn, 1);
+        maintBtns->addWidget(deepCleanBtn, 1);
+        mainLayout->addLayout(maintBtns);
+
+        connect(maintBtn, &QPushButton::clicked, this, [this, roomId]() {
+            RoomStatusPeriod p;
+            p.type = "maintenance";
+            p.startTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+            p.endTime = QDate::currentDate().addDays(1).toString("yyyy-MM-dd") + " 18:00";
+            p.reason = "设施故障排查与维护";
+            PetDataManager::instance()->addRoomStatusPeriod(roomId, p);
+            showEmptyPlaceholder();
+            emit dataChanged();
+        });
+        connect(deepCleanBtn, &QPushButton::clicked, this, [this, roomId]() {
+            RoomStatusPeriod p;
+            p.type = "cleaning";
+            p.startTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+            p.endTime = QDateTime::currentDateTime().addSecs(4 * 3600).toString("yyyy-MM-dd HH:mm");
+            p.reason = "紫外线消杀与深度除味";
+            PetDataManager::instance()->addRoomStatusPeriod(roomId, p);
+            showEmptyPlaceholder();
+            emit dataChanged();
+        });
+    }
+
     mainLayout->addStretch();
 
     // 逻辑绑定
@@ -2261,6 +2474,7 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
         if (idStart != -1 && idEnd != -1) {
             QString petId = text.mid(idStart + 1, idEnd - idStart - 1);
             int selRoomId = roomCombo->currentData().toInt();
+            
             if (!isBooking) {
                 PetDataManager::instance()->executeCheckIn(
                     selRoomId, petId, 
@@ -2288,6 +2502,8 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
                 PetDataManager::instance()->addMedia(petId, media);
             }
             showEmptyPlaceholder();
+            emit dataChanged();       // 刷新基础房态
+            emit bookingConfirmed(); // 触发自动切时间轴
         }
     };
 
@@ -2349,17 +2565,40 @@ void FosterActionPanel::showMaintenanceView(int roomId, const QString &status) {
         cardLayout->addLayout(v);
     };
 
-    addItem(isMaint ? "维护原因" : "清洁重点", isMaint ? "门锁更换与地板抛光" : "深度消杀与紫外线杀菌", "#e6a23c");
+    auto periods = PetDataManager::instance()->getRoomStatusPeriods(roomId);
+    RoomStatusPeriod current;
+    for (const auto &p : periods) {
+        if (p.type == status) { current = p; break; }
+    }
+
+    addItem(isMaint ? "维护原因" : "清洁重点", current.reason.isEmpty() ? (isMaint ? "常规维护" : "深度清洁") : current.reason, "#e6a23c");
     
     QFrame *line = new QFrame(); line->setFixedHeight(1); line->setStyleSheet("background: #f0f2f5;"); cardLayout->addWidget(line);
     
-    addItem(isMaint ? "维护起始时间" : "清洁起始时间", QDate::currentDate().toString("yyyy-MM-dd") + " 08:30");
-    addItem("预计完成时间", QDate::currentDate().addDays(1).toString("yyyy-MM-dd") + " 18:00", "#10b981");
+    addItem(isMaint ? "维护起始时间" : "清洁起始时间", current.startTime);
+    addItem("预计完成时间", current.endTime, "#10b981");
 
     layout->addWidget(infoCard);
     layout->addStretch();
 
     // 3. 底部操作按钮
+    QPushButton *completeBtn = new QPushButton(isMaint ? "✅ 完成维护并恢复房态" : "✅ 完成清洁并恢复房态");
+    completeBtn->setFixedHeight(52);
+    completeBtn->setCursor(Qt::PointingHandCursor);
+    completeBtn->setStyleSheet(
+        "QPushButton { "
+        "  background: #10b981; border: none; border-radius: 12px; "
+        "  color: white; font-weight: bold; font-size: 15px; padding: 0 15px; "
+        "} "
+        "QPushButton:hover { background: #059669; }"
+    );
+    connect(completeBtn, &QPushButton::clicked, this, [this, roomId, status]() {
+        PetDataManager::instance()->removeRoomStatusPeriod(roomId, status);
+        showEmptyPlaceholder();
+        emit dataChanged();
+    });
+    layout->addWidget(completeBtn);
+
     QPushButton *bookFutureBtn = new QPushButton("📅 预约该房间后续时段");
     bookFutureBtn->setFixedHeight(52);
     bookFutureBtn->setCursor(Qt::PointingHandCursor);
@@ -2392,12 +2631,37 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
     QHBoxLayout *header = new QHBoxLayout();
     header->setSpacing(15);
     m_currentInfo = info;
+    m_currentPeriodStart = info.fosterStartTime;
+    m_currentPeriodEnd = info.fosterEndTime;
     m_avatarLabel = new QLabel(info.name.left(1));
     m_avatarLabel->setFixedSize(70, 70);
     m_avatarLabel->setAlignment(Qt::AlignCenter);
     m_avatarLabel->setStyleSheet("background: #f0f2f5; color: #409eff; font-size: 28px; font-weight: bold; border-radius: 35px; border: 2px solid #fff;");
     m_avatarLabel->setCursor(Qt::PointingHandCursor);
     m_avatarLabel->installEventFilter(this);
+    
+    // 加载真实头像
+    if (!info.avatarPath.isEmpty() && (info.avatarPath.startsWith(":/") || QFile::exists(info.avatarPath))) {
+        m_avatarLabel->setText("");
+        QPixmap pix(info.avatarPath);
+        if (!pix.isNull()) {
+            QPixmap target(70, 70);
+            target.fill(Qt::transparent);
+            QPainter p(&target);
+            p.setRenderHint(QPainter::Antialiasing);
+            QPainterPath path;
+            path.addEllipse(0, 0, 70, 70);
+            p.setClipPath(path);
+            p.drawPixmap(0, 0, 70, 70, pix.scaled(70, 70, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            
+            p.setClipping(false);
+            p.setPen(QPen(Qt::white, 2));
+            p.drawEllipse(1, 1, 68, 68);
+
+            m_avatarLabel->setPixmap(target);
+            m_avatarLabel->setStyleSheet("background: transparent; border: none;");
+        }
+    }
     
     QLabel *avatar = m_avatarLabel;
     QVBoxLayout *nameCol = new QVBoxLayout();
@@ -2407,7 +2671,8 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
     
     QHBoxLayout *detailRow = new QHBoxLayout();
     detailRow->setSpacing(10);
-    QLabel *breedLbl = new QLabel(QString("%1 · %2").arg(info.breed, info.gender == "公" ? "♂" : "♀"));
+    QString genderHtml = getGenderBadgeHtml(info.gender);
+    QLabel *breedLbl = new QLabel(QString("%1 · %2").arg(info.breed, genderHtml));
     breedLbl->setStyleSheet("font-size: 13px; color: #606266; font-weight: 500; border: none; background: transparent;");
     
     QLabel *ownerIdLbl = new QLabel(QString("主人: %1 | ID: %2").arg(info.ownerName, info.id));
@@ -2503,6 +2768,90 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
 
     layout->addWidget(detailCard);
 
+        // --- 3. 新增：接送服务追踪卡片 (仅当有服务时显示) ---
+        auto tasks = LogisticsManager::instance()->getTasksForPet(petId);
+        for (const auto &task : tasks) {
+            if (task.status != "已完成") {
+                QFrame *logisCard = new QFrame();
+                logisCard->setStyleSheet("QFrame { background: #f0f7ff; border-radius: 16px; border: 1.5px solid #bae7ff; }");
+                QVBoxLayout *ll = new QVBoxLayout(logisCard);
+                ll->setContentsMargins(15, 15, 15, 15);
+                ll->setSpacing(10);
+                
+                QHBoxLayout *lt = new QHBoxLayout();
+                QLabel *lIcon = new QLabel("🚚"); lIcon->setStyleSheet("font-size: 22px; border:none; background:transparent;");
+                QLabel *lTitle = new QLabel(task.type);
+                lTitle->setStyleSheet("font-weight: 900; color: #0050b3; font-size: 15px; border:none; background:transparent;");
+                lt->addWidget(lIcon); lt->addWidget(lTitle); lt->addStretch();
+                
+                QLabel *lStatus = new QLabel(task.status);
+                QString statusColor = (task.status == "待处理") ? "#8c8c8c" : (task.status == "进行中" ? "#1890ff" : "#52c41a");
+                lStatus->setStyleSheet(QString("background: %1; color: white; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: bold; border:none;").arg(statusColor));
+                lt->addWidget(lStatus);
+                ll->addLayout(lt);
+                
+                QLabel *lAddr = new QLabel("📍 " + (task.address.isEmpty() ? "地址未填写" : task.address));
+                lAddr->setStyleSheet("color: #434343; font-size: 13px; font-weight: 500; border:none; background:transparent;");
+                lAddr->setWordWrap(true);
+                ll->addWidget(lAddr);
+                
+                QLabel *lTime = new QLabel("⏰ 预约时间: " + task.appointmentTime);
+                lTime->setStyleSheet("color: #8c8c8c; font-size: 12px; border:none; background:transparent;");
+                ll->addWidget(lTime);
+                
+                if (task.status != "已完成") {
+                    QHBoxLayout *lb = new QHBoxLayout();
+                    lb->setSpacing(10);
+                    QPushButton *startLogBtn = new QPushButton(task.status == "待处理" ? "司机出发" : "正在途中...");
+                    startLogBtn->setEnabled(task.status == "待处理");
+                    startLogBtn->setFixedHeight(36);
+                    startLogBtn->setCursor(Qt::PointingHandCursor);
+                    startLogBtn->setStyleSheet("QPushButton { background: #1890ff; color: white; border: none; border-radius: 8px; font-weight: bold; } QPushButton:disabled { background: #bae7ff; }");
+                    
+                    QPushButton *finishLogBtn = new QPushButton("确认送达");
+                    finishLogBtn->setFixedHeight(36);
+                    finishLogBtn->setCursor(Qt::PointingHandCursor);
+                    finishLogBtn->setStyleSheet("QPushButton { background: #52c41a; color: white; border: none; border-radius: 8px; font-weight: bold; }");
+                    
+                    lb->addWidget(startLogBtn, 1);
+                    lb->addWidget(finishLogBtn, 1);
+                    ll->addLayout(lb);
+                    
+                    QString tid = task.taskId;
+                    QString ptid = petId;
+                    
+                    connect(startLogBtn, &QPushButton::clicked, this, [=]() {
+                        LogisticsManager::instance()->updateTaskStatus(tid, "进行中");
+                        
+                        PetActivityLog log;
+                        log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+                        log.type = "备注"; log.icon = "🚛";
+                        log.remark = QString("接送司机已出发。");
+                        log.operatorName = "派车系统";
+                        PetDataManager::instance()->addActivityLog(ptid, log);
+                        
+                        showManagementView(roomId, ptid, status);
+                    });
+                    
+                    connect(finishLogBtn, &QPushButton::clicked, this, [=]() {
+                        if (CustomMessageDialog::confirm(this, "接送确认", "确定宠物已安全送达目的地并完成移交吗？")) {
+                            LogisticsManager::instance()->updateTaskStatus(tid, "已完成");
+                            
+                            PetActivityLog log;
+                            log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+                            log.type = "备注"; log.icon = "🏁";
+                            log.remark = QString("接送任务圆满完成。");
+                            log.operatorName = "派车系统";
+                            PetDataManager::instance()->addActivityLog(ptid, log);
+                            
+                            showManagementView(roomId, ptid, status);
+                        }
+                    });
+                }
+                layout->addWidget(logisCard);
+            }
+        }
+
     // 辅助函数：根据批次更新卡片
     auto updateCard = [=](const FosterBatch &b) {
         dateInL->setText(b.startTime);
@@ -2580,6 +2929,28 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
     topBtns->addWidget(logBtn, 1);
     topBtns->addWidget(archiveBtn, 1);
     btnArea->addLayout(topBtns);
+
+    // 新增：日常清洁记录按钮 (Context-Aware: 入住房重点在服务)
+    QPushButton *cleanBtn = new QPushButton("🧹 日常清洁 (记录服务)");
+    cleanBtn->setFixedHeight(50);
+    cleanBtn->setCursor(Qt::PointingHandCursor);
+    cleanBtn->setStyleSheet(
+        "QPushButton { background: #f0f9eb; border: 1px solid #e1f3d8; border-radius: 8px; color: #67c23a; font-weight: bold; font-size: 14px; padding: 0 15px; } "
+        "QPushButton:hover { background: #e1f3d8; }"
+    );
+    connect(cleanBtn, &QPushButton::clicked, this, [this, petId, roomId]() {
+        PetActivityLog log;
+        log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+        log.type = "备注";
+        log.icon = "🧹";
+        log.remark = "已完成房间日常清洁与消毒。";
+        log.operatorName = "店员小利";
+        log.roomNo = QString::number(roomId);
+        PetDataManager::instance()->addActivityLog(petId, log);
+        showManagementView(roomId, petId, "occupied"); // 刷新详情页内部列表
+        emit dataChanged(); // 刷新外部网格/时间轴
+    });
+    btnArea->addWidget(cleanBtn);
     
     QPushButton *futureBookBtn = new QPushButton("📅 预约此房后续时段");
     futureBookBtn->setFixedHeight(52);
@@ -2621,6 +2992,8 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
             
             connect(act, &QAction::triggered, this, [=]() {
                 updatePeriodText(b.startTime, b.endTime);
+                m_currentPeriodStart = b.startTime;
+                m_currentPeriodEnd = b.endTime;
                 updateCard(b); // 更新大卡片内容
                 
                 // 切换记录显示
@@ -2656,12 +3029,24 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
     connect(archiveBtn, &QPushButton::clicked, this, [this, petId]() {
         PetMediaArchiveDialog dlg(PetDataManager::instance()->getPet(petId).name, 
                                  PetDataManager::instance()->getMedia(petId), 
-                                 this->window());
+                                 this->window(),
+                                 m_currentPeriodStart, m_currentPeriodEnd);
         dlg.exec();
     });
 
-    connect(checkoutBtn, &QPushButton::clicked, this, [this, roomId]() {
-        CustomMessageDialog::showSuccess(this, "业务办理", QString("正在跳转至结算中心办理 Room %1 的相关手续...").arg(roomId));
+    connect(checkoutBtn, &QPushButton::clicked, this, [this, petId, roomId]() {
+        PetInfo info = PetDataManager::instance()->getPet(petId);
+        if (info.status == "已预约") {
+            // 取消预约逻辑
+            if (CustomMessageDialog::confirm(this, "业务确认", "确定要取消本次寄养预约吗？该操作将释放房间配额。")) {
+                PetDataManager::instance()->executeCancelBooking(roomId, petId);
+                CustomMessageDialog::showSuccess(this, "操作成功", "预约已成功取消。");
+                showEmptyPlaceholder();
+            }
+        } else {
+            // 原有的离店结算逻辑 (Placeholder)
+            CustomMessageDialog::showSuccess(this, "业务办理", QString("正在跳转至结算中心办理 Room %1 的相关手续...").arg(roomId));
+        }
     });
 
     m_contentLayout->addWidget(m_currentWidget);
@@ -2962,6 +3347,14 @@ void FosterModule::setupUI() {
     mainLayout->addLayout(masterDetailLayout);
 
     connect(m_actionPanel, &FosterActionPanel::avatarClicked, this, &FosterModule::showBigImage);
+    connect(m_actionPanel, &FosterActionPanel::dataChanged, this, [this]() {
+        onForecastDateChanged(m_currentForecastDate);
+    });
+    connect(m_actionPanel, &FosterActionPanel::bookingConfirmed, this, [this]() {
+        if (!m_isTimelineMode) {
+            onToggleViewMode();
+        }
+    });
 
     // --- 初始化全屏大图预览层 (抄自 PetModule) ---
     m_imagePreviewOverlay = new QWidget(this);
@@ -3094,11 +3487,17 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
             }
         }
 
-        // 如果没有宠物占用，根据房间规律分配维护/清洁状态 (这些是房产属性，非虚构宠物)
+        // 如果没有宠物占用，从数据管理器获取维护/清洁状态 (日期敏感)
         if (!found) {
-            if (roomIdInt % 15 == 0) status = "maintenance";
-            else if (roomIdInt % 12 == 0) status = "cleaning";
-            else status = "free";
+            auto periods = PetDataManager::instance()->getRoomStatusPeriods(roomIdInt);
+            for (const auto &p : periods) {
+                QDate s = QDate::fromString(p.startTime.split(" ").first(), "yyyy-MM-dd");
+                QDate e = QDate::fromString(p.endTime.split(" ").first(), "yyyy-MM-dd");
+                if (date >= s && date <= e) {
+                    status = p.type;
+                    break;
+                }
+            }
         }
 
         FosterCard *card = new FosterCard(roomIdInt, status, pid, pname, breed, oname, this);
@@ -3175,18 +3574,8 @@ void FosterModule::updateStats() {
 void FosterModule::showBigImage(const QString &path)
 {
     if (path.isEmpty()) return;
-    
-    QPixmap pix(path);
-    if (pix.isNull()) pix.load(":/images/load_img.jpg");
-    
-    m_imagePreviewOverlay->setGeometry(rect());
-    
-    int maxWidth = width() * 0.8;
-    int maxHeight = height() * 0.8;
-    m_previewLabel->setPixmap(pix.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    
-    m_imagePreviewOverlay->show();
-    m_imagePreviewOverlay->raise();
+    FullImagePreviewDialog dlg(path, this->window());
+    dlg.exec();
 }
 
 void FosterModule::hideBigImage()

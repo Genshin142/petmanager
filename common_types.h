@@ -3,6 +3,9 @@
 
 #include <QString>
 #include <QMetaType>
+#include <QVariant>
+#include <QVariantMap>
+#include <QStringList>
 
 enum UserRole {
     ADMIN,
@@ -16,6 +19,7 @@ struct PetActivityLog {
     QString icon;    // 用于渲染的图标表情
     bool isAlert = false;    // 是否为健康预警（呕吐、生病等）
     QString operatorName = ""; // 经办人
+    QString operatorAvatar = ""; // 经办人头像
     QString roomNo = "";       // 发生时的房号
 };
 
@@ -30,6 +34,25 @@ struct FosterBatch {
     QString startTime;
     QString endTime; // 如果在店，则为"至今"
     bool isActive;   // 是否当前寄养中
+};
+
+struct RoomStatusPeriod {
+    QString type;      // "maintenance", "cleaning"
+    QString startTime; // yyyy-MM-dd HH:mm
+    QString endTime;   // yyyy-MM-dd HH:mm
+    QString reason;
+};
+
+struct LogisticsTask {
+    QString taskId;          // 唯一任务ID
+    QString petId;           // 关联的宠物ID
+    QString type;            // "接宠", "送宠"
+    QString status;          // "待处理", "进行中", "已送达", "已完成"
+    QString driver;
+    QString address;
+    QString appointmentTime;
+    QString relatedModule;   // "Foster", "Grooming" 等
+    QString relatedRoomId;   // 寄养目标房号 (如果是寄养)
 };
 
 struct PetMedia {
@@ -55,13 +78,42 @@ struct PetInfo {
     QString joinTime;
     QString ownerId;
     QString ownerName;
+    QString ownerPhone;
     QString avatarPath; // 宠物头像路径
     QString roomNo;     // 当前寄养房号 (寄养中显示)
     QString fosterStartTime; // 寄养开始时间
     QString fosterEndTime;   // 寄养结束时间
-    double weight = 0.0;    // 当前体重 (kg)
+    double weight = 0.0;     // 当前体重 (kg)
+};
+
+struct ProductInfo {
+    QString barcode;
+    QString name;
+    QString brand;           // 品牌
+    QString category;
+    QString origin;          // 产地
+    QString spec;
+    double price = 0.0;
+    double costPrice = 0.0;  // 成本价 (管理权限可见)
+    int stock = 0;
+    int minStock = 0;
+    QString productionDate;
+    int shelfLifeDays = 0;
+    QString supplier;
+    QString supplierPhone;
+    QString description;
+    QString ingredients;     // 原料组成 (主要成分)
+    QVariantMap nutritionMap;// 营养分析表 (Key-Value)
+    QString storageReq;      // 存储要求 (避光/冷藏等)
+    QString suitablePets;    // 适用宠物/人群
+    QString pairingSuggestion; // 搭配建议
+    QStringList images;      // 多角度图片路径
+    QStringList tags;        // 卖点标签 (如: 低敏, 美毛)
+    double netWeightKg = 0.0; // 净重 (用于计算单日喂养成本)
+    int dailyFeedingGrams = 0;// 建议每日喂食量 (g)
 };
 
 Q_DECLARE_METATYPE(PetInfo)
+Q_DECLARE_METATYPE(ProductInfo)
 
 #endif // COMMON_TYPES_H

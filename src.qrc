@@ -16,8 +16,21 @@
         <file>images/foster_outdoor_6.png</file>
         <file>images/foster_sleep.png</file>
         <file>images/foster_sleep_2.png</file>
-
         <file>images/close.png</file>
-
+        <file>images/persian.png</file>
+        <file>images/shiba.png</file>
+        <file>images/ragdoll.png</file>
+        <file>images/golden.png</file>
+        <file>images/british.png</file>
+        <file>images/french.png</file>
+        <file>images/garfield.png</file>
+        <file>images/teddy.png</file>
+        <file>images/labrador.png</file>
+        <file>images/corgi.png</file>
+        <file>images/staff_wang.png</file>
+        <file>images/staff_li.png</file>
+        <file>images/foster_bath_new.png</file>
+        <file>images/foster_outdoor_new.png</file>
+        <file>images/foster_sleep_new.png</file>
     </qresource>
 </RCC>

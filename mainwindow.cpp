@@ -10,7 +10,12 @@
 #include "modules/statsmodule.h"
 #include "modules/performancemodule.h"
 #include "modules/salarymodule.h"
+#include "modules/logisticsmodule.h"
+#include "modules/logisticsmanager.h"
+#include "modules/petdatamanager.h"
 #include <QPushButton>
+#include <QTimer>
+#include <QDateTime>
 
 MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     : QMainWindow(parent)
@@ -33,6 +38,12 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
         ui->navPerformance->setVisible(false);
         navSalary->setVisible(false);
     }
+
+    // 启动红点/状态提醒定时器并立即执行一次扫描
+    updateBadges(); 
+    QTimer *badgeTimer = new QTimer(this);
+    connect(badgeTimer, &QTimer::timeout, this, &MainWindow::updateBadges);
+    badgeTimer->start(2000); // 每2秒扫描一次业务状态
 }
 
 MainWindow::~MainWindow()
@@ -60,10 +71,17 @@ void MainWindow::initSidebar()
     ui->navPerformance->setText("业绩核销 (管理员)");
     ui->navStats->setText("数据报表 (管理员)");
 
+    // 动态添加调度中心按钮
+    navLogistics = new QPushButton("🚗 车辆调度中心");
+    navGroup->addButton(navLogistics, 10);
+    // index in sidebarLayout: Foster is navFoster, which is originally index 5 (after spacer, logo, member, role, pet, product).
+    // Let's just insert it at index 6, before navOrder.
+    ui->sidebarLayout->insertWidget(6, navLogistics);
+
     // 动态添加薪资管理按钮
     navSalary = new QPushButton("薪资管理中心 (管理员)");
     navGroup->addButton(navSalary, 9);
-    ui->sidebarLayout->insertWidget(9, navSalary); // 插在业绩核算后
+    ui->sidebarLayout->insertWidget(11, navSalary); // 插在后面
 
     foreach (QAbstractButton *btn, navGroup->buttons()) {
         btn->setCheckable(true);
@@ -93,6 +111,7 @@ void MainWindow::initModules(UserRole role)
     perfMod = new PerformanceModule(this);
     statsMod = new StatsModule(this);
     salaryMod = new SalaryModule(this);
+    logisticsMod = new LogisticsModule(this);
 
     ui->stack->addWidget(memberMod);  // index 0
     ui->stack->addWidget(roleMod);    // index 1
@@ -104,6 +123,7 @@ void MainWindow::initModules(UserRole role)
     ui->stack->addWidget(perfMod);     // index 7
     ui->stack->addWidget(statsMod);    // index 8
     ui->stack->addWidget(salaryMod);   // index 9
+    ui->stack->addWidget(logisticsMod); // index 10
 
     // 跨模块同步逻辑
     connect(memberMod, &MemberModule::sig_petAdded, petMod, &PetModule::addPet);
@@ -127,4 +147,52 @@ void MainWindow::onJumpToPetRequested(const QString &memberName, const QString &
     if (petMod) {
         petMod->filterByMemberAndHighlightPet(memberName, petName);
     }
+}
+
+void MainWindow::updateBadges()
+{
+    // 1. 车辆调度中心提醒 (基于临期任务)
+    QList<LogisticsTask> tasks = LogisticsManager::instance()->getAllTasks();
+    QDateTime now = QDateTime::currentDateTime();
+    int urgentLogisticsCount = 0;
+    
+    for (const auto &task : tasks) {
+        if (task.status != "待处理") continue;
+        if (task.appointmentTime.contains(now.date().toString("yyyy-MM-dd"))) {
+            QString startTimeStr = task.appointmentTime.mid(11, 5);
+            QTime startTime = QTime::fromString(startTimeStr, "HH:mm");
+            if (now.time() >= startTime.addSecs(-1800)) { // 30分钟内
+                urgentLogisticsCount++;
+            }
+        }
+    }
+    
+    if (navLogistics) {
+        if (urgentLogisticsCount > 0) {
+            navLogistics->setText(QString("🚗 车辆调度中心  🔴 %1").arg(urgentLogisticsCount));
+            navLogistics->setStyleSheet("QPushButton { color: #ff4d4f; font-weight: bold; } "
+                                        "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
+        } else {
+            navLogistics->setText("🚗 车辆调度中心");
+            navLogistics->setStyleSheet(""); // 恢复默认侧边栏样式
+        }
+    }
+
+    if (ui->navProduct) {
+        int lowStockCount = 0;
+        if (productMod) lowStockCount = productMod->getLowStockCount();
+
+        if (lowStockCount > 0) {
+            ui->navProduct->setText(QString("📦 商品库存管理  ⚠️ %1").arg(lowStockCount));
+            ui->navProduct->setStyleSheet("QPushButton { color: #faad14; font-weight: bold; } "
+                                        "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
+        } else {
+            ui->navProduct->setText("商品库存管理");
+            ui->navProduct->setStyleSheet("");
+        }
+}
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
+    return QMainWindow::eventFilter(obj, event);
 }

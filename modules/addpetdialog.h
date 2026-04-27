@@ -45,6 +45,7 @@ private:
     QLineEdit *joinTimeEdit;
     QLineEdit *ownerIdEdit;
     QLineEdit *ownerNameEdit;
+    QLineEdit *ownerPhoneEdit;
     class QTextEdit *historyTextEdit;
     class QTextEdit *dietaryTextEdit;
 

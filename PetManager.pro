@@ -29,7 +29,10 @@ SOURCES += \
     modules/salarymodule.cpp \
     modules/petrecorddrawer.cpp \
     modules/custom_calendar_edit.cpp \
-    modules/petdatamanager.cpp
+    modules/petdatamanager.cpp \
+    modules/logisticsmanager.cpp \
+    modules/logisticsmodule.cpp \
+    modules/productdatamanager.cpp
 
 HEADERS += \
     loginwindow.h \
@@ -59,7 +62,10 @@ HEADERS += \
     modules/custom_calendar_edit.h \
     modules/petdatamanager.h \
     modules/fosterganttmodel.h \
-    modules/fosterganttdelegate.h
+    modules/fosterganttdelegate.h \
+    modules/logisticsmanager.h \
+    modules/logisticsmodule.h \
+    modules/productdatamanager.h
 
 FORMS += \
     loginwindow.ui \
