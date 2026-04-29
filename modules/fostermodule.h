@@ -316,7 +316,8 @@ private:
     QLabel *freeLabel;
     QLabel *bookedLabel;
     QLabel *cleaningLabel;
-    QDateEdit *forecastDateEdit;
+    QPushButton *forecastDateBtn;
+    void onDatePickerClicked();
     
     QScrollArea *m_scrollArea;
     QWidget *m_gridContainer;

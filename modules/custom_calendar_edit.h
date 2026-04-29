@@ -29,6 +29,9 @@ public:
     explicit CustomCalendarEdit(QWidget *parent = nullptr);
     ~CustomCalendarEdit();
 
+    void setMinimumDate(const QDate &date);
+    void setMaximumDate(const QDate &date);
+
 signals:
     void dateChanged(const QDate &date);
 
@@ -44,6 +47,8 @@ private:
     BackPaintWidget *m_widget;
     CompactCalendar *m_calendar;
     QToolButton *m_arrowBtn;
+    QDate m_minDate;
+    QDate m_maxDate;
 };
 
 #endif // CUSTOM_CALENDAR_EDIT_H

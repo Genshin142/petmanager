@@ -47,7 +47,7 @@ public:
             if (textWidth < 50) textWidth = 50;
 
             QTextDocument doc;
-            doc.setDefaultFont(QFont("Microsoft YaHei", 10));
+            doc.setDefaultFont(QFont("Microsoft YaHei", 11));
             doc.setTextWidth(textWidth);
             doc.setHtml(QString("<div style='line-height: 1.2;'><b>%1:</b> %2</div>").arg(typeStr, content));
             // 返回高度: 文字高度 + 经办人高度(20) + 气泡上下Padding(10*2) + 外部Margin(10*2)
@@ -72,7 +72,7 @@ private:
 
         // Header Text
         painter->setPen(QColor("#909399"));
-        painter->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
+        painter->setFont(QFont("Microsoft YaHei", 11, QFont::Bold));
         painter->drawText(headerRect, Qt::AlignCenter, dateStr);
     }
 
@@ -101,8 +101,8 @@ private:
         painter->drawEllipse(dotRect);
 
         // 3. 时间
-        painter->setPen(QColor("#C0C4CC"));
-        painter->setFont(QFont("Arial", 9));
+        painter->setPen(QColor("#909399"));
+        painter->setFont(QFont("Arial", 10));
         painter->drawText(option.rect.left() + 30, option.rect.top() + 28, timeStr);
 
         // 4. 气泡
@@ -122,11 +122,11 @@ private:
 
         // Text Content (将图标移动到文字内部)
         painter->setPen(QColor("#606266"));
-        painter->setFont(QFont("Microsoft YaHei", 10));
+        painter->setFont(QFont("Microsoft YaHei", 11));
         QRect textRect = bubbleRect.adjusted(12, 10, -12, -10);
         
         QTextDocument doc;
-        doc.setHtml(QString("<div style='line-height: 1.4;'>%1 <b>%2:</b> %3</div>").arg(iconStr, typeStr, contentStr));
+        doc.setHtml(QString("<div style='line-height: 1.4;'><b>%1:</b> %2</div>").arg(typeStr, contentStr));
         doc.setTextWidth(textRect.width());
         
         painter->save();
@@ -168,7 +168,7 @@ private:
             }
         } else {
             painter->setPen(QColor("#909399"));
-            painter->setFont(QFont("Microsoft YaHei", 9));
+            painter->setFont(QFont("Microsoft YaHei", 10));
             painter->drawText(bubbleRect.adjusted(12, 0, -12, -8), Qt::AlignBottom | Qt::AlignRight, footerText);
         }
     }

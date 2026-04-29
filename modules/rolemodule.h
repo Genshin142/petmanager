@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QIntValidator>
 #include "addemployeedialog.h"
+#include "employeedetaildrawer.h"
 
 class RoleModule : public QWidget
 {
@@ -42,6 +43,7 @@ private slots:
     void updatePagination();
     void showBigImage(const QString &path);
     void hideBigImage();
+    void onCurrentCellChanged(int currentRow, int currentColumn, int previousRow, int previousColumn);
 
 private:
     QTableWidget *empTable;
@@ -72,6 +74,8 @@ private:
     // 大图预览交互
     QWidget *m_imagePreviewOverlay;
     QLabel *m_previewLabel;
+
+    EmployeeDetailDrawer *m_drawer;
 };
 
 #endif // ROLEMODULE_H

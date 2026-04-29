@@ -17,6 +17,18 @@ public:
     void updateProduct(const ProductInfo &info);
     void removeProduct(const QString &barcode);
     QList<ProductInfo> getLowStockItems() const;
+    
+    // 记录管理
+    QList<StockInRecord> getAllRecords() const;
+    void addRecord(const StockInRecord &rec);
+    QList<StockInRecord> getUnlistedInboundItems() const;
+    void markRecordAsShelved(const QString &barcode, const QString &productionDate);
+    
+    // 批次管理
+    void addBatch(const StockBatch &batch);
+    QList<StockBatch> getBatchesForProduct(const QString &barcode) const;
+    QList<StockBatch> getAllBatches() const;
+    int calculateTotalStock(const QString &barcode) const;
 
 signals:
     void productDataChanged();
@@ -27,6 +39,8 @@ private:
 
     static ProductDataManager *m_instance;
     QMap<QString, ProductInfo> m_products;
+    QList<StockInRecord> m_records;
+    QList<StockBatch> m_batches;
 };
 
 #endif // PRODUCTDATAMANAGER_H

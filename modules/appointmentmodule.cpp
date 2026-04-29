@@ -52,9 +52,9 @@ void AppointmentModule::setupUI() {
     filterLayout->addWidget(searchEdit);
     
     titleLayout->addWidget(title);
-    titleLayout->addStretch();
-    titleLayout->addLayout(filterLayout);
     titleLayout->addSpacing(20);
+    titleLayout->addLayout(filterLayout);
+    titleLayout->addStretch();
     
     QPushButton *batchCancelBtn = new QPushButton("批量清理违约", this);
     batchCancelBtn->setCursor(Qt::PointingHandCursor);
@@ -97,9 +97,15 @@ void AppointmentModule::setupUI() {
         card->setGraphicsEffect(shadow);
         QHBoxLayout *l = new QHBoxLayout(card); l->setContentsMargins(20, 15, 20, 15);
         QLabel *iconLabel = new QLabel(icon);
-        iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
-        iconLabel->setStyleSheet(QString("font-size: 24px; background: #f5f7fa; border-radius: 10px; border: none;"));
-        l->addWidget(iconLabel); l->addSpacing(15);
+        if (icon.isEmpty()) {
+            iconLabel->hide();
+        } else {
+            iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
+            iconLabel->setStyleSheet(QString("font-size: 24px; background: #f5f7fa; border-radius: 10px; border: none;"));
+        }
+        if (!icon.isEmpty()) {
+            l->addWidget(iconLabel); l->addSpacing(15);
+        }
         QVBoxLayout *textLayout = new QVBoxLayout(); textLayout->setSpacing(2);
         QLabel *labelTitle = new QLabel(label); labelTitle->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
         valLabel = new QLabel("0"); valLabel->setStyleSheet("font-size: 22px; color: #303133; border: none; background: transparent;");
@@ -108,9 +114,9 @@ void AppointmentModule::setupUI() {
         return card;
     };
 
-    dashLayout->addWidget(createStatCard("📅", "今日预约总数", todayTotalLabel));
-    dashLayout->addWidget(createStatCard("⏳", "待服务预约", pendingLabel));
-    dashLayout->addWidget(createStatCard("✅", "已完成工作", finishedLabel));
+    dashLayout->addWidget(createStatCard("", "今日预约总数", todayTotalLabel));
+    dashLayout->addWidget(createStatCard("", "待服务预约", pendingLabel));
+    dashLayout->addWidget(createStatCard("", "已完成工作", finishedLabel));
     layout->addLayout(dashLayout);
 
     // 3. 预约列表容器

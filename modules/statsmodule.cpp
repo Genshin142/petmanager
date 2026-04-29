@@ -91,12 +91,16 @@ void StatsModule::setupUI() {
         cl->setContentsMargins(22, 18, 22, 18);
 
         QLabel *ic = new QLabel(icon);
-        ic->setFixedSize(54, 54);
-        ic->setAlignment(Qt::AlignCenter);
-        // 玻璃拟态背景
-        ic->setStyleSheet(QString(
-            "font-size: 26px; color: %1; background: #F1F5F9; border-radius: 12px; border: none;"
-        ).arg(color));
+        if (icon.isEmpty()) {
+            ic->hide();
+        } else {
+            ic->setFixedSize(54, 54);
+            ic->setAlignment(Qt::AlignCenter);
+            // 玻璃拟态背景
+            ic->setStyleSheet(QString(
+                "font-size: 26px; color: %1; background: #F1F5F9; border-radius: 12px; border: none;"
+            ).arg(color));
+        }
 
         QVBoxLayout *vl = new QVBoxLayout();
         vl->setSpacing(4);
@@ -106,14 +110,17 @@ void StatsModule::setupUI() {
         valLabel->setStyleSheet("color: #1E3A8A; font-size: 26px; font-weight: 700; border: none; background: transparent;");
         vl->addWidget(tl); vl->addWidget(valLabel);
         vl->addStretch();
-        cl->addWidget(ic); cl->addSpacing(18); cl->addLayout(vl); cl->addStretch();
+        if (!icon.isEmpty()) {
+            cl->addWidget(ic); cl->addSpacing(18);
+        }
+        cl->addLayout(vl); cl->addStretch();
         return card;
     };
 
-    dashLayout->addWidget(createDash("💰", "区间总营收", todayRevenueLabel, "#67c23a"));
-    dashLayout->addWidget(createDash("🧾", "区间客单价", avgOrderLabel, "#409eff"));
-    dashLayout->addWidget(createDash("💇", "服务单量汇总", serviceCountLabel, "#e6a23c"));
-    dashLayout->addWidget(createDash("📦", "商品出单量", productCountLabel, "#f56c6c"));
+    dashLayout->addWidget(createDash("", "区间总营收", todayRevenueLabel, "#67c23a"));
+    dashLayout->addWidget(createDash("", "区间客单价", avgOrderLabel, "#409eff"));
+    dashLayout->addWidget(createDash("", "服务单量汇总", serviceCountLabel, "#e6a23c"));
+    dashLayout->addWidget(createDash("", "商品出单量", productCountLabel, "#f56c6c"));
     mainLayout->addLayout(dashLayout);
 
     // 3. 图表展示区

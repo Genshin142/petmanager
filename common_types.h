@@ -111,7 +111,40 @@ struct ProductInfo {
     QStringList tags;        // 卖点标签 (如: 低敏, 美毛)
     double netWeightKg = 0.0; // 净重 (用于计算单日喂养成本)
     int dailyFeedingGrams = 0;// 建议每日喂食量 (g)
+    bool isActive = true;    // 是否在架 (档案管理专用)
 };
+
+struct StockInRecord {
+    QString dateTime;
+    QString productName;
+    QString barcode;
+    QString spec; // 新增：规格
+    QString origin; // 新增：产地/品牌
+    QString category; // 新增：分类
+    int quantity;
+    double costPrice; // 新增：进货价
+    QString productionDate; // 新增：生产日期
+    QString supplier;
+    QString supplierPhone; // 新增：供应商联系方式
+    QString operatorName;
+    QStringList imgPaths; // 修改为多图路径
+    int shelfLifeDays;    // 新增：从入库单带出的保质期天数
+    bool isShelved = false; // 新增：是否已完成上架入库
+};
+
+struct StockBatch {
+    QString batchId;         // 批次唯一ID
+    QString barcode;         // 关联商品条码
+    QString productionDate;  // 生产日期
+    int shelfLifeDays;       // 保质期时长 (天)
+    QString expiryDate;      // 到期日期 (自动计算)
+    int initialQty;          // 初始入库量
+    int currentQty;          // 当前剩余量
+    QString inboundDate;     // 入库日期
+    QString supplier;        // 批次供应商
+};
+
+Q_DECLARE_METATYPE(StockBatch)
 
 Q_DECLARE_METATYPE(PetInfo)
 Q_DECLARE_METATYPE(ProductInfo)

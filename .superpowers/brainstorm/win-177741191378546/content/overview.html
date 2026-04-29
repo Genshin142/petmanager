@@ -1,0 +1,33 @@
+<h2>生产日期管理：业务逻辑深度探讨</h2>
+<p class="subtitle">针对入库、上架及人工确认环节的决策支持</p>
+
+<div class="mockup">
+  <div class="mockup-header">当前业务疑点</div>
+  <div class="mockup-body">
+    <div class="section">
+      <h3>1. 入库环节 (Inbound)</h3>
+      <p><b>疑问：</b>是否需要区分生产日期？</p>
+      <div class="label">当前现状</div>
+      <p>系统已支持同条码、不同生产日期的批次录入。</p>
+    </div>
+
+    <div class="section">
+      <h3>2. 上架环节 (Shelving)</h3>
+      <p><b>疑问：</b>上架（创建档案）时是否需要区分？</p>
+      <div class="label">当前现状</div>
+      <p>上架主要是定义商品属性（名、分类等），但现在列表显示了具体日期。</p>
+    </div>
+
+    <div class="section">
+      <h3>3. 人员确认 (Staff Confirmation)</h3>
+      <p><b>疑问：</b>日期确认是否交给店员即可？</p>
+      <div class="label">当前现状</div>
+      <p>完全依赖人工输入，存在漏填或误填风险。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>我们要解决的核心矛盾</h3>
+  <p>如何在保证<b>库存精准度（批次追踪）</b>的同时，不增加<b>一线员工的操作负担</b>？</p>
+</div>

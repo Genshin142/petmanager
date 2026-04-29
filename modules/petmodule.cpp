@@ -92,21 +92,40 @@ void PetModule::setupUI()
         QHBoxLayout *cl = new QHBoxLayout(card);
         cl->setContentsMargins(20, 15, 20, 15);
         QLabel *iconLabel = new QLabel(icon);
-        iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
-        iconLabel->setStyleSheet(QString("font-size: 24px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color));
+        if (icon.isEmpty()) {
+            iconLabel->hide();
+        } else {
+            iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
+            iconLabel->setStyleSheet(QString("font-size: 24px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color));
+        }
         QVBoxLayout *vl = new QVBoxLayout(); vl->setSpacing(2);
         QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
         valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 24px; border: none; background: transparent;");
         vl->addWidget(tl); vl->addWidget(valLabel); vl->addStretch();
-        cl->addWidget(iconLabel); cl->addSpacing(15); cl->addLayout(vl); cl->addStretch();
+        if (!icon.isEmpty()) {
+            cl->addWidget(iconLabel); cl->addSpacing(15);
+        }
+        cl->addLayout(vl); cl->addStretch();
         return card;
     };
-    statLayout->addWidget(createStatCard("🐾", "在册宠物", totalPetsLabel, "#409eff"));
-    statLayout->addWidget(createStatCard("🏠", "在店寄养", boardingPetsLabel, "#67c23a"));
-    statLayout->addWidget(createStatCard("🛁", "洗护进行中", groomingPetsLabel, "#e6a23c"));
+    statLayout->addWidget(createStatCard("", "在册宠物", totalPetsLabel, "#409eff"));
+    statLayout->addWidget(createStatCard("", "在店寄养", boardingPetsLabel, "#67c23a"));
+    statLayout->addWidget(createStatCard("", "洗护进行中", groomingPetsLabel, "#e6a23c"));
     mainLayout->addLayout(statLayout);
 
     QHBoxLayout *operationLayout = new QHBoxLayout();
+    // -- 搜索栏 (移动到左侧) --
+    searchEdit = new QLineEdit();
+    searchEdit->setPlaceholderText(" 搜索宠物名称、品种、主人姓名...");
+    searchEdit->setFixedWidth(280); 
+    searchEdit->setFixedHeight(32);
+    searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } QLineEdit:focus { border-color: #409eff; outline: none; }");
+    connect(searchEdit, &QLineEdit::textChanged, this, &PetModule::onSearch);
+    operationLayout->addWidget(searchEdit);
+    
+    operationLayout->addStretch();
+    
+    // -- 批量操作按钮 --
     QPushButton *batchDeleteBtn = new QPushButton("批量删除");
     batchDeleteBtn->setCursor(Qt::PointingHandCursor);
     batchDeleteBtn->setFixedHeight(32);
@@ -116,14 +135,6 @@ void PetModule::setupUI()
     );
     connect(batchDeleteBtn, &QPushButton::clicked, this, &PetModule::onBatchDelete);
     operationLayout->addWidget(batchDeleteBtn);
-    
-    operationLayout->addStretch();
-    searchEdit = new QLineEdit();
-    searchEdit->setPlaceholderText(" 搜索宠物名称、品种、主人姓名...");
-    searchEdit->setFixedWidth(280); searchEdit->setFixedHeight(32);
-    searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } QLineEdit:focus { border-color: #409eff; outline: none; }");
-    connect(searchEdit, &QLineEdit::textChanged, this, &PetModule::onSearch);
-    operationLayout->addWidget(searchEdit);
     mainLayout->addLayout(operationLayout);
 
     petTable = new QTableWidget();
@@ -368,7 +379,11 @@ void PetModule::addPetRow(const PetInfo &info)
     
     QVBoxLayout *nameV = new QVBoxLayout();
     nameV->setSpacing(2);
-    QLabel *nameL = new QLabel(info.name);
+    QLabel *nameL = new QLabel();
+    QString genderSym = (info.gender == "公" || info.gender == "雄" || info.gender == "M") ? "♂" : "♀";
+    QString genderCol = (genderSym == "♂") ? "#409EFF" : "#F56C6C";
+    nameL->setText(QString("%1 <span style='color:%2; font-weight:bold;'>%3</span>")
+                   .arg(info.name).arg(genderCol).arg(genderSym));
     nameL->setStyleSheet("font-weight: bold; color: #303133; font-size: 14px;");
     QLabel *breedL = new QLabel(info.breed);
     breedL->setStyleSheet("color: #909399; font-size: 12px;");
@@ -391,8 +406,7 @@ void PetModule::addPetRow(const PetInfo &info)
     ownerItem->setTextAlignment(Qt::AlignCenter);
     petTable->setItem(row, 3, ownerItem);
 
-    QString genderIcon = (info.gender == "公") ? "♂" : "♀";
-    QTableWidgetItem *attrItem = new QTableWidgetItem(QString("%1 %2 · %3").arg(genderIcon, info.species, info.age));
+    QTableWidgetItem *attrItem = new QTableWidgetItem(QString("%1 · %2").arg(info.species, info.age));
     attrItem->setTextAlignment(Qt::AlignCenter);
     petTable->setItem(row, 4, attrItem);
 

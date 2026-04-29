@@ -31,8 +31,12 @@ SOURCES += \
     modules/custom_calendar_edit.cpp \
     modules/petdatamanager.cpp \
     modules/logisticsmanager.cpp \
+    modules/logisticsdetaildrawer.cpp \
     modules/logisticsmodule.cpp \
-    modules/productdatamanager.cpp
+    modules/productdatamanager.cpp \
+    modules/inboundmodule.cpp \
+    modules/inboundregistrationdialog.cpp \
+    modules/employeedetaildrawer.cpp
 
 HEADERS += \
     loginwindow.h \
@@ -64,8 +68,12 @@ HEADERS += \
     modules/fosterganttmodel.h \
     modules/fosterganttdelegate.h \
     modules/logisticsmanager.h \
+    modules/logisticsdetaildrawer.h \
     modules/logisticsmodule.h \
-    modules/productdatamanager.h
+    modules/productdatamanager.h \
+    modules/inboundmodule.h \
+    modules/inboundregistrationdialog.h \
+    modules/employeedetaildrawer.h
 
 FORMS += \
     loginwindow.ui \

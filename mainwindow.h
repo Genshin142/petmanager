@@ -23,6 +23,7 @@ class StatsModule;
 class PerformanceModule;
 class SalaryModule;
 class LogisticsModule;
+class InboundModule;
 
 class MainWindow : public QMainWindow
 {
@@ -53,8 +54,10 @@ private:
     PerformanceModule *perfMod;
     SalaryModule *salaryMod;
     LogisticsModule *logisticsMod;
+    InboundModule *inboundMod;
     QPushButton *navSalary;
     QPushButton *navLogistics;
+    QPushButton *navInbound;
     
     
     void initSidebar();

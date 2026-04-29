@@ -1,5 +1,6 @@
 #include "productdatamanager.h"
 #include <QDate>
+#include <QSet>
 
 ProductDataManager* ProductDataManager::m_instance = nullptr;
 
@@ -25,7 +26,7 @@ void ProductDataManager::initMockData()
     p1.brand = "Royal Canin";
     p1.origin = "法国/国产";
     p1.category = "主粮";
-    p1.spec = "袋";
+    p1.spec = "2kg/袋";
     p1.price = 199.00;
     p1.costPrice = 135.50;
     p1.stock = 5;
@@ -64,7 +65,7 @@ void ProductDataManager::initMockData()
     p2.brand = "小鲜肉";
     p2.origin = "山东";
     p2.category = "洗护";
-    p2.spec = "包";
+    p2.spec = "6L/包";
     p2.price = 35.00;
     p2.costPrice = 18.00;
     p2.stock = 42;
@@ -86,9 +87,141 @@ void ProductDataManager::initMockData()
     p2.nutritionMap["结团直径"] = "2-3mm";
     p2.nutritionMap["除臭率"] = "≥90%";
     
-    p2.images << "C:/Users/任坤/.gemini/antigravity/brain/908a4409-240b-4746-839e-aaa28ce0281c/cat_litter_package_front_1777203241934.png" 
+    p2.images << "C:/Users/任坤/.gemini/antigravity/brain/908a4409-240b-4746-839e-aaa28ce0281c/cat_litter_package_front_1777203241934.png"
               << "C:/Users/任坤/.gemini/antigravity/brain/908a4409-240b-4746-839e-aaa28ce0281c/cat_litter_texture_detail_1777203254848.png";
     m_products[p2.barcode] = p2;
+
+    // 3. 渴望六种鱼猫粮 (食品类 - 高端主粮)
+    ProductInfo p3;
+    p3.barcode = "999888777666";
+    p3.name = "渴望六种鱼猫粮 1.8kg";
+    p3.brand = "Orijen";
+    p3.origin = "加拿大";
+    p3.category = "主粮";
+    p3.spec = "1.8kg/袋";
+    p3.price = 560.00;
+    p3.costPrice = 280.00;
+    p3.stock = 50;
+    p3.minStock = 5;
+    p3.productionDate = "2024-05-01";
+    p3.shelfLifeDays = 540;
+    p3.supplier = "渴望中国总代理";
+    p3.supplierPhone = "021-12345678";
+    p3.description = "含85%的高品质鱼类成分，为猫咪提供丰富的欧米茄脂肪酸。";
+    p3.ingredients = "新鲜完整太平洋沙丁鱼, 新鲜完整太平洋鳕鱼, 新鲜完整太平洋鲭鱼...";
+    p3.images << "C:/Users/任坤/.gemini/antigravity/brain/908a4409-240b-4746-839e-aaa28ce0281c/orijen_six_fish_front_1777384375226.png"
+              << "C:/Users/任坤/.gemini/antigravity/brain/908a4409-240b-4746-839e-aaa28ce0281c/orijen_six_fish_back_1777384397331.png";
+    p3.isActive = true;
+    m_products[p3.barcode] = p3;
+    
+    // 初始化一些模拟记录 - 使用商品资料中的真实图片
+    StockInRecord r1;
+    r1.dateTime = QDateTime::currentDateTime().addDays(-2).toString("yyyy-MM-dd HH:mm:ss");
+    r1.productName = "皇家基础全价猫粮 2kg";
+    r1.barcode = "690123456789";
+    r1.spec = "2kg/袋";
+    r1.origin = "法国/皇家";
+    r1.category = "主食";
+    r1.quantity = 10;
+    r1.costPrice = 85.5;
+    r1.productionDate = "2024-01-01";
+    r1.supplier = "皇家宠物食品有限公司";
+    r1.supplierPhone = "400-888-1234";
+    r1.operatorName = "店长admin";
+    r1.imgPaths = p1.images; // 直接引用商品资料图片
+    r1.shelfLifeDays = p1.shelfLifeDays;
+
+    r1.isShelved = true;
+    
+    StockInRecord r2;
+    r2.dateTime = QDateTime::currentDateTime().addDays(-5).toString("yyyy-MM-dd HH:mm:ss");
+    r2.productName = "小鲜肉混合猫砂 6L";
+    r2.barcode = "690987654321";
+    r2.spec = "6L/袋";
+    r2.origin = "江苏/小宠";
+    r2.category = "洗护";
+    r2.quantity = 50;
+    r2.costPrice = 12.0;
+    r2.productionDate = "2024-02-15";
+    r2.supplier = "中宠贸易实业";
+    r2.supplierPhone = "010-66668888";
+    r2.operatorName = "营业员staff";
+    r2.imgPaths = p2.images; 
+    r2.shelfLifeDays = p2.shelfLifeDays;
+    r2.isShelved = true;
+
+    // 新增记录：相同条码，不同生产日期
+    StockInRecord r3;
+    r3.dateTime = QDateTime::currentDateTime().addDays(-1).toString("yyyy-MM-dd HH:mm:ss");
+    r3.productName = "皇家基础全价猫粮 2kg";
+    r3.barcode = "690123456789";
+    r3.spec = "2kg/袋";
+    r3.origin = "法国/皇家";
+    r3.category = "主食";
+    r3.quantity = 25;
+    r3.costPrice = 88.0;
+    r3.productionDate = "2024-03-20"; // 新批次
+    r3.supplier = "皇家宠物食品有限公司";
+    r3.supplierPhone = "400-888-1234";
+    r3.operatorName = "店长admin";
+    r3.imgPaths = p1.images;
+    r3.shelfLifeDays = p1.shelfLifeDays;
+    r3.isShelved = true;
+
+    StockInRecord r4;
+    r4.dateTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    r4.productName = "小鲜肉混合猫砂 6L";
+    r4.barcode = "690987654321";
+    r4.spec = "6L/袋";
+    r4.origin = "江苏/小宠";
+    r4.category = "洗护";
+    r4.quantity = 100;
+    r4.costPrice = 11.5;
+    r4.productionDate = "2024-04-01"; 
+    r4.supplier = "中宠贸易实业";
+    r4.supplierPhone = "010-66668888";
+    r4.operatorName = "仓库主管";
+    r4.imgPaths = p2.images;
+    r4.shelfLifeDays = p2.shelfLifeDays;
+    r4.isShelved = true;
+
+    // 完全未上架的新商品（用于测试上架列表）
+    StockInRecord r5;
+    r5.dateTime = QDateTime::currentDateTime().addDays(-1).toString("yyyy-MM-dd HH:mm:ss");
+    r5.productName = "渴望六种鱼猫粮 1.8kg";
+    r5.barcode = "999888777666";
+    r5.spec = "1.8kg/袋";
+    r5.origin = "加拿大/渴望";
+    r5.category = "主食";
+    r5.quantity = 20;
+    r5.costPrice = 280.0;
+    r5.productionDate = "2024-05-01";
+    r5.supplier = "渴望中国总代理";
+    r5.supplierPhone = "021-12345678";
+    r5.operatorName = "店长admin";
+    r5.shelfLifeDays = p3.shelfLifeDays;
+    r5.isShelved = false; // 初始未上架
+    r5.imgPaths << "C:/Users/任坤/.gemini/antigravity/brain/908a4409-240b-4746-839e-aaa28ce0281c/orijen_six_fish_front_1777384375226.png"
+                << "C:/Users/任坤/.gemini/antigravity/brain/908a4409-240b-4746-839e-aaa28ce0281c/orijen_six_fish_back_1777384397331.png";
+
+    StockInRecord r6;
+    r6.dateTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    r6.productName = "渴望六种鱼猫粮 1.8kg";
+    r6.barcode = "999888777666";
+    r6.spec = "1.8kg/袋";
+    r6.origin = "加拿大/渴望";
+    r6.category = "主食";
+    r6.quantity = 30;
+    r6.costPrice = 285.0;
+    r6.productionDate = "2024-05-15";
+    r6.supplier = "渴望中国总代理";
+    r6.supplierPhone = "021-12345678";
+    r6.operatorName = "店长admin";
+    r6.shelfLifeDays = p3.shelfLifeDays;
+    r6.isShelved = false; // 初始未上架
+    r6.imgPaths = r5.imgPaths;
+
+    m_records << r1 << r2 << r3 << r4 << r5 << r6;
 }
 
 QList<ProductInfo> ProductDataManager::allProducts() const
@@ -128,4 +261,79 @@ QList<ProductInfo> ProductDataManager::getLowStockItems() const
         }
     }
     return list;
+}
+
+QList<StockInRecord> ProductDataManager::getAllRecords() const {
+    return m_records;
+}
+
+void ProductDataManager::addRecord(const StockInRecord &rec) {
+    m_records.prepend(rec); // 最新的排在前面
+    emit productDataChanged();
+}
+
+QList<StockInRecord> ProductDataManager::getUnlistedInboundItems() const {
+    QList<StockInRecord> unlisted;
+    QSet<QString> listedBarcodes;
+    for (const auto &p : m_products) {
+        if (p.isActive) listedBarcodes.insert(p.barcode);
+    }
+    
+    QSet<QString> processedKeys; 
+    for (const auto &r : m_records) {
+        // 如果该记录已经上架，或者该条码已经有正式档案且我们只想要新档案列表（根据业务定）
+        // 既然用户想要区分批次，那么只要 rec.isShelved 为 false，就应该是“待上架”
+        if (!r.isShelved) {
+            QString key = r.barcode + r.productionDate;
+            if (!processedKeys.contains(key)) {
+                unlisted.append(r);
+                processedKeys.insert(key);
+            }
+        }
+    }
+    return unlisted;
+}
+
+void ProductDataManager::markRecordAsShelved(const QString &barcode, const QString &productionDate) {
+    bool changed = false;
+    for (auto &r : m_records) {
+        if (r.barcode == barcode && r.productionDate == productionDate) {
+            r.isShelved = true;
+            changed = true;
+        }
+    }
+    if (changed) emit productDataChanged();
+}
+
+void ProductDataManager::addBatch(const StockBatch &batch) {
+    m_batches.prepend(batch);
+    // 同时更新商品的汇总库存
+    if (m_products.contains(batch.barcode)) {
+        m_products[batch.barcode].stock = calculateTotalStock(batch.barcode);
+    }
+    emit productDataChanged();
+}
+
+QList<StockBatch> ProductDataManager::getBatchesForProduct(const QString &barcode) const {
+    QList<StockBatch> result;
+    for (const auto &b : m_batches) {
+        if (b.barcode == barcode && b.currentQty > 0) {
+            result.append(b);
+        }
+    }
+    return result;
+}
+
+QList<StockBatch> ProductDataManager::getAllBatches() const {
+    return m_batches;
+}
+
+int ProductDataManager::calculateTotalStock(const QString &barcode) const {
+    int total = 0;
+    for (const auto &b : m_batches) {
+        if (b.barcode == barcode) {
+            total += b.currentQty;
+        }
+    }
+    return total;
 }

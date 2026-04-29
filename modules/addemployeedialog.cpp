@@ -10,6 +10,7 @@
 #include <QVariant>
 #include <QFile>
 #include <QPainter>
+#include <QPainterPath>
 
 AddEmployeeDialog::AddEmployeeDialog(QWidget *parent) : QDialog(parent)
 {
@@ -25,7 +26,7 @@ void AddEmployeeDialog::setupUI()
     // 1. 无边框与透明背景
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
-    setMinimumSize(540, 620); // 增加宽度
+    setMinimumSize(560, 780); // 增加尺寸以容纳更多字段
 
     // 2. 主背景容器
     QVBoxLayout *rootLayout = new QVBoxLayout(this);
@@ -51,10 +52,54 @@ void AddEmployeeDialog::setupUI()
 
     // 3. 标题
     titleLabel = new QLabel("录入新员工入职档案");
-    titleLabel->setStyleSheet("font-size: 18px; color: #303133;");
+    titleLabel->setStyleSheet("font-size: 18px; color: #303133; font-weight: bold;");
     mainLayout->addWidget(titleLabel);
 
-    // 4. 表单区域 - 使用网格布局
+    // 4. 头像置顶区域
+    QHBoxLayout *avatarArea = new QHBoxLayout();
+    avatarArea->setContentsMargins(0, 10, 0, 10);
+    avatarArea->setSpacing(20);
+
+    avatarPreview = new QLabel();
+    avatarPreview->setFixedSize(80, 80);
+    // 使用 border-radius 实现圆形效果（配合 setScaledContents）
+    avatarPreview->setStyleSheet("border: 2px solid #f0f2f5; border-radius: 40px; background: #f5f7fa;");
+    avatarPreview->setCursor(Qt::PointingHandCursor);
+    avatarPreview->installEventFilter(this);
+    
+    QVBoxLayout *avatarBtnLayout = new QVBoxLayout();
+    avatarBtnLayout->setSpacing(8);
+    avatarBtnLayout->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    QPushButton *chooseBtn = new QPushButton("更换员工照片");
+    chooseBtn->setFixedWidth(120);
+    chooseBtn->setCursor(Qt::PointingHandCursor);
+    chooseBtn->setStyleSheet(
+        "QPushButton { background: #ffffff; color: #606266; border: 1px solid #dcdfe6; border-radius: 4px; padding: 6px 12px; font-size: 13px; } "
+        "QPushButton:hover { border-color: #409eff; color: #409eff; background: #f5f9ff; }"
+    );
+
+    QLabel *tipLabel = new QLabel("建议尺寸: 200x200px 正方形图片");
+    tipLabel->setStyleSheet("color: #909399; font-size: 11px;");
+
+    avatarBtnLayout->addWidget(chooseBtn);
+    avatarBtnLayout->addWidget(tipLabel);
+
+    avatarArea->addWidget(avatarPreview);
+    avatarArea->addLayout(avatarBtnLayout);
+    avatarArea->addStretch();
+    mainLayout->addLayout(avatarArea);
+
+    connect(chooseBtn, &QPushButton::clicked, this, [this]() {
+        QString path = QFileDialog::getOpenFileName(this, "选择员工照片", "E:/QT/work/PetManager/images", "Images (*.png *.jpg *.jpeg)");
+        if (!path.isEmpty()) {
+            m_selectedImgPath = path;
+            // 实时更新并确保圆形显示
+            updateAvatarPreview(path);
+        }
+    });
+
+    // 5. 表单区域 - 使用网格布局
     QGridLayout *formLayout = new QGridLayout();
     formLayout->setSpacing(15);
     formLayout->setColumnStretch(1, 1);
@@ -113,46 +158,45 @@ void AddEmployeeDialog::setupUI()
     idCardEdit->setPlaceholderText("请输入 18 位身份证号");
     formLayout->addWidget(idCardEdit, 5, 1, 1, 3);
 
-    // 第七行：基本薪资
-    addLabel("基本底薪:", 6, 0);
+    // 第七行：学历 / 部门
+    addLabel("最高学历:", 6, 0);
+    eduCombo = new QComboBox();
+    eduCombo->addItems({"大专", "本科", "硕士", "博士", "其他"});
+    formLayout->addWidget(eduCombo, 6, 1);
+
+    addLabel("所属部门:", 6, 2);
+    deptCombo = new QComboBox();
+    deptCombo->addItems({"总店管理层", "一线服务部", "技术支持部", "行政财务部"});
+    formLayout->addWidget(deptCombo, 6, 3);
+
+    // 第八行：基本薪资 / 入职日期
+    addLabel("基本底薪:", 7, 0);
     salarySpin = new QSpinBox();
     salarySpin->setRange(0, 99999);
     salarySpin->setSuffix(" 元");
-    formLayout->addWidget(salarySpin, 6, 1);
+    formLayout->addWidget(salarySpin, 7, 1);
 
-    // 第八行：员工照片
-    addLabel("员工照片:", 7, 0);
-    QHBoxLayout *photoLayout = new QHBoxLayout();
-    photoLayout->setContentsMargins(0, 0, 0, 0);
-    photoLayout->setSpacing(10);
-    
-    avatarPreview = new QLabel();
-    avatarPreview->setFixedSize(40, 40);
-    avatarPreview->setStyleSheet("border: 1px solid #dcdfe6; border-radius: 4px; background: #f5f7fa;");
-    avatarPreview->setPixmap(QPixmap(":/images/male.png").scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    avatarPreview->setProperty("imgPath", ":/images/male.png");
-    m_selectedImgPath = ":/images/male.png"; // 初始状态
-    avatarPreview->setCursor(Qt::PointingHandCursor);
-    avatarPreview->installEventFilter(this);
+    addLabel("入职日期:", 7, 2);
+    joinDateEdit = new CustomCalendarEdit();
+    joinDateEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
+    formLayout->addWidget(joinDateEdit, 7, 3);
 
-    QPushButton *chooseBtn = new QPushButton("选择照片...");
-    chooseBtn->setFixedWidth(100);
-    chooseBtn->setCursor(Qt::PointingHandCursor);
-    chooseBtn->setStyleSheet("QPushButton { background: #f5f7fa; color: #606266; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px; min-height: 25px; } QPushButton:hover { border-color: #409eff; color: #409eff; }");
-    
-    connect(chooseBtn, &QPushButton::clicked, this, [this]() {
-        QString path = QFileDialog::getOpenFileName(this, "选择员工照片", "E:/QT/work/PetManager/images", "Images (*.png *.jpg *.jpeg)");
-        if (!path.isEmpty()) {
-            m_selectedImgPath = path;
-            avatarPreview->setPixmap(QPixmap(path).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            avatarPreview->setProperty("imgPath", path);
-        }
-    });
+    // 第九行：紧急联系人 / 联系电话
+    addLabel("紧急联系人:", 8, 0);
+    emergencyEdit = new QLineEdit();
+    emergencyEdit->setPlaceholderText("姓名");
+    formLayout->addWidget(emergencyEdit, 8, 1);
 
-    photoLayout->addWidget(avatarPreview);
-    photoLayout->addWidget(chooseBtn);
-    photoLayout->addStretch();
-    formLayout->addLayout(photoLayout, 7, 1, 1, 3);
+    addLabel("联系电话:", 8, 2);
+    emergencyPhoneEdit = new QLineEdit();
+    emergencyPhoneEdit->setPlaceholderText("紧急电话");
+    formLayout->addWidget(emergencyPhoneEdit, 8, 3);
+
+    // 第十行：家庭住址
+    addLabel("家庭住址:", 9, 0);
+    addressEdit = new QLineEdit();
+    addressEdit->setPlaceholderText("请输入员工当前详细住址");
+    formLayout->addWidget(addressEdit, 9, 1, 1, 3);
 
     mainLayout->addLayout(formLayout);
     mainLayout->addStretch();
@@ -239,13 +283,43 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
     salarySpin->setValue(info.baseSalary);
     statusCombo->setCurrentText(info.status);
     
+    // HR 新增字段回填
+    eduCombo->setCurrentText(info.education.isEmpty() ? "本科" : info.education);
+    deptCombo->setCurrentText(info.department.isEmpty() ? "一线服务部" : info.department);
+    emergencyEdit->setText(info.emergencyContact);
+    emergencyPhoneEdit->setText(info.emergencyPhone);
+    addressEdit->setText(info.address);
+    if (!info.joinDate.isEmpty()) {
+        joinDateEdit->setText(info.joinDate);
+    }
+
     // 头像同步
     m_selectedImgPath = info.imgPath;
     if (m_selectedImgPath.isEmpty() || !QFile(m_selectedImgPath).exists()) {
         m_selectedImgPath = info.gender == "女" ? ":/images/female.png" : ":/images/male.png";
     }
-    avatarPreview->setPixmap(QPixmap(m_selectedImgPath).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    avatarPreview->setProperty("imgPath", m_selectedImgPath);
+    updateAvatarPreview(m_selectedImgPath);
+}
+
+void AddEmployeeDialog::updateAvatarPreview(const QString &path)
+{
+    QPixmap pix(path);
+    if (pix.isNull()) return;
+
+    // 创建圆形头像逻辑
+    int size = 80;
+    QPixmap target(size, size);
+    target.fill(Qt::transparent);
+    QPainter painter(&target);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    QPainterPath clipPath;
+    clipPath.addEllipse(0, 0, size, size);
+    painter.setClipPath(clipPath);
+    painter.drawPixmap(0, 0, size, size, pix.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    
+    avatarPreview->setPixmap(target);
+    avatarPreview->setProperty("imgPath", path);
 }
 
 EmployeeInfo AddEmployeeDialog::employeeInfo() const
@@ -262,6 +336,15 @@ EmployeeInfo AddEmployeeDialog::employeeInfo() const
     info.baseSalary = salarySpin->value();
     info.status = statusCombo->currentText();
     info.imgPath = m_selectedImgPath;
+
+    // 提取新增 HR 字段
+    info.education = eduCombo->currentText();
+    info.department = deptCombo->currentText();
+    info.emergencyContact = emergencyEdit->text();
+    info.emergencyPhone = emergencyPhoneEdit->text();
+    info.address = addressEdit->text();
+    info.joinDate = joinDateEdit->text();
+
     return info;
 }
 

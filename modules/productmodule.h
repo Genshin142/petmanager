@@ -15,15 +15,7 @@
 #include <QCheckBox>
 #include "../common_types.h"
 
-struct StockInRecord {
-    QString dateTime;
-    QString productName;
-    QString barcode;
-    int quantity;
-    QString supplier;
-    QString operatorName;
-    QString imgPath; // 新增图片路径
-};
+
 
 class ProductModule : public QWidget {
     Q_OBJECT
@@ -36,19 +28,15 @@ protected:
 private:
     void setupUI();
     void showProductEditDialog(const ProductInfo &info, bool isNew = false);
-    void setupRecordTab(QWidget *tab);
     void setupDetailDrawer();
     void updateDetailDrawer(const ProductInfo &info);
     void updateNutritionTable(const QVariantMap &nutrition);
     
     void addProductRow(const ProductInfo &info);
-    void addRecordRow(const StockInRecord &record);
     void updateStats();
 
 private slots:
-    void onStockIn();
-    void onFilterRecords();
-    void onResetRecords();
+    void onListing();
     
     // 分页与搜索
     void onPrevPage();
@@ -59,33 +47,21 @@ private slots:
     void onEditProduct();
     void onDeleteProduct();
     void onBatchDelete();
-
-    // 记录分页 slots
-    void onRecPrevPage();
-    void onRecNextPage();
-    void onRecJumpPage();
+    void onShowBatchDetails(int row, int col);
 
 private:
     QTabWidget *m_mainTabs;
     QTableWidget *prodTable;
     QLineEdit *searchEdit;
+    class QButtonGroup *m_categoryGroup;
 
     // 统计指标
     QLabel *totalValueLabel;
     QLabel *lowStockLabel;
     QLabel *varietyLabel;
 
-    // 入库记录页 UI
-    QTableWidget *recordTable;
-    QLineEdit *recordSearch;
-    QComboBox *sYearCombo, *sMonthCombo, *sDayCombo;
-    QComboBox *eYearCombo, *eMonthCombo, *eDayCombo;
-    QList<StockInRecord> m_records;
-
-    void updateDays(QComboBox *y, QComboBox *m, QComboBox *d);
     void updatePagination();
-    void updateRecordPagination();
-
+    
     // 分页 UI
     QPushButton *prevBtn;
     QPushButton *nextBtn;
@@ -95,16 +71,6 @@ private:
     QLineEdit *jumpEdit;
     class QIntValidator *jumpValidator;
     QPushButton *jumpBtn;
-
-    // 记录分页 UI
-    QPushButton *recPrevBtn;
-    QPushButton *recNextBtn;
-    QLabel *recPageLabel;
-    int m_recCurrentPage;
-    int m_recPageSize;
-    QLineEdit *recJumpEdit;
-    class QIntValidator *recJumpValidator;
-    QPushButton *recJumpBtn;
 
     UserRole m_role;
     QWidget *m_detailDrawer;

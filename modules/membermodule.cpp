@@ -61,11 +61,17 @@ void MemberModule::setupUI()
         l->setContentsMargins(20, 15, 20, 15);
 
         QLabel *iconLabel = new QLabel(icon);
-        iconLabel->setFixedSize(50, 50);
-        iconLabel->setAlignment(Qt::AlignCenter);
-        iconLabel->setStyleSheet(QString("font-size: 28px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color.name()));
-        l->addWidget(iconLabel);
-        l->addSpacing(15);
+        if (icon.isEmpty()) {
+            iconLabel->hide();
+        } else {
+            iconLabel->setFixedSize(50, 50);
+            iconLabel->setAlignment(Qt::AlignCenter);
+            iconLabel->setStyleSheet(QString("font-size: 28px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color.name()));
+        }
+        if (!icon.isEmpty()) {
+            l->addWidget(iconLabel);
+            l->addSpacing(15);
+        }
 
         QVBoxLayout *textLayout = new QVBoxLayout();
         textLayout->setSpacing(2);
@@ -86,11 +92,11 @@ void MemberModule::setupUI()
         return card;
     };
 
-    statLayout->addWidget(createStatCard("👥", "总计会员", totalMemberLabel, QColor("#409eff")));
-    statLayout->addWidget(createStatCard("🌟", "普通会员", regularMemberLabel, QColor("#909399")));
-    statLayout->addWidget(createStatCard("👑", "黄金会员", goldMemberLabel, QColor("#e6a23c")));
-    statLayout->addWidget(createStatCard("💎", "铂金会员", platinumMemberLabel, QColor("#409eff")));
-    statLayout->addWidget(createStatCard("🏆", "钻石会员", diamondMemberLabel, QColor("#f56c6c")));
+    statLayout->addWidget(createStatCard("", "总计会员", totalMemberLabel, QColor("#409eff")));
+    statLayout->addWidget(createStatCard("", "普通会员", regularMemberLabel, QColor("#909399")));
+    statLayout->addWidget(createStatCard("", "黄金会员", goldMemberLabel, QColor("#e6a23c")));
+    statLayout->addWidget(createStatCard("", "铂金会员", platinumMemberLabel, QColor("#409eff")));
+    statLayout->addWidget(createStatCard("", "钻石会员", diamondMemberLabel, QColor("#f56c6c")));
     
     mainLayout->addLayout(statLayout);
 
@@ -98,20 +104,7 @@ void MemberModule::setupUI()
     QHBoxLayout *operationLayout = new QHBoxLayout();
     operationLayout->setContentsMargins(0, 0, 0, 0);
     
-    // -- 左侧：批量操作 --
-    QPushButton *batchDeleteBtn = new QPushButton("批量删除");
-    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
-    batchDeleteBtn->setFixedHeight(32);
-    batchDeleteBtn->setStyleSheet(
-        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 6px; font-size: 12px; padding: 0 15px; }"
-        "QPushButton:hover { background-color: #f56c6c; color: white; }"
-    );
-    connect(batchDeleteBtn, &QPushButton::clicked, this, &MemberModule::onBatchDelete);
-
-    operationLayout->addWidget(batchDeleteBtn);
-    operationLayout->addStretch();
-
-    // -- 右侧：搜索与筛选 --
+    // -- 搜索与筛选 (移动到左侧) --
     searchEdit = new QLineEdit();
     searchEdit->setPlaceholderText(" 搜索姓名、手机号、ID...");
     searchEdit->setFixedWidth(200);
@@ -132,15 +125,30 @@ void MemberModule::setupUI()
     );
     connect(levelFilterCombo, &QComboBox::currentTextChanged, this, [=](){ this->onSearchTextChanged(searchEdit->text()); });
 
+    operationLayout->addWidget(searchEdit);
+    operationLayout->addSpacing(8);
+    operationLayout->addWidget(levelFilterCombo);
+    
+    // 中间弹簧
+    operationLayout->addStretch();
+
+    // -- 右侧：批量操作与新增 --
+    QPushButton *batchDeleteBtn = new QPushButton("批量删除");
+    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
+    batchDeleteBtn->setFixedHeight(32);
+    batchDeleteBtn->setStyleSheet(
+        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 6px; font-size: 12px; padding: 0 15px; }"
+        "QPushButton:hover { background-color: #f56c6c; color: white; }"
+    );
+    connect(batchDeleteBtn, &QPushButton::clicked, this, &MemberModule::onBatchDelete);
+
     QPushButton *addBtn = new QPushButton("+ 新增会员档案");
     addBtn->setCursor(Qt::PointingHandCursor);
     addBtn->setFixedHeight(32);
     addBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; padding: 0 15px; border-radius: 4px; font-size: 13px; } QPushButton:hover { background: #85ce61; }");
     connect(addBtn, &QPushButton::clicked, this, &MemberModule::showAddMemberDialog);
 
-    operationLayout->addWidget(searchEdit);
-    operationLayout->addSpacing(8);
-    operationLayout->addWidget(levelFilterCombo);
+    operationLayout->addWidget(batchDeleteBtn);
     operationLayout->addSpacing(12);
     operationLayout->addWidget(addBtn);
 

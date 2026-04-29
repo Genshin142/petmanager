@@ -62,16 +62,16 @@ void PetDataManager::initMockData()
         };
 
         if (status.contains("寄养中")) {
-            addLog(today + " 09:30", "投喂", "🍖", QString("[%1] 早饭吃得很干净，精神头很足。").arg(name), info.roomNo, "王波");
-            addLog(today + " 14:20", "检查", "🩺", QString("[%1] 体温 38.5℃，心率正常，状态非常健康。").arg(name), info.roomNo, "店员小利");
-            addLog(yesterday + " 10:15", "洗护", "🛁", QString("[%1] 进行了深层除臭洗护，毛发亮泽。").arg(name), info.roomNo, "张师傅");
-            addLog(yesterday + " 18:00", "备注", "📝", QString("[%1] 和其他小伙伴在操场玩得很开心。").arg(name), info.roomNo, "王波");
+            addLog(today + " 09:30", "投喂", "", "早饭吃得很干净，精神头很足。", info.roomNo, "王波");
+            addLog(today + " 14:20", "检查", "", "体温 38.5℃，心率正常，状态非常健康。", info.roomNo, "店员小利");
+            addLog(yesterday + " 10:15", "洗护", "", "进行了深层除臭洗护，毛发亮泽。", info.roomNo, "张师傅");
+            addLog(yesterday + " 18:00", "备注", "", "和其他小伙伴在操场玩得很开心。", info.roomNo, "王波");
         } else if (status.contains("洗护中")) {
-            addLog(today + " 16:10", "洗护", "🛁", QString("[%1] 正在进行基础清洁，目前正在吹干毛发。").arg(name), info.roomNo, "张师傅");
-            addLog(yesterday + " 11:30", "检查", "🩺", QString("[%1] 入店检查：体表无寄生虫，皮肤状况良好。").arg(name), info.roomNo, "店员小利");
+            addLog(today + " 16:10", "洗护", "", "正在进行基础清洁，目前正在吹干毛发。", info.roomNo, "张师傅");
+            addLog(yesterday + " 11:30", "检查", "", "入店检查：体表无寄生虫，皮肤状况良好。", info.roomNo, "店员小利");
         } else if (status.contains("在店")) {
-            addLog(yesterday + " 08:30", "投喂", "🍖", QString("[%1] 早饭光盘行动。").arg(name), "A-01", "王波");
-            addLog(yesterday + " 17:00", "备注", "👋", QString("[%1] 状态良好。").arg(name), "A-01", "店长");
+            addLog(yesterday + " 08:30", "投喂", "", "早饭光盘行动。", "A-01", "王波");
+            addLog(yesterday + " 17:00", "备注", "", "状态良好。", "A-01", "店长");
         }
         m_activityLogs[info.id] = logs;
         

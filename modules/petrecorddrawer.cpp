@@ -38,8 +38,8 @@ void PetRecordDrawer::setupUI()
 
     // --- 1. 顶部：宠物名片 ---
     QWidget *petHeader = new QWidget();
-    petHeader->setFixedHeight(140);
-    petHeader->setStyleSheet("background: white; border-bottom: 1px solid #f0f2f5;");
+    petHeader->setFixedHeight(180);
+    petHeader->setStyleSheet("background: white; border: none;");
     QVBoxLayout *headerTop = new QVBoxLayout(petHeader);
     headerTop->setContentsMargins(20, 10, 20, 10);
 
@@ -56,8 +56,8 @@ void PetRecordDrawer::setupUI()
 
     QHBoxLayout *infoLayout = new QHBoxLayout();
     m_avatarLabel = new QLabel();
-    m_avatarLabel->setFixedSize(70, 70);
-    m_avatarLabel->setStyleSheet("border-radius: 35px; background: #f0f2f5; border: 2px solid white;");
+    m_avatarLabel->setFixedSize(100, 100);
+    m_avatarLabel->setStyleSheet("border-radius: 50px; background: #f0f2f5; border: none;");
     m_avatarLabel->installEventFilter(this);
     m_avatarLabel->setCursor(Qt::PointingHandCursor);
 
@@ -67,10 +67,10 @@ void PetRecordDrawer::setupUI()
     m_nameLabel->setStyleSheet("font-size: 20px; font-weight: 800; color: #303133; border: none; background: transparent;");
     
     m_breedLabel = new QLabel("--");
-    m_breedLabel->setStyleSheet("font-size: 13px; color: #606266; font-weight: 500; border: none; background: transparent;");
+    m_breedLabel->setStyleSheet("font-size: 15px; color: #333333; font-weight: 600; border: none; background: transparent;");
     
     m_ownerLabel = new QLabel("主人: -- | ID: --");
-    m_ownerLabel->setStyleSheet("font-size: 11px; color: #909399; border: none; background: transparent;");
+    m_ownerLabel->setStyleSheet("font-size: 14px; color: #333333; font-weight: 500;");
     
     nameCol->addWidget(m_nameLabel);
     nameCol->addWidget(m_breedLabel);
@@ -81,6 +81,7 @@ void PetRecordDrawer::setupUI()
     infoLayout->addLayout(nameCol);
     infoLayout->addStretch();
     headerTop->addLayout(infoLayout);
+    headerTop->addStretch(); // 向上顶，防止切边
 
     mainLayout->addWidget(petHeader);
 
@@ -106,9 +107,9 @@ void PetRecordDrawer::setupUI()
     m_dateInVal = new QLabel("--");
     m_dateOutVal = new QLabel("--");
     m_durationVal = new QLabel("--");
-    m_dateOutTitle = new QLabel("🚪 离店时间");
+    m_dateOutTitle = new QLabel("离店时间");
 
-    auto styleVal = [](QLabel *l, const QString &c) { l->setStyleSheet(QString("color: %1; font-size: 13px; font-weight: bold; border: none; background: transparent;").arg(c)); };
+    auto styleVal = [](QLabel *l, const QString &c) { l->setStyleSheet(QString("color: %1; font-size: 15px; font-weight: bold; border: none; background: transparent;").arg(c)); };
     styleVal(m_weightInVal, "#e6a23c");
     styleVal(m_weightOutVal, "#909399");
     styleVal(m_dateInVal, "#303133");
@@ -120,7 +121,7 @@ void PetRecordDrawer::setupUI()
         auto makePart = [&](const QString &l, QLabel *v, QLabel *ct = nullptr) {
             QVBoxLayout *c = new QVBoxLayout(); c->setSpacing(2);
             QLabel *title = ct ? ct : new QLabel(l);
-            title->setStyleSheet("color: #909399; font-size: 10px; border: none; background: transparent;");
+            title->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
             c->addWidget(title); c->addWidget(v);
             return c;
         };
@@ -129,23 +130,23 @@ void PetRecordDrawer::setupUI()
         cardLayout->addLayout(r);
     };
 
-    addRow("⚖️ 入住体重", m_weightInVal, "⚖️ 离店体重", m_weightOutVal);
+    addRow("入住体重", m_weightInVal, "离店体重", m_weightOutVal);
     QFrame *line = new QFrame(); line->setFixedHeight(1); line->setStyleSheet("background: #f0f2f5;"); cardLayout->addWidget(line);
-    addRow("🏠 入住时间", m_dateInVal, "", m_dateOutVal, m_dateOutTitle);
+    addRow("入住时间", m_dateInVal, "", m_dateOutVal, m_dateOutTitle);
     QLabel *emptyPlaceholder = new QLabel();
     emptyPlaceholder->setStyleSheet("border: none; background: transparent;");
-    addRow("⏱️ 入住天数", m_durationVal, "", emptyPlaceholder, nullptr);
+    addRow("入住天数", m_durationVal, "", emptyPlaceholder, nullptr);
 
     contentLayout->addWidget(m_detailCard);
 
     // --- 3. 动态时间轴 ---
     QHBoxLayout *timelineHeader = new QHBoxLayout();
-    QLabel *title = new QLabel("🕒 寄养动态");
-    title->setStyleSheet("font-weight: bold; color: #303133; font-size: 14px;");
+    QLabel *title = new QLabel("寄养动态");
+    title->setStyleSheet("font-weight: bold; color: #303133; font-size: 16px;");
     
     m_periodBtn = new QPushButton("当前入住批次");
     m_periodBtn->setCursor(Qt::PointingHandCursor);
-    m_periodBtn->setStyleSheet("QPushButton { background: #f0f7ff; color: #409eff; border: none; border-radius: 12px; padding: 3px 12px; font-size: 11px; font-weight: bold; } QPushButton:hover { background: #e1f0ff; }");
+    m_periodBtn->setStyleSheet("QPushButton { background: #f0f7ff; color: #409eff; border: none; border-radius: 12px; padding: 4px 15px; font-size: 13px; font-weight: bold; } QPushButton:hover { background: #e1f0ff; }");
     
     timelineHeader->addWidget(title);
     timelineHeader->addStretch();
@@ -174,13 +175,13 @@ void PetRecordDrawer::setupUI()
                 m_durationVal->setText(QString("%1 天").arg(d));
                 
                 if (b.isActive) {
-                    m_dateOutTitle->setText("🚪 预计离店时间");
+                    m_dateOutTitle->setText("预计离店时间");
                     m_dateOutVal->setText(m_currentPet.fosterEndTime.isEmpty() ? "尚未设定" : m_currentPet.fosterEndTime);
                     m_weightInVal->setText(QString("%1 kg").arg(m_currentPet.weight, 0, 'f', 1));
                     m_weightOutVal->setText("尚未结算");
                     m_weightOutVal->setStyleSheet("color: #909399; font-size: 13px; font-weight: bold; border: none; background: transparent;");
                 } else {
-                    m_dateOutTitle->setText("🚪 离店时间");
+                    m_dateOutTitle->setText("离店时间");
                     m_dateOutVal->setText(b.endTime);
                     m_weightInVal->setText("20.5 kg"); 
                     m_weightOutVal->setText("21.2 kg");
@@ -193,8 +194,8 @@ void PetRecordDrawer::setupUI()
                     m_timelineWidget->setLogs(PetDataManager::instance()->getLogs(m_currentPet.id));
                 } else {
                     QList<PetActivityLog> hisLogs;
-                    hisLogs << PetActivityLog{b.startTime + " 08:30", "入住", "系统记录：办理入住成功", "🏠", false, "系统", m_currentPet.roomNo};
-                    hisLogs << PetActivityLog{b.endTime + " 17:00", "离店", "系统记录：结算离店完成", "👋", false, "系统", m_currentPet.roomNo};
+                    hisLogs << PetActivityLog{b.startTime + " 08:30", "入住", "系统记录：办理入住成功", "", false, "系统", m_currentPet.roomNo};
+                    hisLogs << PetActivityLog{b.endTime + " 17:00", "离店", "系统记录：结算离店完成", "", false, "系统", m_currentPet.roomNo};
                     m_timelineWidget->setLogs(hisLogs);
                 }
             });
@@ -206,7 +207,7 @@ void PetRecordDrawer::setupUI()
     contentLayout->addWidget(m_timelineWidget, 1);
 
     // --- 4. 底部操作栏 ---
-    m_archiveBtn = new QPushButton("📸 影像分类档案");
+    m_archiveBtn = new QPushButton("影像分类档案");
     m_archiveBtn->setFixedHeight(45);
     m_archiveBtn->setCursor(Qt::PointingHandCursor);
     m_archiveBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #e6a23c; font-weight: bold; font-size: 14px; } QPushButton:hover { border-color: #e6a23c; background: #fcf6ec; }");
@@ -231,22 +232,27 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     m_currentBatches = batches; // 核心：持久化当前宠物的批次数据
     
     m_nameLabel->setText(info.name);
-    m_breedLabel->setText(QString("%1 · %2").arg(info.breed, info.gender == "公" ? "♂" : "♀"));
-    m_ownerLabel->setText(QString("主人: %1 | ID: %2").arg(info.ownerName, info.id));
+    
+    // 品种与性别富文本展示 (性别符号放大到 18px)
+    QString genderSymbol = (info.gender == "公" || info.gender == "雄" || info.gender == "M") ? "♂" : "♀";
+    QString genderColor = (genderSymbol == "♂") ? "#409EFF" : "#F56C6C";
+    m_breedLabel->setText(QString("%1  <span style='color:%2; font-size:18px; font-weight:bold;'>%3</span>")
+                         .arg(info.breed).arg(genderColor).arg(genderSymbol));
+    
+    m_ownerLabel->setText(QString("主人: %1 | ID: %2").arg(info.ownerName).arg(info.id));
     
     // Avatar 高清渲染
     QPixmap pixmap(info.avatarPath);
     if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
-    QSize avatarSize(70, 70);
-    QPixmap target(avatarSize);
+    QSize size(100, 100);
+    QPixmap target(size);
     target.fill(Qt::transparent);
-    QPainter painter(&target);
-    painter.setRenderHint(QPainter::Antialiasing);
+    QPainter p(&target);
+    p.setRenderHint(QPainter::Antialiasing);
     QPainterPath path;
-    path.addEllipse(0, 0, avatarSize.width(), avatarSize.height());
-    painter.setClipPath(path);
-    painter.drawPixmap(0, 0, avatarSize.width(), avatarSize.height(), 
-                       pixmap.scaled(avatarSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    path.addEllipse(0, 0, size.width(), size.height());
+    p.setClipPath(path);
+    p.drawPixmap(0, 0, pixmap.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
     m_avatarLabel->setPixmap(target);
 
     // 辅助函数：更新摘要看板

@@ -85,6 +85,10 @@ void CustomCalendarEdit::initCalendar() {
     m_calendar = new CompactCalendar(m_widget);
     // 确保日历能够获取焦点并响应点击
     m_calendar->setFocusPolicy(Qt::StrongFocus);
+    
+    if (m_minDate.isValid()) m_calendar->setMinimumDate(m_minDate);
+    if (m_maxDate.isValid()) m_calendar->setMaximumDate(m_maxDate);
+    
     layout->addWidget(m_calendar);
 
     connect(m_calendar, &QCalendarWidget::clicked, this, [=](const QDate &date) {
@@ -116,4 +120,14 @@ void CustomCalendarEdit::popCalendar() {
     m_widget->move(globalPos);
     m_widget->show();
     m_widget->setFocus();
+}
+
+void CustomCalendarEdit::setMinimumDate(const QDate &date) {
+    m_minDate = date;
+    if (m_calendar) m_calendar->setMinimumDate(date);
+}
+
+void CustomCalendarEdit::setMaximumDate(const QDate &date) {
+    m_maxDate = date;
+    if (m_calendar) m_calendar->setMaximumDate(date);
 }

@@ -7,6 +7,7 @@
 #include <QSpinBox>
 #include <QLabel>
 #include <QPushButton>
+#include "custom_calendar_edit.h"
 
 struct EmployeeInfo {
     QString id;
@@ -20,6 +21,14 @@ struct EmployeeInfo {
     int baseSalary;
     QString status;
     QString imgPath; // 员工头像路径
+    
+    // 新增专业管理字段
+    QString joinDate;          // 入职日期
+    QString emergencyContact;  // 紧急联系人
+    QString emergencyPhone;    // 紧急联系人电话
+    QString address;           // 家庭住址
+    QString education;         // 学历
+    QString department;        // 所属部门
 };
 
 class AddEmployeeDialog : public QDialog
@@ -32,6 +41,7 @@ public:
 
     void setEmployeeInfo(const EmployeeInfo &info);
     EmployeeInfo employeeInfo() const;
+    void updateAvatarPreview(const QString &path);
 
 private slots:
     void onSave();
@@ -55,6 +65,14 @@ private:
     QLineEdit *idCardEdit;
     QSpinBox *salarySpin;
     QComboBox *statusCombo;
+    
+    // 新增 HR 控件
+    QComboBox *eduCombo;
+    QComboBox *deptCombo;
+    QLineEdit *emergencyEdit;
+    QLineEdit *emergencyPhoneEdit;
+    QLineEdit *addressEdit;
+    CustomCalendarEdit *joinDateEdit;
     
     QLabel *titleLabel;
     QPushButton *saveBtn;

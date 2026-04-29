@@ -23,7 +23,7 @@ public:
         m_emptyPlaceholder = new QWidget();
         QVBoxLayout *emptyL = new QVBoxLayout(m_emptyPlaceholder);
         emptyL->setAlignment(Qt::AlignCenter);
-        QLabel *emptyIcon = new QLabel("🐾");
+        QLabel *emptyIcon = new QLabel();
         emptyIcon->setStyleSheet("font-size: 40px; color: #dcdfe6;");
         QLabel *emptyText = new QLabel("暂无相关寄养记录");
         emptyText->setStyleSheet("color: #909399; font-size: 13px; margin-top: 8px;");

@@ -208,8 +208,8 @@ public:
 
         // 顶部标题栏
         QHBoxLayout *header = new QHBoxLayout();
-        QLabel *icon = new QLabel("💉");
-        icon->setStyleSheet("font-size: 24px;");
+        QLabel *icon = new QLabel();
+        icon->setStyleSheet("background: #f0f7ff; border-radius: 12px;");
         QLabel *title = new QLabel(QString("%1 的疫苗接种档案").arg(petName));
         title->setStyleSheet("font-size: 18px; color: #303133; font-weight: bold;");
         
@@ -240,7 +240,7 @@ public:
         layout->addSpacing(20);
 
         // 1. 顶部状态显示 (琥珀色动态条)
-        QLabel *statusLabel = new QLabel(QString("🛡️ 已按计划完成 %1 项接种").arg(records.size()));
+        QLabel *statusLabel = new QLabel(QString("已按计划完成 %1 项接种").arg(records.size()));
         statusLabel->setFixedHeight(36);
         statusLabel->setStyleSheet("background: #f0f9eb; color: #67c23a; padding: 0 15px; border-radius: 6px; font-size: 13px; font-weight: bold;");
         layout->addWidget(statusLabel);
@@ -338,7 +338,7 @@ public:
                     int currentRow = table->indexAt(w->pos()).row();
                     if (currentRow != -1) {
                         table->removeRow(currentRow);
-                        statusLabel->setText(QString("🛡️ 当前库中记录：%1 项").arg(table->rowCount()));
+                        statusLabel->setText(QString("当前库中记录：%1 项").arg(table->rowCount()));
                         statusLabel->setStyleSheet("background: #f0f9eb; color: #67c23a; padding: 0 15px; border-radius: 6px; font-size: 13px; font-weight: bold;");
                     }
                 }
@@ -355,7 +355,7 @@ public:
             table->insertRow(row);
             table->setRowHeight(row, 44);
             
-            statusLabel->setText(QString("✏️ 正在录入第 %1 项健康记录...").arg(table->rowCount()));
+            statusLabel->setText(QString("正在录入第 %1 项健康记录...").arg(table->rowCount()));
             statusLabel->setStyleSheet("background: #ecf5ff; color: #409eff; padding: 0 15px; border-radius: 6px; font-size: 13px; font-weight: bold;");
 
             QComboBox *typeCombo = new QComboBox();
@@ -397,7 +397,7 @@ public:
                     int r = table->indexAt(container->pos()).row();
                     if (r != -1) {
                         table->removeRow(r); 
-                        statusLabel->setText(QString("🛡️ 当前库中记录：%1 项").arg(table->rowCount()));
+                        statusLabel->setText(QString("当前库中记录：%1 项").arg(table->rowCount()));
                         statusLabel->setStyleSheet("background: #f0f9eb; color: #67c23a; padding: 0 15px; border-radius: 6px; font-size: 13px; font-weight: bold;");
                     }
                 }

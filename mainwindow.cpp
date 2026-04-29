@@ -11,6 +11,7 @@
 #include "modules/performancemodule.h"
 #include "modules/salarymodule.h"
 #include "modules/logisticsmodule.h"
+#include "modules/inboundmodule.h"
 #include "modules/logisticsmanager.h"
 #include "modules/petdatamanager.h"
 #include <QPushButton>
@@ -57,6 +58,7 @@ void MainWindow::initSidebar()
     navGroup->addButton(ui->navMember, 0);
     navGroup->addButton(ui->navRole, 1);
     navGroup->addButton(ui->navPet, 2);
+    ui->navProduct->setText("商品档案管理");
     navGroup->addButton(ui->navProduct, 3);
     navGroup->addButton(ui->navFoster, 4);
     navGroup->addButton(ui->navOrder, 5);
@@ -72,11 +74,14 @@ void MainWindow::initSidebar()
     ui->navStats->setText("数据报表 (管理员)");
 
     // 动态添加调度中心按钮
-    navLogistics = new QPushButton("🚗 车辆调度中心");
+    navLogistics = new QPushButton("车辆调度中心");
     navGroup->addButton(navLogistics, 10);
-    // index in sidebarLayout: Foster is navFoster, which is originally index 5 (after spacer, logo, member, role, pet, product).
-    // Let's just insert it at index 6, before navOrder.
     ui->sidebarLayout->insertWidget(6, navLogistics);
+
+    // 动态添加入库登记按钮
+    navInbound = new QPushButton("商品入库登记");
+    navGroup->addButton(navInbound, 11);
+    ui->sidebarLayout->insertWidget(4, navInbound); // 插在商品档案管理(index 3)后面
 
     // 动态添加薪资管理按钮
     navSalary = new QPushButton("薪资管理中心 (管理员)");
@@ -112,7 +117,8 @@ void MainWindow::initModules(UserRole role)
     statsMod = new StatsModule(this);
     salaryMod = new SalaryModule(this);
     logisticsMod = new LogisticsModule(this);
-
+    inboundMod = new InboundModule(this);
+    
     ui->stack->addWidget(memberMod);  // index 0
     ui->stack->addWidget(roleMod);    // index 1
     ui->stack->addWidget(petMod);     // index 2
@@ -124,6 +130,7 @@ void MainWindow::initModules(UserRole role)
     ui->stack->addWidget(statsMod);    // index 8
     ui->stack->addWidget(salaryMod);   // index 9
     ui->stack->addWidget(logisticsMod); // index 10
+    ui->stack->addWidget(inboundMod);   // index 11
 
     // 跨模块同步逻辑
     connect(memberMod, &MemberModule::sig_petAdded, petMod, &PetModule::addPet);
@@ -169,11 +176,11 @@ void MainWindow::updateBadges()
     
     if (navLogistics) {
         if (urgentLogisticsCount > 0) {
-            navLogistics->setText(QString("🚗 车辆调度中心  🔴 %1").arg(urgentLogisticsCount));
+            navLogistics->setText(QString("车辆调度中心  (%1)").arg(urgentLogisticsCount));
             navLogistics->setStyleSheet("QPushButton { color: #ff4d4f; font-weight: bold; } "
                                         "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
         } else {
-            navLogistics->setText("🚗 车辆调度中心");
+            navLogistics->setText("车辆调度中心");
             navLogistics->setStyleSheet(""); // 恢复默认侧边栏样式
         }
     }
@@ -183,7 +190,7 @@ void MainWindow::updateBadges()
         if (productMod) lowStockCount = productMod->getLowStockCount();
 
         if (lowStockCount > 0) {
-            ui->navProduct->setText(QString("📦 商品库存管理  ⚠️ %1").arg(lowStockCount));
+            ui->navProduct->setText(QString("商品库存管理  (%1)").arg(lowStockCount));
             ui->navProduct->setStyleSheet("QPushButton { color: #faad14; font-weight: bold; } "
                                         "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
         } else {

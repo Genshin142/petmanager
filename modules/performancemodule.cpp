@@ -60,11 +60,17 @@ void PerformanceModule::setupUI()
         l->setContentsMargins(20, 15, 20, 15);
 
         QLabel *iconLabel = new QLabel(icon);
-        iconLabel->setFixedSize(50, 50);
-        iconLabel->setAlignment(Qt::AlignCenter);
-        iconLabel->setStyleSheet(QString("font-size: 24px; background: #f5f7fa; border-radius: 10px; border: none;"));
-        l->addWidget(iconLabel);
-        l->addSpacing(15);
+        if (icon.isEmpty()) {
+            iconLabel->hide();
+        } else {
+            iconLabel->setFixedSize(50, 50);
+            iconLabel->setAlignment(Qt::AlignCenter);
+            iconLabel->setStyleSheet(QString("font-size: 24px; background: #f5f7fa; border-radius: 10px; border: none;"));
+        }
+        if (!icon.isEmpty()) {
+            l->addWidget(iconLabel);
+            l->addSpacing(15);
+        }
 
         QVBoxLayout *textLayout = new QVBoxLayout();
         textLayout->setSpacing(2);
@@ -81,9 +87,9 @@ void PerformanceModule::setupUI()
         return card;
     };
 
-    statLayout->addWidget(createStatCard("📈", "大盘总业绩", totalRevenueLabel));
-    statLayout->addWidget(createStatCard("💇", "洗护/造型选定", serviceRevenueLabel));
-    statLayout->addWidget(createStatCard("📦", "商品销售", productRevenueLabel));
+    statLayout->addWidget(createStatCard("", "大盘总业绩", totalRevenueLabel));
+    statLayout->addWidget(createStatCard("", "洗护/造型选定", serviceRevenueLabel));
+    statLayout->addWidget(createStatCard("", "商品销售", productRevenueLabel));
     mainLayout->addLayout(statLayout);
 
     // 3. 筛选面板
@@ -418,7 +424,7 @@ void PerformanceModule::updateSummary()
     serviceRevenueLabel->setText(QString("￥%1").arg(serviceRevenue, 0, 'f', 0));
     productRevenueLabel->setText(QString("￥%1").arg(productRevenue, 0, 'f', 0));
     // 大屏文字告知
-    totalCommLabel->setText(QString("📊 当前统计期内，已安全核销的有效提成总额：￥%1").arg(totalComm, 0, 'f', 1));
+    totalCommLabel->setText(QString("当前统计期内，已安全核销的有效提成总额：￥%1").arg(totalComm, 0, 'f', 1));
 }
 
 void PerformanceModule::updateDayCombo(QComboBox* y, QComboBox* m, QComboBox* d)

@@ -1,0 +1,94 @@
+<h2>多维度调度布局方案对比</h2>
+<p class="subtitle">针对大规模派单场景设计的专业化布局方案</p>
+
+<div class="options">
+  <div class="option" data-choice="date-groups" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>日期分组看板 (推荐)</h3>
+      <p>通过物理分区清晰隔离今日与未来的任务压力。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="time-slots" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>时段分层泳道</h3>
+      <p>按早/中/晚时段划分，解决同一时段任务扎堆的视觉拥挤。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="date-strip" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>顶部日期刻度条</h3>
+      <p>极简主义设计，专注当前所选日期的精准调度。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>预览效果示意</h3>
+  
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">方案 B：时段分层泳道 (Time Lanes)</div>
+      <div class="mockup-body" style="background: #f8f9fa;">
+        <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+          <span class="label" style="background: #e1f5fe; color: #01579b; padding: 2px 6px; border-radius: 4px;">🌅 上午 (09:00 - 12:00)</span>
+          <div class="mock-nav" style="margin-top: 5px;">任务: 阳光小区接宠 (P1008)</div>
+        </div>
+        <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+          <span class="label" style="background: #fff3e0; color: #e65100; padding: 2px 6px; border-radius: 4px;">☀️ 下午 (12:00 - 18:00)</span>
+          <div class="mock-nav" style="margin-top: 5px; opacity: 0.8;">任务: 宠物医院送宠 (P2023)</div>
+          <div class="mock-nav" style="margin-top: 5px; opacity: 0.8;">任务: 嘉华公馆接宠 (P1015)</div>
+        </div>
+        <div>
+          <span class="label" style="background: #f3e5f5; color: #4a148c; padding: 2px 6px; border-radius: 4px;">🌙 晚上 (18:00 - 21:00)</span>
+          <div class="placeholder" style="height: 40px; margin-top: 5px;">暂无任务</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-header">方案 C：日期刻度条 (Date Strip)</div>
+      <div class="mockup-body">
+        <div style="display: flex; gap: 8px; margin-bottom: 15px; overflow: hidden; padding-bottom: 5px; border-bottom: 1.5px solid #eee;">
+          <div style="flex: 0 0 60px; height: 60px; background: #2563EB; color: white; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px;">
+            <b>今日</b><span>29</span>
+          </div>
+          <div style="flex: 0 0 60px; height: 60px; background: white; border: 1px solid #ddd; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: #666;">
+            <b>周四</b><span>30</span>
+          </div>
+          <div style="flex: 0 0 60px; height: 60px; background: white; border: 1px solid #ddd; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: #666;">
+            <b>周五</b><span>01</span>
+          </div>
+          <div style="flex: 0 0 60px; height: 60px; background: white; border: 1px solid #ddd; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: #666;">
+            <b>周六</b><span>02</span>
+          </div>
+        </div>
+        <div class="cards" style="grid-template-columns: 1fr;">
+          <div class="mock-nav" style="border-left: 4px solid #fa8c16;">可可 (P1008) - 阳光小区 - 10:00</div>
+          <div class="mock-nav" style="border-left: 4px solid #fa8c16;">团团 (P1001) - 嘉华公馆 - 14:30</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 30px;">
+  <h3>方案 A：日期分组回顾 (Date Groups)</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="display: flex; gap: 20px;">
+        <div style="flex: 1; border-right: 1px dashed #ccc; padding-right: 10px;">
+          <h4 style="color: #2563EB;">📅 今日 (Today)</h4>
+          <div class="mock-nav" style="background: rgba(37, 99, 235, 0.1); margin-bottom: 8px;">10:00 - 接宠 - 可可</div>
+          <div class="mock-nav" style="background: rgba(37, 99, 235, 0.1);">14:30 - 送宠 - 团团</div>
+        </div>
+        <div style="flex: 1; opacity: 0.7;">
+          <h4 style="color: #606266;">📅 明日 (Tomorrow)</h4>
+          <div class="mock-nav">09:00 - 接宠 - 豆豆</div>
+        </div>
+    </div>
+  </div>
+</div>
