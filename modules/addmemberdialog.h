@@ -11,7 +11,7 @@ class AddMemberDialog;
 struct MemberInfo {
     QString id;
     QString name;
-    QString gender;      // 性别 (先生/女士/保密)
+    QString gender;      // 性别 (男/女)
     QString phone;
     QString level;
     QString birthday;    // 生日 (yyyy-MM-dd)

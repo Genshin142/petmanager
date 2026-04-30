@@ -36,6 +36,7 @@ public:
 private slots:
     void onNavClicked(int id);
     void onJumpToPetRequested(const QString &memberName, const QString &petName);
+    void onJumpToPetById(const QString &petId);
     void updateBadges();
 
 private:

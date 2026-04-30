@@ -128,6 +128,7 @@ public:
     void addPetRow(const PetInfo &info); // 使用结构体简化
     void addPet(const PetInfo &pet);
     void filterByMemberAndHighlightPet(const QString &memberName, const QString &petName);
+    void selectPetById(const QString &petId);
 
 private:
     void setupUI();

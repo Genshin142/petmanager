@@ -17,6 +17,7 @@ public:
     void updatePet(const PetInfo &info);
     PetInfo getPet(const QString &id) const;
     QList<PetInfo> allPets() const;
+    QList<PetInfo> getPetsByOwner(const QString &ownerId) const;
     void addPet(const PetInfo &info);
     void removePet(const QString &id);
     void notifyGlobalDataChanged();

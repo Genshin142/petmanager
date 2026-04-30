@@ -57,8 +57,10 @@ private:
     // UI Elements
     QLabel *m_avatarLabel;
     QLabel *m_nameLabel;
+    QLabel *m_idLabel;
     QLabel *m_breedLabel;
     QLabel *m_ownerLabel;
+    QLabel *m_roomBadge; // 右上角房间徽章
     QLabel *m_statusBadge; // 新增寄养房号标签
     QPushButton *m_archiveBtn; // 影像留档入口按钮
 

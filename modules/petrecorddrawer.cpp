@@ -54,7 +54,8 @@ void PetRecordDrawer::setupUI()
     topBar->addWidget(closeBtn);
     headerTop->addLayout(topBar);
 
-    QHBoxLayout *infoLayout = new QHBoxLayout();
+    QHBoxLayout *headerLayout = new QHBoxLayout();
+    
     m_avatarLabel = new QLabel();
     m_avatarLabel->setFixedSize(100, 100);
     m_avatarLabel->setStyleSheet("border-radius: 50px; background: #f0f2f5; border: none;");
@@ -69,18 +70,27 @@ void PetRecordDrawer::setupUI()
     m_breedLabel = new QLabel("--");
     m_breedLabel->setStyleSheet("font-size: 15px; color: #333333; font-weight: 600; border: none; background: transparent;");
     
-    m_ownerLabel = new QLabel("主人: -- | ID: --");
-    m_ownerLabel->setStyleSheet("font-size: 14px; color: #333333; font-weight: 500;");
+    m_ownerLabel = new QLabel();
+    m_ownerLabel->setStyleSheet("color: #606266; font-size: 13px;");
     
     nameCol->addWidget(m_nameLabel);
     nameCol->addWidget(m_breedLabel);
     nameCol->addWidget(m_ownerLabel);
+
+    m_roomBadge = new QLabel();
+    m_roomBadge->hide(); // 默认隐藏
+    m_roomBadge->setStyleSheet(
+        "background: #ecf5ff; color: #409eff; border: 1px solid #d9ecff; "
+        "border-radius: 4px; padding: 4px 10px; font-weight: bold; font-size: 13px;"
+    );
     
-    infoLayout->addWidget(m_avatarLabel);
-    infoLayout->addSpacing(15);
-    infoLayout->addLayout(nameCol);
-    infoLayout->addStretch();
-    headerTop->addLayout(infoLayout);
+    headerLayout->addWidget(m_avatarLabel);
+    headerLayout->addSpacing(15);
+    headerLayout->addLayout(nameCol);
+    headerLayout->addStretch();
+    headerLayout->addWidget(m_roomBadge, 0, Qt::AlignTop | Qt::AlignRight);
+    
+    headerTop->addLayout(headerLayout);
     headerTop->addStretch(); // 向上顶，防止切边
 
     mainLayout->addWidget(petHeader);
@@ -239,7 +249,16 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     m_breedLabel->setText(QString("%1  <span style='color:%2; font-size:18px; font-weight:bold;'>%3</span>")
                          .arg(info.breed).arg(genderColor).arg(genderSymbol));
     
-    m_ownerLabel->setText(QString("主人: %1 | ID: %2").arg(info.ownerName).arg(info.id));
+    m_ownerLabel->setText(QString("主人：%1 | ID：%2").arg(info.ownerName).arg(info.ownerId));
+
+    // 动态显示房间号
+    if (info.status == "在店 (寄养中)") {
+        // 模拟分配一个房间号，后续可从数据管理器获取真实关联
+        m_roomBadge->setText("房间：B-102");
+        m_roomBadge->show();
+    } else {
+        m_roomBadge->hide();
+    }
     
     // Avatar 高清渲染
     QPixmap pixmap(info.avatarPath);

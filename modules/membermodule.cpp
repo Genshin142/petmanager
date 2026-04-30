@@ -30,7 +30,14 @@ MemberModule::MemberModule(UserRole role, QWidget *parent) : QWidget(parent), m_
 
 void MemberModule::setupUI()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    // --- 全局水平布局 (左侧内容 + 右侧全高抽屉) ---
+    QHBoxLayout *rootLayout = new QHBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(0);
+
+    // 左侧容器
+    QWidget *leftContainer = new QWidget();
+    QVBoxLayout *mainLayout = new QVBoxLayout(leftContainer);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(15);
 
@@ -154,29 +161,20 @@ void MemberModule::setupUI()
 
     mainLayout->addLayout(operationLayout);
 
-    // 3. 表格 (直接加入主布局，与其他模块一致，确保自动撑满)
+    // 3. 内容区：仅放置表格
     memTable = new QTableWidget();
     memTable->setColumnCount(12);
     memTable->setHorizontalHeaderLabels({"选择", "会员ID", "会员姓名", "性别", "手机号码", "会员等级", "储值余额", "累计消费金额", "可用积分", "最后到店", "宠物档案", "操作"});
 
     // 固定的列宽策略与居中对齐
     memTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
-    // 默认自动拉伸填满宽度，特定的列手动固定
     memTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); 
-    
-    // 给第一列选择框固定宽度
     memTable->setColumnWidth(0, 48); 
-    memTable->setColumnWidth(3, 50); // 性别列紧凑
-    
-    // 宠物档案列：不需要太长
+    memTable->setColumnWidth(3, 50);
     memTable->horizontalHeader()->setSectionResizeMode(10, QHeaderView::Fixed);
     memTable->setColumnWidth(10, 150); 
-    
-    // 管理操作列：需要足够宽度容纳 4 个按钮
     memTable->horizontalHeader()->setSectionResizeMode(11, QHeaderView::Fixed);
-    memTable->setColumnWidth(11, 350); 
-    
-    // 最后到店日期
+    memTable->setColumnWidth(11, 240); 
     memTable->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
     memTable->setColumnWidth(9, 120); 
 
@@ -187,30 +185,23 @@ void MemberModule::setupUI()
     memTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     memTable->setFocusPolicy(Qt::NoFocus);
     memTable->verticalHeader()->setVisible(false);
-    memTable->verticalHeader()->setDefaultSectionSize(48); // 统一行高，确保按钮放得下
+    memTable->verticalHeader()->setDefaultSectionSize(48);
 
-    // 【修复1：样式调整】强制字体为纯黑，并自定义选中后的背景色，保证选中时清晰可见
+    // 隐藏已在详情页显示的列
+    memTable->setColumnHidden(6, true); // 余额
+    memTable->setColumnHidden(7, true); // 消费
+    memTable->setColumnHidden(8, true); // 积分
+    memTable->setColumnHidden(9, true); // 最后到店
+    memTable->setColumnHidden(10, true); // 宠物档案
+
     memTable->setStyleSheet(
-        "QTableWidget { "
-        "   border: 1px solid #ebeef5; "
-        "   background-color: white; "
-        "   color: black; " /* 全局默认纯黑色文字 */
-        "} "
+        "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; } "
         "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; } " 
-        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; border-bottom: 1px solid #ebeef5; color: #606266; font-size: 13px;  font-weight: bold; } "
-        "QHeaderView::section:vertical { "
-        "   background-color: #f5f7fa; " 
-        "   color: #909399; "
-        "   border: none; "
-        "   border-right: 1px solid #ebeef5; "
-        "   border-bottom: 1px solid #ebeef5; "
-        "   text-align: center; "
-        "   font-size: 12px; "
-        "} "
-        );
+        "QTableWidget::item:selected { background-color: #f0f7ff; color: #409eff; } " 
+        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; border-bottom: 1px solid #ebeef5; color: #606266; font-size: 13px; font-weight: bold; } "
+    );
 
-    mainLayout->addWidget(memTable);
+    mainLayout->addWidget(memTable, 1);
 
     // 5. 统计栏（固定高度，不抢夺表格空间）
     QFrame *statFrame = new QFrame();
@@ -293,21 +284,65 @@ void MemberModule::setupUI()
 
     mainLayout->addWidget(statFrame);
 
+    // --- 组装根布局 (左侧主体容器 + 右侧全高详情抽屉) ---
+    rootLayout->addWidget(leftContainer, 1);
+    
+    m_detailDrawer = new MemberDetailDrawer(this);
+    rootLayout->addWidget(m_detailDrawer);
+
     // 绑定事件
     connect(prevBtn, &QPushButton::clicked, this, &MemberModule::onPrevPage);
     connect(nextBtn, &QPushButton::clicked, this, &MemberModule::onNextPage);
     connect(jumpBtn, &QPushButton::clicked, this, &MemberModule::onJumpPage);
     connect(jumpEdit, &QLineEdit::returnPressed, this, &MemberModule::onJumpPage);
-
-    // 绑定事件
-    connect(searchEdit, &QLineEdit::textChanged, this, &MemberModule::onSearchTextChanged);
     connect(memTable, &QTableWidget::cellClicked, this, &MemberModule::onCellClicked);
+
+    // 处理详情页的新增宠物请求
+    connect(m_detailDrawer, &MemberDetailDrawer::sig_jumpToPetRequested, this, &MemberModule::sig_jumpToPetModule);
+    connect(m_detailDrawer, &MemberDetailDrawer::sig_addPetRequested, this, [=](const QString &memberId, const QString &memberName){
+        AddPetDialog dialog(this);
+        PetInfo initialInfo;
+        initialInfo.ownerId = memberId;
+        initialInfo.ownerName = memberName;
+        dialog.setPetInfo(initialInfo);
+
+        if (dialog.exec() == QDialog::Accepted) {
+            PetInfo pet = dialog.getPetInfo();
+            emit sig_petAdded(pet);
+
+            // 定位表格中的行并更新宠物列（即使列已隐藏）
+            for (int i = 0; i < memTable->rowCount(); ++i) {
+                if (memTable->item(i, 1)->text() == memberId) {
+                    QWidget *wrapper = memTable->cellWidget(i, 10);
+                    QComboBox *petCombo = wrapper ? wrapper->findChild<QComboBox*>() : nullptr;
+                    if (petCombo) {
+                        if (!petCombo->isEnabled() || petCombo->itemText(0) == "无") petCombo->clear();
+                        petCombo->setEnabled(true);
+                        petCombo->addItem(QString("%1（%2）").arg(pet.name, pet.breed));
+                    }
+                    // 重新触发点击事件以刷新抽屉内容
+                    onCellClicked(i, 0);
+                    break;
+                }
+            }
+            CustomMessageDialog::showWarning(this, "成功", QString("已为会员 %1 添加新宠物：%2").arg(memberName, pet.name));
+        }
+    });
+
+    // 搜索联动
+    connect(searchEdit, &QLineEdit::textChanged, this, &MemberModule::onSearchTextChanged);
 
     // 禁用右键菜单
     memTable->setContextMenuPolicy(Qt::NoContextMenu);
 
-    addSampleData();
+    // --- 初始化首行加载逻辑 ---
+    addSampleData(); 
     updateStatistics();
+    
+    if (memTable->rowCount() > 0) {
+        memTable->selectRow(0); // 视觉高亮
+        onCellClicked(0, 0);   // 加载详情数据并展开
+    }
 }
 
 void MemberModule::addRow(const QString &id, const QString &name, const QString &gender, const QString &birthday, const QString &phone, const QString &level, double balance, double consume_amt, int pts, const QString &lastVisit, const QString &pets)
@@ -434,20 +469,18 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
     // 生成显眼的按钮
     QPushButton *rechargeBtn = createBtn("充值", "#f0f9eb", "#67c23a", "#c2e7b0"); // 绿色
     QPushButton *editBtn = createBtn("修改", "#ecf5ff", "#409eff", "#b3d8ff"); // 蓝色
-    QPushButton *petBtn = createBtn("添加宠物", "#fdf6ec", "#e6a23c", "#f5dab1"); // 橙色
     QPushButton *deleteBtn = createBtn("删除", "#fef0f0", "#f56c6c", "#fbc4c4"); // 红色
 
     // 这里特别限制操作按钮的最大宽度为 70左右
     rechargeBtn->setFixedWidth(66);
     editBtn->setFixedWidth(70);
-    petBtn->setFixedWidth(70);
     deleteBtn->setFixedWidth(70);
 
+    actionLayout->addStretch(); // 左侧弹簧
     actionLayout->addWidget(rechargeBtn);
     actionLayout->addWidget(editBtn);
-    actionLayout->addWidget(petBtn);
     actionLayout->addWidget(deleteBtn);
-    actionLayout->addStretch();
+    actionLayout->addStretch(); // 右侧弹簧
 
     if (m_role == STAFF) {
         deleteBtn->setVisible(false);
@@ -485,86 +518,6 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
         }
     });
 
-    connect(petBtn, &QPushButton::clicked, this, [=](){
-        // 查找当前行
-        int currentRow = -1;
-        for (int i = 0; i < memTable->rowCount(); ++i) {
-            if (memTable->cellWidget(i, 11) == actionWidget) {
-                currentRow = i;
-                break;
-            }
-        }
-        if (currentRow == -1) return;
-
-        // 获取当前会员信息用于预填
-        QString memberId = memTable->item(currentRow, 1)->text();
-        QString memberName = memTable->item(currentRow, 2)->text();
-
-        AddPetDialog dialog(this);
-        
-        // 预设主人信息
-        PetInfo initialInfo;
-        initialInfo.ownerId = memberId;
-        initialInfo.ownerName = memberName;
-        dialog.setPetInfo(initialInfo);
-
-        if (dialog.exec() == QDialog::Accepted) {
-            PetInfo pet = dialog.getPetInfo();
-            
-            // 获取当前行的下拉框并更新
-            // 注意这里现在外面包裹了一层 QWidget
-            QWidget *wrapper = memTable->cellWidget(currentRow, 10);
-            QComboBox *petCombo = nullptr;
-            if (wrapper) petCombo = wrapper->findChild<QComboBox*>();
-
-            if (petCombo) {
-                if (!petCombo->isEnabled() || petCombo->itemText(0) == "无") {
-                    petCombo->clear();
-                    petCombo->setEnabled(true);
-                    petCombo->setStyleSheet(
-                        "QComboBox { "
-                        "   border: 1px solid #dcdfe6; "
-                        "   border-radius: 16px; "
-                        "   padding: 2px 12px; "
-                        "   background: #f5f7fa; "
-                        "   color: #606266; "
-                        "   font-size: 13px; "
-                        "} "
-                        "QComboBox:hover { border-color: #c0c4cc; } "
-                        "QComboBox:focus { border-color: #409eff; background: white; } "
-                        "QComboBox::drop-down { border: none; width: 24px; } "
-                        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; height: 14px; } "
-                        "QComboBox QAbstractItemView { "
-                        "   border: 1px solid #ebeef5; "
-                        "   border-radius: 10px; "
-                        "   background-color: white; "
-                        "   outline: none; "
-                        "} "
-                        "QComboBox QAbstractItemView::item { "
-                        "   height: 35px; "
-                        "   padding-left: 10px; "
-                        "   color: #606266; "
-                        "   background-color: white; "
-                        "   border-radius: 4px; "
-                        "   margin: 2px 5px; "
-                        "} "
-                        "QComboBox QAbstractItemView::item:hover, QComboBox QAbstractItemView::item:selected { "
-                        "   background-color: #f0f7ff; "
-                        "   color: #409eff; "
-                        "} "
-                    );
-                }
-                QString newPetLabel = QString("%1（%2）").arg(pet.name, pet.breed);
-                petCombo->addItem(newPetLabel);
-                petCombo->setCurrentText(newPetLabel);
-            }
-            
-            emit sig_petAdded(pet);
-            
-            CustomMessageDialog::showWarning(this, "添加成功", 
-                QString("已为会员 %1 成功添加新宠物档案：%2").arg(memTable->item(currentRow, 2)->text(), pet.name));
-        }
-    });
 
     connect(deleteBtn, &QPushButton::clicked, this, [=](){
         // 动态定位被点击按钮所在的行
@@ -592,17 +545,17 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
 
 void MemberModule::addSampleData()
 {
-    addRow("M001", "张三", "先生", "1990-05-20", "13800138000", "黄金会员", 500.00, 1250.00, 125, "2026-03-10", "团团（波斯猫）");
-    addRow("M002", "李芳", "女士", "1995-10-12", "13912345678", "普通会员", 0.00, 100.00, 10, "2026-02-22", "豆豆（柴犬）, 咪咪（银渐层）");
-    addRow("M003", "王五", "先生", "1988-03-05", "13777777777", "铂金会员", 1200.00, 3500.00, 350, "2025-12-05", "旺财（金毛犬）");
-    addRow("M004", "赵六", "先生", "1992-07-15", "13666666666", "钻石会员", 2500.00, 8800.00, 880, "2026-01-15", "小雪（萨摩耶）, 可可（泰迪）");
-    addRow("M005", "孙七", "女士", "1993-11-20", "18189294306", "普通会员", 50.00, 100.00, 10, "2026-03-25", "大黑（拉布拉多）");
-    addRow("M006", "周八", "先生", "1991-01-30", "13511112222", "黄金会员", 300.00, 600.00, 60, "2025-08-10", "皮皮（柯基）");
-    addRow("M007", "吴九", "女士", "1994-06-18", "13433334444", "普通会员", 20.00, 50.00, 5, "2026-04-01", "球球（英短）, 花花（加菲猫）");
-    addRow("M008", "郑十", "先生", "1989-12-25", "13355556666", "铂金会员", 800.00, 2000.00, 200, "2025-11-11", "小白（比熊）");
-    addRow("M009", "钱十一", "先生", "1992-03-14", "13277778888", "钻石会员", 1500.00, 5000.00, 500, "2026-04-05", "黑豹（孟加拉豹猫）");
-    addRow("M010", "陈十二", "女士", "1996-08-08", "13199990000", "普通会员", 10.00, 20.00, 2, "2026-01-20", "多多（阿拉斯加）");
-    addRow("M011", "林十三", "先生", "1990-09-09", "13012123434", "黄金会员", 450.00, 1100.00, 110, "2026-03-15", "发财（柴犬）, 欢欢（巴哥）");
+    addRow("M001", "张三", "男", "1990-05-20", "13800138000", "黄金会员", 500.00, 1250.00, 125, "2026-03-10", "团团（波斯猫）");
+    addRow("M002", "李芳", "女", "1995-10-12", "13912345678", "普通会员", 0.00, 100.00, 10, "2026-02-22", "豆豆（柴犬）, 咪咪（银渐层）");
+    addRow("M003", "王五", "男", "1988-03-05", "13777777777", "铂金会员", 1200.00, 3500.00, 350, "2025-12-05", "旺财（金毛犬）");
+    addRow("M004", "赵六", "男", "1992-07-15", "13666666666", "钻石会员", 2500.00, 8800.00, 880, "2026-01-15", "小雪（萨摩耶）, 可可（泰迪）");
+    addRow("M005", "孙七", "女", "1993-11-20", "18189294306", "普通会员", 50.00, 100.00, 10, "2026-03-25", "大黑（拉布拉多）");
+    addRow("M006", "周八", "男", "1991-01-30", "13511112222", "黄金会员", 300.00, 600.00, 60, "2025-08-10", "皮皮（柯基）");
+    addRow("M007", "吴九", "女", "1994-06-18", "13433334444", "普通会员", 20.00, 50.00, 5, "2026-04-01", "球球（英短）, 花花（加菲猫）");
+    addRow("M008", "郑十", "男", "1989-12-25", "13355556666", "铂金会员", 800.00, 2000.00, 200, "2025-11-11", "小白（比熊）");
+    addRow("M009", "钱十一", "男", "1992-03-14", "13277778888", "钻石会员", 1500.00, 5000.00, 500, "2026-04-05", "黑豹（孟加拉豹猫）");
+    addRow("M010", "陈十二", "女", "1996-08-08", "13199990000", "普通会员", 10.00, 20.00, 2, "2026-01-20", "多多（阿拉斯加）");
+    addRow("M011", "林十三", "男", "1990-09-09", "13012123434", "黄金会员", 450.00, 1100.00, 110, "2026-03-15", "发财（柴犬）, 欢欢（巴哥）");
 }
 
 void MemberModule::updateStatistics()
@@ -817,9 +770,40 @@ void MemberModule::exportData()
 
 void MemberModule::onCellClicked(int row, int column)
 {
-    Q_UNUSED(row);
     Q_UNUSED(column);
-    // 已由 QComboBox 接管，此处保留空实现或未来用于其它点击逻辑
+    if (row < 0 || row >= memTable->rowCount()) return;
+
+    MemberInfo info;
+    info.id = memTable->item(row, 1)->text();
+    info.name = memTable->item(row, 2)->text();
+    info.gender = memTable->item(row, 3)->text();
+    info.phone = memTable->item(row, 4)->text();
+    info.level = memTable->item(row, 5)->text();
+    info.balance = memTable->item(row, 6)->text().replace("¥ ", "").toDouble();
+    info.consume_amt = memTable->item(row, 7)->text().replace("¥ ", "").toDouble();
+    info.points = memTable->item(row, 8)->text().toInt();
+    
+    // 生日通常存储在 UserRole 中（参考 editBtn 逻辑）
+    info.birthday = memTable->item(row, 2)->data(Qt::UserRole).toString();
+    if(info.birthday.isEmpty()) info.birthday = "1990-01-01"; // Fallback
+
+    QString lastVisit = memTable->item(row, 9)->text();
+    
+    // 获取宠物档案文字
+    QString petsStr = "";
+    QWidget *petWrapper = memTable->cellWidget(row, 10);
+    if (petWrapper) {
+        QComboBox *petCombo = petWrapper->findChild<QComboBox*>();
+        if (petCombo) {
+            for (int i = 0; i < petCombo->count(); ++i) {
+                petsStr += petCombo->itemText(i) + (i == petCombo->count() - 1 ? "" : " / ");
+            }
+        }
+    }
+    if(petsStr.isEmpty()) petsStr = memTable->item(row, 10) ? memTable->item(row, 10)->text() : "暂无";
+
+    m_detailDrawer->setMember(info, lastVisit, petsStr);
+    m_detailDrawer->showDrawer();
 }
 
 QString MemberModule::generateNextMemberId()

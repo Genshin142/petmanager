@@ -194,6 +194,17 @@ QList<PetInfo> PetDataManager::allPets() const
     return m_pets.values();
 }
 
+QList<PetInfo> PetDataManager::getPetsByOwner(const QString &ownerId) const
+{
+    QList<PetInfo> result;
+    for (const PetInfo &info : m_pets.values()) {
+        if (info.ownerId == ownerId) {
+            result.append(info);
+        }
+    }
+    return result;
+}
+
 void PetDataManager::addPet(const PetInfo &info)
 {
     m_pets[info.id] = info;

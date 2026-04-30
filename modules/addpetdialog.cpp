@@ -37,8 +37,11 @@ void AddPetDialog::setupUI()
     healthCombo = new QComboBox();
     healthCombo->addItems({"健康", "良好", "一般", "亚健康", "疾病中", "康复中"});
     ownerIdEdit = new QLineEdit();
+    ownerIdEdit->setReadOnly(true);
     ownerNameEdit = new QLineEdit();
+    ownerNameEdit->setReadOnly(true);
     ownerPhoneEdit = new QLineEdit();
+    ownerPhoneEdit->setReadOnly(true);
     statusCombo = new QComboBox();
     statusCombo->addItems({"待入店 (在家)", "接送中 (在途)", "在店 (寄养中)", "在店 (洗护中)", "已离店 (回家)"});
     joinTimeEdit = new QLineEdit();
@@ -75,6 +78,7 @@ void AddPetDialog::setupUI()
         "   border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 12px; height: 34px; background: white; color: #606266; "
         "} "
         "QLineEdit:focus { border-color: #409eff; } "
+        "QLineEdit:read-only { background-color: #f5f7fa; color: #909399; } "
         "QComboBox { "
         "   border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 12px; height: 34px; background: white; color: #606266; "
         "} "

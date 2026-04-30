@@ -11,6 +11,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include "../common_types.h"
+#include "memberdetaildrawer.h"
 
 class MemberModule : public QWidget
 {
@@ -21,6 +22,7 @@ public:
 signals:
     void sig_petAdded(const PetInfo &pet);
     void sig_requestPetJump(const QString &memberName, const QString &petName);
+    void sig_jumpToPetModule(const QString &petId);
 
 private slots:
     void showAddMemberDialog();
@@ -59,6 +61,8 @@ private:
     QLineEdit *jumpEdit;
     QIntValidator *jumpValidator;
     QLabel *pageLabel;
+    MemberDetailDrawer *m_detailDrawer;
+    
     UserRole m_role;
     int m_currentPage;
     int m_pageSize;

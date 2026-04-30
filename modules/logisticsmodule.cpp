@@ -112,8 +112,8 @@ void LogisticsModule::setupUI()
 
     QWidget *mainColumn = new QWidget();
     m_mainLayout = new QVBoxLayout(mainColumn);
-    m_mainLayout->setContentsMargins(30, 25, 30, 30);
-    m_mainLayout->setSpacing(20);
+    m_mainLayout->setContentsMargins(30, 15, 30, 25);
+    m_mainLayout->setSpacing(10);
 
     // Header Area
     QHBoxLayout *headerLayout = new QHBoxLayout();
@@ -145,7 +145,7 @@ void LogisticsModule::setupUI()
     QHBoxLayout *datePickerLayout = new QHBoxLayout();
     datePickerLayout->setAlignment(Qt::AlignLeft);
     datePickerLayout->setSpacing(15);
-    datePickerLayout->setContentsMargins(0, 10, 0, 15);
+    datePickerLayout->setContentsMargins(0, 5, 0, 10);
 
     m_prevDayBtn = new QPushButton("< 上一天");
     m_prevDayBtn->setFixedSize(90, 40);
@@ -210,7 +210,7 @@ void LogisticsModule::setupUI()
     col1L->setContentsMargins(0, 0, 30, 0);
     col1L->setAlignment(Qt::AlignTop);
     m_todayTitle = new QLabel("今日任务 (Today)");
-    m_todayTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #2563eb; margin-bottom: 15px;");
+    m_todayTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #2563eb; margin-bottom: 8px;");
     col1L->addWidget(m_todayTitle);
     m_todayListLayout = new QVBoxLayout();
     m_todayListLayout->setSpacing(12);
@@ -231,7 +231,7 @@ void LogisticsModule::setupUI()
     col2L->setContentsMargins(30, 0, 0, 0);
     col2L->setAlignment(Qt::AlignTop);
     m_tomorrowTitle = new QLabel("明日预告 (Tomorrow)");
-    m_tomorrowTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #606266; margin-bottom: 15px;");
+    m_tomorrowTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #606266; margin-bottom: 8px;");
     col2L->addWidget(m_tomorrowTitle);
     m_tomorrowListLayout = new QVBoxLayout();
     m_tomorrowListLayout->setSpacing(12);

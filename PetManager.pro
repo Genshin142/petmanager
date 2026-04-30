@@ -36,7 +36,8 @@ SOURCES += \
     modules/productdatamanager.cpp \
     modules/inboundmodule.cpp \
     modules/inboundregistrationdialog.cpp \
-    modules/employeedetaildrawer.cpp
+    modules/employeedetaildrawer.cpp \
+    modules/memberdetaildrawer.cpp
 
 HEADERS += \
     loginwindow.h \
@@ -73,7 +74,8 @@ HEADERS += \
     modules/productdatamanager.h \
     modules/inboundmodule.h \
     modules/inboundregistrationdialog.h \
-    modules/employeedetaildrawer.h
+    modules/employeedetaildrawer.h \
+    modules/memberdetaildrawer.h
 
 FORMS += \
     loginwindow.ui \

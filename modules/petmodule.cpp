@@ -660,6 +660,17 @@ void PetModule::onBatchDelete()
     }
 }
 
+void PetModule::selectPetById(const QString &petId)
+{
+    for (int i = 0; i < petTable->rowCount(); ++i) {
+        if (petTable->item(i, 1)->text() == petId) { // ID 位于第 1 列
+            petTable->setCurrentCell(i, 0);
+            petTable->scrollToItem(petTable->item(i, 0));
+            return;
+        }
+    }
+}
+
 void PetModule::onPrevPage()
 {
     if (m_currentPage > 1) {
