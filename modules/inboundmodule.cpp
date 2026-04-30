@@ -190,7 +190,7 @@ void InboundModule::setupUI()
 
     // --- 4. Backdrop Overlay (Full-screen style like ProductModule) ---
     m_backdrop = new QWidget(); // Parent will be set to window() on show
-    m_backdrop->setStyleSheet("background: rgba(0,0,0,220);");
+    m_backdrop->setStyleSheet("background: rgba(0,0,0,215);");
     m_backdrop->hide();
     m_backdrop->installEventFilter(this);
 
@@ -202,7 +202,7 @@ void InboundModule::setupUI()
     
     m_largePreviewImg = new QLabel();
     m_largePreviewImg->setAlignment(Qt::AlignCenter);
-    m_largePreviewImg->setStyleSheet("border: none; background: white; border-radius: 12px; padding: 15px;");
+    m_largePreviewImg->setStyleSheet("border: none; background: transparent; padding: 0;");
     m_largePreviewImg->installEventFilter(this);
     backLayout->addWidget(m_largePreviewImg, 0, Qt::AlignCenter);
 
@@ -546,7 +546,8 @@ void InboundModule::switchImage(bool next)
     if (m_imagePaths.isEmpty()) return;
     if (next) m_currentImgIndex = (m_currentImgIndex + 1) % m_imagePaths.size();
     QPixmap pix(m_imagePaths[m_currentImgIndex]);
-    m_largePreviewImg->setPixmap(pix.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
+    m_largePreviewImg->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     updateLargeDots();
 }
 

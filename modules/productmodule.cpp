@@ -81,7 +81,7 @@ bool ProductModule::eventFilter(QObject *watched, QEvent *event) {
             
             // 全屏背景遮罩 - 调深阴影
             QFrame *bg = new QFrame();
-            bg->setStyleSheet("background-color: rgba(0, 0, 0, 235);");
+            bg->setStyleSheet("background-color: rgba(0, 0, 0, 215);");
             layout->addWidget(bg);
             
             QVBoxLayout *bgLayout = new QVBoxLayout(bg);
@@ -91,10 +91,11 @@ bool ProductModule::eventFilter(QObject *watched, QEvent *event) {
             QLabel *imgLabel = new QLabel();
             QPixmap pix(path);
             if (!pix.isNull()) {
-                // 调整显示尺寸，避免过大显得突兀
-                imgLabel->setPixmap(pix.scaled(400, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                // 统一标准：取窗口最小维度的 80%
+                int maxDim = qMin(mainWin->width(), mainWin->height()) * 0.8;
+                imgLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
             }
-            imgLabel->setStyleSheet("border: none; background: white; border-radius: 10px; padding: 20px;");
+            imgLabel->setStyleSheet("border: none; background: transparent; padding: 0;");
             imgLabel->setAlignment(Qt::AlignCenter);
             bgLayout->addWidget(imgLabel);
             

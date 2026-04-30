@@ -70,20 +70,12 @@ void RoleModule::showBigImage(const QString &path)
     QPixmap pix(path);
     if (pix.isNull()) return;
     
-    // 关键优化：给图片本身加白底，而不是给整个 Label 加背景
-    QPixmap whiteBg(pix.size());
-    whiteBg.fill(Qt::white);
-    QPainter p(&whiteBg);
-    p.drawPixmap(0, 0, pix);
-    p.end();
-    
     // 确保遮罩覆盖整个模块区域
     m_imagePreviewOverlay->setGeometry(rect());
     
-    // 限制预览图最大尺寸
-    int maxWidth = qMin(width() * 0.8, 600.0);
-    int maxHeight = qMin(height() * 0.8, 600.0);
-    m_previewLabel->setPixmap(whiteBg.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    // 统一标准：取窗口最小维度的 80%
+    int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
+    m_previewLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     
     m_imagePreviewOverlay->show();
     m_imagePreviewOverlay->raise();
@@ -302,7 +294,7 @@ void RoleModule::setupUI()
     // --- 初始化全屏大图预览层 ---
     m_imagePreviewOverlay = new QWidget(this);
     m_imagePreviewOverlay->setObjectName("EmployeePreviewOverlay");
-    m_imagePreviewOverlay->setStyleSheet("#EmployeePreviewOverlay { background-color: rgba(0, 0, 0, 220); }");
+    m_imagePreviewOverlay->setStyleSheet("#EmployeePreviewOverlay { background-color: rgba(0, 0, 0, 215); }");
     m_imagePreviewOverlay->hide();
     m_imagePreviewOverlay->installEventFilter(this);
 

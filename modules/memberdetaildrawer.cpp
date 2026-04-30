@@ -424,7 +424,7 @@ void MemberDetailDrawer::setupImagePreview()
 {
     m_imagePreviewOverlay = new QWidget(this->window()); // 挂载到顶层窗口
     m_imagePreviewOverlay->setObjectName("DrawerPreviewOverlay");
-    m_imagePreviewOverlay->setStyleSheet("#DrawerPreviewOverlay { background-color: rgba(0, 0, 0, 180); }");
+    m_imagePreviewOverlay->setStyleSheet("#DrawerPreviewOverlay { background-color: rgba(0, 0, 0, 215); }");
     m_imagePreviewOverlay->hide();
     m_imagePreviewOverlay->installEventFilter(this);
     

@@ -586,7 +586,7 @@ void LogisticsModule::showBigImage(const QString &path)
     layout->setContentsMargins(0, 0, 0, 0);
     
     QFrame *bg = new QFrame();
-    bg->setStyleSheet("background-color: rgba(0, 0, 0, 220);");
+    bg->setStyleSheet("background-color: rgba(0, 0, 0, 215);");
     layout->addWidget(bg);
     
     QVBoxLayout *bgLayout = new QVBoxLayout(bg);
@@ -597,9 +597,8 @@ void LogisticsModule::showBigImage(const QString &path)
     imgLabel->setAlignment(Qt::AlignCenter);
     imgLabel->setStyleSheet("border: none; background: transparent;");
     
-    int maxWidth = qMin(this->window()->width() * 0.8, 800.0);
-    int maxHeight = qMin(this->window()->height() * 0.8, 800.0);
-    imgLabel->setPixmap(pix.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
+    imgLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     bgLayout->addWidget(imgLabel, 0, Qt::AlignCenter);
     
     // Close on click anywhere

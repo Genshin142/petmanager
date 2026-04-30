@@ -261,7 +261,7 @@ void PetModule::setupUI()
     // --- 初始化全屏大图预览层 ---
     m_imagePreviewOverlay = new QWidget(this);
     m_imagePreviewOverlay->setObjectName("PetPreviewOverlay");
-    m_imagePreviewOverlay->setStyleSheet("#PetPreviewOverlay { background-color: rgba(0, 0, 0, 180); }");
+    m_imagePreviewOverlay->setStyleSheet("#PetPreviewOverlay { background-color: rgba(0, 0, 0, 215); }");
     m_imagePreviewOverlay->hide();
     m_imagePreviewOverlay->installEventFilter(this); // 点击遮罩任意位置关闭
     
@@ -840,10 +840,9 @@ void PetModule::showBigImage(const QString &path)
     // 确保遮罩覆盖整个 PetModule 区域
     m_imagePreviewOverlay->setGeometry(rect());
     
-    // 限制预览图最大尺寸为模块宽度的 80%
-    int maxWidth = width() * 0.8;
-    int maxHeight = height() * 0.8;
-    m_previewLabel->setPixmap(pix.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    // 统一标准：取窗口最小维度的 80%
+    int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
+    m_previewLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     
     m_imagePreviewOverlay->show();
     m_imagePreviewOverlay->raise(); // 确保遮罩层在最顶层展示
