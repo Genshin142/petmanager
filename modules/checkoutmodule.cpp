@@ -374,11 +374,27 @@ void CheckoutModule::setupUI()
 
 void CheckoutModule::updateStats()
 {
-    auto stats = PetDataManager::instance()->getOrderStats(m_startDateEdit->date(), m_endDateEdit->date());
     QLocale locale(QLocale::Chinese, QLocale::China);
-    m_statRevenue->setText(QString("¥ %1").arg(locale.toString((long long)stats.totalRevenue)));
-    m_statPending->setText(locale.toString(stats.pendingCount));
-    m_statAvgTicket->setText(QString("¥ %1").arg(locale.toString((long long)stats.avgTicket)));
+    
+    // 1. 获取今日实时营收 (锁定)
+    auto todayStats = PetDataManager::instance()->getOrderStats(QDate::currentDate(), QDate::currentDate());
+    m_statTodayRevenue->setText(QString("¥ %1").arg(locale.toString((long long)todayStats.totalRevenue)));
+    
+    // 2. 获取所选时段统计 (动态)
+    auto periodStats = PetDataManager::instance()->getOrderStats(m_startDateEdit->date(), m_endDateEdit->date());
+    m_statPeriodRevenue->setText(QString("¥ %1").arg(locale.toString((long long)periodStats.totalRevenue)));
+    
+    // 3. 待处理订单与客单价
+    m_statAvgTicketSub->setText(QString("平均客单价: ¥ %1").arg(locale.toString((long long)periodStats.avgTicket)));
+    
+    // 动态颜色反馈
+    if (periodStats.pendingCount > 0) {
+        m_statPendingCount->setStyleSheet("font-size: 22px; font-weight: 800; color: #f59e0b; font-family: 'Microsoft YaHei'; border: none;");
+        m_statPendingCount->setText(locale.toString(periodStats.pendingCount));
+    } else {
+        m_statPendingCount->setStyleSheet("font-size: 18px; font-weight: 800; color: #22c55e; font-family: 'Microsoft YaHei'; border: none;");
+        m_statPendingCount->setText("✓ 已清空");
+    }
 }
 
 void CheckoutModule::refreshView()
