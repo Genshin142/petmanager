@@ -1,445 +1,409 @@
 #include "checkoutmodule.h"
+#include "petdatamanager.h"
+#include "orderdetaildrawer.h"
 #include "custommessagedialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QDateEdit>
 #include <QHeaderView>
-#include <QScrollBar>
-#include <QAbstractItemView>
 #include <QGraphicsDropShadowEffect>
 #include <QPushButton>
-#include <QCheckBox>
 #include <QIntValidator>
+#include <QDateTime>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QPainterPath>
+#include <QTimer>
+#include <QListView>
+
+// --- 自定义 Delegate 实现全行圆角边框选中效果 ---
+class RowDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+
+        painter->fillRect(opt.rect, Qt::white);
+
+        if (opt.state & QStyle::State_Selected) {
+            bool isFirst = (index.column() == 0);
+            bool isLast = (index.column() == index.model()->columnCount() - 1);
+            
+            QRect rect = opt.rect.adjusted(1, 1, -1, -1);
+            int radius = 8;
+            QColor borderColor("#3b82f6");
+            QColor bgColor("#eff6ff");
+
+            painter->fillRect(opt.rect, bgColor);
+            painter->setPen(QPen(borderColor, 2));
+            
+            if (isFirst) {
+                QPainterPath path;
+                // 从右上角（不缩进）开始画到左侧圆角处
+                path.moveTo(opt.rect.right() + 1, rect.top()); 
+                path.lineTo(rect.left() + radius, rect.top());
+                path.arcTo(QRect(rect.left(), rect.top(), radius*2, radius*2), 90, 90);
+                path.lineTo(rect.left(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.left(), rect.bottom() - radius*2, radius*2, radius*2), 180, 90);
+                path.lineTo(opt.rect.right() + 1, rect.bottom());
+                painter->drawPath(path);
+            } else if (isLast) {
+                QPainterPath path;
+                // 从左上角（不缩进）开始画到右侧圆角处
+                path.moveTo(opt.rect.left() - 1, rect.top());
+                path.lineTo(rect.right() - radius, rect.top());
+                path.arcTo(QRect(rect.right() - radius*2, rect.top(), radius*2, radius*2), 90, -90);
+                path.lineTo(rect.right(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.right() - radius*2, rect.bottom() - radius*2, radius*2, radius*2), 0, -90);
+                path.lineTo(opt.rect.left() - 1, rect.bottom());
+                painter->drawPath(path);
+            } else {
+                // 中间列：画两条贯穿的水平线，不进行左右缩进
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.top()), QPoint(opt.rect.right() + 1, rect.top()));
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.bottom()), QPoint(opt.rect.right() + 1, rect.bottom()));
+            }
+        } else {
+            painter->setPen(QPen(QColor("#f1f5f9"), 1));
+            painter->drawLine(opt.rect.bottomLeft(), opt.rect.bottomRight());
+        }
+
+        QRect textRect = opt.rect.adjusted(15, 0, -15, 0);
+        QString text = opt.text;
+        
+        if (opt.state & QStyle::State_Selected) {
+            painter->setPen(QColor("#1d4ed8"));
+        } else {
+            painter->setPen(QColor("#334155"));
+        }
+        
+        QFont font = opt.font;
+        font.setFamily("Microsoft YaHei");
+        painter->setFont(font);
+        painter->drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, text);
+        painter->restore();
+    }
+};
 
 CheckoutModule::CheckoutModule(QWidget *parent) : QWidget(parent)
 {
     setupUI();
-    
-    // 初始化模拟真实订单流数据
-    m_orderData.append({"2026-03-16", "ORD1001", "M001", "张三", "单次小型犬洗护", 80.0, 1, 1.0, 80.0});
-    m_orderData.append({"2026-03-16", "ORD1002", "M004", "赵六", "猫咪疫苗注射", 150.0, 1, 0.9, 135.0});
-    m_orderData.append({"2026-03-15", "ORD1003", "M001", "张三", "商品: 猫砂", 35.0, 2, 1.0, 70.0});
-    m_orderData.append({"2026-03-15", "ORD1004", "普通散客", "王女士", "商品: 狗粮", 220.0, 1, 1.0, 220.0});
-    m_orderData.append({"2026-03-14", "ORD1005", "M004", "赵六", "寄养服务(1天)", 60.0, 1, 0.8, 48.0});
-    m_orderData.append({"2026-03-14", "ORD1006", "M023", "李先生", "体验卡购买", 500.0, 1, 1.0, 500.0});
-
-    updatePagination();
-    updateTotal();
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [this](){
+        updateStats();
+        refreshView();
+    });
+    updateStats();
+    refreshView();
 }
 
 void CheckoutModule::setupUI()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(25, 25, 25, 25);
-    mainLayout->setSpacing(20);
+    setStyleSheet("background-color: #f8fafc;");
 
-    // 1. 标题和上方筛选
-    QHBoxLayout *headerLayout = new QHBoxLayout();
-    QLabel *titleLabel = new QLabel("订单管理与清结算");
-    titleLabel->setStyleSheet("font-size: 24px; color: #303133;");
-    headerLayout->addWidget(titleLabel);
-    headerLayout->addStretch();
+    QVBoxLayout *rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(25, 25, 25, 25);
+    rootLayout->setSpacing(25);
 
-    QPushButton *batchDeleteBtn = new QPushButton("批量清理作废");
-    batchDeleteBtn->setFixedWidth(130);
-    batchDeleteBtn->setFixedHeight(34);
-    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
-    batchDeleteBtn->setStyleSheet(
-        "QPushButton { background: #fef0f0; color: #f56c6c; border-radius: 17px; border: 1px solid #fbc4c4; font-size: 13px; text-align: center; } "
-        "QPushButton:hover { background: #f56c6c; color: white; }"
+    // --- 1. Top Card (Title + Stats) ---
+    QFrame *topCard = new QFrame();
+    topCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #e2e8f0; }");
+    QVBoxLayout *topLayout = new QVBoxLayout(topCard);
+    topLayout->setContentsMargins(25, 20, 25, 20);
+    topLayout->setSpacing(20);
+
+    QLabel *title = new QLabel("订单管理中心");
+    title->setStyleSheet("font-size: 24px; font-weight: 800; color: #1a1b1e; font-family: 'Microsoft YaHei'; border: none;");
+    topLayout->addWidget(title);
+
+    QHBoxLayout *dashLayout = new QHBoxLayout();
+    dashLayout->setSpacing(20);
+    auto createStatCard = [&](const QString &title, QLabel* &valLabel, const QString &valColor = "#1e293b") {
+        QFrame *card = new QFrame();
+        card->setFixedHeight(80);
+        card->setStyleSheet("QFrame { background: white; border-radius: 8px; border: 1px solid #f1f5f9; }");
+        QVBoxLayout *l = new QVBoxLayout(card);
+        l->setContentsMargins(15, 12, 15, 12);
+        l->setSpacing(4);
+        QLabel *t = new QLabel(title); 
+        t->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 700; font-family: 'Microsoft YaHei'; border: none;");
+        valLabel = new QLabel("0"); 
+        valLabel->setStyleSheet(QString("font-size: 22px; font-weight: 800; color: %1; font-family: 'Microsoft YaHei'; border: none;").arg(valColor));
+        l->addWidget(t);
+        l->addWidget(valLabel);
+        return card;
+    };
+    dashLayout->addWidget(createStatCard("今日总营收", m_statRevenue, "#3b82f6"));
+    dashLayout->addWidget(createStatCard("待结算订单", m_statPending, "#f59e0b"));
+    dashLayout->addWidget(createStatCard("平均客单价", m_statAvgTicket, "#1e293b"));
+    topLayout->addLayout(dashLayout);
+    rootLayout->addWidget(topCard);
+
+    // --- Bottom Content Area ---
+    QWidget *contentArea = new QWidget();
+    contentArea->setStyleSheet("background: transparent;");
+    QVBoxLayout *contentRoot = new QVBoxLayout(contentArea);
+    contentRoot->setContentsMargins(0, 0, 0, 0);
+    contentRoot->setSpacing(20);
+
+    // --- 2. Advanced Filter Card ---
+    QFrame *filterCard = new QFrame();
+    filterCard->setFixedHeight(65);
+    filterCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: none; }");
+    QHBoxLayout *filterLayout = new QHBoxLayout(filterCard);
+    filterLayout->setContentsMargins(20, 0, 20, 0);
+    filterLayout->setSpacing(15);
+
+    // Search Box (Streamlined)
+    m_searchEdit = new QLineEdit();
+    m_searchEdit->setFixedWidth(200);
+    m_searchEdit->setPlaceholderText("搜单号、会员、宠物...");
+    m_searchEdit->setStyleSheet(
+        "QLineEdit { "
+        "  background: #f8fafc; "
+        "  border: 1px solid #e2e8f0; "
+        "  border-radius: 8px; "
+        "  padding: 8px 12px; "
+        "  font-family: 'Microsoft YaHei'; "
+        "  font-size: 13px; "
+        "  color: #1e293b; "
+        "} "
+        "QLineEdit:hover { border-color: #3b82f6; } "
+        "QLineEdit:focus { border-color: #3b82f6; background: white; }"
     );
-    connect(batchDeleteBtn, &QPushButton::clicked, this, &CheckoutModule::onBatchDelete);
+    filterLayout->addWidget(m_searchEdit);
+
+    auto createFilterLabel = [&](const QString &txt) {
+        QLabel *l = new QLabel(txt);
+        l->setStyleSheet("color: #64748b; font-weight: 700; font-size: 13px; border: none; font-family: 'Microsoft YaHei';");
+        return l;
+    };
+
+    // Business Module Filter
+    filterLayout->addWidget(createFilterLabel("业务类型:"));
+    m_moduleCombo = new QComboBox();
+    m_moduleCombo->setFixedWidth(120);
+    m_moduleCombo->setFixedHeight(36);
+    m_moduleCombo->addItem("全部业务", "全部");
+    m_moduleCombo->addItem("洗护预约", "Appointment");
+    m_moduleCombo->addItem("宠物寄养", "Boarding");
+    m_moduleCombo->addItem("到店服务", "Direct");
+    m_moduleCombo->addItem("商品零售", "Product");
     
-    headerLayout->addWidget(batchDeleteBtn);
-    mainLayout->addLayout(headerLayout);
+    QString comboStyle = 
+        "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; background: white; font-size: 13px; } "
+        "QComboBox::drop-down { border: none; width: 24px; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; }";
+    m_moduleCombo->setStyleSheet(comboStyle);
+    filterLayout->addWidget(m_moduleCombo);
 
-    QFrame *filterFrame = new QFrame();
-    filterFrame->setStyleSheet("QFrame { background: white; border-radius: 8px; border: 1px solid #ebeef5; }");
-    filterFrame->setFixedHeight(60);
-    QHBoxLayout *filterLayout = new QHBoxLayout(filterFrame);
-    filterLayout->setContentsMargins(15, 0, 15, 0);
-    filterLayout->setSpacing(10);
-
-    memberSearchEdit = new QLineEdit();
-    memberSearchEdit->setPlaceholderText(" 输入会员卡号/姓名查询...");
-    memberSearchEdit->setFixedWidth(200);
-    memberSearchEdit->setFixedHeight(32);
-    memberSearchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
-        "QLineEdit:focus { border-color: #409eff; outline: none; }"
-    );
-    filterLayout->addWidget(memberSearchEdit);
-
-    QLabel *dateLabel = new QLabel("日期:");
-    dateLabel->setStyleSheet("color: #606266; font-size: 13px; border: none; background: transparent;");
-    filterLayout->addWidget(dateLabel);
-
-    startYearCombo = new QComboBox(); startYearCombo->setFixedWidth(100);
-    startMonthCombo = new QComboBox(); startMonthCombo->setFixedWidth(80);
-    startDayCombo = new QComboBox(); startDayCombo->setFixedWidth(80);
+    // Date Range Picker (Using Custom Calendar)
+    filterLayout->addWidget(createFilterLabel("时段:"));
+    m_startDateEdit = new CustomCalendarEdit();
+    m_endDateEdit = new CustomCalendarEdit();
+    m_startDateEdit->setText(QDate::currentDate().addDays(-7).toString("yyyy-MM-dd"));
+    m_endDateEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
     
-    endYearCombo = new QComboBox(); endYearCombo->setFixedWidth(100);
-    endMonthCombo = new QComboBox(); endMonthCombo->setFixedWidth(80);
-    endDayCombo = new QComboBox(); endDayCombo->setFixedWidth(80);
+    QString dateStyle = 
+        "QLineEdit { "
+        "  background: #fcfcfd; "
+        "  border: 1px solid #e2e8f0; "
+        "  border-radius: 10px; "
+        "  padding: 0 15px; "
+        "  height: 40px; "
+        "  color: #1e293b; "
+        "  font-weight: 600; "
+        "  font-family: 'Microsoft YaHei'; "
+        "} "
+        "QLineEdit:hover { border-color: #3b82f6; } "
+        "QLineEdit:focus { border-color: #3b82f6; background: white; }";
 
-    initDateGroup(startYearCombo, startMonthCombo, startDayCombo, QDate(QDate::currentDate().year(), QDate::currentDate().month(), 1));
-    initDateGroup(endYearCombo, endMonthCombo, endDayCombo, QDate::currentDate());
+    for(auto d : {m_startDateEdit, m_endDateEdit}) {
+        d->setFixedWidth(115);
+        d->setStyleSheet(dateStyle);
+        filterLayout->addWidget(d);
+    }
+    
+    QLabel *toLabel = new QLabel("-");
+    toLabel->setStyleSheet("color: #94a3b8; font-weight: 800; border: none;"); // 删除边框
+    filterLayout->insertWidget(filterLayout->indexOf(m_endDateEdit), toLabel);
 
-    filterLayout->addWidget(startYearCombo); filterLayout->addWidget(startMonthCombo); filterLayout->addWidget(startDayCombo);
-    QLabel *toLabel = new QLabel("至");
-    toLabel->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-    filterLayout->addWidget(toLabel);
-    filterLayout->addWidget(endYearCombo); filterLayout->addWidget(endMonthCombo); filterLayout->addWidget(endDayCombo);
-
-    QPushButton *filterBtn = new QPushButton("统计筛选");
-    filterBtn->setFixedWidth(100);
-    filterBtn->setFixedHeight(32);
-    filterBtn->setCursor(Qt::PointingHandCursor);
-    filterBtn->setStyleSheet("QPushButton { background: #409eff; color: white; border-radius: 16px; border: none; font-size: 13px; } QPushButton:hover { background: #66b1ff; }");
-    connect(filterBtn, &QPushButton::clicked, this, &CheckoutModule::onFilter);
-    filterLayout->addWidget(filterBtn);
-
-    QPushButton *resetBtn = new QPushButton("重置");
-    resetBtn->setFixedWidth(80);
-    resetBtn->setFixedHeight(32);
-    resetBtn->setCursor(Qt::PointingHandCursor);
-    resetBtn->setStyleSheet("QPushButton { background: white; color: #606266; border-radius: 16px; border: 1px solid #dcdfe6; font-size: 13px; } QPushButton:hover { border-color: #409eff; color: #409eff; }");
-    connect(resetBtn, &QPushButton::clicked, this, [this]() {
-        memberSearchEdit->clear();
-        m_currentPage = 1;
-        updatePagination();
-        updateTotal();
-    });
-    filterLayout->addWidget(resetBtn);
     filterLayout->addStretch();
-    mainLayout->addWidget(filterFrame);
+    contentRoot->addWidget(filterCard);
 
-    // 2. 表格展示
+    // Connections
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &CheckoutModule::onFilter);
+    connect(m_moduleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CheckoutModule::onFilter);
+    connect(m_startDateEdit, &CustomCalendarEdit::dateChanged, this, &CheckoutModule::onFilter);
+    connect(m_endDateEdit, &CustomCalendarEdit::dateChanged, this, &CheckoutModule::onFilter);
+
+    QHBoxLayout *mainContentLayout = new QHBoxLayout();
+    mainContentLayout->setSpacing(25);
+
+    // --- 3. Middle Card (Table) ---
+    QFrame *tableCard = new QFrame();
+    tableCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #e2e8f0; }");
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableCard);
+    tableLayout->setContentsMargins(0, 5, 0, 0);
+
     orderTable = new QTableWidget();
-    orderTable->setColumnCount(11); // 选择 + 9列原始数据 + 操作列
-    orderTable->setHorizontalHeaderLabels({"选择", "记录日期", "流水号", "身份ID", "客户/会员姓名", "消费项目名细", "核算单价", "数量", "折扣率", "实收合计", "操作"});
-    
+    orderTable->setColumnCount(7); // Increased column count
+    orderTable->setHorizontalHeaderLabels({"日期", "订单编号", "客户信息", "业务来源", "具体明细", "金额", "状态"});
+    orderTable->setItemDelegate(new RowDelegate(orderTable));
     orderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    orderTable->setColumnWidth(0, 48); // 选择框
-    orderTable->setColumnWidth(1, 100); // 日期
-    orderTable->setColumnWidth(2, 100); // 订单号
-    orderTable->setColumnWidth(3, 100); // ID
-    orderTable->setColumnWidth(4, 100); // 姓名
-    orderTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch); // 消费项目
-    orderTable->setColumnWidth(6, 80); // 单价
-    orderTable->setColumnWidth(7, 60); // 数量
-    orderTable->setColumnWidth(8, 80); // 折扣率
-    orderTable->setColumnWidth(9, 100); // 合计
-    orderTable->setColumnWidth(10, 80); // 操作
-
-    orderTable->setShowGrid(false);
-    orderTable->setAlternatingRowColors(false);
+    orderTable->setColumnWidth(0, 140); // Date
+    orderTable->setColumnWidth(1, 150); // Order ID
+    orderTable->setColumnWidth(2, 120); // Customer
+    orderTable->setColumnWidth(3, 100); // Item
+    orderTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch); // Details takes all remaining space
+    orderTable->setColumnWidth(5, 100); // Amount
+    orderTable->setColumnWidth(6, 100); // Status
+    orderTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    orderTable->verticalHeader()->setDefaultSectionSize(60); 
     orderTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     orderTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    orderTable->setFocusPolicy(Qt::NoFocus);
     orderTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    orderTable->setShowGrid(false);
     orderTable->verticalHeader()->setVisible(false);
-    orderTable->verticalHeader()->setDefaultSectionSize(45);
-
     orderTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; outline: none; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; } " 
-        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; font-weight: bold; color: #606266; } "
-        "QCheckBox::indicator { width: 16px; height: 16px; }"
-        "QCheckBox::indicator:unchecked { border: 1px solid #dcdfe6; background: white; border-radius: 2px; }"
-        "QCheckBox::indicator:checked { image: url(:/images/check.svg); background: #409eff; border: 1px solid #409eff; border-radius: 2px; }"
+        "QTableWidget { border: none; background: white; gridline-color: transparent; outline: none; } "
+        "QHeaderView { background: white; border: none; } "
+        "QHeaderView::section { background: white; border: none; border-bottom: 1px solid #f1f5f9; padding: 12px; font-weight: 600; color: #64748b; font-family: 'Microsoft YaHei'; font-size: 13px; }"
     );
-    mainLayout->addWidget(orderTable);
+    connect(orderTable, &QTableWidget::itemClicked, this, [this](QTableWidgetItem *item){
+        onOrderClicked(item->row());
+    });
+    tableLayout->addWidget(orderTable);
 
-    // 3. 底部概览与真分页栏
-    QFrame *bottomBar = new QFrame();
-    bottomBar->setFixedHeight(70);
-    bottomBar->setStyleSheet("background: #f8f9fb; border-top: 1px solid #ebeef5; border-radius: 8px;");
-    
-    QGraphicsDropShadowEffect *bottomShadow = new QGraphicsDropShadowEffect();
-    bottomShadow->setBlurRadius(10); bottomShadow->setColor(QColor(0,0,0,10)); bottomShadow->setOffset(0, -2);
-    bottomBar->setGraphicsEffect(bottomShadow);
-
-    QHBoxLayout *bottomLayout = new QHBoxLayout(bottomBar);
-    bottomLayout->setContentsMargins(20, 0, 20, 0);
-
-    QVBoxLayout *statBox = new QVBoxLayout();
-    statBox->setSpacing(5);
-    statBox->setAlignment(Qt::AlignVCenter);
-    
-    orderCountLabel = new QLabel("期间总订单: 0 笔");
-    orderCountLabel->setStyleSheet("color: #606266; font-size: 14px;");
-    
-    QHBoxLayout *amtHBox = new QHBoxLayout();
-    totalAmtLabel = new QLabel("清算总金额: ￥0.00");
-    totalAmtLabel->setStyleSheet("color: #f56c6c; font-size: 16px; font-weight: bold;");
-    avgAmtLabel = new QLabel(" | 单笔均价: ￥0.00");
-    avgAmtLabel->setStyleSheet("color: #909399; font-size: 14px;");
-    amtHBox->addWidget(totalAmtLabel);
-    amtHBox->addWidget(avgAmtLabel);
-    amtHBox->addStretch();
-    
-    statBox->addWidget(orderCountLabel);
-    statBox->addLayout(amtHBox);
-    bottomLayout->addLayout(statBox);
-    
-    bottomLayout->addStretch();
-
-    // 分页组件
-    QHBoxLayout *pageLayout = new QHBoxLayout();
+    QHBoxLayout *pageBar = new QHBoxLayout();
+    pageBar->setContentsMargins(20, 10, 20, 15);
     pageLabel = new QLabel("第 1 页 / 共 1 页");
-    pageLabel->setStyleSheet("color: #606266; font-size: 13px;");
-    
-    QLabel *jumpLbl1 = new QLabel("跳转到"); jumpLbl1->setStyleSheet("color: #606266; font-size: 13px;");
-    jumpEdit = new QLineEdit();
-    jumpEdit->setFixedSize(40, 26);
-    jumpEdit->setAlignment(Qt::AlignCenter);
-    jumpValidator = new QIntValidator(1, 1, this);
-    jumpEdit->setValidator(jumpValidator);
-    jumpEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; background: white; } QLineEdit:focus { border-color: #409eff; }");
-    QLabel *jumpLbl2 = new QLabel("页"); jumpLbl2->setStyleSheet("color: #606266; font-size: 13px;");
-    
-    QPushButton *goBtn = new QPushButton("确认");
-    goBtn->setFixedSize(40, 26);
-    goBtn->setCursor(Qt::PointingHandCursor);
-    goBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; font-size: 12px; } QPushButton:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }");
-    
+    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-family: 'Microsoft YaHei'; border: none;");
     prevBtn = new QPushButton("上一页");
-    prevBtn->setFixedSize(60, 26);
-    prevBtn->setCursor(Qt::PointingHandCursor);
-    prevBtn->setStyleSheet(goBtn->styleSheet());
-    
     nextBtn = new QPushButton("下一页");
-    nextBtn->setFixedSize(60, 26);
-    nextBtn->setCursor(Qt::PointingHandCursor);
-    nextBtn->setStyleSheet(goBtn->styleSheet());
-
-    pageLayout->addWidget(jumpLbl1);
-    pageLayout->addWidget(jumpEdit);
-    pageLayout->addWidget(jumpLbl2);
-    pageLayout->addWidget(goBtn);
-    pageLayout->addSpacing(15);
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
-
-    bottomLayout->addLayout(pageLayout);
-    mainLayout->addWidget(bottomBar);
-
+    QString pageBtnStyle = "QPushButton { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 15px; color: #475569; font-weight: 600; font-size: 12px; font-family: 'Microsoft YaHei'; } "
+                           "QPushButton:hover { background: #f8fafc; border-color: #cbd5e1; } "
+                           "QPushButton:disabled { color: #cbd5e1; background: #f1f5f9; }";
+    prevBtn->setStyleSheet(pageBtnStyle);
+    nextBtn->setStyleSheet(pageBtnStyle);
     connect(prevBtn, &QPushButton::clicked, this, &CheckoutModule::onPrevPage);
     connect(nextBtn, &QPushButton::clicked, this, &CheckoutModule::onNextPage);
-    connect(goBtn, &QPushButton::clicked, this, &CheckoutModule::onJumpPage);
-    connect(jumpEdit, &QLineEdit::returnPressed, this, &CheckoutModule::onJumpPage);
+    pageBar->addStretch();
+    pageBar->addWidget(prevBtn);
+    pageBar->addWidget(pageLabel);
+    pageBar->addWidget(nextBtn);
+    tableLayout->addLayout(pageBar);
+
+    mainContentLayout->addWidget(tableCard, 7);
+
+    // --- 4. Right Card (Detail) ---
+    QVBoxLayout *rightLayout = new QVBoxLayout();
+    m_detailDrawer = new OrderDetailDrawer();
+    m_detailDrawer->setFixedWidth(450);
+    m_detailDrawer->setStyleSheet("OrderDetailDrawer { background: white; border-radius: 12px; border: 1px solid #e2e8f0; }");
+    rightLayout->addWidget(m_detailDrawer);
+    // Removed stretch to allow full height
+    mainContentLayout->addLayout(rightLayout, 3);
+
+    contentRoot->addLayout(mainContentLayout);
+    rootLayout->addWidget(contentArea);
 }
 
-void CheckoutModule::initDateGroup(QComboBox* y, QComboBox* m, QComboBox* d, const QDate &initDate)
+void CheckoutModule::updateStats()
 {
-    QString style = "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 4px 10px; font-size: 13px; background: white; color: #606266; } "
-                    "QComboBox:focus { border-color: #409eff; } "
-                    "QComboBox::drop-down { border: none; width: 24px; } "
-                    "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; }";
-    
-    y->setStyleSheet(style); m->setStyleSheet(style); d->setStyleSheet(style);
-    
-    int currentYear = QDate::currentDate().year();
-    for(int i=2024; i<=currentYear; ++i) y->addItem(QString::number(i) + "年", i);
-    for(int i=1; i<=12; ++i) m->addItem(QString("%1月").arg(i, 2, 10, QChar('0')), i);
-    
-    y->setCurrentText(QString::number(initDate.year()) + "年");
-    m->setCurrentIndex(initDate.month()-1);
-    
-    updateDayCombo(y, m, d);
-    d->setCurrentIndex(d->findData(initDate.day()));
-
-    connect(y, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ updateDayCombo(y, m, d); });
-    connect(m, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ updateDayCombo(y, m, d); });
+    auto stats = PetDataManager::instance()->getOrderStats(m_startDateEdit->date(), m_endDateEdit->date());
+    QLocale locale(QLocale::Chinese, QLocale::China);
+    m_statRevenue->setText(QString("¥ %1").arg(locale.toString((long long)stats.totalRevenue)));
+    m_statPending->setText(locale.toString(stats.pendingCount));
+    m_statAvgTicket->setText(QString("¥ %1").arg(locale.toString((long long)stats.avgTicket)));
 }
 
-void CheckoutModule::updateDayCombo(QComboBox* y, QComboBox* m, QComboBox* d) {
-    if(!d) return;
-    d->blockSignals(true);
-    int year = y->currentText().remove("年").toInt();
-    int month = m->currentIndex() + 1;
-    int oldDay = d->currentData().toInt();
-    if(oldDay <= 0) oldDay = d->currentText().remove("日").toInt();
-    
-    QDate date(year, month, 1);
-    int days = date.daysInMonth();
-    d->clear();
-    for(int i=1; i<=days; ++i) d->addItem(QString("%1日").arg(i, 2, 10, QChar('0')), i);
-    
-    if(d->findData(oldDay) != -1) d->setCurrentIndex(d->findData(oldDay));
-    else d->setCurrentIndex(0);
-    d->blockSignals(false);
+void CheckoutModule::refreshView()
+{
+    QString moduleFilter = m_moduleCombo->currentData().toString();
+    m_displayData = PetDataManager::instance()->getOrders(m_startDateEdit->date(), m_endDateEdit->date(), m_searchEdit->text(), moduleFilter);
+    updatePagination();
+    if (m_displayData.isEmpty()) {
+        m_detailDrawer->showEmptyState();
+    } else {
+        int start = (m_currentPage - 1) * m_pageSize;
+        if (start < m_displayData.size()) {
+            m_detailDrawer->setOrder(m_displayData[start]);
+            orderTable->selectRow(0);
+        }
+    }
 }
 
 void CheckoutModule::updatePagination()
 {
     orderTable->setRowCount(0);
-    
-    QString kw = memberSearchEdit->text().trimmed().toLower();
-    QDate sDate(startYearCombo->currentText().toInt(), startMonthCombo->currentIndex()+1, startDayCombo->currentText().toInt());
-    QDate eDate(endYearCombo->currentText().toInt(), endMonthCombo->currentIndex()+1, endDayCombo->currentText().toInt());
-    
-    QList<OrderRecord> filteredData;
-    for (const auto &r : m_orderData) {
-        bool match = true;
-        if (!kw.isEmpty() && !r.memberId.toLower().contains(kw) && !r.memberName.toLower().contains(kw) && !r.orderId.toLower().contains(kw)) match = false;
-        QDate rowDate = QDate::fromString(r.date, "yyyy-MM-dd");
-        if (rowDate.isValid() && (rowDate < sDate || rowDate > eDate)) match = false;
-        
-        if (match) filteredData.append(r);
-    }
-    
-    int total = filteredData.size();
+    int total = m_displayData.size();
     int totalPages = qMax(1, (total + m_pageSize - 1) / m_pageSize);
-    
-    if (jumpValidator) jumpValidator->setTop(totalPages);
     if (m_currentPage > totalPages) m_currentPage = totalPages;
-    if (m_currentPage < 1) m_currentPage = 1;
-
     int start = (m_currentPage - 1) * m_pageSize;
     int end = qMin(start + m_pageSize, total);
-
     for (int i = start; i < end; ++i) {
-        const auto &r = filteredData[i];
+        const auto &order = m_displayData[i];
         int row = orderTable->rowCount();
         orderTable->insertRow(row);
-        
-        // 0: CheckBox
-        QWidget *cbWidget = new QWidget();
-        QHBoxLayout *cbLayout = new QHBoxLayout(cbWidget);
-        cbLayout->setContentsMargins(0, 0, 0, 0); cbLayout->setAlignment(Qt::AlignCenter);
-        QCheckBox *cb = new QCheckBox();
-        cbLayout->addWidget(cb);
-        orderTable->setCellWidget(row, 0, cbWidget);
-        
-        auto setItem = [&](int col, QString text) {
-            QTableWidgetItem *item = new QTableWidgetItem(text);
-            item->setTextAlignment(Qt::AlignCenter);
-            item->setFont(QFont("Microsoft YaHei", 9));
-            orderTable->setItem(row, col, item);
-            return item;
+        auto setItem = [&](int col, const QString &text, const QString &color = "#475569") {
+            QTableWidgetItem *it = new QTableWidgetItem(text);
+            it->setForeground(QColor(color));
+            it->setTextAlignment(Qt::AlignCenter);
+            orderTable->setItem(row, col, it);
         };
+
+        setItem(0, order.createTime.left(16));
+        setItem(1, order.id, "#64748b");
+        // 客户信息：显示姓名 (ID)，若为空则显示“临时客”
+        QString memberStr = order.memberName.isEmpty() ? "临时客" : order.memberName;
+        if (!order.memberId.isEmpty()) memberStr += QString(" %1").arg(order.memberId);
+        setItem(2, memberStr, "#1e293b");
         
-        setItem(1, r.date);
-        setItem(2, r.orderId);
-        setItem(3, r.memberId);
-        setItem(4, r.memberName);
-        setItem(5, r.item);
-        setItem(6, QString("¥%1").arg(r.unitPrice, 0, 'f', 2));
-        setItem(7, QString::number(r.qty));
-        setItem(8, QString("%1 折").arg(r.discount * 10, 0, 'f', 1));
+        // 业务来源：采用更专业的业务分类命名
+        QString sourceZh = (order.sourceModule == "Product" ? "商品零售" : 
+                           (order.sourceModule == "Boarding" ? "宠物寄养" : 
+                           (order.sourceModule == "Appointment" ? "洗护预约" : 
+                           (order.sourceModule == "Direct" ? "到店服务" : "其他业务"))));
+        setItem(3, sourceZh, "#3b82f6");
         
-        QTableWidgetItem *tot = setItem(9, QString("¥%1").arg(r.total, 0, 'f', 2));
-        tot->setForeground(QColor("#f56c6c")); tot->setFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+        setItem(4, order.itemDetails);
         
-        // 10: Action
-        QWidget *actW = new QWidget();
-        QHBoxLayout *actL = new QHBoxLayout(actW);
-        actL->setContentsMargins(0,0,0,0); actL->setAlignment(Qt::AlignCenter);
-        
-        QPushButton *delBtn = new QPushButton("删作废");
-        delBtn->setFixedSize(50, 24); delBtn->setCursor(Qt::PointingHandCursor);
-        delBtn->setStyleSheet("QPushButton { background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 3px; font-size: 11px; padding: 0; } QPushButton:hover { background: #f56c6c; color: white; }");
-        delBtn->setProperty("orderId", r.orderId);
-        connect(delBtn, &QPushButton::clicked, this, &CheckoutModule::onDeleteSingle);
-        actL->addWidget(delBtn);
-        orderTable->setCellWidget(row, 10, actW);
+        QTableWidgetItem *amtIt = new QTableWidgetItem(QString("¥ %1").arg(order.totalAmount, 0, 'f', 2));
+        amtIt->setForeground(QColor("#334155"));
+        amtIt->setTextAlignment(Qt::AlignCenter);
+        orderTable->setItem(row, 5, amtIt);
+
+        QWidget *tagContainer = new QWidget();
+        QHBoxLayout *tagLayout = new QHBoxLayout(tagContainer);
+        tagLayout->setContentsMargins(0, 0, 0, 0);
+        tagLayout->setAlignment(Qt::AlignCenter);
+        QLabel *tag = new QLabel(order.status == "Paid" ? "已支付" : (order.status == "Unpaid" ? "待结算" : "已作废"));
+        QString tagStyle = "padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; font-family: 'Microsoft YaHei';";
+        if (order.status == "Paid") tagStyle += "background: #dcfce7; color: #166534;";
+        else if (order.status == "Unpaid") tagStyle += "background: #ffedd5; color: #9a3412;";
+        else tagStyle += "background: #f1f5f9; color: #475569;";
+        tag->setStyleSheet(tagStyle);
+        tagLayout->addWidget(tag);
+        orderTable->setCellWidget(row, 6, tagContainer);
     }
-    
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
     prevBtn->setEnabled(m_currentPage > 1);
     nextBtn->setEnabled(m_currentPage < totalPages);
 }
 
-void CheckoutModule::updateTotal()
+void CheckoutModule::onFilter() { m_currentPage = 1; refreshView(); }
+void CheckoutModule::onPrevPage() { if (m_currentPage > 1) { m_currentPage--; updatePagination(); } }
+void CheckoutModule::onNextPage() { if (m_currentPage < (m_displayData.size() + m_pageSize - 1) / m_pageSize) { m_currentPage++; updatePagination(); } }
+void CheckoutModule::onJumpPage() {}
+void CheckoutModule::onOrderClicked(int row)
 {
-    QString kw = memberSearchEdit->text().trimmed().toLower();
-    QDate sDate(startYearCombo->currentText().toInt(), startMonthCombo->currentIndex()+1, startDayCombo->currentText().toInt());
-    QDate eDate(endYearCombo->currentText().toInt(), endMonthCombo->currentIndex()+1, endDayCombo->currentText().toInt());
-    
-    int count = 0;
-    double sum = 0.0;
-    
-    for (const auto &r : m_orderData) {
-        bool match = true;
-        if (!kw.isEmpty() && !r.memberId.toLower().contains(kw) && !r.memberName.toLower().contains(kw) && !r.orderId.toLower().contains(kw)) match = false;
-        QDate rowDate = QDate::fromString(r.date, "yyyy-MM-dd");
-        if (rowDate.isValid() && (rowDate < sDate || rowDate > eDate)) match = false;
-        
-        if (match) {
-            count++;
-            sum += r.total;
-        }
-    }
-
-    orderCountLabel->setText(QString("期间总订单: %1 笔").arg(count));
-    totalAmtLabel->setText(QString("清算总金额: ￥%1").arg(sum, 0, 'f', 2));
-    if (count > 0) avgAmtLabel->setText(QString(" | 单笔均价: ￥%1").arg(sum / count, 0, 'f', 2));
-    else avgAmtLabel->setText(" | 单笔均价: ￥0.00");
-}
-
-void CheckoutModule::onFilter()
-{
-    m_currentPage = 1;
-    updatePagination();
-    updateTotal();
-}
-
-void CheckoutModule::onPrevPage() {
-    if (m_currentPage > 1) { m_currentPage--; updatePagination(); }
-}
-
-void CheckoutModule::onNextPage() {
-    m_currentPage++; updatePagination(); 
-}
-
-void CheckoutModule::onJumpPage() {
-    int page = jumpEdit->text().toInt();
-    if (page >= 1) { m_currentPage = page; updatePagination(); }
-    jumpEdit->clear(); jumpEdit->clearFocus();
-}
-
-void CheckoutModule::onBatchDelete() {
-    QStringList toDeleteIds;
-    for (int r = 0; r < orderTable->rowCount(); ++r) {
-        QWidget *w = orderTable->cellWidget(r, 0);
-        if (w) {
-            QCheckBox *cb = w->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                toDeleteIds.append(orderTable->item(r, 2)->text());
-            }
-        }
-    }
-    
-    if (toDeleteIds.isEmpty()) {
-        CustomMessageDialog::showWarning(this, "批量操作", "请先在前方的方框中勾选需要作废的流水记录！");
-        return;
-    }
-    
-    if (CustomMessageDialog::confirm(this, "核准清理", QString("是否明确要彻底冲正作废这批 %1 笔订单流水？\n该操作无法撤销。").arg(toDeleteIds.size()))) {
-        m_orderData.erase(std::remove_if(m_orderData.begin(), m_orderData.end(), [&](const OrderRecord& rec){
-            return toDeleteIds.contains(rec.orderId);
-        }), m_orderData.end());
-        updatePagination();
-        updateTotal();
+    int dataIdx = (m_currentPage - 1) * m_pageSize + row;
+    if (dataIdx < m_displayData.size()) {
+        m_detailDrawer->setOrder(m_displayData[dataIdx]);
     }
 }
-
-void CheckoutModule::onDeleteSingle() {
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-    
-    QString oid = btn->property("orderId").toString();
-    if (CustomMessageDialog::confirm(this, "严重操作", QString("确认立刻抹除并废弃单号为 [%1] 的流水吗？").arg(oid))) {
-        for (int i=0; i<m_orderData.size(); ++i) {
-            if (m_orderData[i].orderId == oid) {
-                m_orderData.removeAt(i);
-                break;
-            }
-        }
-        updatePagination();
-        updateTotal();
-    }
-}
+void CheckoutModule::resizeEvent(QResizeEvent *event) { QWidget::resizeEvent(event); }

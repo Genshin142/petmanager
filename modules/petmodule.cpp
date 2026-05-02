@@ -39,22 +39,16 @@ PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pag
     // 初始化悬浮气泡
     m_floatingTooltip = new FloatingTooltip(this);
     
-    // 应用自定义代理到以往病例(7)和饮食禁忌(8)
-    auto *delegate = new CustomTooltipDelegate(this);
-    petTable->setItemDelegateForColumn(7, delegate);
-    petTable->setItemDelegateForColumn(8, delegate);
-    
     // 开启鼠标追踪并安装事件过滤器，确保气泡响应灵敏
     petTable->setMouseTracking(true);
     petTable->viewport()->setMouseTracking(true);
     petTable->viewport()->installEventFilter(this);
 
     // 双击单元格进入编辑
-    connect(petTable, &QTableWidget::cellDoubleClicked, this, [this](int /*row*/, int col) {
-        if (col == 7 || col == 8) {
-            onEditPet();
-        }
+    connect(petTable, &QTableWidget::cellDoubleClicked, this, [this](int /*row*/, int /*col*/) {
+        onEditPet();
     });
+
     
     if (petTable->rowCount() > 0) {
         onCurrentCellChanged(0, 0, -1, -1);
@@ -138,26 +132,28 @@ void PetModule::setupUI()
     mainLayout->addLayout(operationLayout);
 
     petTable = new QTableWidget();
-    petTable->setColumnCount(12);
+    petTable->setColumnCount(8);
     petTable->setHorizontalHeaderLabels({
-        "选择", "宠物ID", "宠物信息", "所属主人", "基本属性", "健康状态", 
-        "疫苗接种", "以往病例", "饮食禁忌", "在店状态", "入店时间", "操作"
+        "选择", "宠物ID", "宠物信息", "所属主人", "基本属性", "在店状态", "入店时间", "操作"
     });
     
     petTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    petTable->setColumnWidth(0, 48);
+    petTable->setColumnWidth(0, 60);  // 扩大“选择”列，确保文字显示完整
     petTable->setColumnWidth(1, 80);
-    petTable->setColumnWidth(2, 180);
-    petTable->setColumnWidth(3, 100);
-    petTable->setColumnWidth(4, 110);
-    petTable->setColumnWidth(5, 80);
-    petTable->setColumnWidth(6, 100);
-    petTable->setColumnWidth(7, 100);
-    petTable->setColumnWidth(8, 120);
-    petTable->setColumnWidth(9, 115);
-    petTable->setColumnWidth(10, 95);
-    petTable->setColumnWidth(11, 150);
-    petTable->horizontalHeader()->setSectionResizeMode(11, QHeaderView::Stretch);
+    petTable->setColumnWidth(2, 200); // 宠物信息
+    petTable->setColumnWidth(3, 140); // 所属主人
+    petTable->setColumnWidth(4, 120); // 基本属性
+    petTable->setColumnWidth(5, 140); // 在店状态
+    petTable->setColumnWidth(6, 140); // 入店时间
+    petTable->setColumnWidth(7, 150); // 操作列锁定宽度
+
+    // 设置伸缩模式：将所有中间列设为拉伸，平分剩余空间，避免某一列过宽
+    petTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); 
+    petTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); // 选择列固定
+    petTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); // ID列固定
+    petTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive); // 允许手动调宽宠物信息
+    petTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Fixed); // 强制操作列不被压缩
+
 
     petTable->setStyleSheet(
         "QTableWidget { border: 1px solid #ebeef5; background-color: white; alternate-background-color: white; color: black; outline: none; selection-background-color: #b3d8ff; } "
@@ -410,53 +406,6 @@ void PetModule::addPetRow(const PetInfo &info)
     attrItem->setTextAlignment(Qt::AlignCenter);
     petTable->setItem(row, 4, attrItem);
 
-    QTableWidgetItem *healthItem = new QTableWidgetItem(info.health);
-    healthItem->setTextAlignment(Qt::AlignCenter);
-    if (info.health != "健康") healthItem->setForeground(QColor("#e6a23c"));
-    petTable->setItem(row, 5, healthItem);
-
-    QWidget *vacWrap = new QWidget();
-    QHBoxLayout *vacL = new QHBoxLayout(vacWrap);
-    vacL->setContentsMargins(0,0,0,0); 
-    vacL->setAlignment(Qt::AlignCenter);
-    
-    QPushButton *vacBtn = new QPushButton();
-    vacBtn->setText(info.vaccine);
-    vacBtn->setFixedSize(88, 26);
-    vacBtn->setCursor(Qt::PointingHandCursor);
-    
-    if (info.vaccine == "未接种") {
-        vacBtn->setStyleSheet(
-            "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 4px; font-size: 11px; font-weight: bold; padding: 0; text-align: center; } "
-            "QPushButton:hover { background-color: #f56c6c; color: white; }"
-        );
-    } else {
-        vacBtn->setStyleSheet(
-            "QPushButton { background-color: #ecf5ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 4px; font-size: 11px; font-weight: bold; padding: 0; text-align: center; } "
-            "QPushButton:hover { background-color: #409eff; color: white; }"
-        );
-    }
-    
-    connect(vacBtn, &QPushButton::clicked, this, [this, info]() {
-        VaccineDetailDialog dlg(info.name, PetDataManager::instance()->getVaccines(info.id), this->window());
-        dlg.exec();
-    });
-    
-    vacL->addWidget(vacBtn);
-    petTable->setCellWidget(row, 6, vacWrap);
-
-    QTableWidgetItem *medItem = new QTableWidgetItem(info.medicalHistory);
-    medItem->setTextAlignment(Qt::AlignCenter);
-    medItem->setFont(QFont("Microsoft YaHei", 8));
-    if (info.medicalHistory != "无" && info.medicalHistory != "暂无病史") medItem->setForeground(QColor("#f56c6c"));
-    petTable->setItem(row, 7, medItem);
-
-    QTableWidgetItem *dietItem = new QTableWidgetItem(info.dietary);
-    dietItem->setTextAlignment(Qt::AlignCenter);
-    dietItem->setFont(QFont("Microsoft YaHei", 8));
-    if (info.dietary != "常规饮食") dietItem->setForeground(QColor("#e6a23c"));
-    petTable->setItem(row, 8, dietItem);
-
     QWidget *statusWrap = new QWidget();
     QHBoxLayout *statusL = new QHBoxLayout(statusWrap);
     statusL->setContentsMargins(0, 0, 0, 0); statusL->setAlignment(Qt::AlignCenter);
@@ -477,12 +426,12 @@ void PetModule::addPetRow(const PetInfo &info)
     ).arg(bgColor, textColor, borderColor));
 
     statusL->addWidget(statusTag);
-    petTable->setCellWidget(row, 9, statusWrap);
+    petTable->setCellWidget(row, 5, statusWrap);
 
     QTableWidgetItem *timeItem = new QTableWidgetItem(info.joinTime);
     timeItem->setTextAlignment(Qt::AlignCenter);
     timeItem->setForeground(QColor("#909399"));
-    petTable->setItem(row, 10, timeItem);
+    petTable->setItem(row, 6, timeItem);
 
     QWidget *btnWrap = new QWidget();
     btnWrap->setMinimumWidth(140);
@@ -500,7 +449,7 @@ void PetModule::addPetRow(const PetInfo &info)
     connect(editB, &QPushButton::clicked, this, &PetModule::onEditPet);
     connect(delB, &QPushButton::clicked, this, &PetModule::onDeletePet);
     btnL->addWidget(editB); btnL->addWidget(delB);
-    petTable->setCellWidget(row, 11, btnWrap);
+    petTable->setCellWidget(row, 7, btnWrap);
 
     updatePagination();
 }
@@ -513,7 +462,7 @@ void PetModule::updateStats()
 
     for (int i = 0; i < total; ++i) {
         if (petTable->isRowHidden(i)) continue;
-        QWidget *w = petTable->cellWidget(i, 9);
+        QWidget *w = petTable->cellWidget(i, 5); // 在店状态的列索引变更为5
         if (w) {
             QLabel *tag = w->findChild<QLabel*>();
             if (tag) {

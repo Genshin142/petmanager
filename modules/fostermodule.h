@@ -59,33 +59,43 @@ public:
     explicit AvatarZoomDialog(const QString &pathOrText, QWidget *parent = nullptr) : QDialog(parent) {
         setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
         setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_DeleteOnClose);
+        
+        // 核心修复：虽然以当前弹窗为父（保证在最前），但要覆盖整个主界面区域
+        QWidget *root = this;
+        while (root->parentWidget()) root = root->parentWidget();
+        setGeometry(root->geometry());
         
         QVBoxLayout *layout = new QVBoxLayout(this);
         layout->setAlignment(Qt::AlignCenter);
         
+        QSize appSize = root->size();
+        QSize targetSize = appSize * 0.8;
+        int side = qMin(targetSize.width(), targetSize.height());
+        
         QLabel *bigAvatar = new QLabel();
-        bigAvatar->setFixedSize(360, 360);
+        bigAvatar->setFixedSize(side, side);
         bigAvatar->setAlignment(Qt::AlignCenter);
         
         if (pathOrText.startsWith(":/") || QFile::exists(pathOrText)) {
             QPixmap pix(pathOrText);
             if (!pix.isNull()) {
-                // 绘制大圆头像
-                QPixmap target(360, 360);
+                QPixmap target(side, side);
                 target.fill(Qt::transparent);
                 QPainter p(&target);
                 p.setRenderHint(QPainter::Antialiasing);
                 QPainterPath path;
-                path.addEllipse(0, 0, 360, 360);
+                path.addEllipse(0, 0, side, side);
                 p.setClipPath(path);
-                p.drawPixmap(0, 0, 360, 360, pix.scaled(360, 360, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                p.drawPixmap(0, 0, side, side, pix.scaled(side, side, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
                 bigAvatar->setPixmap(target);
             }
         } else {
             bigAvatar->setText(pathOrText);
             bigAvatar->setStyleSheet(
-                "font-size: 160px; background: white; border-radius: 180px; "
-                "border: 4px solid white; color: #409eff;"
+                QString("font-size: %1px; background: white; border-radius: %2px; "
+                        "border: 4px solid white; color: #409eff;")
+                .arg(side * 0.45).arg(side / 2)
             );
         }
         
@@ -95,7 +105,8 @@ public:
         bigAvatar->setGraphicsEffect(shadow);
         
         layout->addWidget(bigAvatar);
-        if (parent) resize(parent->size());
+        show();
+        raise();
     }
 protected:
     void paintEvent(QPaintEvent *) override {
@@ -103,7 +114,7 @@ protected:
         p.fillRect(rect(), QColor(0, 0, 0, 200));
     }
     void mousePressEvent(QMouseEvent *) override {
-        accept();
+        close();
     }
 };
 
@@ -111,10 +122,17 @@ protected:
 class FullImagePreviewDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit FullImagePreviewDialog(const QString &path, QWidget *parent = nullptr);
+    explicit FullImagePreviewDialog(const QStringList &paths, int startIndex = 0, QWidget *parent = nullptr);
 protected:
     void paintEvent(QPaintEvent *) override;
-    void mousePressEvent(QMouseEvent *) override { accept(); }
+    void mousePressEvent(QMouseEvent *) override;
+    void wheelEvent(QWheelEvent *event) override;
+private:
+    void updateImage();
+    QStringList m_paths;
+    int m_currentIndex;
+    class QLabel *m_imgL;
+    class QLabel *m_counterL;
 };
 
 // 可点击的图片标签
@@ -152,17 +170,23 @@ class MediaGallery : public QWidget {
     Q_OBJECT
 public:
     explicit MediaGallery(QWidget *parent = nullptr);
-    void setMedia(const QList<PetMedia> &media);
+    void setMedia(const QString &petId, const QList<PetMedia> &media);
+signals:
+    void categorySelected(const PetMedia &media); // 新增：通知父窗口切换视图
+private:
+    QString m_petId;
 };
 
 // 影像详情预览弹窗
 class MediaDetailDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit MediaDetailDialog(const PetMedia &media, QWidget *parent = nullptr);
+    explicit MediaDetailDialog(const QString &petId, const PetMedia &media, QWidget *parent = nullptr);
 protected:
     void paintEvent(class QPaintEvent *event) override;
     void mousePressEvent(class QMouseEvent *event) override;
+private:
+    QString m_petId;
 };
 
 // 影像与日志录入弹窗
@@ -194,9 +218,24 @@ private:
 class PetMediaArchiveDialog : public QDialog {
     Q_OBJECT
 public:
-    PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent = nullptr, const QString &startDate = "", const QString &endDate = "");
+    PetMediaArchiveDialog(const QString &petId, const QString &petName, const QList<PetMedia> &media, QWidget *parent = nullptr, 
+                          const QString &startDate = "", const QString &endDate = "", bool flatten = false);
 protected:
     void paintEvent(QPaintEvent *event) override;
+private slots:
+    void showDetailView(const PetMedia &media);
+    void showGalleryView();
+private:
+    void setupDetailUI(const PetMedia &media);
+    
+    QString m_petId;
+    QString m_petName;
+    QList<PetMedia> m_media;
+    
+    class QStackedWidget *m_stack;
+    class QLabel *m_titleLabel;
+    class QPushButton *m_closeBtn;
+    QWidget *m_detailPage = nullptr;
 };
 
 // 寄养明细容器：整合 Summary, Media, Timeline 和 Financials
@@ -204,7 +243,7 @@ class FosterHistoryDetailWidget : public QWidget {
     Q_OBJECT
 public:
     explicit FosterHistoryDetailWidget(QWidget *parent = nullptr);
-    void setDetails(const QList<PetActivityLog> &logs, const QList<PetMedia> &media);
+    void setDetails(const QString &petId, const QList<PetActivityLog> &logs, const QList<PetMedia> &media);
 private:
     class PetTimelineWidget *m_timeline;
     MediaGallery *m_gallery;

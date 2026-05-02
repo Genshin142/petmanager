@@ -1,5 +1,6 @@
 #include <QApplication>
 #include "loginwindow.h"
+#include "mainwindow.h"
 
 int main(int argc, char *argv[])
 {
@@ -60,8 +61,8 @@ int main(int argc, char *argv[])
         "}"
     );
 
-    LoginWindow w;
-    w.show();
+    MainWindow mw(ADMIN, "系统管理员 (管理员)");
+    mw.show();
     
     return a.exec();
 }

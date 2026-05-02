@@ -32,5 +32,7 @@
         <file>images/foster_bath_new.png</file>
         <file>images/foster_outdoor_new.png</file>
         <file>images/foster_sleep_new.png</file>
+        <file>images/mock_service_1.png</file>
+        <file>images/mock_service_2.png</file>
     </qresource>
 </RCC>

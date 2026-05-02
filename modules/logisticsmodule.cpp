@@ -257,7 +257,7 @@ void LogisticsModule::onDateChanged(const QDate &date)
     auto formatDate = [](const QDate &d) {
         if (d == QDate::currentDate()) return QString("今天 (%1)").arg(d.toString("MM/dd"));
         if (d == QDate::currentDate().addDays(1)) return QString("明天 (%1)").arg(d.toString("MM/dd"));
-        return d.toString("MM/dd");
+        return d.toString("yyyy/MM/dd");
     };
 
     // Update Titles
@@ -387,7 +387,7 @@ void LogisticsModule::onDateChanged(const QDate &date)
             QVBoxLayout *bl = new QVBoxLayout(body);
             bl->setContentsMargins(0, 0, 0, 0);
             bl->setSpacing(0);
-            body->setMinimumHeight(256); // 4 * 64px
+            body->setMinimumHeight(64); // 匹配预约中心卡片大小
             
             if (slotTasks.isEmpty()) {
                 bool isPast = false;

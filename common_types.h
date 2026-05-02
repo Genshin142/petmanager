@@ -53,6 +53,8 @@ struct LogisticsTask {
     QString appointmentTime;
     QString relatedModule;   // "Foster", "Grooming" 等
     QString relatedRoomId;   // 寄养目标房号 (如果是寄养)
+    QString relatedAppointmentId; // 关联的预约单ID (新增，用于状态同步)
+    double amount = 0.0;     // 新增：接送费
 };
 
 struct PetMedia {
@@ -80,6 +82,7 @@ struct PetInfo {
     QString ownerName;
     QString ownerPhone;
     QString avatarPath; // 宠物头像路径
+    QString address;    // 住址/接送地址
     QString roomNo;     // 当前寄养房号 (寄养中显示)
     QString fosterStartTime; // 寄养开始时间
     QString fosterEndTime;   // 寄养结束时间
@@ -148,5 +151,64 @@ Q_DECLARE_METATYPE(StockBatch)
 
 Q_DECLARE_METATYPE(PetInfo)
 Q_DECLARE_METATYPE(ProductInfo)
+
+struct AppointmentInfo {
+    QString id;           // 唯一标识符
+    QString groupId;      // 订单组标识符 (关联同时创建的子订单，如接送返程)
+    QString memberName;
+    QString memberPhone;
+    QString petId;        // 宠物ID
+    QString petName;      // 宠物名称
+    QString breed;        // 品种
+    QString petAvatar;    // 宠物头像路径
+    QString date;
+    QString hour;
+    QString type;         // 业务类型 ("Transport", "Grooming", "Beauty", "Boarding")
+    QString service;
+    QString station;
+    QString staff;
+    QString status;       // "Pending", "Processing", "Completed", "Canceled"
+    QString notes;        // 备注
+    QStringList photos;   // 关联影像资料
+
+    // 业务特化字段
+    QString address;      // 接送地址
+    QString allergy;      // 过敏史/皮肤记录
+    int duration = 0;     // 寄养天数
+    QString boardingEndDate; // 寄养离店日期
+    QString roomNo;       // 房位编号 (用于寄养)
+    double amount = 0.0;  // 新增：服务金额
+};
+
+struct OrderInfo {
+    QString id;               // 订单流水号 (ORD+timestamp)
+    QString sourceModule;     // 来源模块 ("Appointment", "Boarding", "Product", "Transport")
+    QString relatedId;        // 关联业务单ID
+    QString petId;
+    QString petName;
+    QString memberId;
+    QString memberName;
+    QString itemDetails;      // 消费项明细
+    double totalAmount = 0.0; // 订单总额
+    double discount = 1.0;    // 折扣率 (0.0 - 1.0)
+    double finalAmount = 0.0; // 实付金额
+    QString status;           // "Unpaid" (待支付), "Paid" (已支付), "Cancelled" (已作废)
+    QString payMethod;        // "MemberCard", "Cash", "Alipay", "Wechat"
+    QString createTime;       // 创建时间
+    QString cancelReason;     // 作废原因
+    QString operationLog;     // 操作日志
+};
+
+Q_DECLARE_METATYPE(OrderInfo)
+
+struct AppointmentStats {
+    int total = 0;
+    int grooming = 0;
+    int logistics = 0;
+    int boardingLoad = 0;
+};
+
+Q_DECLARE_METATYPE(AppointmentInfo)
+Q_DECLARE_METATYPE(AppointmentStats)
 
 #endif // COMMON_TYPES_H

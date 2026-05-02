@@ -49,27 +49,44 @@ private:
     void setupUI();
     void updateEmptyState();
     bool eventFilter(QObject *obj, QEvent *event) override;
+    
+    QWidget* createArchivePage();
+    QWidget* createBoardingPage();
+    QWidget* createServiceHistoryPage();
 
+    QString m_selectedStartDate;
+    QString m_selectedEndDate;
     PetInfo m_currentPet;
     QList<PetActivityLog> m_allLogs;
-    bool m_isOpened;
-
-    // UI Elements
-    QLabel *m_avatarLabel;
-    QLabel *m_nameLabel;
-    QLabel *m_idLabel;
-    QLabel *m_breedLabel;
-    QLabel *m_ownerLabel;
-    QLabel *m_roomBadge; // 右上角房间徽章
-    QLabel *m_statusBadge; // 新增寄养房号标签
-    QPushButton *m_archiveBtn; // 影像留档入口按钮
-
-    // Body Area
-    PetTimelineWidget *m_timelineWidget;
     QList<PetMedia> m_currentMedia;
     QList<FosterBatch> m_currentBatches;
+    bool m_isOpened;
 
-    // 新增：与寄养模块一致的摘要卡片成员
+    // Header Elements
+    QLabel *m_avatarLabel;
+    QLabel *m_nameLabel;
+    QLabel *m_breedLabel;
+    QLabel *m_ownerLabel;
+    QLabel *m_roomBadge; 
+
+    // Tab Navigation
+    QButtonGroup *m_tabGroup;
+    QStackedWidget *m_stackedWidget;
+
+    // 1. Archive Page Elements
+    QLabel *m_valGender;
+    QLabel *m_valAge;
+    QLabel *m_valOwnerName;
+    QLabel *m_valOwnerPhone;
+    QLabel *m_valOwnerId;
+    QLabel *m_valHealthStatus;
+    QPushButton *m_vaccineBtn;
+    QLabel *m_valWeight;
+    QLabel *m_valMedicalHistory;
+    QLabel *m_valDietary;
+
+    // 2. Boarding Page Elements
+    QStackedWidget *m_boardingStack;
     QWidget *m_detailCard;
     QLabel *m_weightInVal;
     QLabel *m_weightOutVal;
@@ -78,20 +95,11 @@ private:
     QLabel *m_durationVal;
     QLabel *m_dateOutTitle;
     QPushButton *m_periodBtn;
+    PetTimelineWidget *m_timelineWidget;
+    QVBoxLayout *m_serviceHistoryLayout; // 新增：服务记录容器
 
     QStackedWidget *m_bottomStack; 
-    QWidget *m_recordPanel;
-    QComboBox *m_typeCombo;
-    QComboBox *m_operatorCombo;
-    QTextEdit *m_remarkEdit;
-    QPushButton *m_addBtn;
-    
-    QWidget *m_tipPanel;
-    QLabel *m_tipLabel;
-    
-    
     QPropertyAnimation *m_animation;
-    QPropertyAnimation *m_calendarAnimation;
 };
 
 #endif // PETRECORDDRAWER_H

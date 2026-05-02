@@ -209,10 +209,10 @@ public:
 
         // 顶部标题栏
         QHBoxLayout *header = new QHBoxLayout();
-        QLabel *icon = new QLabel();
-        icon->setStyleSheet("background: #f0f7ff; border-radius: 12px;");
-        QLabel *title = new QLabel(QString("%1 的疫苗接种档案").arg(petName));
+        QLabel *title = new QLabel(QString::fromUtf8("%1 的疫苗接种档案").arg(petName));
+
         title->setStyleSheet("font-size: 18px; color: #303133; font-weight: bold;");
+
         
         // 新增：标题栏操作按钮
         QPushButton *addBtn = new QPushButton();
@@ -225,17 +225,23 @@ public:
             "QPushButton:hover { background-color: #66b1ff; }"
         );
         
-        header->addWidget(icon);
         header->addWidget(title);
+
         header->addSpacing(15);
         header->addWidget(addBtn);
         header->addStretch();
         
-        QPushButton *closeBtn = new QPushButton("×");
+        QLabel *closeBtn = new QLabel(QString::fromUtf8("×"));
+
+        closeBtn->setObjectName("CloseBtnLabel");
         closeBtn->setFixedSize(30, 30);
+        closeBtn->setAlignment(Qt::AlignCenter);
         closeBtn->setCursor(Qt::PointingHandCursor);
-        closeBtn->setStyleSheet("QPushButton { border: none; font-size: 24px; color: #909399; } QPushButton:hover { color: #f56c6c; }");
-        connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+        closeBtn->setStyleSheet(
+            "QLabel#CloseBtnLabel { background-color: transparent; border: none; color: #303133; font-size: 18px; font-weight: bold; } "
+            "QLabel#CloseBtnLabel:hover { background-color: #f56c6c; color: white; border-radius: 15px; }"
+        );
+        closeBtn->installEventFilter(this);
         header->addWidget(closeBtn);
         layout->addLayout(header);
         layout->addSpacing(20);
@@ -441,6 +447,15 @@ public:
         layout->addLayout(bottomLayout);
 
         mainLayout->addWidget(container);
+    }
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (obj->objectName() == "CloseBtnLabel" && event->type() == QEvent::MouseButtonRelease) {
+            this->accept();
+            return true;
+        }
+        return QDialog::eventFilter(obj, event);
     }
 };
 

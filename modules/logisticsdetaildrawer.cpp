@@ -96,7 +96,7 @@ void LogisticsDetailDrawer::setupUI()
     m_primaryBtn = new QPushButton("司机出发");
     m_primaryBtn->setFixedHeight(48);
     m_primaryBtn->setCursor(Qt::PointingHandCursor);
-    m_primaryBtn->setStyleSheet("QPushButton { background: #fa8c16; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; } "
+    m_primaryBtn->setStyleSheet("QPushButton { background: #fa8c16; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; text-align: center; padding: 0px; } "
                                 "QPushButton:hover { background: #ffd591; }");
     connect(m_primaryBtn, &QPushButton::clicked, this, [=](){
         if (m_currentTask.status == "待处理") {
@@ -106,8 +106,31 @@ void LogisticsDetailDrawer::setupUI()
             emit taskCompleted(m_currentTask.taskId); // triggers refresh
         } else if (m_currentTask.status == "进行中") {
             LogisticsManager::instance()->updateTaskStatus(m_currentTask.taskId, "已完成");
-            PetActivityLog log; log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-            log.type = "备注"; log.icon = ""; log.remark = QString("接送任务 [%1] 已圆满完成。").arg(m_currentTask.type); log.operatorName = "派车系统";
+            
+            // 核心闭环：生成财务订单
+            if (m_currentTask.amount > 0) {
+                PetInfo info = PetDataManager::instance()->getPet(m_currentTask.petId);
+                OrderInfo order;
+                order.id = "ORD" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss");
+                order.sourceModule = "Logistics";
+                order.relatedId = m_currentTask.taskId;
+                order.petId = m_currentTask.petId;
+                order.petName = info.name;
+                order.memberName = info.ownerName;
+                order.itemDetails = QString("接送服务 (%1)").arg(m_currentTask.type);
+                order.totalAmount = m_currentTask.amount;
+                order.finalAmount = m_currentTask.amount;
+                order.status = "Unpaid";
+                order.createTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+                PetDataManager::instance()->addOrder(order);
+            }
+
+            PetActivityLog log; 
+            log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
+            log.type = "备注"; 
+            log.icon = ""; 
+            log.remark = QString("接送任务 [%1] 已圆满完成。").arg(m_currentTask.type); 
+            log.operatorName = "派车系统";
             PetDataManager::instance()->addActivityLog(m_currentTask.petId, log);
             emit taskCompleted(m_currentTask.taskId);
         }
@@ -118,14 +141,16 @@ void LogisticsDetailDrawer::setupUI()
     QPushButton *editBtn = new QPushButton("修改信息");
     editBtn->setFixedHeight(40);
     editBtn->setCursor(Qt::PointingHandCursor);
-    editBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-size: 13px; font-weight: bold; } "
+    editBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-size: 13px; font-weight: bold; text-align: center; padding: 0px; } "
                            "QPushButton:hover { background: #f5f7fa; }");
+    editBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     
     QPushButton *cancelBtn = new QPushButton("取消派单");
     cancelBtn->setFixedHeight(40);
     cancelBtn->setCursor(Qt::PointingHandCursor);
-    cancelBtn->setStyleSheet("QPushButton { background: #fef0f0; border: 1px solid #fde2e2; border-radius: 8px; color: #f56c6c; font-size: 13px; font-weight: bold; } "
+    cancelBtn->setStyleSheet("QPushButton { background: #fef0f0; border: 1px solid #fde2e2; border-radius: 8px; color: #f56c6c; font-size: 13px; font-weight: bold; text-align: center; padding: 0px; } "
                              "QPushButton:hover { background: #fde2e2; }");
+    cancelBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     minorBtns->addWidget(editBtn);
     minorBtns->addWidget(cancelBtn);
@@ -169,7 +194,7 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
     } else if (task.status == "进行中") {
         m_statusTag->setStyleSheet("background: #409eff; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
         m_primaryBtn->setText("确认送达");
-        m_primaryBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; } "
+        m_primaryBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; text-align: center; padding: 0px; } "
                                     "QPushButton:hover { background: #a4da89; }");
         m_footer->setVisible(true);
     } else {

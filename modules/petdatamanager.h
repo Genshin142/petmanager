@@ -29,6 +29,7 @@ public:
 
     // 影像管理
     void addMedia(const QString &petId, const PetMedia &media);
+    void deleteMediaPhoto(const QString &petId, const QString &title, const QString &url);
     QList<PetMedia> getMedia(const QString &petId) const;
 
     // 疫苗记录管理
@@ -40,6 +41,7 @@ public:
 
     // 房间与寄养业务逻辑
     bool isRoomAvailable(int roomId, const QDate &start, const QDate &end) const;
+    QList<int> getAvailableRooms(const QDate &start, const QDate &end) const;
     void executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note = "");
     void executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight);
     void executeCancelBooking(int roomId, const QString &petId);
@@ -48,6 +50,31 @@ public:
     void addRoomStatusPeriod(int roomId, const RoomStatusPeriod &period);
     void removeRoomStatusPeriod(int roomId, const QString &type = "");
     QList<RoomStatusPeriod> getRoomStatusPeriods(int roomId) const;
+
+    // 预约管理 (V2 真实分页支持)
+    std::pair<QList<AppointmentInfo>, int> getAppointments(int page, int pageSize, const QString &filter = "", const QString &statusFilter = "全部");
+    AppointmentInfo getAppointment(const QString &id) const;
+    QList<AppointmentInfo> getAppointmentsByGroupId(const QString &groupId) const;
+    void addAppointment(const AppointmentInfo &info);
+    void updateAppointment(const AppointmentInfo &info);
+    void updateAppointmentPhotos(const QString &id, const QStringList &photos); // 新增
+    AppointmentStats getAppointmentStats();
+    int getBoardingOccupation(const QDate &start, const QDate &end) const;
+    QList<AppointmentInfo> getAppointmentsForPet(const QString &petId) const;
+
+    // 订单管理 (新)
+    void addOrder(const OrderInfo &info);
+    void updateOrder(const OrderInfo &info);
+    void cancelOrder(const QString &orderId, const QString &reason);
+    QList<OrderInfo> getOrders(const QDate &start, const QDate &end, const QString &filter = "", const QString &moduleFilter = "全部") const;
+    OrderInfo getOrder(const QString &id) const;
+    struct OrderStats {
+        double totalRevenue;
+        int pendingCount;
+        double avgTicket;
+        double successRate;
+    };
+    OrderStats getOrderStats(const QDate &start, const QDate &end);
 
 signals:
     void petDataChanged(const QString &petId);
@@ -65,6 +92,8 @@ private:
     QMap<QString, QList<VaccineRecord>> m_vaccineRecords;
     QMap<QString, QList<FosterBatch>> m_historyBatches;
     QMap<int, QList<RoomStatusPeriod>> m_roomStatusPeriods;
+    QMap<QString, AppointmentInfo> m_appointments;
+    QMap<QString, OrderInfo> m_orders; // 新增
 };
 
 #endif // PETDATAMANAGER_H

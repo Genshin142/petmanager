@@ -77,7 +77,7 @@ void CustomCalendarEdit::mouseReleaseEvent(QMouseEvent *event) {
 void CustomCalendarEdit::initCalendar() {
     // 传入 window() 确保它不是一个独立的顶级窗口
     m_widget = new BackPaintWidget(this->window());
-    m_widget->setFixedSize(300, 320);
+    m_widget->setFixedSize(340, 360);
 
     QVBoxLayout *layout = new QVBoxLayout(m_widget);
     layout->setContentsMargins(8, 8, 8, 8);
@@ -118,6 +118,12 @@ void CustomCalendarEdit::popCalendar() {
     }
     
     m_widget->move(globalPos);
+    
+    // 每次打开强制跳转到今天所在的月份 (用户要求)
+    if (m_calendar) {
+        m_calendar->setCurrentPage(QDate::currentDate().year(), QDate::currentDate().month());
+    }
+    
     m_widget->show();
     m_widget->setFocus();
 }
@@ -130,4 +136,8 @@ void CustomCalendarEdit::setMinimumDate(const QDate &date) {
 void CustomCalendarEdit::setMaximumDate(const QDate &date) {
     m_maxDate = date;
     if (m_calendar) m_calendar->setMaximumDate(date);
+}
+
+QDate CustomCalendarEdit::date() const {
+    return QDate::fromString(text(), "yyyy-MM-dd");
 }

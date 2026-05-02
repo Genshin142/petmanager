@@ -18,6 +18,7 @@ public:
     QList<LogisticsTask> getTasksByDate(const QDate &date) const;
     int getTaskCountForDate(const QDate &date) const;
     QList<LogisticsTask> getTasksForPet(const QString &petId) const;
+    void cancelTaskByAppointmentId(const QString &apptId); // 新增：按预约ID取消物流任务
 
 signals:
     void logisticsDataChanged();

@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QDate>
 #include <QRandomGenerator>
+#include "logisticsmanager.h"
 
 PetDataManager* PetDataManager::m_instance = nullptr;
 
@@ -21,160 +22,71 @@ PetDataManager::PetDataManager(QObject *parent)
 
 void PetDataManager::initMockData()
 {
+    // 1. 核心演示：宠物与客户关系 (Member & Pet)
     auto addDemo = [&](const QString &id, const QString &name, const QString &species, const QString &breed, const QString &gender, const QString &age, const QString &status, const QString &ownerId, const QString &ownerName, const QString &ownerPhone, 
-                       const QString &vaccine = "已接种", const QString &medical = "无", const QString &diet = "常规饮食", const QString &roomNo = "", const QString &avatar = "") {
+                       const QString &roomNo = "", const QString &avatar = "") {
         PetInfo info;
         info.id = id; info.name = name; info.species = species; info.breed = breed; 
         info.gender = gender; info.age = age; info.status = status;
         info.ownerId = ownerId; info.ownerName = ownerName; info.ownerPhone = ownerPhone;
-        info.health = "健康"; 
-        info.medicalHistory = medical; 
-        info.vaccine = vaccine;
-        info.dietary = diet;
-        info.weight = 10.0 + (QRandomGenerator::global()->bounded(150) / 10.0); // 随机 10-25kg
-        info.joinTime = "2026-03-10";
-        info.roomNo = roomNo;
-        if (!avatar.isEmpty()) {
-            info.avatarPath = ":/images/" + avatar;
-        } else {
-            info.avatarPath = ":/images/load_img.jpg";
-        }
-        if (status.contains("寄养中") || status.contains("洗护中") || status.contains("在店")) {
-            info.fosterStartTime = QDate::currentDate().addDays(-10).toString("yyyy-MM-dd");
-            info.fosterEndTime = QDate::currentDate().addDays(5).toString("yyyy-MM-dd");
-        } else if (status.contains("待入店") || status.contains("预约") || status.contains("在家")) {
-            info.fosterStartTime = QDate::currentDate().addDays(1).toString("yyyy-MM-dd");
-            info.fosterEndTime = QDate::currentDate().addDays(8).toString("yyyy-MM-dd");
+        info.health = "健康"; info.vaccine = "已接种"; info.medicalHistory = "无";
+        info.dietary = "常规饮食"; info.roomNo = roomNo;
+        info.weight = 12.5; info.joinTime = "2026-01-15";
+        info.avatarPath = avatar.isEmpty() ? ":/images/load_img.jpg" : ":/images/" + avatar;
+        
+        if (status.contains("寄养中")) {
+            info.fosterStartTime = QDate::currentDate().addDays(-3).toString("yyyy-MM-dd");
+            info.fosterEndTime = QDate::currentDate().addDays(4).toString("yyyy-MM-dd");
         }
         m_pets[info.id] = info;
-
-        QList<PetActivityLog> logs;
-        QString today = QDate::currentDate().toString("yyyy-MM-dd");
-        QString yesterday = QDate::currentDate().addDays(-1).toString("yyyy-MM-dd");
-
-        auto addLog = [&](const QString &time, const QString &type, const QString &icon, const QString &remark, const QString &room = "", const QString &opName = "店员小利") {
-            PetActivityLog log;
-            log.time = time; log.type = type; log.icon = icon; log.remark = remark;
-            log.isAlert = (type == "异常");
-            log.operatorName = opName;
-            log.roomNo = room;
-            logs.append(log);
-        };
-
-        if (status.contains("寄养中")) {
-            addLog(today + " 09:30", "投喂", "", "早饭吃得很干净，精神头很足。", info.roomNo, "王波");
-            addLog(today + " 14:20", "检查", "", "体温 38.5℃，心率正常，状态非常健康。", info.roomNo, "店员小利");
-            addLog(yesterday + " 10:15", "洗护", "", "进行了深层除臭洗护，毛发亮泽。", info.roomNo, "张师傅");
-            addLog(yesterday + " 18:00", "备注", "", "和其他小伙伴在操场玩得很开心。", info.roomNo, "王波");
-        } else if (status.contains("洗护中")) {
-            addLog(today + " 16:10", "洗护", "", "正在进行基础清洁，目前正在吹干毛发。", info.roomNo, "张师傅");
-            addLog(yesterday + " 11:30", "检查", "", "入店检查：体表无寄生虫，皮肤状况良好。", info.roomNo, "店员小利");
-        } else if (status.contains("在店")) {
-            addLog(yesterday + " 08:30", "投喂", "", "早饭光盘行动。", "A-01", "王波");
-            addLog(yesterday + " 17:00", "备注", "", "状态良好。", "A-01", "店长");
-        }
-        m_activityLogs[info.id] = logs;
-        
-        // ... (疫苗与影像保持不变)
-
-        QList<VaccineRecord> vaccines;
-        if (vaccine != "未接种") {
-            vaccines.append({"猫三联 (第一针)", "2026-01-10", "2027-01-10"});
-            vaccines.append({"猫三联 (第二针)", "2026-02-01", "2027-02-01"});
-            if (species == "狗") {
-                vaccines.append({"狂犬疫苗", "2026-02-15", "2027-02-15"});
-            }
-        }
-        m_vaccineRecords[info.id] = vaccines;
-
-        QList<PetMedia> medias;
-        if (name == "小雪" && species == "猫") {
-            medias << PetMedia{QStringList{":/images/foster_bath_new.png"}, "image", "洗澡", QStringList{"2026-04-18 14:20"}}
-                   << PetMedia{QStringList{":/images/foster_bath_2.png"}, "image", "洗澡", QStringList{"2026-04-15 10:15"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_new.png"}, "image", "运动", QStringList{"2026-04-20 09:30"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_2.png"}, "image", "运动", QStringList{"2026-04-19 16:45"}}
-                   << PetMedia{QStringList{":/images/foster_sleep_new.png"}, "image", "睡觉", QStringList{"2026-04-20 13:00"}}
-                   << PetMedia{QStringList{":/images/foster_sleep_2.png"}, "image", "睡觉", QStringList{"2026-04-17 11:20"}}
-                   << PetMedia{QStringList{":/images/load_img.jpg"}, "image", "喂食", QStringList{"2026-04-20 18:10"}};
-        } else if (name == "豆豆" || name == "皮皮") {
-            medias << PetMedia{QStringList{":/images/foster_outdoor_3.png"}, "image", "运动", QStringList{"2026-04-20 10:15"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_4.png"}, "image", "运动", QStringList{"2026-04-20 10:20"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_5.png"}, "image", "运动", QStringList{"2026-04-20 10:35"}}
-                   << PetMedia{QStringList{":/images/foster_outdoor_6.png"}, "image", "运动", QStringList{"2026-04-20 10:45"}};
-        }
-        
-        // 增强：为所有有寄养历史或当前在店的宠物添加“入住/离店存证”
-        if (status == "寄养中" || status == "洗护中" || status == "在店" || status == "离店") {
-            medias << PetMedia{QStringList{":/images/foster_bath_2.png"}, "image", "入住存证", QStringList{info.fosterStartTime + " 09:00"}};
-            if (status == "离店") {
-                medias << PetMedia{QStringList{":/images/foster_outdoor_3.png"}, "image", "离店存证", QStringList{QDate::currentDate().toString("yyyy-MM-dd") + " 17:30"}};
-            }
-            // 为往期记录添加存证 (模拟)
-            medias << PetMedia{QStringList{":/images/load_img.jpg"}, "image", "入住存证", QStringList{"2026-03-01 10:15"}};
-            medias << PetMedia{QStringList{":/images/load_img.jpg"}, "image", "离店存证", QStringList{"2026-03-10 16:40"}};
-
-            // 专门为 2-10 到 2-20 这段模拟历史添加照片
-            medias << PetMedia{QStringList{":/images/foster_sleep_2.png"}, "image", "睡觉", QStringList{"2026-02-12 13:00"}};
-            medias << PetMedia{QStringList{":/images/foster_outdoor_4.png"}, "image", "运动", QStringList{"2026-02-15 15:00"}};
-            medias << PetMedia{QStringList{":/images/foster_bath.png"}, "image", "入住存证", QStringList{"2026-02-10 10:00"}};
-            medias << PetMedia{QStringList{":/images/foster_outdoor_6.png"}, "image", "离店存证", QStringList{"2026-02-20 16:00"}};
-        }
-
-        m_petMedia[info.id] = medias;
-
-        QList<FosterBatch> batches;
-        // 模拟一条活跃记录
-        if (status.contains("在店") || status.contains("寄养中") || status.contains("洗护中")) {
-            batches << FosterBatch{"B-CUR", info.fosterStartTime, "至今", true};
-            // 仅对活跃宠物模拟历史记录，保持预约/待入宠物的“洁净”状态
-            batches << FosterBatch{"B-HIS-1", "2026-03-01", "2026-03-10", false};
-            batches << FosterBatch{"B-HIS-2", "2026-02-10", "2026-02-20", false};
-        }
-        m_historyBatches[info.id] = batches;
     };
 
-    addDemo("P1001", "团团", "猫", "波斯猫", "母", "3岁", "在店 (寄养中)", "M001", "张三", "13800138001", "已接种(三联)", "无", "不吃禽类", "103", "persian.png");
-    m_pets["P1001"].fosterStartTime = QDate::currentDate().addDays(-4).toString("yyyy-MM-dd");
+    addDemo("P001", "布丁", "狗", "金毛犬", "公", "2岁", "在店 (待结算)", "M001", "张三", "13800138000", "", "foster_outdoor_new.png");
+    addDemo("P002", "芝麻", "猫", "英短蓝猫", "母", "1岁", "寄养中", "M002", "李芳", "13911112222", "A-101", "foster_sleep_new.png");
+    addDemo("P003", "豆豆", "狗", "柴犬", "公", "3岁", "在家", "M002", "李芳", "13911112222", "", "foster_bath_new.png");
+    addDemo("P004", "小雪", "狗", "萨摩耶", "母", "2岁", "洗护中", "M004", "赵六", "13366667777", "", "load_img.jpg");
 
-    addDemo("P1002", "豆豆", "狗", "柴犬", "公", "1岁", "在店 (寄养中)", "M002", "李芳", "13911112222", "已接种", "无", "常规饮食", "101", "shiba.png");
-    m_pets["P1002"].fosterStartTime = QDate::currentDate().addDays(-2).toString("yyyy-MM-dd");
+    // 2. 模拟预约数据 (Appointment) - 建立业务来源
+    auto addAppt = [&](const QString &id, const QString &petId, const QString &type, const QString &status, const QString &time) {
+        AppointmentInfo a;
+        a.id = id; a.petId = petId; 
+        PetInfo pet = m_pets[petId];
+        a.petName = pet.name;
+        a.memberName = pet.ownerName; a.memberPhone = pet.ownerPhone;
+        a.type = type; a.status = status; a.date = QDate::currentDate().toString("yyyy-MM-dd");
+        a.hour = time; a.service = (type == "Grooming" ? "精细洗护SPA" : "基础检查");
+        m_appointments[id] = a;
+    };
+    addAppt("APP-2026050201", "P001", "Grooming", "Completed", "09:00");
+    addAppt("APP-2026050202", "P004", "Grooming", "Ongoing", "14:30");
+    addAppt("APP-2026050203", "P003", "Health", "Pending", "16:00");
 
-    addDemo("P1003", "小雪", "猫", "布偶", "母", "2岁", "在店 (寄养中)", "M003", "王波", "13688889999", "已接种", "无", "建议喂食兔肉", "102", "ragdoll.png");
-    m_pets["P1003"].fosterStartTime = QDate::currentDate().addDays(-13).toString("yyyy-MM-dd");
-
-    addDemo("P1004", "旺财", "狗", "金毛", "公", "4岁", "在店 (寄养中)", "M004", "赵四", "13500001111", "未接种", "无", "常规饮食", "106", "golden.png");
-    m_pets["P1004"].fosterStartTime = QDate::currentDate().addDays(-2).toString("yyyy-MM-dd");
-
-    addDemo("P1005", "芝麻", "猫", "英短", "公", "1岁", "待入店 (在家)", "M005", "陈志勇", "13755556666", "已接种", "无", "喜欢吃冻干", "108", "british.png");
+    // 3. 模拟订单数据 (Order) - 与预约/寄养深度勾连
+    auto addOrd = [&](const QString &id, const QString &petId, const QString &details, double amt, const QString &status, const QString &source, const QString &relatedId) {
+        OrderInfo o;
+        o.id = id; o.petId = petId; o.petName = m_pets[petId].name;
+        o.memberId = m_pets[petId].ownerId; // Fixed missing member ID
+        o.memberName = m_pets[petId].ownerName; o.itemDetails = details;
+        o.totalAmount = amt; o.finalAmount = (status == "Paid" ? amt : 0);
+        o.status = status; o.sourceModule = source; o.relatedId = relatedId;
+        o.createTime = QDateTime::currentDateTime().addSecs(-7200).toString("yyyy-MM-dd HH:mm:ss");
+        o.payMethod = (status == "Paid" ? "会员卡余额" : "");
+        m_orders[id] = o;
+    };
     
-    addDemo("P1006", "包子", "狗", "法斗", "母", "2岁", "在店 (寄养中)", "M006", "孙美玲", "18822223333", "已接种", "无", "少食多餐", "107", "french.png");
-    m_pets["P1006"].fosterStartTime = QDate::currentDate().addDays(-4).toString("yyyy-MM-dd");
-
-    addDemo("P1007", "糯米", "猫", "加菲猫", "母", "2岁", "在店 (寄养中)", "M008", "吴静", "13144445555", "已接种", "无", "常规饮食", "115", "garfield.png");
-    m_pets["P1007"].fosterStartTime = QDate::currentDate().addDays(-12).toString("yyyy-MM-dd");
-
-    addDemo("P1008", "可可", "狗", "泰迪", "母", "3岁", "接送中 (在途)", "M004", "赵六", "13366667777", "已接种", "无", "常规饮食", "109", "teddy.png");
-    m_pets["P1008"].fosterStartTime = QDate::currentDate().toString("yyyy-MM-dd");
-
-    addDemo("P1009", "大黑", "狗", "拉布拉多", "公", "1岁", "已离店 (回家)", "M005", "孙七", "18900001111", "已接种", "无", "常规饮食", "", "labrador.png");
-    
-    addDemo("P1010", "皮皮", "狗", "柯基", "公", "2岁", "在店 (寄养中)", "M006", "周八", "13011112222", "已接种", "无", "常规饮食", "110", "corgi.png");
-    m_pets["P1010"].fosterStartTime = QDate::currentDate().addDays(-4).toString("yyyy-MM-dd");
-
-    addDemo("P1011", "球球", "猫", "英短蓝猫", "母", "2岁", "已离店 (回家)", "M007", "吴九", "13299998888", "已接种", "无", "常规饮食", "", "british.png");
-    
-    addDemo("P1012", "花花", "猫", "加菲猫", "母", "4岁", "离店", "M007", "吴九", "已接种", "无", "常规饮食", "", "garfield.png");
-    
-    addDemo("P1013", "布丁", "猫", "金渐层", "公", "2岁", "寄养中", "M008", "钱十", "已接种", "无", "仅限处方粮", "113", "british.png");
-    m_pets["P1013"].fosterStartTime = QDate::currentDate().addDays(-3).toString("yyyy-MM-dd");
-
-    addDemo("P1014", "奥利奥", "狗", "边牧", "公", "3岁", "寄养中", "M009", "陈十一", "已接种", "无", "常规饮食", "114", "labrador.png");
-    m_pets["P1014"].fosterStartTime = QDate::currentDate().addDays(-10).toString("yyyy-MM-dd");
-
-    // 模拟维护与清洁周期
-    addRoomStatusPeriod(105, {"maintenance", QDate::currentDate().toString("yyyy-MM-dd") + " 08:30", QDate::currentDate().addDays(1).toString("yyyy-MM-dd") + " 18:00", "门锁更换与地板抛光"});
-    addRoomStatusPeriod(108, {"cleaning", QDate::currentDate().toString("yyyy-MM-dd") + " 09:00", QDate::currentDate().toString("yyyy-MM-dd") + " 12:00", "深度消杀与紫外线杀菌"});
-    addRoomStatusPeriod(120, {"maintenance", QDate::currentDate().toString("yyyy-MM-dd") + " 10:00", QDate::currentDate().addDays(2).toString("yyyy-MM-dd") + " 16:00", "墙面补漆与通风维护"});
+    // 【布丁】洗护已完成 -> 待支付订单
+    addOrd("ORD-10001", "P001", "金毛犬全套精细洗护 + 药浴", 180.0, "Unpaid", "Appointment", "APP-2026050201");
+    // 【芝麻】寄养中 -> 已支付的预订金
+    addOrd("ORD-10002", "P002", "猫咪寄养预付 (7天)", 350.0, "Paid", "Boarding", "F-20260502");
+    // 【今日总览】再加几笔历史数据以填充统计卡片
+    addOrd("ORD-10003", "P003", "常规体检", 50.0, "Paid", "Appointment", "APP-2026043001");
+    // 使用商品档案中的真实商品名：皇家基础全价猫粮
+    addOrd("ORD-10004", "P004", "皇家基础全价猫粮 2kg", 199.0, "Paid", "Product", "");
+    // 多商品订单示例：渴望 + 猫砂
+    addOrd("ORD-10005", "", "渴望六种鱼猫粮 1.8kg + 小鲜肉混合猫砂 6L", 595.0, "Unpaid", "Product", "");
+    // 【新增】到店服务示例
+    addOrd("ORD-10006", "P001", "常规剪指甲 (到店)", 15.0, "Paid", "Direct", "");
+    addOrd("ORD-10007", "P002", "耳道清理 (到店)", 30.0, "Unpaid", "Direct", "");
 }
 
 void PetDataManager::updatePet(const PetInfo &info)
@@ -247,6 +159,40 @@ void PetDataManager::addMedia(const QString &petId, const PetMedia &media)
     emit petDataChanged(petId);
 }
 
+void PetDataManager::deleteMediaPhoto(const QString &petId, const QString &title, const QString &url)
+{
+    if (!m_petMedia.contains(petId)) return;
+    
+    QList<PetMedia> &medias = m_petMedia[petId];
+    for (int i = 0; i < medias.size(); ++i) {
+        if (medias[i].title == title) {
+            int idx = medias[i].urls.indexOf(url);
+            if (idx != -1) {
+                medias[i].urls.removeAt(idx);
+                if (medias[i].timestamps.size() > idx) {
+                    medias[i].timestamps.removeAt(idx);
+                }
+                
+                // 如果该组照片全部删完，则移除整组记录
+                if (medias[i].urls.isEmpty()) {
+                    medias.removeAt(i);
+                }
+                
+                // 同时检查是否有对应的预约单记录，保持同步
+                for (auto &appt : m_appointments) {
+                    if (appt.petId == petId && (appt.service + "服务记录") == title) {
+                        appt.photos.removeAll(url);
+                        break;
+                    }
+                }
+                
+                emit petDataChanged(petId);
+                return;
+            }
+        }
+    }
+}
+
 QList<PetMedia> PetDataManager::getMedia(const QString &petId) const
 {
     return m_petMedia.value(petId);
@@ -265,37 +211,6 @@ QList<VaccineRecord> PetDataManager::getVaccines(const QString &petId) const
 
 QList<FosterBatch> PetDataManager::getHistoryBatches(const QString &petId) const {
     return m_historyBatches.value(petId);
-}
-
-bool PetDataManager::isRoomAvailable(int roomId, const QDate &start, const QDate &end) const {
-    QString roomStr = QString::number(roomId);
-    // 1. 检查宠物占用
-    for (const auto &pet : m_pets) {
-        // 仅对“寄养中”或“已预约”的宠物进行时间重叠校验
-        if (pet.roomNo == roomStr && (pet.status == "寄养中" || pet.status == "已预约")) {
-            QDate stayStart = QDate::fromString(pet.fosterStartTime, "yyyy-MM-dd");
-            QString endStr = pet.fosterEndTime;
-            QDate stayEnd;
-            
-            if (endStr == "至今" || endStr.isEmpty()) {
-                stayEnd = QDate::currentDate().addYears(1); 
-            } else {
-                stayEnd = QDate::fromString(endStr, "yyyy-MM-dd");
-            }
-
-            if (start <= stayEnd && end >= stayStart) return false;
-        }
-    }
-
-    // 2. 检查维护/清洁独占周期
-    if (m_roomStatusPeriods.contains(roomId)) {
-        for (const auto &p : m_roomStatusPeriods[roomId]) {
-            QDate s = QDate::fromString(p.startTime.split(" ").first(), "yyyy-MM-dd");
-            QDate e = QDate::fromString(p.endTime.split(" ").first(), "yyyy-MM-dd");
-            if (start <= e && end >= s) return false;
-        }
-    }
-    return true;
 }
 
 void PetDataManager::addRoomStatusPeriod(int roomId, const RoomStatusPeriod &period) {
@@ -322,6 +237,58 @@ QList<RoomStatusPeriod> PetDataManager::getRoomStatusPeriods(int roomId) const {
     return m_roomStatusPeriods.value(roomId);
 }
 
+bool PetDataManager::isRoomAvailable(int roomId, const QDate &start, const QDate &end) const {
+    if (!start.isValid() || !end.isValid() || start > end) return false;
+
+    // 1. 检查维修/清洁状态
+    if (m_roomStatusPeriods.contains(roomId)) {
+        for (const auto &p : m_roomStatusPeriods[roomId]) {
+            QDateTime dtStart = QDateTime::fromString(p.startTime, "yyyy-MM-dd HH:mm");
+            QDateTime dtEnd = QDateTime::fromString(p.endTime, "yyyy-MM-dd HH:mm");
+            QDate pStart = dtStart.isValid() ? dtStart.date() : QDate::fromString(p.startTime.left(10), "yyyy-MM-dd");
+            QDate pEnd = dtEnd.isValid() ? dtEnd.date() : QDate::fromString(p.endTime.left(10), "yyyy-MM-dd");
+            
+            if (!(end < pStart || start > pEnd)) return false;
+        }
+    }
+
+    // 2. 检查现有预约
+    for (const auto &appt : m_appointments) {
+        if (appt.type == "Boarding" && appt.roomNo == QString::number(roomId) && 
+            appt.status != "Canceled" && appt.status != "Expired") {
+            QDate apptStart = QDate::fromString(appt.date, "yyyy-MM-dd");
+            QDate apptEnd = QDate::fromString(appt.boardingEndDate, "yyyy-MM-dd");
+            if (!(end < apptStart || start > apptEnd)) return false;
+        }
+    }
+    
+    // 3. 检查当前在店宠物
+    for (const auto &pet : m_pets) {
+        if (pet.roomNo == QString::number(roomId) && 
+            (pet.status.contains("寄养中") || pet.status.contains("已预约"))) {
+            QDate petStart = QDate::fromString(pet.fosterStartTime, "yyyy-MM-dd");
+            QDate petEnd = QDate::fromString(pet.fosterEndTime, "yyyy-MM-dd");
+            if (petStart.isValid() && petEnd.isValid()) {
+                if (!(end < petStart || start > petEnd)) return false;
+            } else if (pet.status.contains("寄养中")) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+QList<int> PetDataManager::getAvailableRooms(const QDate &start, const QDate &end) const {
+    QList<int> available;
+    for (int i = 101; i <= 120; ++i) {
+        if (isRoomAvailable(i, start, end)) {
+            available.append(i);
+        }
+    }
+    return available;
+}
+
 void PetDataManager::executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note) {
     Q_UNUSED(note);
     if (!m_pets.contains(petId)) return;
@@ -333,10 +300,7 @@ void PetDataManager::executeCheckIn(int roomId, const QString &petId, const QDat
     info.fosterEndTime = end.toString("yyyy-MM-dd");
     info.weight = weight;
 
-    // 开启新篇章：如果是正式办理入住，清空之前的模拟动态，确保“刚入住没有记录”
     m_activityLogs[petId].clear();
-    
-    // 创建实时批次记录，确保它出现在列表首位
     FosterBatch batch{"B-CUR-" + QDateTime::currentDateTime().toString("yyyyMMdd"), start.toString("yyyy-MM-dd"), "至今", true};
     m_historyBatches[petId].prepend(batch);
 
@@ -354,9 +318,7 @@ void PetDataManager::executeBooking(int roomId, const QString &petId, const QDat
     info.fosterEndTime = end.toString("yyyy-MM-dd");
     info.weight = weight;
     
-    // 预约入住同样不应有寄养记录
     m_activityLogs[petId].clear();
-
     notifyGlobalDataChanged();
     notifyPetDataChanged(petId);
 }
@@ -371,7 +333,6 @@ void PetDataManager::executeCancelBooking(int roomId, const QString &petId) {
     info.fosterStartTime = "";
     info.fosterEndTime = "";
 
-    // 添加一条取消日志
     PetActivityLog log;
     log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
     log.type = "备注";
@@ -382,4 +343,208 @@ void PetDataManager::executeCancelBooking(int roomId, const QString &petId) {
 
     notifyGlobalDataChanged();
     notifyPetDataChanged(petId);
+}
+
+std::pair<QList<AppointmentInfo>, int> PetDataManager::getAppointments(int page, int pageSize, const QString &filter, const QString &statusFilter)
+{
+    QList<AppointmentInfo> filtered;
+    QString kw = filter.trimmed().toLower();
+
+    for (const auto &info : m_appointments.values()) {
+        bool match = true;
+        if (!kw.isEmpty()) {
+            if (!info.memberName.toLower().contains(kw) &&
+                !info.memberPhone.toLower().contains(kw) &&
+                !info.petName.toLower().contains(kw) &&
+                !info.service.toLower().contains(kw)) {
+                match = false;
+            }
+        }
+        
+        if (match && statusFilter != "全部") {
+            QString displayStatus;
+            if (info.status == "Pending" || info.status == "待处理") displayStatus = "待处理";
+            else if (info.status == "Confirmed" || info.status == "已确认") displayStatus = "已确认";
+            else if (info.status == "In-Service" || info.status == "服务中") displayStatus = "服务中";
+            else if (info.status == "Cancelled" || info.status == "已取消") displayStatus = "已取消";
+            else if (info.status == "Expired" || info.status == "已过期") displayStatus = "已过期";
+            else displayStatus = "已完成";
+            
+            if (displayStatus != statusFilter) match = false;
+        }
+        
+        if (match) filtered.append(info);
+    }
+
+    std::sort(filtered.begin(), filtered.end(), [](const AppointmentInfo &a, const AppointmentInfo &b) {
+        if (a.date != b.date) return a.date < b.date;
+        return a.hour < b.hour;
+    });
+
+    int total = filtered.size();
+    int offset = (page - 1) * pageSize;
+    QList<AppointmentInfo> result;
+    int end = qMin(offset + pageSize, total);
+    for (int i = qMax(0, offset); i < end; ++i) result.append(filtered[i]);
+    return {result, total};
+}
+
+AppointmentInfo PetDataManager::getAppointment(const QString &id) const
+{
+    return m_appointments.value(id);
+}
+
+QList<AppointmentInfo> PetDataManager::getAppointmentsByGroupId(const QString &groupId) const
+{
+    QList<AppointmentInfo> result;
+    if (groupId.isEmpty()) return result;
+    for (const auto &info : m_appointments.values()) {
+        if (info.groupId == groupId) result.append(info);
+    }
+    return result;
+}
+
+void PetDataManager::addAppointment(const AppointmentInfo &info)
+{
+    AppointmentInfo newInfo = info;
+    if (newInfo.id.isEmpty()) newInfo.id = QString::number(QDateTime::currentMSecsSinceEpoch());
+    m_appointments[newInfo.id] = newInfo;
+    emit globalDataChanged();
+}
+
+void PetDataManager::updateAppointment(const AppointmentInfo &info)
+{
+    m_appointments[info.id] = info;
+    if (info.type == "Boarding" && !info.roomNo.isEmpty()) {
+        int rId = info.roomNo.toInt();
+        if (info.status == "Confirmed" || info.status == "已确认") {
+            executeBooking(rId, info.petId, QDate::fromString(info.date, "yyyy-MM-dd"), QDate::fromString(info.boardingEndDate, "yyyy-MM-dd"), 10.0);
+        } else if (info.status == "In-Service" || info.status == "服务中") {
+            executeCheckIn(rId, info.petId, QDate::fromString(info.date, "yyyy-MM-dd"), QDate::fromString(info.boardingEndDate, "yyyy-MM-dd"), 10.0);
+        }
+    }
+    emit globalDataChanged();
+}
+
+void PetDataManager::updateAppointmentPhotos(const QString &id, const QStringList &photos) {
+    if (m_appointments.contains(id)) {
+        m_appointments[id].photos = photos;
+        QString petId = m_appointments[id].petId;
+        if (!petId.isEmpty()) {
+            PetMedia m;
+            if (m_appointments[id].type == "Boarding") {
+                if (m_appointments[id].status == "In-Service" || m_appointments[id].status == "服务中") m.title = "入住存证";
+                else if (m_appointments[id].status == "Completed" || m_appointments[id].status == "已完成") m.title = "离店存证";
+                else m.title = m_appointments[id].service + "记录";
+            } else {
+                m.title = m_appointments[id].service + "服务记录";
+            }
+            m.urls = photos; m.type = "image";
+            for (int i = 0; i < photos.size(); ++i) m.timestamps << m_appointments[id].date + " " + QTime::currentTime().toString("HH:mm");
+            
+            QList<PetMedia> &medias = m_petMedia[petId];
+            bool found = false;
+            for (int i = 0; i < medias.size(); ++i) {
+                if (medias[i].title == m.title) { medias[i] = m; found = true; break; }
+            }
+            if (!found) medias.append(m);
+        }
+        notifyGlobalDataChanged();
+    }
+}
+
+AppointmentStats PetDataManager::getAppointmentStats()
+{
+    AppointmentStats s; s.total = m_appointments.size();
+    for (const auto &a : m_appointments) {
+        if (a.type == "Grooming" || a.type == "Beauty") s.grooming++;
+        else if (a.type == "Transport") s.logistics++;
+    }
+    s.boardingLoad = 65; return s;
+}
+
+int PetDataManager::getBoardingOccupation(const QDate &start, const QDate &end) const
+{
+    if (!start.isValid() || !end.isValid() || start > end) return 0;
+    int maxOccupancy = 0;
+    for (QDate d = start; d <= end; d = d.addDays(1)) {
+        int dailyCount = 0;
+        for (const auto &appt : m_appointments) {
+            if (appt.type == "Boarding" && appt.status != "Canceled" && appt.status != "Expired") {
+                QDate apptStart = QDate::fromString(appt.date, "yyyy-MM-dd");
+                QDate apptEnd = QDate::fromString(appt.boardingEndDate, "yyyy-MM-dd");
+                if (d >= apptStart && d <= apptEnd) dailyCount++;
+            }
+        }
+        maxOccupancy = qMax(maxOccupancy, dailyCount);
+    }
+    return maxOccupancy;
+}
+
+QList<AppointmentInfo> PetDataManager::getAppointmentsForPet(const QString &petId) const {
+    QList<AppointmentInfo> list;
+    for (const auto &appt : m_appointments) if (appt.petId == petId) list.append(appt);
+    std::sort(list.begin(), list.end(), [](const AppointmentInfo &a, const AppointmentInfo &b) {
+        return a.date > b.date || (a.date == b.date && a.hour > b.hour);
+    });
+    return list;
+}
+
+void PetDataManager::addOrder(const OrderInfo &info) { m_orders[info.id] = info; emit globalDataChanged(); }
+void PetDataManager::updateOrder(const OrderInfo &info) { if (m_orders.contains(info.id)) { m_orders[info.id] = info; emit globalDataChanged(); } }
+
+void PetDataManager::cancelOrder(const QString &orderId, const QString &reason)
+{
+    if (!m_orders.contains(orderId)) return;
+    OrderInfo &order = m_orders[orderId];
+    order.status = "Cancelled"; order.cancelReason = reason;
+    order.operationLog += QString("[%1] 订单被作废: %2\n").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm"), reason);
+    if (order.sourceModule == "Appointment") {
+        AppointmentInfo info = getAppointment(order.relatedId);
+        if (!info.id.isEmpty()) { info.status = "Pending"; updateAppointment(info); }
+    } else if (order.sourceModule == "Boarding") {
+        PetInfo pet = getPet(order.petId);
+        if (!pet.id.isEmpty()) { pet.status = "在店"; updatePet(pet); }
+    } else if (order.sourceModule == "Logistics") {
+        LogisticsManager::instance()->updateTaskStatus(order.relatedId, "进行中");
+    }
+    emit globalDataChanged();
+}
+
+QList<OrderInfo> PetDataManager::getOrders(const QDate &start, const QDate &end, const QString &filter, const QString &moduleFilter) const
+{
+    QList<OrderInfo> result; QString kw = filter.trimmed().toLower();
+    for (const auto &order : m_orders) {
+        QDate cDate = QDate::fromString(order.createTime.left(10), "yyyy-MM-dd");
+        if (cDate.isValid() && (cDate < start || cDate > end)) continue;
+        
+        // 模块过滤
+        if (moduleFilter != "全部") {
+            if (order.sourceModule != moduleFilter) continue;
+        }
+
+        if (!kw.isEmpty()) {
+            if (!order.id.toLower().contains(kw) && !order.memberName.toLower().contains(kw) && !order.petName.toLower().contains(kw) && !order.relatedId.toLower().contains(kw)) continue;
+        }
+        result.append(order);
+    }
+    std::sort(result.begin(), result.end(), [](const OrderInfo &a, const OrderInfo &b){ return a.createTime > b.createTime; });
+    return result;
+}
+
+OrderInfo PetDataManager::getOrder(const QString &id) const { return m_orders.value(id); }
+
+PetDataManager::OrderStats PetDataManager::getOrderStats(const QDate &start, const QDate &end)
+{
+    OrderStats stats = {0.0, 0, 0.0, 0.0}; int totalValid = 0; int paidCount = 0;
+    for (const auto &order : m_orders) {
+        QDate cDate = QDate::fromString(order.createTime.left(10), "yyyy-MM-dd");
+        if (cDate.isValid() && (cDate < start || cDate > end)) continue;
+        if (order.status == "Paid") { stats.totalRevenue += order.finalAmount; paidCount++; }
+        else if (order.status == "Unpaid") stats.pendingCount++;
+        if (order.status != "Cancelled") totalValid++;
+    }
+    if (paidCount > 0) stats.avgTicket = stats.totalRevenue / paidCount;
+    if (totalValid > 0) stats.successRate = (double)paidCount / totalValid * 100.0;
+    return stats;
 }

@@ -28,6 +28,7 @@
 #include <QScrollArea>
 #include "custom_calendar_edit.h"
 #include "productdatamanager.h"
+#include "fostermodule.h"
 
 ProductModule::ProductModule(UserRole role, QWidget *parent) : QWidget(parent), m_role(role) {
     m_currentPage = 1;
@@ -64,64 +65,17 @@ bool ProductModule::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::MouseButtonPress) {
         QLabel *label = qobject_cast<QLabel*>(watched);
         if (label && label->property("imgPath").isValid()) {
+            QStringList imgList = label->property("imgList").toStringList();
+            int index = label->property("imgIndex").toInt();
             QString path = label->property("imgPath").toString();
             
-            // 模拟宠物模块：全屏半透明预览
-            // 关键修复：即便在对话框内触发，预览也应覆盖整个主窗口，但父节点绑定在 label->window() 确保层级在上
-            QWidget *mainWin = this->window();
-            QWidget *currentWin = label->window();
-            QDialog *preview = new QDialog(currentWin, Qt::FramelessWindowHint);
+            if (imgList.isEmpty()) imgList << path;
             
-            // 铺满主窗口
-            preview->setGeometry(mainWin->geometry());
-            preview->setAttribute(Qt::WA_TranslucentBackground);
-            
-            QVBoxLayout *layout = new QVBoxLayout(preview);
-            layout->setContentsMargins(0, 0, 0, 0);
-            
-            // 全屏背景遮罩 - 调深阴影
-            QFrame *bg = new QFrame();
-            bg->setStyleSheet("background-color: rgba(0, 0, 0, 215);");
-            layout->addWidget(bg);
-            
-            QVBoxLayout *bgLayout = new QVBoxLayout(bg);
-            bgLayout->setContentsMargins(0, 0, 0, 0);
-            bgLayout->setAlignment(Qt::AlignCenter);
-            
-            QLabel *imgLabel = new QLabel();
-            QPixmap pix(path);
-            if (!pix.isNull()) {
-                // 统一标准：取窗口最小维度的 80%
-                int maxDim = qMin(mainWin->width(), mainWin->height()) * 0.8;
-                imgLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            }
-            imgLabel->setStyleSheet("border: none; background: transparent; padding: 0;");
-            imgLabel->setAlignment(Qt::AlignCenter);
-            bgLayout->addWidget(imgLabel);
-            
-            // 点击背景任意位置关闭
-            bg->installEventFilter(this);
-            bg->setProperty("isPreviewBg", true);
-            bg->setProperty("previewDlg", QVariant::fromValue((void*)preview));
-            bg->setCursor(Qt::PointingHandCursor);
-            
-            // 全局坐标同步
-            preview->raise();
-            
-            connect(preview, &QDialog::finished, preview, &QDialog::deleteLater);
-            preview->show();
+            // 使用标准化的全屏预览（支持滚轮切换）
+            (new FullImagePreviewDialog(imgList, index, this->window()))->show();
             return true;
         }
         
-        // 点击预览背景关闭
-        if (watched->property("isPreviewBg").toBool()) {
-            void* ptr = watched->property("previewDlg").value<void*>();
-            if (ptr) {
-                QDialog *dlg = static_cast<QDialog*>(ptr);
-                dlg->close();
-                return true;
-            }
-        }
         
         // 点击遮罩层关闭抽屉
         if (watched == m_backdrop) {

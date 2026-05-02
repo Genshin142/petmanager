@@ -6,60 +6,56 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QLineEdit>
-#include <QDate>
+#include <QDateEdit>
+#include "custom_calendar_edit.h"
+#include "../common_types.h"
+
+class OrderDetailDrawer;
+class QPushButton;
 
 class CheckoutModule : public QWidget {
     Q_OBJECT
 public:
     explicit CheckoutModule(QWidget *parent = nullptr);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     void setupUI();
     void updatePagination();
-    void updateTotal();
+    void updateStats();
+    void refreshView();
 
-    struct OrderRecord {
-        QString date;
-        QString orderId;
-        QString memberId;
-        QString memberName;
-        QString item;
-        double unitPrice;
-        int qty;
-        double discount;
-        double total;
-    };
-    QList<OrderRecord> m_orderData;
-
-    // 分页组件
+    QList<OrderInfo> m_displayData;
     int m_currentPage = 1;
-    int m_pageSize = 10;
+    int m_pageSize = 12;
+
+    // UI Components
+    QTableWidget *orderTable;
+    QLineEdit *m_searchEdit;
+    
+    // Cockpit Stats
+    QLabel *m_statRevenue;
+    QLabel *m_statPending;
+    QLabel *m_statAvgTicket;
+    CustomCalendarEdit *m_startDateEdit;
+    CustomCalendarEdit *m_endDateEdit;
+    QComboBox *m_moduleCombo;
+    
     QLabel *pageLabel;
-    class QLineEdit *jumpEdit;
-    class QPushButton *prevBtn;
-    class QPushButton *nextBtn;
-    class QIntValidator *jumpValidator;
+    QLineEdit *jumpEdit;
+    QPushButton *prevBtn;
+    QPushButton *nextBtn;
+
+    OrderDetailDrawer *m_detailDrawer;
 
 private slots:
     void onFilter();
-    void updateDayCombo(QComboBox* y, QComboBox* m, QComboBox* d);
-    void initDateGroup(QComboBox* y, QComboBox* m, QComboBox* d, const QDate &initDate);
-    
     void onPrevPage();
     void onNextPage();
     void onJumpPage();
-    void onBatchDelete();
-    void onDeleteSingle();
-
-private:
-    QTableWidget *orderTable;
-    QLineEdit *memberSearchEdit;
-    QLabel *totalLabel;
-    QLabel *orderCountLabel;
-    QLabel *totalAmtLabel;
-    QLabel *avgAmtLabel;
-    QComboBox *startYearCombo, *startMonthCombo, *startDayCombo;
-    QComboBox *endYearCombo, *endMonthCombo, *endDayCombo;
+    void onOrderClicked(int row);
 };
 
 #endif // CHECKOUTMODULE_H

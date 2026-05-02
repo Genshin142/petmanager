@@ -370,7 +370,6 @@ void InboundModule::onRecordSelected()
     if (row < 0) return;
 
     // 清除现有内容
-    QLayoutItem *child;
     // 使用递归函数彻底清理布局，防止子布局残留导致重叠
     std::function<void(QLayout*)> clearLayout = [&](QLayout* layout) {
         if (!layout) return;

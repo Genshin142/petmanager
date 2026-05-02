@@ -1,510 +1,961 @@
 #include "appointmentmodule.h"
+#include "appointmentitemdelegate.h"
+#include "appointmentdetaildrawer.h"
+#include "petdatamanager.h"
 #include "addappointmentdialog.h"
-#include "historyappointmentdialog.h"
-#include <QVBoxLayout>
-#include <QLabel>
-#include <QLineEdit>
-#include <QTableWidget>
-#include <QHeaderView>
-#include <QPushButton>
-#include <QHBoxLayout>
+#include "fostermodule.h"
+#include "logisticsmanager.h"
 #include "custommessagedialog.h"
+#include <QFileDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QLineEdit>
 #include <QGraphicsDropShadowEffect>
-#include <QDate>
-#include <QCheckBox>
-#include <QIntValidator>
+#include <QStandardItemModel>
+#include <QScrollArea>
+#include <QStackedWidget>
+#include <QPainter>
+#include <QPainterPath>
+#include <QEvent>
+#include <QDialog>
+#include <QMessageBox>
 
-AppointmentModule::AppointmentModule(QWidget *parent) : QWidget(parent) {
+AppointmentModule::AppointmentModule(QWidget *parent)
+    : QWidget(parent)
+    , m_model(new QStandardItemModel(this))
+    , m_delegate(new AppointmentItemDelegate(this))
+    , m_currentDate(QDate::currentDate())
+{
     setupUI();
-
-    // 默认示例数据注入 (注入到 m_activeData 而不是直接画表格)
-    m_activeData.append({"张三", "13800138000", QDate::currentDate().toString("yyyy-MM-dd"), "10:00", "精修造型", "美容台A", "张三 (高级)", "Pending"});
-    m_activeData.append({"李四", "13912345678", QDate::currentDate().toString("yyyy-MM-dd"), "14:30", "猫咪洗护", "洗护间B", "王五 (中级)", "Pending"});
-    m_activeData.append({"王五", "13688889999", QDate::currentDate().toString("yyyy-MM-dd"), "16:00", "药浴Spa", "SPA间A", "李四 (中级)", "Pending"});
-    m_activeData.append({"赵六", "13500001111", QDate::currentDate().addDays(1).toString("yyyy-MM-dd"), "09:00", "牙齿清洁", "工作台C", "张三 (高级)", "Pending"});
-    // 故意增加一对冲突预约 (同一个人同一时刻工作)
-    m_activeData.append({"钱七", "13511112222", QDate::currentDate().toString("yyyy-MM-dd"), "10:00", "全身剪毛", "剪毛台B", "张三 (高级)", "Pending"});
-
-    updatePagination();
+    autoExpireStaleAppointments(); // 启动时自动清理过期单
+    refreshView();
     updateStats();
+
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [this](){
+        updateStats();
+        refreshView();
+    });
 }
 
-void AppointmentModule::setupUI() {
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(20, 20, 20, 20);
-    layout->setSpacing(15);
+void AppointmentModule::setupUI()
+{
+    QHBoxLayout *rootLayout = new QHBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(0);
 
-    // 1. 标题栏
-    QHBoxLayout *titleLayout = new QHBoxLayout();
-    QLabel *title = new QLabel("业务中心：预约服务", this);
-    title->setStyleSheet("font-size: 24px; color: #303133;");
-    
-    QHBoxLayout *filterLayout = new QHBoxLayout();
-    searchEdit = new QLineEdit();
-    searchEdit->setPlaceholderText(" 搜索宠物名称、主号、服务类型...");
-    searchEdit->setFixedWidth(280);
-    searchEdit->setFixedHeight(32);
-    searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
-        "QLineEdit:focus { border-color: #409eff; outline: none; }"
-    );
-    connect(searchEdit, &QLineEdit::textChanged, this, &AppointmentModule::onFilter);
-    filterLayout->addWidget(searchEdit);
-    
-    titleLayout->addWidget(title);
-    titleLayout->addSpacing(20);
-    titleLayout->addLayout(filterLayout);
-    titleLayout->addStretch();
-    
-    QPushButton *batchCancelBtn = new QPushButton("批量清理违约", this);
-    batchCancelBtn->setCursor(Qt::PointingHandCursor);
-    batchCancelBtn->setStyleSheet(
-        "QPushButton { background-color: #fef0f0; color: #f56c6c; border-radius: 6px; padding: 10px 18px; border: 1px solid #fbc4c4; font-size: 13px; }"
-        "QPushButton:hover { background-color: #f56c6c; color: white; }"
-    );
+    // 左侧主要区域
+    QWidget *leftContainer = new QWidget();
+    QVBoxLayout *leftLayout = new QVBoxLayout(leftContainer);
+    leftLayout->setContentsMargins(25, 20, 25, 20);
+    leftLayout->setSpacing(20);
 
-    QPushButton *historyBtn = new QPushButton("历史预约记录", this);
-    historyBtn->setCursor(Qt::PointingHandCursor);
-    historyBtn->setStyleSheet(
-        "QPushButton { background-color: white; color: #606266; border-radius: 6px; padding: 10px 18px; border: 1px solid #dcdfe6; font-size: 13px; }"
-        "QPushButton:hover { border-color: #409eff; color: #409eff; }"
-    );
-
-    QPushButton *addApptBtn = new QPushButton("+ 新增预约", this);
-    addApptBtn->setCursor(Qt::PointingHandCursor);
-    addApptBtn->setStyleSheet(
-        "QPushButton { background-color: #409eff; color: white; border-radius: 6px; padding: 10px 20px; border: none; font-size: 13px; }"
-        "QPushButton:hover { background-color: #66b1ff; }"
-    );
+    // 1. 顶栏：标题 + 搜索 + 新增
+    QHBoxLayout *topBar = new QHBoxLayout();
+    QLabel *title = new QLabel("预约管理中心");
+    title->setStyleSheet("font-size: 24px; font-weight: 800; color: #1a1a1a;");
     
-    titleLayout->addWidget(batchCancelBtn);
-    titleLayout->addSpacing(10);
-    titleLayout->addWidget(historyBtn);
-    titleLayout->addSpacing(10);
-    titleLayout->addWidget(addApptBtn);
-    layout->addLayout(titleLayout);
+    m_searchEdit = new QLineEdit();
+    m_searchEdit->setPlaceholderText("搜索宠物、会员、手机号...");
+    m_searchEdit->setFixedSize(300, 38);
+    m_searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 19px; padding: 0 15px; background: white; font-size: 13px; } QLineEdit:focus { border-color: #409eff; }");
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &AppointmentModule::onFilter);
 
-    // 2. 统计卡片
+    QPushButton *addBtn = new QPushButton("新增预约");
+    addBtn->setFixedSize(130, 42);
+    addBtn->setCursor(Qt::PointingHandCursor);
+    addBtn->setStyleSheet(
+        "QPushButton { "
+        "  background: #409eff; "
+        "  color: white; "
+        "  border-radius: 21px; "
+        "  font-weight: bold; "
+        "  font-size: 14px; "
+        "  border: none; "
+        "  padding: 0; "
+        "  text-align: center; "
+        "} "
+        "QPushButton:hover { background: #66b1ff; }"
+    );
+    connect(addBtn, &QPushButton::clicked, this, &AppointmentModule::onAddAppointment);
+
+    topBar->addWidget(title);
+    topBar->addStretch();
+    leftLayout->addLayout(topBar);
+
+    // 2. 驾驶舱 (Stats)
     QHBoxLayout *dashLayout = new QHBoxLayout();
     dashLayout->setSpacing(20);
 
-    auto createStatCard = [&](const QString &icon, const QString &label, QLabel* &valLabel) {
+    auto createCard = [&](const QString &title, QLabel* &valLabel) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; }");
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15); shadow->setColor(QColor(0, 0, 0, 25)); shadow->setOffset(0, 4);
-        card->setGraphicsEffect(shadow);
-        QHBoxLayout *l = new QHBoxLayout(card); l->setContentsMargins(20, 15, 20, 15);
-        QLabel *iconLabel = new QLabel(icon);
-        if (icon.isEmpty()) {
-            iconLabel->hide();
-        } else {
-            iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
-            iconLabel->setStyleSheet(QString("font-size: 24px; background: #f5f7fa; border-radius: 10px; border: none;"));
-        }
-        if (!icon.isEmpty()) {
-            l->addWidget(iconLabel); l->addSpacing(15);
-        }
-        QVBoxLayout *textLayout = new QVBoxLayout(); textLayout->setSpacing(2);
-        QLabel *labelTitle = new QLabel(label); labelTitle->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("font-size: 22px; color: #303133; border: none; background: transparent;");
-        textLayout->addWidget(labelTitle); textLayout->addWidget(valLabel); textLayout->addStretch();
-        l->addLayout(textLayout); l->addStretch();
+        card->setFixedHeight(90);
+        card->setStyleSheet("background: white; border-radius: 12px; border: none;");
+        QVBoxLayout *l = new QVBoxLayout(card);
+        QLabel *t = new QLabel(title); t->setStyleSheet("color: #909399; font-size: 13px;");
+        valLabel = new QLabel("0"); valLabel->setStyleSheet("font-size: 22px; font-weight: bold; color: #303133;");
+        l->addWidget(t); l->addWidget(valLabel);
         return card;
     };
 
-    dashLayout->addWidget(createStatCard("", "今日预约总数", todayTotalLabel));
-    dashLayout->addWidget(createStatCard("", "待服务预约", pendingLabel));
-    dashLayout->addWidget(createStatCard("", "已完成工作", finishedLabel));
-    layout->addLayout(dashLayout);
+    dashLayout->addWidget(createCard("今日预约总量", m_statTotal));
+    dashLayout->addWidget(createCard("洗护/美容队列", m_statGrooming));
+    dashLayout->addWidget(createCard("物流接送任务", m_statLogistics));
+    dashLayout->addWidget(createCard("寄养实时负载", m_statBoarding));
+    leftLayout->addLayout(dashLayout);
 
-    // 3. 预约列表容器
-    apptTable = new QTableWidget();
-    apptTable->setColumnCount(7); // 增设勾选列
-    apptTable->setHorizontalHeaderLabels({"选择", "会员信息", "预约时间", "服务项目", "工作台", "工作人员", "操作"});
-    apptTable->setShowGrid(false);
-    apptTable->setAlternatingRowColors(false);
-    apptTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    apptTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    apptTable->setFocusPolicy(Qt::NoFocus);
-    apptTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    apptTable->verticalHeader()->setVisible(false);
-    apptTable->verticalHeader()->setDefaultSectionSize(54); 
+    // 新建统一的操作栏 (Action Row)
+    QHBoxLayout *actionRow = new QHBoxLayout();
+    actionRow->setSpacing(15); // 设置统一的子元素间距
     
-    apptTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    apptTable->setColumnWidth(0, 48);
-    apptTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); 
-    apptTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch); 
-    apptTable->setColumnWidth(3, 100); 
-    apptTable->setColumnWidth(4, 100); 
-    apptTable->setColumnWidth(5, 120); 
-    apptTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch); 
-
-    apptTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #E2E8F0; background-color: white; color: #1E293B; outline: none; border-radius: 8px; } "
-        "QTableWidget::item { border-bottom: 1px solid #F1F5F9; padding: 10px; } "
-        "QTableWidget::item:selected { background-color: #EFF6FF; color: #1E40AF; } " 
-        "QHeaderView::section { background-color: #1E40AF; color: white; padding: 12px; border: none; font-size: 13px; font-weight: 600; } "
-        "QCheckBox::indicator { width: 18px; height: 18px; }"
-        "QCheckBox::indicator:unchecked { border: 2px solid #D1D5DB; background: white; border-radius: 4px; }"
-        "QCheckBox::indicator:checked { background: #1E40AF; border: 2px solid #1E40AF; border-radius: 4px; }"
+    // 1. 新增按钮和搜索框
+    actionRow->addWidget(addBtn);
+    actionRow->addWidget(m_searchEdit);
+    
+    // 加一个弹簧或者更大的固定间距，把筛选组稍微隔开
+    actionRow->addSpacing(15);
+    
+    // 2. 状态筛选下拉框
+    m_statusCombo = new QComboBox();
+    m_statusCombo->addItems({"全部", "待处理", "服务中", "已完成", "已取消", "已过期"});
+    m_statusCombo->setFixedWidth(120);
+    m_statusCombo->setFixedHeight(38);
+    m_statusCombo->setStyleSheet(
+        "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; color: #606266; font-weight: bold; } "
+        "QComboBox:hover { border-color: #409eff; } "
+        "QComboBox::drop-down { border: none; } "
+        "QComboBox::down-arrow { image: url(:/icons/down_arrow.png); width: 12px; height: 12px; }"
     );
-    apptTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
-    layout->addWidget(apptTable);
-
-    // 4. 底部分页栏
-    QFrame *bottomBar = new QFrame();
-    bottomBar->setFixedHeight(50);
-    bottomBar->setStyleSheet("background: transparent;");
-    QHBoxLayout *pageLayout = new QHBoxLayout(bottomBar);
-    pageLayout->setContentsMargins(0,0,0,0);
-    pageLayout->addStretch();
-
-    pageLabel = new QLabel("第 1 页 / 共 1 页");
-    pageLabel->setStyleSheet("color: #64748B; font-size: 13px; font-weight: 500;");
+    connect(m_statusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AppointmentModule::onStatusFilterChanged);
+    actionRow->addWidget(m_statusCombo);
     
-    QLabel *jumpLbl1 = new QLabel("跳转至"); jumpLbl1->setStyleSheet("color: #64748B; font-size: 13px;");
-    jumpEdit = new QLineEdit();
-    jumpEdit->setFixedSize(45, 28);
-    jumpEdit->setAlignment(Qt::AlignCenter);
-    jumpValidator = new QIntValidator(1, 1, this);
-    jumpEdit->setValidator(jumpValidator);
-    jumpEdit->setStyleSheet("QLineEdit { border: 1px solid #E2E8F0; border-radius: 4px; background: white; font-weight: 600; } QLineEdit:focus { border-color: #1E40AF; }");
-    QLabel *jumpLbl2 = new QLabel("页"); jumpLbl2->setStyleSheet("color: #64748B; font-size: 13px;");
-    
-    QPushButton *goBtn = new QPushButton("确认");
-    goBtn->setFixedSize(50, 28);
-    goBtn->setCursor(Qt::PointingHandCursor);
-    goBtn->setStyleSheet(
-        "QPushButton { background: white; border: 1px solid #E2E8F0; border-radius: 4px; color: #64748B; font-size: 12px; font-weight: 600; } "
-        "QPushButton:hover { color: #1E40AF; border-color: #1E40AF; background: #F8FAFC; }"
+    // 重置按钮
+    QPushButton *resetBtn = new QPushButton("重置");
+    resetBtn->setFixedHeight(38);
+    resetBtn->setCursor(Qt::PointingHandCursor);
+    resetBtn->setStyleSheet(
+        "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 16px; color: #606266; font-weight: bold; } "
+        "QPushButton:hover { color: #409eff; border-color: #409eff; }"
     );
+    connect(resetBtn, &QPushButton::clicked, this, [this](){
+        m_searchEdit->clear();
+        m_statusCombo->setCurrentIndex(0);
+        m_currentPage = 1;
+        m_currentDate = QDate::currentDate();
+        updateDateBtnText();
+        refreshView();
+    });
+    actionRow->addWidget(resetBtn);
     
-    prevBtn = new QPushButton("上一页");
-    prevBtn->setFixedSize(70, 28);
-    prevBtn->setCursor(Qt::PointingHandCursor);
-    prevBtn->setStyleSheet(goBtn->styleSheet());
+    actionRow->addStretch();
     
-    nextBtn = new QPushButton("下一页");
-    nextBtn->setFixedSize(70, 28);
-    nextBtn->setCursor(Qt::PointingHandCursor);
-    nextBtn->setStyleSheet(goBtn->styleSheet());
+    // 3. 日期导航栏
+    QPushButton *prevBtn = new QPushButton("< 上一天");
+    m_dateBtn = new QPushButton("今天");
+    QPushButton *nextBtn = new QPushButton("下一天 >");
 
-    pageLayout->addWidget(jumpLbl1);
-    pageLayout->addWidget(jumpEdit);
-    pageLayout->addWidget(jumpLbl2);
-    pageLayout->addWidget(goBtn);
-    pageLayout->addSpacing(15);
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
+    QString navStyle = "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 6px 12px; color: #606266; font-weight: bold; } QPushButton:hover { color: #409eff; border-color: #409eff; }";
+    prevBtn->setStyleSheet(navStyle); nextBtn->setStyleSheet(navStyle);
+    m_dateBtn->setStyleSheet("QPushButton { background: #e1f0ff; border: 1px solid #b3d8ff; border-radius: 6px; padding: 6px 15px; color: #409eff; font-weight: bold; }");
 
-    layout->addWidget(bottomBar);
+    connect(prevBtn, &QPushButton::clicked, this, &AppointmentModule::onPrevDay);
+    connect(nextBtn, &QPushButton::clicked, this, &AppointmentModule::onNextDay);
 
-    connect(addApptBtn, &QPushButton::clicked, this, &AppointmentModule::onAddAppointmentClicked);
-    connect(historyBtn, &QPushButton::clicked, this, &AppointmentModule::onShowHistoryClicked);
-    connect(batchCancelBtn, &QPushButton::clicked, this, &AppointmentModule::onBatchCancel);
-    connect(prevBtn, &QPushButton::clicked, this, &AppointmentModule::onPrevPage);
-    connect(nextBtn, &QPushButton::clicked, this, &AppointmentModule::onNextPage);
-    connect(goBtn, &QPushButton::clicked, this, &AppointmentModule::onJumpPage);
-    connect(jumpEdit, &QLineEdit::returnPressed, this, &AppointmentModule::onJumpPage);
+    m_dateBtn->setText(QString("今天 (%1)").arg(m_currentDate.toString("MM/dd")));
+
+    actionRow->addWidget(prevBtn);
+    actionRow->addWidget(m_dateBtn);
+    actionRow->addWidget(nextBtn);
+    
+    leftLayout->addLayout(actionRow);
+    leftLayout->addSpacing(10);
+
+    // 3. 核心切换区域 (StackedWidget)
+    m_stack = new QStackedWidget();
+
+    // --- A. 格栅页面 ---
+    m_gridPage = new QWidget();
+    QVBoxLayout *gridPageLayout = new QVBoxLayout(m_gridPage);
+    gridPageLayout->setContentsMargins(0, 0, 0, 0);
+    gridPageLayout->setSpacing(15);
+
+    QScrollArea *scroll = new QScrollArea();
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setStyleSheet("background: transparent;");
+    
+    QWidget *scrollContent = new QWidget();
+    QHBoxLayout *kanban = new QHBoxLayout(scrollContent);
+    kanban->setContentsMargins(0, 0, 10, 0);
+    kanban->setSpacing(25);
+
+    // 今日列
+    QWidget *col1 = new QWidget();
+    QVBoxLayout *col1L = new QVBoxLayout(col1);
+    col1L->setContentsMargins(0, 0, 0, 0);
+    m_todayTitle = new QLabel("今日日程安排");
+    m_todayTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #2563eb; margin-bottom: 5px;");
+    col1L->addWidget(m_todayTitle);
+    m_todayGrid = new QVBoxLayout();
+    m_todayGrid->setSpacing(12);
+    col1L->addLayout(m_todayGrid);
+    col1L->addStretch();
+    kanban->addWidget(col1);
+
+    // 垂直分割线
+    QFrame *line = new QFrame(); line->setFrameShape(QFrame::VLine); line->setStyleSheet("color: #ebeef5;");
+    kanban->addWidget(line);
+
+    // 明日列
+    QWidget *col2 = new QWidget();
+    QVBoxLayout *col2L = new QVBoxLayout(col2);
+    col2L->setContentsMargins(0, 0, 0, 0);
+    m_tomorrowTitle = new QLabel("明日预约预告");
+    m_tomorrowTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #606266; margin-bottom: 5px;");
+    col2L->addWidget(m_tomorrowTitle);
+    m_tomorrowGrid = new QVBoxLayout();
+    m_tomorrowGrid->setSpacing(12);
+    col2L->addLayout(m_tomorrowGrid);
+    col2L->addStretch();
+    kanban->addWidget(col2);
+
+    scroll->setWidget(scrollContent);
+    gridPageLayout->addWidget(scroll);
+    m_stack->addWidget(m_gridPage);
+
+    // --- B. 列表页面 ---
+    m_listPage = new QWidget();
+    QVBoxLayout *listPageLayout = new QVBoxLayout(m_listPage);
+    listPageLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_listView = new QListView();
+    m_listView->setModel(m_model);
+    m_listView->setItemDelegate(m_delegate);
+    m_listView->setFrameShape(QFrame::NoFrame);
+    m_listView->setSpacing(2);
+    m_listView->setMouseTracking(true);
+    m_listView->setStyleSheet(
+        "QListView { background: #f8fafc; outline: none; padding: 8px; border-radius: 8px; }"
+        "QListView::item { border: none; }"
+        "QListView::item:selected { background: transparent; }"
+        "QListView::item:hover { background: transparent; }"
+    );
+    connect(m_listView, &QListView::clicked, this, &AppointmentModule::onAppointmentSelected);
+    listPageLayout->addWidget(m_listView);
+
+    // 列表模式下的分页栏
+    QFrame *pageBar = new QFrame();
+    pageBar->setFixedHeight(50);
+    QHBoxLayout *pageL = new QHBoxLayout(pageBar);
+    pageL->addStretch();
+    m_pageLabel = new QLabel("第 1 页 / 共 1 页");
+    pageL->addWidget(m_pageLabel);
+    m_stack->addWidget(m_listPage);
+
+    leftLayout->addWidget(m_stack, 1);
+
+    // 4. 右侧详情页
+    m_drawer = new AppointmentDetailDrawer(this);
+    m_drawer->setFixedWidth(420);
+    connect(m_drawer, &AppointmentDetailDrawer::confirmRequested, this, &AppointmentModule::handleConfirm);
+    connect(m_drawer, &AppointmentDetailDrawer::startServiceRequested, this, &AppointmentModule::handleStartService);
+    connect(m_drawer, &AppointmentDetailDrawer::completeRequested, this, &AppointmentModule::handleComplete); // 新增
+    connect(m_drawer, &AppointmentDetailDrawer::cancelRequested, this, &AppointmentModule::handleCancel);
+    connect(m_drawer, &AppointmentDetailDrawer::modifyRequested, this, &AppointmentModule::handleModify);
+    connect(m_drawer, &AppointmentDetailDrawer::mediaUploadRequested, this, &AppointmentModule::handleMediaUpload);
+    connect(m_drawer, &AppointmentDetailDrawer::galleryRequested, this, &AppointmentModule::handleGallery);
+    connect(m_drawer, &AppointmentDetailDrawer::imageClicked, this, &AppointmentModule::showBigImage);
+
+    rootLayout->addWidget(leftContainer, 1);
+    rootLayout->addWidget(m_drawer);
 }
 
-void AppointmentModule::updateStats() {
-    int total = 0;
-    int pending = m_activeData.size();
-    int finished = m_historyData.size();
-
-    QString today = QDate::currentDate().toString("yyyy-MM-dd");
-    for (const auto &info : m_activeData) {
-        if (info.date == today) total++;
-    }
-
-    todayTotalLabel->setText(QString("%1 场").arg(total));
-    pendingLabel->setText(QString("%1 人").arg(pending));
-    finishedLabel->setText(QString("%1 笔").arg(finished));
-}
-
-void AppointmentModule::updatePagination() {
-    apptTable->setRowCount(0);
-    
-    QString kw = searchEdit->text().trimmed().toLower();
-    QList<AppointmentInfo> filteredData;
-    
-    for (const auto &info : m_activeData) {
-        bool match = true;
-        if (!kw.isEmpty()) {
-            if (!info.memberName.toLower().contains(kw) &&
-                !info.memberPhone.toLower().contains(kw) &&
-                !info.service.toLower().contains(kw)) {
-                match = false;
-            }
-        }
-        if (match) filteredData.append(info);
-    }
-    
-    int total = filteredData.size();
-    int totalPages = qMax(1, (total + m_pageSize - 1) / m_pageSize);
-    
-    if (jumpValidator) jumpValidator->setTop(totalPages);
-    if (m_currentPage > totalPages) m_currentPage = totalPages;
-    if (m_currentPage < 1) m_currentPage = 1;
-
-    int start = (m_currentPage - 1) * m_pageSize;
-    int end = qMin(start + m_pageSize, total);
-
-    // 冲突检测准备 (简单的时间员工哈希预警)
-    QMap<QString, int> conflictMap;
-    for (const auto &info : filteredData) {
-        QString key = info.date + "|" + info.hour + "|" + info.staff;
-        conflictMap[key]++;
-    }
-
-    for (int i = start; i < end; ++i) {
-        const auto &info = filteredData[i];
-        int r = apptTable->rowCount();
-        apptTable->insertRow(r);
-        
-        // Col 0: CheckBox
-        QWidget *cbWidget = new QWidget();
-        QHBoxLayout *cbLayout = new QHBoxLayout(cbWidget);
-        cbLayout->setContentsMargins(0, 0, 0, 0); cbLayout->setAlignment(Qt::AlignCenter);
-        QCheckBox *cb = new QCheckBox();
-        cbLayout->addWidget(cb);
-        apptTable->setCellWidget(r, 0, cbWidget);
-
-        auto createItem = [&](const QString &text) {
-            auto *item = new QTableWidgetItem(text);
-            item->setFont(QFont("Microsoft YaHei", 9));
-            item->setTextAlignment(Qt::AlignCenter);
-            return item;
-        };
-
-        apptTable->setItem(r, 1, createItem(QString("%1\n%2").arg(info.memberName, info.memberPhone)));
-        apptTable->setItem(r, 2, createItem(QString("%1\n%2").arg(info.date, info.hour)));
-        apptTable->setItem(r, 3, createItem(info.service));
-        apptTable->setItem(r, 4, createItem(info.station));
-        apptTable->setItem(r, 5, createItem(info.staff));
-        
-        // 检测冲突改变背景色 (升级为更醒目的琥珀警示色)
-        QString cKey = info.date + "|" + info.hour + "|" + info.staff;
-        if (conflictMap[cKey] > 1) {
-            for (int col = 1; col <= 5; ++col) {
-                apptTable->item(r, col)->setBackground(QColor("#FFFBEB")); // 琥珀色淡背景
-                apptTable->item(r, col)->setForeground(QColor("#B45309")); // 琥珀深色文字
-                apptTable->item(r, col)->setToolTip("【系统警报】该时段工作人员任务冲突，请协调处理！");
-            }
-        }
-
-        // 统一小胶囊操作按钮
-        QWidget *actionWidget = new QWidget();
-        QHBoxLayout *actionLayout = new QHBoxLayout(actionWidget);
-        actionLayout->setContentsMargins(0, 0, 0, 0);
-        actionLayout->setSpacing(5);
-        actionLayout->setAlignment(Qt::AlignCenter);
-
-        auto createActBtn = [&](const QString &text, const QString &style) {
-            QPushButton *b = new QPushButton(text);
-            b->setFixedSize(45, 24); b->setCursor(Qt::PointingHandCursor); b->setStyleSheet(style);
-            return b;
-        };
-
-        QPushButton *finishBtn = createActBtn("完成", "QPushButton { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; border-radius: 4px; font-size: 11px; font-weight: 600; } "
-                                                      "QPushButton:hover { background: #059669; color: white; }");
-        QPushButton *editBtn = createActBtn("编辑", "QPushButton { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; border-radius: 4px; font-size: 11px; font-weight: 600; } "
-                                                    "QPushButton:hover { background: #1E40AF; color: white; }");
-        QPushButton *cancelBtn = createActBtn("驳回", "QPushButton { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; border-radius: 4px; font-size: 11px; font-weight: 600; } "
-                                                       "QPushButton:hover { background: #DC2626; color: white; }");
-        
-        // 绑定隐藏参数
-        finishBtn->setProperty("idx", i); // 绑定过滤数组的全局索引
-        editBtn->setProperty("idx", i);
-        cancelBtn->setProperty("idx", i);
-        
-        actionLayout->addWidget(finishBtn);
-        actionLayout->addWidget(editBtn);
-        actionLayout->addWidget(cancelBtn);
-        
-        connect(finishBtn, &QPushButton::clicked, this, &AppointmentModule::onFinishServiceClicked);
-        connect(editBtn, &QPushButton::clicked, this, &AppointmentModule::onEditAppointmentClicked);
-        connect(cancelBtn, &QPushButton::clicked, this, &AppointmentModule::onCancelAppointmentClicked);
-
-        apptTable->setCellWidget(r, 6, actionWidget);
-    }
-    
-    pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
-    prevBtn->setEnabled(m_currentPage > 1);
-    nextBtn->setEnabled(m_currentPage < totalPages);
-}
-
-void AppointmentModule::addRow(const AppointmentInfo &/*info*/) {
-    // 废弃不用，保留兼容，实际操作走 m_activeData 然后 updatePagination()
-}
-
-void AppointmentModule::onAddAppointmentClicked() {
-    AddAppointmentDialog dlg(this);
-    if (dlg.exec() == QDialog::Accepted) {
-        AppointmentInfo info = dlg.getAppointmentInfo();
-        info.status = "Pending";
-        m_activeData.append(info);
-        updatePagination();
-        updateStats();
-    }
-}
-
-void AppointmentModule::onEditAppointmentClicked() {
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-    
-    int filteredIdx = btn->property("idx").toInt();
-    
-    // 映射回原数组数据
-    QString kw = searchEdit->text().trimmed().toLower();
-    QList<AppointmentInfo> filteredData;
-    for (const auto &info : m_activeData) {
-        if (!kw.isEmpty() && !info.memberName.toLower().contains(kw) && !info.memberPhone.toLower().contains(kw) && !info.service.toLower().contains(kw)) continue;
-        filteredData.append(info);
-    }
-    if (filteredIdx < 0 || filteredIdx >= filteredData.size()) return;
-    
-    AppointmentInfo info = filteredData[filteredIdx];
-
-    AddAppointmentDialog dlg(this);
-    dlg.setInitialData(info);
-    if (dlg.exec() == QDialog::Accepted) {
-        AppointmentInfo newInfo = dlg.getAppointmentInfo();
-        // 更新 m_activeData
-        for (int i=0; i<m_activeData.size(); i++) {
-            if (m_activeData[i].memberName == info.memberName && m_activeData[i].date == info.date && m_activeData[i].hour == info.hour) {
-                m_activeData[i] = newInfo;
-                break;
-            }
-        }
-        updatePagination();
-        updateStats();
-    }
-}
-
-void AppointmentModule::onFinishServiceClicked() {
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-
-    int filteredIdx = btn->property("idx").toInt();
-    
-    // 映射回原数组数据
-    QString kw = searchEdit->text().trimmed().toLower();
-    QList<AppointmentInfo> filteredData;
-    for (const auto &info : m_activeData) {
-        if (!kw.isEmpty() && !info.memberName.toLower().contains(kw) && !info.memberPhone.toLower().contains(kw) && !info.service.toLower().contains(kw)) continue;
-        filteredData.append(info);
-    }
-    if (filteredIdx < 0 || filteredIdx >= filteredData.size()) return;
-    
-    AppointmentInfo info = filteredData[filteredIdx];
-
-    if (CustomMessageDialog::confirm(this, "业务流转确认", QString("是否确认会员 [%1] 的预约项目已完成，并推送至 [订单中心] 结账转历史？").arg(info.memberName))) {
-        m_historyData.append(info);
-        // 删除元素
-        for (int i=0; i<m_activeData.size(); i++) {
-            if (m_activeData[i].memberName == info.memberName && m_activeData[i].date == info.date && m_activeData[i].hour == info.hour) {
-                m_activeData.removeAt(i);
-                break;
-            }
-        }
-        CustomMessageDialog::showSuccess(this, "流转抛送完成", "服务已完成并已发送信号推送至订单管理中心结算！\n(底层已解耦防内存悬挂处理)");
-        updatePagination();
-        updateStats();
-    }
-}
-
-void AppointmentModule::onCancelAppointmentClicked() {
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-
-    int filteredIdx = btn->property("idx").toInt();
-    QString kw = searchEdit->text().trimmed().toLower();
-    QList<AppointmentInfo> filteredData;
-    for (const auto &info : m_activeData) {
-        if (!kw.isEmpty() && !info.memberName.toLower().contains(kw) && !info.memberPhone.toLower().contains(kw) && !info.service.toLower().contains(kw)) continue;
-        filteredData.append(info);
-    }
-    if (filteredIdx < 0 || filteredIdx >= filteredData.size()) return;
-    
-    AppointmentInfo info = filteredData[filteredIdx];
-    
-    if (CustomMessageDialog::confirm(this, "驳回确认", QString("确定要取消 [%1] 的该笔预约并记录违约历史吗？").arg(info.memberName))) {
-        m_historyData.append(info);
-        for (int i=0; i<m_activeData.size(); i++) {
-            if (m_activeData[i].memberName == info.memberName && m_activeData[i].date == info.date && m_activeData[i].hour == info.hour) {
-                m_activeData.removeAt(i);
-                break;
-            }
-        }
-        updatePagination();
-        updateStats();
-    }
-}
-
-void AppointmentModule::onBatchCancel()
+void AppointmentModule::refreshView()
 {
-    // 获取当页所有被勾选的行代表的对象
-    int count = 0;
-    for (int r = 0; r < apptTable->rowCount(); ++r) {
-        QWidget *w = apptTable->cellWidget(r, 0);
-        if (w) {
-            QCheckBox *cb = w->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                QString nameDesc = apptTable->item(r, 1)->text().split("\n").value(0);
-                QString dateDesc = apptTable->item(r, 2)->text().split("\n").value(0);
-                QString hourDesc = apptTable->item(r, 2)->text().split("\n").value(1);
-                
-                for (int i = 0; i < m_activeData.size(); ++i) {
-                    if (m_activeData[i].memberName == nameDesc && m_activeData[i].date == dateDesc && m_activeData[i].hour == hourDesc) {
-                        m_historyData.append(m_activeData[i]);
-                        m_activeData.removeAt(i);
-                        count++;
-                        break;
+    autoExpireStaleAppointments(); // 每次刷新时检查过期单
+    if (m_filterText.isEmpty()) {
+        m_stack->setCurrentWidget(m_gridPage);
+        renderGrid();
+    } else {
+        m_stack->setCurrentWidget(m_listPage);
+        renderList();
+    }
+}
+
+void AppointmentModule::autoExpireStaleAppointments()
+{
+    // 将所有 "昨天及更早" 的待处理/已确认订单自动标记为 "Expired"
+    QDate today = QDate::currentDate();
+    auto result = PetDataManager::instance()->getAppointments(1, 9999, "");
+    for (auto info : result.first) {
+        if (info.date.isEmpty()) continue;
+        
+        // 只处理还在进行中的状态，已完成/已取消/已过期的不动
+        if (info.status != "Pending" && info.status != "Confirmed" && info.status != "In-Service") continue;
+        
+        // 寄养类型：按离店日期判定过期
+        if (info.type == "Boarding") {
+            QDate endDate;
+            if (!info.boardingEndDate.isEmpty()) {
+                endDate = QDate::fromString(info.boardingEndDate, "yyyy-MM-dd");
+            } else if (info.duration > 0) {
+                endDate = QDate::fromString(info.date, "yyyy-MM-dd").addDays(info.duration);
+            }
+            if (endDate.isValid() && endDate < today) {
+                info.status = "Expired";
+                PetDataManager::instance()->updateAppointment(info);
+            }
+            continue;
+        }
+        
+        // 非寄养：按预约日期判定过期
+        QDate apptDate = QDate::fromString(info.date, "yyyy-MM-dd");
+        if (apptDate < today) {
+            info.status = "Expired";
+            PetDataManager::instance()->updateAppointment(info);
+        }
+    }
+}
+
+void AppointmentModule::renderGrid()
+{
+    // 清理旧视图
+    auto clearLayout = [](QVBoxLayout *layout) {
+        QLayoutItem *item;
+        while ((item = layout->takeAt(0)) != nullptr) {
+            if (item->widget()) item->widget()->deleteLater();
+            delete item;
+        }
+    };
+    clearLayout(m_todayGrid);
+    clearLayout(m_tomorrowGrid);
+
+    updateDateBtnText();
+    m_todayTitle->setText(m_currentDate == QDate::currentDate() ? "今日日程安排" : m_currentDate.toString("MM-dd") + " 日程");
+    m_tomorrowTitle->setText(m_currentDate.addDays(1) == QDate::currentDate().addDays(1) ? "明日预约预告" : m_currentDate.addDays(1).toString("MM-dd") + " 预告");
+
+    QString firstApptId;
+
+    auto renderCol = [this, &firstApptId](QVBoxLayout *layout, const QDate &date) {
+        auto result = PetDataManager::instance()->getAppointments(1, 100, "", m_statusFilter); // 获取数据并应用状态过滤
+        QList<AppointmentInfo> all = result.first;
+        
+        // 分组时间槽
+        QStringList timeSlots = {"09:00 - 11:00", "11:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 21:00"};
+        QMap<QString, QList<AppointmentInfo>> groups;
+        for (const auto &info : all) {
+            if (info.date != date.toString("yyyy-MM-dd")) continue;
+            // 寄养类型没有时间槽，放在第一个时间段显示
+            if (info.hour.isEmpty()) {
+                groups[timeSlots.first()].prepend(info);
+                continue;
+            }
+            // 简单匹配时间槽
+            QString s = timeSlots.first(); // 默认第一个
+            for (const auto &slotItem : timeSlots) {
+                if (info.hour >= slotItem.left(5) && info.hour < slotItem.right(5)) {
+                    s = slotItem; break;
+                }
+            }
+            groups[s].append(info);
+        }
+
+        for (const auto &slotName : timeSlots) {
+            QFrame *slotCard = new QFrame();
+            slotCard->setObjectName("slotCard");
+            slotCard->setStyleSheet("#slotCard { background: white; border-radius: 8px; border: 1px solid #ebeef5; }");
+            QVBoxLayout *sl = new QVBoxLayout(slotCard);
+            sl->setContentsMargins(0, 0, 0, 0); sl->setSpacing(0);
+
+            // Header
+            QFrame *header = new QFrame();
+            header->setObjectName("slotHeader");
+            header->setStyleSheet("#slotHeader { background: #fdfdfd; border-bottom: 1px solid #ebeef5; border-top-left-radius: 8px; border-top-right-radius: 8px; }");
+            QHBoxLayout *hl = new QHBoxLayout(header);
+            hl->setContentsMargins(15, 10, 15, 10);
+            
+            QLabel *timeL = new QLabel(slotName); 
+            timeL->setStyleSheet("font-weight: 900; color: #1e293b; font-size: 15px; letter-spacing: 0.5px;");
+            
+            auto slotTasks = groups.value(slotName);
+            QLabel *badgeL = new QLabel(QString("%1 预约").arg(slotTasks.size()));
+            if (slotTasks.isEmpty()) {
+                badgeL->setStyleSheet("background: #f4f4f5; color: #909399; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: bold; border: 1px solid #e9e9eb;");
+            } else {
+                badgeL->setStyleSheet("background: #ecf5ff; color: #409eff; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: bold; border: 1px solid #d9ecff;");
+            }
+            hl->addWidget(timeL); hl->addStretch(); hl->addWidget(badgeL);
+            sl->addWidget(header);
+
+            // Body
+            QWidget *body = new QWidget();
+            QVBoxLayout *bl = new QVBoxLayout(body);
+            bl->setContentsMargins(0, 0, 0, 0); bl->setSpacing(0);
+            body->setMinimumHeight(64);
+            
+            if (slotTasks.isEmpty()) {
+                QLabel *empty = new QLabel("暂无预约");
+                empty->setAlignment(Qt::AlignCenter);
+                empty->setStyleSheet("color: #dcdfe6; font-size: 13px; background: transparent;");
+                bl->addWidget(empty);
+            } else {
+                for (int i = 0; i < slotTasks.size(); ++i) {
+                    const auto &task = slotTasks[i];
+                    if (firstApptId.isEmpty()) firstApptId = task.id;
+
+                    QFrame *taskBtn = new QFrame();
+                    taskBtn->setObjectName("taskBtn");
+                    taskBtn->setFixedHeight(64);
+                    taskBtn->setCursor(Qt::PointingHandCursor);
+                    
+                    // ═══ 超时判定逻辑 (使用统一 helper) ═══
+                    bool isOverdue = isAppointmentOverdue(task);
+                    bool isSelected = (task.id == m_selectedTaskId);
+
+                    if (isSelected) {
+                        taskBtn->setStyleSheet(
+                            "QFrame#taskBtn { background: #f0f7ff; border: 2px solid #409eff; border-radius: 6px; } "
+                            "QFrame#taskBtn:hover { background: #e1f0ff; }"
+                        );
+                    } else if (isOverdue) {
+                        taskBtn->setStyleSheet(
+                            "QFrame#taskBtn { background: #fff5f5; border: 1px solid #fecaca; border-radius: 4px; } "
+                            "QFrame#taskBtn:hover { background: #fee2e2; }"
+                        );
+                    } else {
+                        taskBtn->setStyleSheet(
+                            "QFrame#taskBtn { background: transparent; border: 1px solid transparent; } "
+                            "QFrame#taskBtn:hover { background: #f5f7fa; }"
+                        );
+                    }
+
+                    QHBoxLayout *tl = new QHBoxLayout(taskBtn);
+                    tl->setContentsMargins(12, 8, 12, 8);
+                    tl->setSpacing(12);
+
+                    // 宠物头像
+                    QPixmap pixmap(task.petAvatar.isEmpty() ? ":/images/load_img.jpg" : task.petAvatar);
+                    QSize avatarSize(40, 40);
+                    QPixmap target(avatarSize);
+                    target.fill(Qt::transparent);
+                    QPainter p(&target);
+                    p.setRenderHint(QPainter::Antialiasing);
+                    p.setRenderHint(QPainter::SmoothPixmapTransform);
+                    QPainterPath path;
+                    path.addEllipse(1, 1, 38, 38);
+                    p.setClipPath(path);
+                    p.drawPixmap(1, 1, 38, 38, pixmap.scaled(38, 38, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                    p.setClipping(false);
+                    QPen pen(QColor("#ebeef5"), 1);
+                    p.setPen(pen);
+                    p.drawEllipse(1, 1, 38, 38);
+                    p.end();
+
+                    QLabel *avatarLabel = new QLabel();
+                    avatarLabel->setPixmap(target);
+                    avatarLabel->setFixedSize(avatarSize);
+                    avatarLabel->setStyleSheet("background: transparent;");
+                    avatarLabel->setProperty("avatarPath", task.petAvatar.isEmpty() ? ":/images/load_img.jpg" : task.petAvatar);
+                    avatarLabel->setCursor(Qt::PointingHandCursor);
+                    avatarLabel->installEventFilter(this);
+                    
+                    QVBoxLayout *ti = new QVBoxLayout();
+                    ti->setSpacing(4);
+                    
+                    QLabel *topLbl = new QLabel(QString("<span style='color:#303133; font-weight:bold; font-size:14px;'>%1</span> <span style='color:#909399; font-size:12px;'>&nbsp;·&nbsp; %2</span>").arg(task.petName, task.service));
+                    topLbl->setAttribute(Qt::WA_TransparentForMouseEvents);
+                    
+                    QString bottomText;
+                    if (task.type == "Boarding" && !task.boardingEndDate.isEmpty()) {
+                        QDate startD = QDate::fromString(task.date, "yyyy-MM-dd");
+                        QDate endD = QDate::fromString(task.boardingEndDate, "yyyy-MM-dd");
+                        bottomText = QString("<span style='color:#606266; font-size:12px;'>%1 &nbsp;|&nbsp; %2/%3 → %4/%5 共%6天</span>")
+                            .arg(task.memberName)
+                            .arg(startD.month()).arg(startD.day())
+                            .arg(endD.month()).arg(endD.day())
+                            .arg(task.duration);
+                    } else {
+                        bottomText = QString("<span style='color:#606266; font-size:12px;'>%1 &nbsp;|&nbsp; %2</span>").arg(task.memberName, task.memberPhone);
+                    }
+                    QLabel *bottomLbl = new QLabel(bottomText);
+                    bottomLbl->setAttribute(Qt::WA_TransparentForMouseEvents);
+                    
+                    ti->addWidget(topLbl);
+                    ti->addWidget(bottomLbl);
+                    ti->addStretch();
+                    
+                    // 状态标签
+                    QString displayStatus;
+                    if (task.status == "Pending" || task.status == "待处理") displayStatus = "待处理";
+                    else if (task.status == "Confirmed" || task.status == "已确认") displayStatus = "已确认";
+                    else if (task.status == "In-Service" || task.status == "服务中") displayStatus = "服务中";
+                    else if (task.status == "Cancelled" || task.status == "已取消") displayStatus = "已取消";
+                    else if (task.status == "Expired" || task.status == "已过期") displayStatus = "已过期";
+                    else displayStatus = "已完成";
+
+                    // 如果实时超时，追加醒目的 [已超时] 标记
+                    QLabel *statusTag = new QLabel(isOverdue ? "⚠ 已超时" : displayStatus);
+                    statusTag->setAttribute(Qt::WA_TransparentForMouseEvents);
+                    
+                    if (isOverdue) {
+                        statusTag->setStyleSheet("background: #fef2f2; color: #dc2626; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #fecaca;");
+                    } else if (displayStatus == "已确认" || displayStatus == "已完成") {
+                        statusTag->setStyleSheet("background: #f0f9eb; color: #67c23a; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #e1f3d8;");
+                    } else if (displayStatus == "待处理") {
+                        statusTag->setStyleSheet("background: #fff7ed; color: #ea580c; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #ffedd5;");
+                    } else if (displayStatus == "服务中") {
+                        statusTag->setStyleSheet("background: #eff6ff; color: #2563eb; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #dbeafe;");
+                    } else if (displayStatus == "已取消") {
+                        statusTag->setStyleSheet("background: #f4f4f5; color: #909399; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #e9e9eb; text-decoration: line-through;");
+                    } else if (displayStatus == "已过期") {
+                        statusTag->setStyleSheet("background: #fafafa; color: #a3a3a3; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #e5e5e5;");
+                    }
+
+                    tl->addWidget(avatarLabel);
+                    tl->addLayout(ti);
+                    tl->addStretch();
+                    tl->addWidget(statusTag);
+                    
+                    taskBtn->setProperty("taskId", task.id);
+                    taskBtn->installEventFilter(this);
+                    
+                    bl->addWidget(taskBtn);
+
+                    if (i < slotTasks.size() - 1) {
+                        QFrame *line = new QFrame();
+                        line->setFixedHeight(1);
+                        line->setStyleSheet("background: #f0f2f5; margin-left: 10px; margin-right: 10px;");
+                        bl->addWidget(line);
                     }
                 }
             }
+            sl->addWidget(body);
+            layout->addWidget(slotCard);
+        }
+    };
+
+    renderCol(m_todayGrid, m_currentDate);
+    renderCol(m_tomorrowGrid, m_currentDate.addDays(1));
+
+    if (m_selectedTaskId.isEmpty() && !firstApptId.isEmpty()) {
+        m_selectedTaskId = firstApptId;
+    }
+
+    if (!m_selectedTaskId.isEmpty()) {
+        // 关键：只有当选中 ID 真正变化时才重载详情页，防止数据同步导致的无谓闪烁
+        if (m_drawer->currentInfo().id != m_selectedTaskId) {
+            m_drawer->setAppointment(m_selectedTaskId);
+        }
+        if (!m_drawer->isOpened()) m_drawer->showDrawer();
+    } else {
+        m_drawer->clearSelection();
+        if (!m_drawer->isOpened()) m_drawer->showDrawer();
+    }
+}
+
+void AppointmentModule::updateStats()
+{
+    auto stats = PetDataManager::instance()->getAppointmentStats();
+    m_statTotal->setText(QString::number(stats.total));
+    m_statGrooming->setText(QString::number(stats.grooming));
+    m_statLogistics->setText(QString::number(stats.logistics));
+    m_statBoarding->setText(QString("%1%").arg(stats.boardingLoad));
+}
+
+void AppointmentModule::renderList()
+{
+    m_model->clear();
+    auto result = PetDataManager::instance()->getAppointments(m_currentPage, 20, m_filterText, m_statusFilter);
+    for (const auto &info : result.first) {
+        QStandardItem *item = new QStandardItem();
+        item->setData(QVariant::fromValue(info), Qt::UserRole);
+        m_model->appendRow(item);
+    }
+    m_pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg((result.second + 19) / 20));
+
+    if (!result.first.isEmpty()) {
+        QString firstId = result.first.first().id;
+        if (m_drawer->currentInfo().id != firstId) {
+            m_drawer->setAppointment(firstId);
+        }
+        if (!m_drawer->isOpened()) m_drawer->showDrawer();
+        
+        // 视觉上选中第一行
+        m_listView->setCurrentIndex(m_model->index(0, 0));
+    } else {
+        m_drawer->clearSelection();
+        if (!m_drawer->isOpened()) m_drawer->showDrawer();
+    }
+}
+
+void AppointmentModule::onFilter(const QString &text)
+{
+    m_filterText = text;
+    m_currentPage = 1;
+    refreshView();
+}
+
+void AppointmentModule::onStatusFilterChanged(int index)
+{
+    Q_UNUSED(index);
+    m_statusFilter = m_statusCombo->currentText();
+    m_currentPage = 1;
+    refreshView();
+}
+
+void AppointmentModule::onPrevDay() 
+{ 
+    m_currentDate = m_currentDate.addDays(-1); 
+    updateDateBtnText();
+    refreshView(); 
+}
+
+void AppointmentModule::onNextDay() 
+{ 
+    m_currentDate = m_currentDate.addDays(1); 
+    updateDateBtnText();
+    refreshView(); 
+}
+
+void AppointmentModule::onToday() 
+{ 
+    m_currentDate = QDate::currentDate(); 
+    updateDateBtnText();
+    refreshView(); 
+}
+
+bool AppointmentModule::isAppointmentOverdue(const AppointmentInfo &info) const
+{
+    if (info.date.isEmpty()) return false;
+    
+    // 只检测"待处理"和"已确认"状态的单据
+    if (info.status != "Pending" && info.status != "Confirmed") return false;
+    
+    // 寄养类型：根据离店日期判定超时
+    if (info.type == "Boarding") {
+        if (!info.boardingEndDate.isEmpty()) {
+            QDate endDate = QDate::fromString(info.boardingEndDate, "yyyy-MM-dd");
+            return endDate < QDate::currentDate();
+        }
+        // 没有离店日期的寄养，用入住日期+duration估算
+        QDate startDate = QDate::fromString(info.date, "yyyy-MM-dd");
+        if (info.duration > 0) {
+            return startDate.addDays(info.duration) < QDate::currentDate();
+        }
+        return false; // 无法判定
+    }
+    
+    // 非寄养类型需要时间槽
+    if (info.hour.isEmpty()) return false;
+    
+    QDate apptDate = QDate::fromString(info.date, "yyyy-MM-dd");
+    
+    // 昨天及更早的单据当然是超时的
+    if (apptDate < QDate::currentDate()) return true;
+    
+    // 今天的单据，检查时间是否已过
+    if (apptDate == QDate::currentDate()) {
+        // ═══ 统一时间槽逻辑 ═══
+        QStringList timeSlots = {"09:00 - 11:00", "11:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 21:00"};
+        QTime endTime;
+        bool matched = false;
+        for (const auto &slot : timeSlots) {
+            if (info.hour >= slot.left(5) && info.hour < slot.right(5)) {
+                endTime = QTime::fromString(slot.right(5), "HH:mm");
+                matched = true;
+                break;
+            }
+        }
+        
+        if (!matched) {
+            // 兜底逻辑：如果不在标准槽内，默认2小时超时
+            endTime = QTime::fromString(info.hour, "HH:mm").addSecs(2 * 3600);
+        }
+
+        if (QTime::currentTime() > endTime) {
+            return true;
         }
     }
-    if (count == 0) {
-        CustomMessageDialog::showWarning(this, "批量取消", "请先在前方的方框中勾选尚未履行的预约记录！");
-        return;
-    }
-    CustomMessageDialog::showSuccess(this, "清理完成", QString("一键清理并归档了 %1 条违约超时记录。").arg(count));
-    updatePagination();
-    updateStats();
+    
+    return false;
 }
 
-void AppointmentModule::onFilter() {
-    m_currentPage = 1;
-    updatePagination();
-}
-
-void AppointmentModule::onPrevPage() {
-    if (m_currentPage > 1) {
-        m_currentPage--;
-        updatePagination();
+void AppointmentModule::updateDateBtnText()
+{
+    if (m_currentDate == QDate::currentDate()) {
+        m_dateBtn->setText(QString("今天 (%1)").arg(m_currentDate.toString("MM/dd")));
+    } else if (m_currentDate == QDate::currentDate().addDays(1)) {
+        m_dateBtn->setText(QString("明天 (%1)").arg(m_currentDate.toString("MM/dd")));
+    } else {
+        m_dateBtn->setText(m_currentDate.toString("yyyy/MM/dd"));
     }
 }
-void AppointmentModule::onNextPage() {
-    m_currentPage++;
-    updatePagination(); // boundary check is inside
-}
-void AppointmentModule::onJumpPage() {
-    int page = jumpEdit->text().toInt();
-    if (page >= 1) {
-        m_currentPage = page;
-        updatePagination();
+
+void AppointmentModule::onAddAppointment()
+{
+    AddAppointmentDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        auto infos = dlg.getAppointmentInfos();
+        for (const auto &info : infos) {
+            PetDataManager::instance()->addAppointment(info);
+        }
+        refreshView();
     }
-    jumpEdit->clear(); jumpEdit->clearFocus();
 }
 
-void AppointmentModule::onShowHistoryClicked() {
-    auto *dlg = new HistoryAppointmentDialog(m_historyData, this);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->show();
+void AppointmentModule::onAppointmentSelected(const QModelIndex &index)
+{
+    AppointmentInfo info = index.data(Qt::UserRole).value<AppointmentInfo>();
+    m_drawer->setAppointment(info.id);
+    m_drawer->showDrawer();
+}
+
+void AppointmentModule::handleConfirm(const QString &id)
+{
+    AppointmentInfo info = PetDataManager::instance()->getAppointment(id);
+    if (info.id.isEmpty()) return;
+
+    // 超时拦截提示
+    if (isAppointmentOverdue(info)) {
+        QString msg = QString("该预约已超过预定时间。\n"
+                             "宠物: %1\n"
+                             "预约时间: %2 %3\n\n"
+                             "是否确认这是一笔迟到订单，继续操作？")
+                        .arg(info.petName, info.date, info.hour);
+        
+        if (!CustomMessageDialog::confirm(this, "超时单据提醒", msg)) return;
+    }
+
+    // 1. 更新预约状态为已确认
+    info.status = "Confirmed";
+    PetDataManager::instance()->updateAppointment(info);
+
+    // 2. 根据业务类型执行下发逻辑
+    if (info.type == "Transport") {
+        // 自动同步到调度中心
+        LogisticsTask task;
+        task.taskId = "LT" + QString::number(QDateTime::currentMSecsSinceEpoch()).right(6);
+        task.petId = info.petId;
+        task.type = "接送预约";
+        task.appointmentTime = QString("%1 %2").arg(info.date, info.hour);
+        task.address = info.address;
+        task.status = "待处理";
+        task.relatedModule = "预约中心下发";
+        task.relatedAppointmentId = info.id;
+        
+        LogisticsManager::instance()->addLogisticsTask(task);
+    } else if (info.type == "Boarding") {
+        // 自动锁定房间 (此处预留寄养中心对接接口)
+        // FosterManager::instance()->lockRoom(info.station, info.date, info.duration);
+    }
+
+    // 3. 刷新详情页和列表
+    m_drawer->setAppointment(id);
+    refreshView();
+}
+
+void AppointmentModule::handleStartService(const QString &id, const QString &staff)
+{
+    AppointmentInfo info = PetDataManager::instance()->getAppointment(id);
+    if (info.id.isEmpty()) return;
+
+    // 超时拦截提示
+    if (isAppointmentOverdue(info)) {
+        QString msg = QString("该预约已超过预定时间。\n"
+                             "宠物: %1\n"
+                             "预约时间: %2 %3\n\n"
+                             "是否确认客户迟到，继续开始服务？")
+                        .arg(info.petName, info.date, info.hour);
+        
+        if (!CustomMessageDialog::confirm(this, "超时单据提醒", msg)) return;
+    }
+
+    info.status = "In-Service";
+    info.staff = staff;
+    PetDataManager::instance()->updateAppointment(info);
+    
+    m_drawer->setAppointment(id);
+    refreshView();
+}
+
+void AppointmentModule::handleComplete(const QString &id)
+{
+    AppointmentInfo info = PetDataManager::instance()->getAppointment(id);
+    if (info.id.isEmpty()) return;
+
+    if (CustomMessageDialog::confirm(this, "服务完成确认", 
+                                     QString("确定 [%1] 的所有服务项目已执行完毕并可以关单了吗？\n确认后将生成待支付订单。").arg(info.petName))) {
+        // 1. 更新状态为已完成
+        info.status = "Completed";
+        PetDataManager::instance()->updateAppointment(info);
+        
+        // 2. 生成清结算订单 (核心闭环)
+        OrderInfo order;
+        order.id = "ORD" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss");
+        order.sourceModule = "Appointment";
+        order.relatedId = info.id;
+        order.petId = info.petId;
+        order.petName = info.petName;
+        order.memberName = info.memberName;
+        order.itemDetails = info.service;
+        order.totalAmount = info.amount;
+        order.finalAmount = info.amount; // 初始不打折
+        order.status = "Unpaid";
+        order.createTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+        
+        PetDataManager::instance()->addOrder(order);
+
+        // 3. 如果是寄养业务，自动触发离店影像录入
+        if (info.type == "Boarding") {
+            handleMediaUpload(id);
+        }
+        
+        m_drawer->setAppointment(id);
+        refreshView();
+        
+        CustomMessageDialog::showSuccess(this, "预约完成", "服务已完成，清结算订单已下发至订单中心。");
+    }
+}
+
+void AppointmentModule::handleCancel(const QString &id)
+{
+    AppointmentInfo info = PetDataManager::instance()->getAppointment(id);
+    if (info.id.isEmpty() || info.status == "Cancelled") return;
+
+    // 检查是否有同组级联记录 (如关联的接送返程单)
+    QList<AppointmentInfo> relatedInfos;
+    if (!info.groupId.isEmpty()) {
+        auto allInGroup = PetDataManager::instance()->getAppointmentsByGroupId(info.groupId);
+        for (const auto &grpInfo : allInGroup) {
+            if (grpInfo.id != id && grpInfo.status != "Cancelled") {
+                relatedInfos.append(grpInfo);
+            }
+        }
+    }
+
+    if (!relatedInfos.isEmpty()) {
+        QString msg = QString("您正在取消该预约。\n系统检测到该宠物还有 %1 项同时创建的关联服务（如接送返程）。\n请问是否需要一并取消？").arg(relatedInfos.size());
+        
+        QMessageBox box(this);
+        box.setWindowTitle("智能级联提示");
+        box.setText(msg);
+        box.setIcon(QMessageBox::Question);
+        QPushButton *btnCancelAll = box.addButton("一并取消所有关联", QMessageBox::AcceptRole);
+        QPushButton *btnCancelSingle = box.addButton("仅取消当前项", QMessageBox::RejectRole);
+        box.addButton("暂不取消", QMessageBox::DestructiveRole);
+        
+        box.exec();
+        
+        if (box.clickedButton() == btnCancelAll) {
+            // 取消所有关联记录
+            for (auto &grpInfo : relatedInfos) {
+                grpInfo.status = "Cancelled";
+                PetDataManager::instance()->updateAppointment(grpInfo);
+            }
+        } else if (box.clickedButton() == btnCancelSingle) {
+            // 继续执行仅取消当前项，无额外操作
+        } else {
+            // 用户放弃操作
+            return;
+        }
+    }
+
+    info.status = "Cancelled";
+    PetDataManager::instance()->updateAppointment(info);
+    
+    // 同步取消关联的物流任务
+    LogisticsManager::instance()->cancelTaskByAppointmentId(info.id);
+    
+    // 如果想要彻底删除，可以使用 removeAppointment
+    // PetDataManager::instance()->removeAppointment(id);
+    
+    m_drawer->clearSelection();
+    refreshView();
+}
+
+void AppointmentModule::handleModify(const AppointmentInfo &info)
+{
+    AddAppointmentDialog dlg(this);
+    dlg.setWindowTitle("修改预约服务");
+    dlg.setInitialData(info);
+    
+    if (dlg.exec() == QDialog::Accepted) {
+        auto infos = dlg.getAppointmentInfos();
+        if (!infos.isEmpty()) {
+            AppointmentInfo updatedInfo = infos.first();
+            // 保持原有的 ID 和状态
+            updatedInfo.id = info.id;
+            updatedInfo.status = info.status;
+            
+            PetDataManager::instance()->updateAppointment(updatedInfo);
+            
+            // 如果用户在修改时勾选了生成返程单，则将多出来的作为新增
+            for (int i = 1; i < infos.size(); ++i) {
+                PetDataManager::instance()->addAppointment(infos[i]);
+            }
+            
+            refreshView();
+            m_drawer->setAppointment(info.id); // 刷新右侧详情界面
+        }
+    }
+}
+
+void AppointmentModule::handleMediaUpload(const QString &id) {
+    QStringList filePaths = QFileDialog::getOpenFileNames(
+        this, "选择记录照片", "", "Images (*.png *.jpg *.jpeg *.webp)"
+    );
+    
+    if (filePaths.isEmpty()) return;
+
+    // 实际项目中这里应该有文件拷贝逻辑到应用目录，此处模拟保存路径
+    PetDataManager::instance()->updateAppointmentPhotos(id, filePaths);
+    
+    // 刷新侧滑栏显示
+    m_drawer->setAppointment(id);
+    
+}
+
+void AppointmentModule::handleGallery(const QStringList &paths, int index) {
+    (new FullImagePreviewDialog(paths, index, this->window()))->show();
+}
+
+void AppointmentModule::showBigImage(const QString &path)
+{
+    if (path.isEmpty()) return;
+    (new FullImagePreviewDialog(QStringList{path}, 0, this->window()))->show();
+}
+
+bool AppointmentModule::eventFilter(QObject *obj, QEvent *event)
+{
+    if (event->type() == QEvent::MouseButtonRelease) {
+        if (obj->property("avatarPath").isValid()) {
+            showBigImage(obj->property("avatarPath").toString());
+            return true;
+        }
+        
+        QWidget *w = qobject_cast<QWidget*>(obj);
+        while (w) {
+            if (w->property("taskId").isValid()) {
+                QString tid = w->property("taskId").toString();
+                m_selectedTaskId = tid; // 保存选中ID
+                m_drawer->setAppointment(tid);
+                m_drawer->showDrawer();
+                refreshView(); // 刷新以应用边框
+                return true;
+            }
+            w = w->parentWidget();
+        }
+
+        // Click on preview overlay to close
+        QDialog *previewDlg = qobject_cast<QDialog*>(obj);
+        if (!previewDlg) {
+             previewDlg = qobject_cast<QDialog*>(obj->parent());
+        }
+        if (previewDlg && previewDlg->windowFlags() & Qt::FramelessWindowHint) {
+            previewDlg->close();
+            return true;
+        }
+    }
+    return QWidget::eventFilter(obj, event);
 }

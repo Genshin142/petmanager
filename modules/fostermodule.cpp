@@ -1,6 +1,7 @@
 #include "fostermodule.h"
 #include "addpetdialog.h"
 #include "petdatamanager.h"
+#include "globallightbox.h"
 #include "custommessagedialog.h"
 #include "compactcalendar.h"
 #include "fosterganttmodel.h"
@@ -9,6 +10,7 @@
 #include <QHBoxLayout>
 #include <QFrame>
 #include "logisticsmanager.h"
+#include "pricemanager.h"
 #include <QGraphicsDropShadowEffect>
 #include <QScrollArea>
 #include <QDateEdit>
@@ -72,31 +74,85 @@ static QString getGenderBadgeHtml(const QString &gender) {
 #include "custom_calendar_edit.h"
 
 // 全屏图片预览弹窗实现
-FullImagePreviewDialog::FullImagePreviewDialog(const QString &path, QWidget *parent) : QDialog(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog | Qt::WindowStaysOnTopHint);
+FullImagePreviewDialog::FullImagePreviewDialog(const QStringList &paths, int startIndex, QWidget *parent) 
+    : QDialog(parent), m_paths(paths), m_currentIndex(startIndex) 
+{
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
-    
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setAlignment(Qt::AlignCenter);
+    setAttribute(Qt::WA_DeleteOnClose);
 
-    QLabel *imgL = new QLabel();
-    QPixmap pix(path);
-    QSize targetSize = parent ? parent->size() * 0.95 : QSize(1200, 900);
-    imgL->setPixmap(pix.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    imgL->setStyleSheet("background: transparent;");
+    // 核心修复：虽然是 Dialog，但要强制覆盖整个主界面区域
+    QWidget *root = this;
+    while (root->parentWidget()) root = root->parentWidget();
+    setGeometry(root->geometry());
     
+    QVBoxLayout *mainL = new QVBoxLayout(this);
+    mainL->setContentsMargins(0, 0, 0, 0);
+    
+    // 移除顶部操作栏，保持与头像放大一致的极简风格
+    mainL->addStretch();
+    
+    m_imgL = new QLabel();
+    m_imgL->setAlignment(Qt::AlignCenter);
+    m_imgL->setStyleSheet("background: transparent;");
     QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(50); shadow->setColor(QColor(0, 0, 0, 150));
-    imgL->setGraphicsEffect(shadow);
+    shadow->setBlurRadius(60); 
+    shadow->setColor(QColor(0, 0, 0, 180));
+    m_imgL->setGraphicsEffect(shadow);
+    
+    mainL->addWidget(m_imgL, 1, Qt::AlignCenter);
+    
+    mainL->addStretch();
+    
+    // 底部计数器
+    m_counterL = new QLabel();
+    m_counterL->setAlignment(Qt::AlignCenter);
+    m_counterL->setStyleSheet("color: white; font-size: 15px; font-weight: bold; background: rgba(0,0,0,120); border-radius: 18px; padding: 6px 24px; margin-bottom: 40px;");
+    mainL->addWidget(m_counterL, 0, Qt::AlignHCenter);
 
-    layout->addWidget(imgL);
-    if (parent) resize(parent->size());
+    updateImage();
+}
+
+void FullImagePreviewDialog::updateImage()
+{
+    if (m_currentIndex < 0 || m_currentIndex >= m_paths.size()) return;
+    
+    QPixmap pix(m_paths[m_currentIndex]);
+    if (pix.isNull()) return;
+    
+    // 关键修复：按主程序窗口的 80% 进行缩放
+    QWidget *root = this;
+    while (root->parentWidget()) root = root->parentWidget();
+    QSize targetSize = root->size() * 0.8;
+    
+    m_imgL->setPixmap(pix.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    
+    m_counterL->setText(QString("%1 / %2").arg(m_currentIndex + 1).arg(m_paths.size()));
+    m_counterL->setVisible(m_paths.size() > 1);
+}
+
+void FullImagePreviewDialog::mousePressEvent(QMouseEvent *event) {
+    Q_UNUSED(event);
+    close(); // 与头像放大一致，点击任意位置关闭
+}
+
+void FullImagePreviewDialog::wheelEvent(QWheelEvent *event)
+{
+    if (m_paths.size() <= 1) return;
+    
+    if (event->angleDelta().y() > 0) {
+        // 向上滚：上一张
+        m_currentIndex = (m_currentIndex - 1 + m_paths.size()) % m_paths.size();
+    } else {
+        // 向下滚：下一张
+        m_currentIndex = (m_currentIndex + 1) % m_paths.size();
+    }
+    updateImage();
 }
 
 void FullImagePreviewDialog::paintEvent(QPaintEvent *) {
     QPainter p(this);
-    p.fillRect(rect(), QColor(0, 0, 0, 180));
+    p.fillRect(rect(), QColor(0, 0, 0, 200));
 }
 
 // 可点击标签实现
@@ -439,11 +495,9 @@ void FosterCard::mousePressEvent(QMouseEvent *event) {
         if (m_avatar && m_avatar->geometry().contains(event->pos())) {
             QString path = m_avatar->property("avatarPath").toString();
             if (!path.isEmpty()) {
-                FullImagePreviewDialog dlg(path, this->window());
-                dlg.exec();
+                (new FullImagePreviewDialog(QStringList{path}, 0, this->window()))->show();
             } else {
-                AvatarZoomDialog dlg(m_avatar->text(), this->window());
-                dlg.exec();
+                (new AvatarZoomDialog(m_avatar->text(), this->window()))->show();
             }
         } else {
             emit clicked();
@@ -832,10 +886,30 @@ void FosterDetailDialog::buildOccupiedView(QVBoxLayout *layout, int roomId, cons
         "QPushButton { background: #fff1f0; color: #f5222d; border: 1px solid #ffa39e; border-radius: 8px; font-weight: bold; font-size: 13px; padding: 0 16px; }"
         "QPushButton:hover { background: #f5222d; color: white; border-color: #f5222d; }"
     );
-    connect(checkoutBtn, &QPushButton::clicked, this, [this, petId]() {
-        if (CustomMessageDialog::confirm(this, "退房确认", "确定要为该宠物办理退房吗？房位将被释放。")) {
+    connect(checkoutBtn, &QPushButton::clicked, this, [this, petId, roomId]() {
+        if (CustomMessageDialog::confirm(this, "退房确认", "确定要为该宠物办理退房吗？房位将被释放并生成清结算订单。")) {
             PetInfo info = PetDataManager::instance()->getPet(petId);
             if (!info.id.isEmpty()) {
+                // 1. 生成清结算订单
+                OrderInfo order;
+                order.id = "ORD" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss");
+                order.sourceModule = "Boarding";
+                order.relatedId = QString("ROOM-%1-%2").arg(roomId).arg(QDate::currentDate().toString("yyyyMMdd"));
+                order.petId = petId;
+                order.petName = info.name;
+                order.memberName = info.ownerName;
+                
+                QDate sDate = QDate::fromString(info.fosterStartTime, "yyyy-MM-dd");
+                int stayDays = sDate.isValid() ? qMax(1, (int)sDate.daysTo(QDate::currentDate()) + 1) : 1;
+                double dailyPrice = PriceManager::instance()->calculateFinalAmount("标准间", info.breed);
+                order.totalAmount = dailyPrice * stayDays;
+                order.finalAmount = order.totalAmount;
+                order.itemDetails = QString("寄养服务 (%1天)").arg(stayDays);
+                order.status = "Unpaid";
+                order.createTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+                PetDataManager::instance()->addOrder(order);
+
+                // 2. 更新状态与记录
                 info.status = "离店";
                 info.roomNo = "";
                 PetDataManager::instance()->updatePet(info);
@@ -844,11 +918,11 @@ void FosterDetailDialog::buildOccupiedView(QVBoxLayout *layout, int roomId, cons
                 log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
                 log.type = "离店";
                 log.icon = "";
-                log.remark = "办理退房，结束本次寄养，宠物已离店。";
+                log.remark = QString("办理退房，结算金额: ¥%1。").arg(order.totalAmount, 0, 'f', 2);
                 log.operatorName = "系统管理员";
                 PetDataManager::instance()->addActivityLog(petId, log);
-                
-                CustomMessageDialog::showSuccess(this, "退房成功", "已成功办理退房，房间已释放。");
+
+                CustomMessageDialog::showSuccess(this, "退房成功", "已成功办理退房，清结算单已发送至订单中心。");
                 accept(); 
             }
         }
@@ -1187,7 +1261,8 @@ MediaGallery::MediaGallery(QWidget *parent) : QWidget(parent) {
     layout->setSpacing(0);
 }
 
-void MediaGallery::setMedia(const QList<PetMedia> &mediaList) {
+void MediaGallery::setMedia(const QString &petId, const QList<PetMedia> &mediaList) {
+    m_petId = petId;
     // 1. 定义固定分类并预填充
     QStringList fixedTitles = {"运动", "洗澡", "喂食", "睡觉", "入住存证", "离店存证"};
     QMap<QString, PetMedia> groups;
@@ -1250,12 +1325,14 @@ void MediaGallery::setMedia(const QList<PetMedia> &mediaList) {
             "QPushButton { "
             "  background-color: #f8f9fb; "
             "  border-radius: 20px; "
-            "  border: none; " // 移除边框
+            "  border: 1px solid #f1f5f9; "
             "  background-image: url(%1); "
             "  background-position: center; "
             "  background-repeat: no-repeat; "
+            "  background-size: cover; " // 核心修复：全覆盖，不再留白
             "} "
             "QPushButton:hover { "
+            "  border-color: #409eff; "
             "  background-color: #f0f7ff; "
             "}").arg(cover);
         card->setStyleSheet(style);
@@ -1264,29 +1341,22 @@ void MediaGallery::setMedia(const QList<PetMedia> &mediaList) {
         cl->setContentsMargins(0, 0, 0, 0);
         cl->setSpacing(0);
         
-        if (m.urls.isEmpty()) {
-            cl->addStretch();
-            QLabel *iconL = new QLabel();
-            iconL->setAlignment(Qt::AlignCenter);
-            iconL->setStyleSheet("font-size: 48px; background: transparent; border: none; color: #dcdfe6;"); // 显式设置 border: none
-            iconL->setText("");
-            cl->addWidget(iconL);
-            cl->addStretch();
-        } else {
-            cl->addStretch();
-        }
+        cl->addStretch();
 
+        // 渐变文字背景，增强专业感
         QLabel *titleBar = new QLabel(QString("%1 (%2)").arg(title, QString::number(m.urls.size())));
-        titleBar->setFixedHeight(40);
+        titleBar->setFixedHeight(44);
         titleBar->setAlignment(Qt::AlignCenter);
-        titleBar->setStyleSheet("background: rgba(0, 0, 0, 160); color: white; font-size: 15px; font-weight: bold; "
-                               "border-bottom-left-radius: 18px; border-bottom-right-radius: 18px;");
+        titleBar->setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(0,0,0,0), stop:1 rgba(0,0,0,180)); "
+            "color: white; font-size: 14px; font-weight: bold; "
+            "border-bottom-left-radius: 18px; border-bottom-right-radius: 18px;"
+        );
         cl->addWidget(titleBar);
 
         connect(card, &QPushButton::clicked, this, [this, m]() {
             if (m.urls.isEmpty()) return;
-            MediaDetailDialog dlg(m, this->window());
-            dlg.exec();
+            emit categorySelected(m); // 改为发出信号，由父窗口处理视图切换
         });
 
         grid->addWidget(card, idx / 3, idx % 3, Qt::AlignCenter);
@@ -1303,7 +1373,9 @@ void MediaGallery::setMedia(const QList<PetMedia> &mediaList) {
 // ========================
 // MediaDetailDialog 实现
 // ========================
-MediaDetailDialog::MediaDetailDialog(const PetMedia &media, QWidget *parent) : QDialog(parent) {
+MediaDetailDialog::MediaDetailDialog(const QString &petId, const PetMedia &media, QWidget *parent) 
+    : QDialog(parent), m_petId(petId) 
+{
     setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
     
@@ -1366,27 +1438,71 @@ MediaDetailDialog::MediaDetailDialog(const PetMedia &media, QWidget *parent) : Q
     
     for (int i = 0; i < media.urls.size(); ++i) {
         QWidget *itemWidget = new QWidget();
+        itemWidget->setFixedSize(350, 292); // 260 (图) + 32 (时间) = 292
         QVBoxLayout *l = new QVBoxLayout(itemWidget);
         l->setContentsMargins(0, 0, 0, 0);
         l->setSpacing(0);
+        l->setAlignment(Qt::AlignTop); // 确保内部紧凑堆叠
 
         ClickableLabel *imgL = new ClickableLabel();
+        imgL->setFixedSize(350, 260); // 强制固定尺寸，防止布局拉伸
         QPixmap pix(media.urls[i]);
-        imgL->setPixmap(pix.scaled(350, 260, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        imgL->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: 1px solid #ebeef5; padding: 5px; border-bottom: none;");
+        if (!pix.isNull()) {
+            imgL->setPixmap(pix.scaled(350, 260, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        }
+        imgL->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: 1px solid #ebeef5; padding: 0px; border-bottom: none;"); // 移除 padding
         imgL->setAlignment(Qt::AlignCenter);
         
-        QString currentPath = media.urls[i];
-        connect(imgL, &ClickableLabel::clicked, this, [this, currentPath]() {
-            FullImagePreviewDialog dlg(currentPath, this->window());
-            dlg.exec();
+        imgL->setProperty("path", media.urls[i]);
+
+        // 删除按钮 overlay
+        QPushButton *delBtn = new QPushButton("X", imgL);
+        delBtn->setFixedSize(26, 26);
+        delBtn->setCursor(Qt::PointingHandCursor);
+        delBtn->setToolTip("删除此照片");
+        delBtn->setStyleSheet(
+            "QPushButton { background: #ff4d4f; color: white; border-radius: 13px; font-family: Arial; font-weight: bold; border: 2px solid white; font-size: 14px; text-align: center; padding: 0; } "
+            "QPushButton:hover { background: #ff7875; }"
+        );
+        // 在显示后进行定位，或者直接使用右对齐偏移
+        delBtn->move(350 - 32, 6);
+
+        QString currentUrl = media.urls[i];
+        QString currentTitle = media.title;
+        connect(delBtn, &QPushButton::clicked, this, [this, currentTitle, currentUrl, itemWidget]() {
+            if (CustomMessageDialog::confirm(this, "删除确认", "确定要从档案中永久删除这张照片吗？")) {
+                PetDataManager::instance()->deleteMediaPhoto(m_petId, currentTitle, currentUrl);
+                itemWidget->hide();
+                itemWidget->deleteLater();
+            }
+        });
+        
+        int currentIndex = i;
+        connect(imgL, &ClickableLabel::clicked, this, [this, currentIndex, media]() {
+            // 过滤掉已隐藏的照片路径
+            QStringList activeUrls;
+            int activeIndex = 0;
+            QList<ClickableLabel*> labels = this->findChildren<ClickableLabel*>();
+            QString targetUrl = media.urls[currentIndex];
+            
+            for (auto l : labels) {
+                QString p = l->property("path").toString();
+                if (!p.isEmpty() && l->isVisible()) {
+                    if (p == targetUrl) activeIndex = activeUrls.size();
+                    activeUrls << p;
+                }
+            }
+            
+            if (!activeUrls.isEmpty()) {
+                (new FullImagePreviewDialog(activeUrls, activeIndex, this->window()))->show();
+            }
         });
         
         QLabel *timeL = new QLabel(media.timestamps.size() > i ? media.timestamps[i] : "");
         timeL->setFixedHeight(32);
         timeL->setAlignment(Qt::AlignCenter);
-        timeL->setStyleSheet("background: #f5f7fa; color: #606266; font-size: 13px; font-weight: bold; font-family: 'Consolas', 'Monospace'; "
-                           "border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; border: 1px solid #ebeef5; border-top: none;");
+        timeL->setStyleSheet("background: #f8fafc; color: #64748b; font-size: 13px; font-weight: bold; font-family: 'Consolas', 'Monospace'; "
+                           "border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; border: 1px solid #ebeef5; border-top: none; margin: 0;");
         
         l->addWidget(imgL);
         l->addWidget(timeL);
@@ -1472,16 +1588,18 @@ FosterHistoryDetailWidget::FosterHistoryDetailWidget(QWidget *parent) : QWidget(
     mainLayout->addWidget(footer);
 }
 
-void FosterHistoryDetailWidget::setDetails(const QList<PetActivityLog> &logs, const QList<PetMedia> &media) {
+void FosterHistoryDetailWidget::setDetails(const QString &petId, const QList<PetActivityLog> &logs, const QList<PetMedia> &media) {
     m_timeline->setLogs(logs);
-    m_gallery->setMedia(media);
+    m_gallery->setMedia(petId, media);
 }
 
 // ========================
 // PetMediaArchiveDialog 实现
 // ========================
 
-PetMediaArchiveDialog::PetMediaArchiveDialog(const QString &petName, const QList<PetMedia> &media, QWidget *parent, const QString &startDate, const QString &endDate) : QDialog(parent) {
+PetMediaArchiveDialog::PetMediaArchiveDialog(const QString &petId, const QString &petName, const QList<PetMedia> &media, QWidget *parent, const QString &startDate, const QString &endDate, bool flatten) 
+    : QDialog(parent), m_petId(petId), m_petName(petName), m_media(media) 
+{
     setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
     
@@ -1502,33 +1620,45 @@ PetMediaArchiveDialog::PetMediaArchiveDialog(const QString &petName, const QList
     content->setContentsMargins(30, 25, 30, 25);
 
     QHBoxLayout *header = new QHBoxLayout();
-    QLabel *titleL = new QLabel(QString("📸 %1 的分类影像档案").arg(petName));
-    titleL->setStyleSheet("QLabel { font-size: 20px; font-weight: bold; color: #18181B; border: none; background: transparent; }");
+    m_titleLabel = new QLabel(QString("📸 %1 的分类影像档案").arg(petName));
+    m_titleLabel->setStyleSheet("QLabel { font-size: 20px; font-weight: bold; color: #18181B; border: none; background: transparent; }");
     
-    QPushButton *closeBtn = new QPushButton("关闭窗口");
-    closeBtn->setMinimumWidth(90);
-    closeBtn->setFixedHeight(32);
-    closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet(
-        "QPushButton { background: #f0f2f5; color: #1d1d1f; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; padding: 0 15px; } "
-        "QPushButton:hover { background: #e5e5ea; }"
+    m_closeBtn = new QPushButton("关闭窗口");
+    m_closeBtn->setMinimumWidth(100);
+    m_closeBtn->setFixedHeight(36);
+    m_closeBtn->setCursor(Qt::PointingHandCursor);
+    m_closeBtn->setStyleSheet(
+        "QPushButton { background: #f0f2f5; color: #1d1d1f; border: none; border-radius: 18px; font-weight: bold; font-size: 13px; padding: 0 15px; } "
+        "QPushButton:hover { background: #409eff; color: white; }"
     );
-    connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+    connect(m_closeBtn, &QPushButton::clicked, this, [this]() {
+        if (m_stack->currentIndex() == 1) showGalleryView();
+        else accept();
+    });
     
-    header->addWidget(titleL);
+    header->addWidget(m_titleLabel);
     header->addStretch();
-    header->addWidget(closeBtn);
+    header->addWidget(m_closeBtn);
     
     content->addLayout(header);
     content->addSpacing(15);
+
+    m_stack = new QStackedWidget();
+    content->addWidget(m_stack, 1);
     
-    // 根据日期范围过滤影像 (如果提供了范围)
+    // 过滤影像
     QList<PetMedia> filteredMedia;
-    if (!startDate.isEmpty()) {
-        QDate s = QDate::fromString(startDate, "yyyy-MM-dd");
-        QDate e = (endDate == "至今" || endDate.isEmpty()) ? QDate::currentDate() : QDate::fromString(endDate, "yyyy-MM-dd");
+    QDate s = startDate.isEmpty() ? QDate() : QDate::fromString(startDate, "yyyy-MM-dd");
+    QDate e = (endDate == "至今" || endDate.isEmpty()) ? QDate::currentDate() : QDate::fromString(endDate, "yyyy-MM-dd");
+
+    for (const auto &m : media) {
+        // 核心修复：如果是寄养分类界面（!flatten），严格排除掉任何服务记录，防止同步更新到寄养界面
+        if (!flatten && m.title.contains("服务记录")) continue;
         
-        for (const auto &m : media) {
+        // 如果是平铺模式（flatten），且标题不包含服务记录，则说明是寄养期间的照片，
+        // 我们在平铺模式下通常只显示服务照片，除非它就是被选中的那条记录。
+        
+        if (!startDate.isEmpty()) {
             PetMedia fm = m;
             fm.urls.clear();
             fm.timestamps.clear();
@@ -1540,24 +1670,117 @@ PetMediaArchiveDialog::PetMediaArchiveDialog(const QString &petName, const QList
                     fm.timestamps.append(ts);
                 }
             }
-            if (!fm.urls.isEmpty()) {
-                filteredMedia.append(fm);
-            }
+            if (!fm.urls.isEmpty()) filteredMedia.append(fm);
+        } else {
+            filteredMedia.append(m);
         }
-        titleL->setText(QString("📸 %1 的分类影像档案 (%2 ~ %3)").arg(petName, startDate, endDate));
-    } else {
-        filteredMedia = media;
     }
 
-    MediaGallery *gallery = new MediaGallery();
-    gallery->setMedia(filteredMedia);
-    content->addWidget(gallery, 1);
+    if (flatten) {
+        setupDetailUI(filteredMedia.isEmpty() ? PetMedia() : filteredMedia.first());
+        m_stack->setCurrentIndex(0);
+        m_closeBtn->setText("关闭窗口");
+    } else {
+        MediaGallery *gallery = new MediaGallery();
+        gallery->setMedia(m_petId, filteredMedia);
+        connect(gallery, &MediaGallery::categorySelected, this, &PetMediaArchiveDialog::showDetailView);
+        m_stack->addWidget(gallery);
+        
+        m_detailPage = new QWidget();
+        m_stack->addWidget(m_detailPage);
+        
+        m_stack->setCurrentIndex(0);
+    }
 
     mainLayout->addWidget(container);
 }
 
+void PetMediaArchiveDialog::showDetailView(const PetMedia &media) {
+    setupDetailUI(media);
+    m_stack->setCurrentIndex(1);
+    m_titleLabel->setText(media.title);
+    m_closeBtn->setText("返回分类列表");
+}
+
+void PetMediaArchiveDialog::showGalleryView() {
+    m_stack->setCurrentIndex(0);
+    m_titleLabel->setText(QString("📸 %1 的分类影像档案").arg(m_petName));
+    m_closeBtn->setText("关闭窗口");
+}
+
+void PetMediaArchiveDialog::setupDetailUI(const PetMedia &media) {
+    if (!m_detailPage) {
+        m_detailPage = new QWidget();
+        if (m_stack) m_stack->addWidget(m_detailPage);
+    }
+    
+    // 清理旧页面内容
+    if (m_detailPage->layout()) {
+        QLayoutItem *child;
+        while ((child = m_detailPage->layout()->takeAt(0)) != nullptr) {
+            if (child->widget()) child->widget()->deleteLater();
+            delete child;
+        }
+    } else {
+        new QVBoxLayout(m_detailPage);
+    }
+
+    QVBoxLayout *layout = static_cast<QVBoxLayout*>(m_detailPage->layout());
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    QScrollArea *scroll = new QScrollArea();
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setStyleSheet(
+        "QScrollArea { background: #f8f9fb; border-radius: 20px; } "
+        "QScrollBar:vertical { background: transparent; width: 10px; margin: 0px 2px 0px 0px; } "
+        "QScrollBar::handle:vertical { background: #dcdfe6; min-height: 30px; border-radius: 5px; } "
+        "QScrollBar::handle:vertical:hover { background: #c0c4cc; } "
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+    );
+    
+    QWidget *gallery = new QWidget();
+    gallery->setStyleSheet("background: transparent;");
+    QGridLayout *grid = new QGridLayout(gallery);
+    grid->setContentsMargins(25, 20, 25, 25);
+    grid->setSpacing(25);
+
+    for (int i = 0; i < media.urls.size(); ++i) {
+        QWidget *itemWidget = new QWidget();
+        itemWidget->setFixedSize(350, 292);
+        QVBoxLayout *l = new QVBoxLayout(itemWidget);
+        l->setContentsMargins(0, 0, 0, 0);
+        l->setSpacing(0);
+        l->setAlignment(Qt::AlignTop);
+
+        ClickableLabel *imgL = new ClickableLabel();
+        imgL->setFixedSize(350, 260);
+        QPixmap pix(media.urls[i]);
+        if (pix.isNull()) pix.load(":/images/load_img.jpg");
+        imgL->setPixmap(pix.scaled(350, 260, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        imgL->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: 1px solid #ebeef5; padding: 0px; border-bottom: none;");
+        imgL->setAlignment(Qt::AlignCenter);
+        imgL->setProperty("path", media.urls[i]);
+        
+        connect(imgL, &ClickableLabel::clicked, this, [this, media, i]() {
+            (new FullImagePreviewDialog(media.urls, i, this->window()))->show();
+        });
+
+        QLabel *timeL = new QLabel(media.timestamps.size() > i ? media.timestamps[i] : "");
+        timeL->setFixedHeight(32);
+        timeL->setAlignment(Qt::AlignCenter);
+        timeL->setStyleSheet("background: #f8fafc; color: #64748b; font-size: 13px; font-weight: bold; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; border: 1px solid #ebeef5; border-top: none; margin: 0;");
+        
+        l->addWidget(imgL);
+        l->addWidget(timeL);
+        grid->addWidget(itemWidget, i / 2, i % 2);
+    }
+    
+    scroll->setWidget(gallery);
+    layout->addWidget(scroll, 1);
+}
+
 void PetMediaArchiveDialog::paintEvent(QPaintEvent *) {
-    // 移除黑色填充，仅依靠 WA_TranslucentBackground 和阴影效果实现高级感
 }
 
 // ========================
@@ -1682,10 +1905,10 @@ void HistoryRecordDialog::setupUI(int roomId, const QString &petId, const QStrin
         HistoryItemCard *card = new HistoryItemCard(pName, rInfo, period, status, listContainer);
         m_cards.append(card);
         listV->addWidget(card);
-        connect(card, &HistoryItemCard::clicked, this, [this, card, detailWidget, mockLogs, mockMedia]() {
+        connect(card, &HistoryItemCard::clicked, this, [this, card, detailWidget, mockLogs, mockMedia, petId]() {
             for (auto c : m_cards) c->setSelected(false);
             card->setSelected(true);
-            detailWidget->setDetails(mockLogs, mockMedia);
+            detailWidget->setDetails(petId, mockLogs, mockMedia);
         });
     };
 
@@ -1759,7 +1982,7 @@ void HistoryRecordDialog::setupUI(int roomId, const QString &petId, const QStrin
     // 默认选中第一项 (当前进行中的)
     if (!m_cards.isEmpty()) {
         m_cards.first()->setSelected(true);
-        detailWidget->setDetails(logs0, media0);
+        detailWidget->setDetails(petId, logs0, media0);
     }
 
     scroll->setWidget(listContainer);
@@ -2053,11 +2276,9 @@ bool FosterDetailDialog::eventFilter(QObject *watched, QEvent *event) {
             if (label->property("isAvatar").toBool()) {
                 QString path = label->property("avatarPath").toString();
                 if (!path.isEmpty()) {
-                    FullImagePreviewDialog dlg(path, this->window());
-                    dlg.exec();
+                    (new FullImagePreviewDialog(QStringList{path}, 0, this->window()))->show();
                 } else {
-                    AvatarZoomDialog dlg(label->text(), this->window());
-                    dlg.exec();
+                    (new AvatarZoomDialog(label->text(), this->window()))->show();
                 }
                 return true;
             }
@@ -2282,14 +2503,14 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
         return l;
     };
 
-    // --- 房位选择 (增强：支持全局开单) ---
+    // --- 房位选择 (增强：支持动态过滤) ---
     formGrid->addWidget(createLabel("选择房位"), 0, 0, 1, 2);
     QComboBox *roomCombo = new QComboBox();
     roomCombo->setFixedHeight(40);
-    for (int i = 101; i <= 120; ++i) roomCombo->addItem(QString("Room %1").arg(i), i);
     
     if (roomId != -1) {
-        roomCombo->setCurrentText(QString("Room %1").arg(roomId));
+        roomCombo->addItem(QString("Room %1").arg(roomId), roomId);
+        roomCombo->setCurrentIndex(0);
     } else {
         roomTag->setText("待定");
     }
@@ -2327,15 +2548,19 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
     
     CustomCalendarEdit *startEdit = new CustomCalendarEdit();
     startEdit->setFixedHeight(44);
+    startEdit->setMinimumDate(QDate::currentDate()); // 入住不能早于今天
     QDate finalStartDate = startDate.isValid() ? startDate : QDate::currentDate();
     startEdit->setText(finalStartDate.toString("yyyy-MM-dd"));
+
     CustomCalendarEdit *endEdit = new CustomCalendarEdit();
     endEdit->setFixedHeight(44);
-    endEdit->setText(QDate::currentDate().addDays(7).toString("yyyy-MM-dd"));
+    endEdit->setMinimumDate(finalStartDate.addDays(1)); // 离店不能早于入住+1天
+    endEdit->setText(finalStartDate.addDays(7).toString("yyyy-MM-dd"));
     
     connect(startEdit, &QLineEdit::textChanged, this, [=](const QString &text) {
         QDate s = QDate::fromString(text, "yyyy-MM-dd");
         if (s.isValid()) {
+            endEdit->setMinimumDate(s.addDays(1)); // 动态更新离店日期的最小值
             QDate e = QDate::fromString(endEdit->text(), "yyyy-MM-dd");
             if (!e.isValid() || e <= s) {
                 endEdit->setText(s.addDays(1).toString("yyyy-MM-dd"));
@@ -2397,27 +2622,41 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
     btnLayout->addWidget(bookBtn);
     btnLayout->addWidget(confirmBtn);
 
-    // --- 3.5 冲突检测提示 ---
-    QLabel *conflictLabel = new QLabel("该时间段房位冲突，请重新选择日期");
-    conflictLabel->setStyleSheet("color: #f56c6c; font-size: 12px; font-weight: bold; background: #fef0f0; border: 1px solid #fde2e2; border-radius: 4px; padding: 8px;");
-    conflictLabel->setVisible(false);
-    mainLayout->addWidget(conflictLabel);
-
-    auto checkConflict = [=]() {
+    // --- 3.5 自动房态过滤逻辑 ---
+    auto refreshAvailableRooms = [=]() {
         QDate s = QDate::fromString(startEdit->text(), "yyyy-MM-dd");
         QDate e = QDate::fromString(endEdit->text(), "yyyy-MM-dd");
         if (s.isValid() && e.isValid()) {
-            int selRoomId = roomCombo->currentData().toInt();
-            bool ok = PetDataManager::instance()->isRoomAvailable(selRoomId, s, e);
-            conflictLabel->setVisible(!ok);
-            confirmBtn->setEnabled(ok);
-            bookBtn->setEnabled(ok);
+            int currentRoom = roomCombo->currentData().toInt();
+            roomCombo->blockSignals(true);
+            roomCombo->clear();
+            
+            auto available = PetDataManager::instance()->getAvailableRooms(s, e);
+            if (available.isEmpty()) {
+                roomCombo->addItem("❌ 无可用房位", -1);
+                confirmBtn->setEnabled(false);
+                bookBtn->setEnabled(false);
+            } else {
+                for (int r : available) {
+                    roomCombo->addItem(QString("Room %1").arg(r), r);
+                }
+                // 尝试恢复之前选中的房间，如果它仍然可用
+                int idx = roomCombo->findData(currentRoom);
+                if (idx != -1) roomCombo->setCurrentIndex(idx);
+                
+                confirmBtn->setEnabled(true);
+                bookBtn->setEnabled(true);
+            }
+            roomCombo->blockSignals(false);
+            roomTag->setText(roomCombo->currentText().toUpper());
         }
     };
     
-    connect(startEdit, &QLineEdit::textChanged, this, checkConflict);
-    connect(endEdit, &QLineEdit::textChanged, this, checkConflict);
-    connect(roomCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, checkConflict);
+    connect(startEdit, &QLineEdit::textChanged, this, refreshAvailableRooms);
+    connect(endEdit, &QLineEdit::textChanged, this, refreshAvailableRooms);
+    
+    // 初始执行一次刷新
+    refreshAvailableRooms();
 
     mainLayout->addLayout(btnLayout);
 
@@ -3000,7 +3239,8 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
 
 
     connect(archiveBtn, &QPushButton::clicked, this, [this, petId]() {
-        PetMediaArchiveDialog dlg(PetDataManager::instance()->getPet(petId).name, 
+        PetInfo info = PetDataManager::instance()->getPet(petId);
+        PetMediaArchiveDialog dlg(petId, info.name, 
                                  PetDataManager::instance()->getMedia(petId), 
                                  this->window(),
                                  m_currentPeriodStart, m_currentPeriodEnd);
@@ -3548,8 +3788,7 @@ void FosterModule::updateStats() {
 void FosterModule::showBigImage(const QString &path)
 {
     if (path.isEmpty()) return;
-    FullImagePreviewDialog dlg(path, this->window());
-    dlg.exec();
+    (new FullImagePreviewDialog(QStringList{path}, 0, this->window()))->show();
 }
 
 void FosterModule::hideBigImage()

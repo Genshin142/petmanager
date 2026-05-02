@@ -1,6 +1,7 @@
 #include "rolemodule.h"
 #include "addemployeedialog.h"
 #include "custommessagedialog.h"
+#include "staffdatamanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -405,14 +406,12 @@ void RoleModule::setupUI()
 
 void RoleModule::addSampleData()
 {
-    addEmployeeRow("E001", "李四", "高级美容师", "在岗", "男", 28, "13800138000", "lisi@pet.com", "440106199601011234", 3500, 15000, 2250);
-    addEmployeeRow("E002", "王五", "店员", "请假", "女", 24, "13911223344", "wangwu@pet.com", "440106200005204321", 3000, 3000, 450);
-    addEmployeeRow("E003", "张三", "实习生", "在岗", "男", 21, "13755667788", "zhangsan@pet.com", "440106200310105566", 1200, 0, 0);
-    addEmployeeRow("E004", "赵六", "宠物医生", "在岗", "男", 35, "15088996677", "zhaoliu@pet.com", "440106198912128899", 6500, 40000, 5600);
-    addEmployeeRow("E005", "孙梅", "店长", "在岗", "女", 32, "13612345678", "sunmei@pet.com", "440106199201011122", 8000, 0, 0);
-    addEmployeeRow("E006", "周莉", "高级美容师", "请假", "女", 27, "13698765432", "zhouli@pet.com", "440106199505053344", 3500, 12000, 1800);
-    addEmployeeRow("E007", "吴刚", "店员", "离岗", "男", 22, "13587654321", "wugang@pet.com", "440106200202025566", 2800, 0, 0);
-    addEmployeeRow("E008", "陈七", "店员", "离职", "女", 26, "13511223344", "chenqi@pet.com", "440106199808081122", 3000, 0, 0);
+    // 从统一数据管理器加载初始数据，确保全程序一致
+    auto all = StaffDataManager::instance()->allStaff();
+    for (const auto &info : all) {
+        addEmployeeRow(info.id, info.name, info.role, info.status, info.gender, info.age, 
+                       info.phone, info.email, info.idCard, info.baseSalary, 0, 0, info.imgPath);
+    }
 }
 
 void RoleModule::updateStats()
@@ -725,8 +724,12 @@ void RoleModule::onAddEmployee()
             }
         }
         info.id = QString("E%1").arg(maxId + 1, 3, 10, QChar('0'));
+        
+        // 同时更新 UI 和数据中心
+        StaffDataManager::instance()->addStaff(info);
         addEmployeeRow(info.id, info.name, info.role, info.status, info.gender, info.age, 
                        info.phone, info.email, info.idCard, info.baseSalary, 0, 0, info.imgPath);
+        
         updateStats();
         updatePagination();
     }
@@ -747,7 +750,11 @@ void RoleModule::onEditEmployee()
              dlg.setEmployeeInfo(info);
              if (dlg.exec() == QDialog::Accepted) {
                   EmployeeInfo newInfo = dlg.employeeInfo();
-                  // 原位更新
+                  
+                  // 同步更新数据中心
+                  StaffDataManager::instance()->updateStaff(newInfo);
+                  
+                  // 原位更新 UI
                   empTable->removeRow(i);
                   empTable->insertRow(i);
                   addEmployeeRowInPlace(i, newInfo);
@@ -769,6 +776,7 @@ void RoleModule::onDeleteEmployee()
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
             EmployeeInfo info = empTable->item(i, 1)->data(Qt::UserRole).value<EmployeeInfo>();
             if (CustomMessageDialog::confirm(this, "删除确认", QString("确定要删除员工 [%1] 的档案吗？").arg(info.name))) {
+                StaffDataManager::instance()->removeStaff(info.id);
                 empTable->removeRow(i);
                 updateStats();
                 updatePagination();

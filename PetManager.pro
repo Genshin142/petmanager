@@ -37,7 +37,14 @@ SOURCES += \
     modules/inboundmodule.cpp \
     modules/inboundregistrationdialog.cpp \
     modules/employeedetaildrawer.cpp \
-    modules/memberdetaildrawer.cpp
+    modules/memberdetaildrawer.cpp \
+    modules/appointmentitemdelegate.cpp \
+    modules/appointmentdetaildrawer.cpp \
+    modules/globallightbox.cpp \
+    modules/staffdatamanager.cpp \
+    modules/staffselectiondialog.cpp \
+    modules/pricemanager.cpp \
+    modules/orderdetaildrawer.cpp
 
 HEADERS += \
     loginwindow.h \
@@ -75,7 +82,14 @@ HEADERS += \
     modules/inboundmodule.h \
     modules/inboundregistrationdialog.h \
     modules/employeedetaildrawer.h \
-    modules/memberdetaildrawer.h
+    modules/memberdetaildrawer.h \
+    modules/appointmentitemdelegate.h \
+    modules/appointmentdetaildrawer.h \
+    modules/globallightbox.h \
+    modules/staffdatamanager.h \
+    modules/staffselectiondialog.h \
+    modules/pricemanager.h \
+    modules/orderdetaildrawer.h
 
 FORMS += \
     loginwindow.ui \

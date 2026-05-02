@@ -1,5 +1,6 @@
 #include "salarymodule.h"
 #include "custommessagedialog.h"
+#include "staffdatamanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -269,12 +270,16 @@ void SalaryModule::setupUI()
 
 void SalaryModule::initData()
 {
-    // 注入初始模拟数据结构
-    m_salaryData.append({"E001", "张三", 5000, 1200, "已发放"});
-    m_salaryData.append({"E002", "李四", 4500, 800, "待发放"});
-    m_salaryData.append({"E003", "王五", 4000, 1500, "待发放"});
-    m_salaryData.append({"E004", "赵六", 4200, 900, "已发放"});
-    m_salaryData.append({"E005", "孙七", 5000, 2000, "待发放"});
+    // 从统一数据管理器同步真实员工名录，确保薪资单据不“乱写”
+    m_salaryData.clear();
+    auto all = StaffDataManager::instance()->allStaff();
+    for (const auto &info : all) {
+        if (info.status == "离职") continue;
+        
+        // 模拟提成数据 (实际可从业绩模块计算)
+        double mockCommission = (info.role.contains("美容师") || info.role.contains("医生")) ? 1200.0 : 300.0;
+        m_salaryData.append({info.id, info.name, (double)info.baseSalary, mockCommission, "待发放"});
+    }
     
     updatePagination();
     updateStats();

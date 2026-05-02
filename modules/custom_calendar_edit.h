@@ -31,6 +31,7 @@ public:
 
     void setMinimumDate(const QDate &date);
     void setMaximumDate(const QDate &date);
+    QDate date() const;
 
 signals:
     void dateChanged(const QDate &date);

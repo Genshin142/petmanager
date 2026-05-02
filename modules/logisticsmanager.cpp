@@ -16,8 +16,11 @@ LogisticsManager* LogisticsManager::instance()
 
 LogisticsManager::LogisticsManager(QObject *parent) : QObject(parent)
 {
-    // 初始化一些模拟数据用于测试
-    auto addTask = [&](const QString &pId, const QString &type, const QString &status, const QString &addr, const QString &time, const QString &module, const QString &room) {
+    // 初始化模拟数据 - petId 必须与 PetDataManager 中的数据对应
+    auto addTask = [&](const QString &pId, const QString &type, const QString &status, 
+                       const QString &addr, const QString &time, const QString &module, 
+                       const QString &room, const QString &driver, double amount,
+                       const QString &apptId = "") {
         LogisticsTask task;
         task.taskId = "T" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
         task.petId = pId;
@@ -27,13 +30,27 @@ LogisticsManager::LogisticsManager(QObject *parent) : QObject(parent)
         task.appointmentTime = QDate::currentDate().toString("yyyy-MM-dd") + " " + time;
         task.relatedModule = module;
         task.relatedRoomId = room;
+        task.driver = driver;
+        task.amount = amount;
+        task.relatedAppointmentId = apptId;
         m_tasks.insert(task.taskId, task);
     };
 
-    addTask("P1008", "单程接宠", "待处理", "阳光小区 3栋 201", "14:00 - 16:00", "寄养入住", "109");
-    addTask("P1001", "单程接宠", "待处理", "滨江花园 5号楼", "09:00 - 11:00", "单纯洗护", "103");
-    addTask("P1002", "单程送宠", "进行中", "万达广场 A座 1502", "11:00 - 14:00", "寄养送回", "101");
-    addTask("P1003", "单程接宠", "待处理", "月亮湾 8号别墅", "16:00 - 18:00", "就医体检", "102");
+    // 布丁(P001) - 金毛犬 - 张三 | 洗护完成后送回
+    addTask("P001", "单程送宠", "已完成", "滨江花园 5号楼 302", "09:00 - 11:00", 
+            "洗护送回", "", "王师傅", 50.0, "APP-2026050201");
+    
+    // 芝麻(P002) - 英短蓝猫 - 李芳 | 寄养入住接宠
+    addTask("P002", "单程接宠", "已完成", "万达广场 A座 1502", "11:00 - 14:00", 
+            "寄养入住", "A-101", "李师傅", 70.0);
+    
+    // 豆豆(P003) - 柴犬 - 李芳 | 体检接宠
+    addTask("P003", "单程接宠", "待处理", "阳光小区 3栋 201", "14:00 - 16:00", 
+            "就医体检", "", "张师傅", 45.0, "APP-2026050203");
+    
+    // 小雪(P004) - 萨摩耶 - 赵六 | 洗护接宠(进行中)
+    addTask("P004", "单程接宠", "进行中", "月亮湾 8号别墅", "16:00 - 18:00", 
+            "单纯洗护", "", "赵师傅", 60.0, "APP-2026050202");
 
     // 设置自动更新计时器 (每30秒检查一次过期任务)
     m_autoUpdateTimer = new QTimer(this);
@@ -96,6 +113,16 @@ void LogisticsManager::checkAndAutoUpdateTasks()
                 }
             }
             task.status = newStatus;
+            
+            // 同步更新关联的预约单状态
+            if (!task.relatedAppointmentId.isEmpty()) {
+                AppointmentInfo appt = PetDataManager::instance()->getAppointment(task.relatedAppointmentId);
+                if (!appt.id.isEmpty()) {
+                    if (newStatus == "进行中") appt.status = "In-Service";
+                    else if (newStatus == "已完成") appt.status = "Completed";
+                    PetDataManager::instance()->updateAppointment(appt);
+                }
+            }
             changed = true;
         }
     }
@@ -118,7 +145,19 @@ void LogisticsManager::addLogisticsTask(const LogisticsTask &task)
 void LogisticsManager::updateTaskStatus(const QString &taskId, const QString &status)
 {
     if (m_tasks.contains(taskId)) {
-        m_tasks[taskId].status = status;
+        LogisticsTask &task = m_tasks[taskId];
+        task.status = status;
+        
+        // 同步更新关联的预约单状态
+        if (!task.relatedAppointmentId.isEmpty()) {
+            AppointmentInfo appt = PetDataManager::instance()->getAppointment(task.relatedAppointmentId);
+            if (!appt.id.isEmpty()) {
+                if (status == "进行中") appt.status = "In-Service";
+                else if (status == "已送达" || status == "已完成") appt.status = "Completed";
+                PetDataManager::instance()->updateAppointment(appt);
+            }
+        }
+        
         emit logisticsDataChanged();
     }
 }
@@ -165,4 +204,19 @@ QList<LogisticsTask> LogisticsManager::getTasksForPet(const QString &petId) cons
         }
     }
     return result;
+}
+
+void LogisticsManager::cancelTaskByAppointmentId(const QString &apptId)
+{
+    if (apptId.isEmpty()) return;
+    bool changed = false;
+    for (auto it = m_tasks.begin(); it != m_tasks.end(); ++it) {
+        if (it.value().relatedAppointmentId == apptId) {
+            if (it.value().status != "已取消") {
+                it.value().status = "已取消";
+                changed = true;
+            }
+        }
+    }
+    if (changed) emit logisticsDataChanged();
 }
