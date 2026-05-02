@@ -36,12 +36,15 @@ private:
     QLineEdit *m_searchEdit;
     
     // Cockpit Stats
-    QLabel *m_statRevenue;
-    QLabel *m_statPending;
-    QLabel *m_statAvgTicket;
+    QLabel *m_statTodayRevenue;
+    QLabel *m_statPeriodRevenue;
+    QLabel *m_statPendingCount;
+    QLabel *m_statAvgTicketSub;
     CustomCalendarEdit *m_startDateEdit;
     CustomCalendarEdit *m_endDateEdit;
     QComboBox *m_moduleCombo;
+
+    void setDateRange(const QDate &start, const QDate &end);
     
     QLabel *pageLabel;
     QLineEdit *jumpEdit;
