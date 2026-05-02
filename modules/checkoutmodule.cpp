@@ -121,24 +121,48 @@ void CheckoutModule::setupUI()
 
     QHBoxLayout *dashLayout = new QHBoxLayout();
     dashLayout->setSpacing(20);
-    auto createStatCard = [&](const QString &title, QLabel* &valLabel, const QString &valColor = "#1e293b") {
+    auto createStatCard = [&](const QString &title, QLabel* &valLabel, const QString &valColor, bool isLive = false, QLabel** subLabel = nullptr) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(80);
+        card->setFixedHeight(90); // 稍微调高以容纳二级指标
         card->setStyleSheet("QFrame { background: white; border-radius: 8px; border: 1px solid #f1f5f9; }");
         QVBoxLayout *l = new QVBoxLayout(card);
-        l->setContentsMargins(15, 12, 15, 12);
-        l->setSpacing(4);
-        QLabel *t = new QLabel(title); 
-        t->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 700; font-family: 'Microsoft YaHei'; border: none;");
-        valLabel = new QLabel("0"); 
+        l->setContentsMargins(15, 10, 15, 10);
+        l->setSpacing(2);
+
+        QHBoxLayout *titleLine = new QHBoxLayout();
+        QLabel *t = new QLabel(title);
+        t->setStyleSheet("color: #64748b; font-size: 12px; font-weight: 700; font-family: 'Microsoft YaHei'; border: none;");
+        titleLine->addWidget(t);
+        
+        if (isLive) {
+            QLabel *dot = new QLabel();
+            dot->setFixedSize(8, 8);
+            dot->setStyleSheet("background: #22c55e; border-radius: 4px;"); // 绿色指示灯
+            titleLine->addSpacing(5);
+            titleLine->addWidget(dot);
+            QLabel *liveTxt = new QLabel("实时");
+            liveTxt->setStyleSheet("color: #22c55e; font-size: 11px; font-weight: bold; border: none;");
+            titleLine->addWidget(liveTxt);
+        }
+        titleLine->addStretch();
+        l->addLayout(titleLine);
+
+        valLabel = new QLabel("0");
         valLabel->setStyleSheet(QString("font-size: 22px; font-weight: 800; color: %1; font-family: 'Microsoft YaHei'; border: none;").arg(valColor));
-        l->addWidget(t);
         l->addWidget(valLabel);
+
+        if (subLabel) {
+            *subLabel = new QLabel("");
+            (*subLabel)->setStyleSheet("color: #94a3b8; font-size: 11px; border: none; font-family: 'Microsoft YaHei';");
+            l->addWidget(*subLabel);
+        } else {
+            l->addStretch();
+        }
         return card;
     };
-    dashLayout->addWidget(createStatCard("今日总营收", m_statRevenue, "#3b82f6"));
-    dashLayout->addWidget(createStatCard("待结算订单", m_statPending, "#f59e0b"));
-    dashLayout->addWidget(createStatCard("平均客单价", m_statAvgTicket, "#1e293b"));
+    dashLayout->addWidget(createStatCard("今日实时营收", m_statTodayRevenue, "#3b82f6", true));
+    dashLayout->addWidget(createStatCard("所选时段营收", m_statPeriodRevenue, "#1e293b"));
+    dashLayout->addWidget(createStatCard("待处理订单", m_statPendingCount, "#f59e0b", false, &m_statAvgTicketSub));
     topLayout->addLayout(dashLayout);
     rootLayout->addWidget(topCard);
 
