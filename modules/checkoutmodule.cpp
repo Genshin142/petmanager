@@ -226,6 +226,42 @@ void CheckoutModule::setupUI()
 
     // Date Range Picker (Using Custom Calendar)
     filterLayout->addWidget(createFilterLabel("时段:"));
+    
+    // Shortcuts layout
+    QHBoxLayout *shortcuts = new QHBoxLayout();
+    shortcuts->setSpacing(5);
+    QStringList btnTexts = {"今天", "昨天", "本周", "本月", "上月"};
+    for (const QString &txt : btnTexts) {
+        QPushButton *btn = new QPushButton(txt);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(
+            "QPushButton { "
+            "  background: #f8fafc; "
+            "  border: 1px solid #e2e8f0; "
+            "  border-radius: 15px; "
+            "  padding: 4px 12px; "
+            "  font-size: 12px; "
+            "  color: #64748b; "
+            "} "
+            "QPushButton:hover { background: #f1f5f9; border-color: #cbd5e1; } "
+            "QPushButton:pressed { background: #eff6ff; color: #3b82f6; border-color: #3b82f6; }"
+        );
+        
+        connect(btn, &QPushButton::clicked, this, [this, txt](){
+            QDate today = QDate::currentDate();
+            if (txt == "今天") setDateRange(today, today);
+            else if (txt == "昨天") setDateRange(today.addDays(-1), today.addDays(-1));
+            else if (txt == "本周") setDateRange(today.addDays(-(today.dayOfWeek()-1)), today);
+            else if (txt == "本月") setDateRange(QDate(today.year(), today.month(), 1), QDate(today.year(), today.month(), today.daysInMonth()));
+            else if (txt == "上月") {
+                QDate lastMonth = today.addMonths(-1);
+                setDateRange(QDate(lastMonth.year(), lastMonth.month(), 1), QDate(lastMonth.year(), lastMonth.month(), lastMonth.daysInMonth()));
+            }
+        });
+        shortcuts->addWidget(btn);
+    }
+    filterLayout->addLayout(shortcuts);
+
     m_startDateEdit = new CustomCalendarEdit();
     m_endDateEdit = new CustomCalendarEdit();
     m_startDateEdit->setText(QDate::currentDate().addDays(-7).toString("yyyy-MM-dd"));
