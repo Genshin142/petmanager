@@ -406,4 +406,10 @@ void CheckoutModule::onOrderClicked(int row)
         m_detailDrawer->setOrder(m_displayData[dataIdx]);
     }
 }
+void CheckoutModule::setDateRange(const QDate &start, const QDate &end) {
+    m_startDateEdit->setText(start.toString("yyyy-MM-dd"));
+    m_endDateEdit->setText(end.toString("yyyy-MM-dd"));
+    onFilter(); // 触发刷新
+}
+
 void CheckoutModule::resizeEvent(QResizeEvent *event) { QWidget::resizeEvent(event); }
