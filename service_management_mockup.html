@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PetManager - 服务管理 (Master-Detail 演示)</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg-gray: #f8fafc;
+            --border: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: 'Inter', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            background-color: var(--bg-gray);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 左侧主列表 */
+        .master-view {
+            width: 360px;
+            background: white;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.02);
+            z-index: 10;
+        }
+
+        .search-container {
+            padding: 24px 20px;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 15px 12px 40px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #f1f5f9;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            background: white;
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+        .category-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 0 20px 20px;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 6px 16px;
+            background: #f1f5f9;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .service-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 12px 20px;
+        }
+
+        .service-item {
+            padding: 16px;
+            margin-bottom: 8px;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid transparent;
+        }
+
+        .service-item:hover {
+            background: #f1f5f9;
+        }
+
+        .service-item.active {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+        .service-icon {
+            width: 44px;
+            height: 44px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .active .service-icon { background: white; color: var(--primary); }
+
+        .service-info { flex: 1; }
+        .service-name { font-weight: 800; font-size: 15px; margin-bottom: 4px; }
+        .service-meta { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+        .service-price { color: var(--primary); font-weight: 900; font-size: 16px; }
+
+        /* 右侧详情 */
+        .detail-view {
+            flex: 1;
+            overflow-y: auto;
+            background: white;
+            padding: 40px 60px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 40px;
+        }
+
+        .header h1 { margin: 0 0 8px; font-size: 32px; font-weight: 900; }
+        .header p { color: var(--text-muted); margin: 0; font-weight: 600; }
+
+        .edit-btn {
+            background: var(--primary);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--bg-gray);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        .stat-card .label { color: var(--text-muted); font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+        .stat-card .value { font-size: 36px; font-weight: 900; margin-bottom: 8px; }
+        .stat-card .trend { color: #10b981; font-size: 13px; font-weight: 700; }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 900;
+            margin: 30px 0 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .config-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 25px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .input-group label { display: block; color: var(--text-muted); font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+        .input-group .value-box { 
+            padding: 12px 15px; 
+            background: var(--bg-gray); 
+            border-radius: 10px; 
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .history-item {
+            padding: 15px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .history-time { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+        .highlight { font-weight: 800; color: var(--text-main); }
+        .tag-blue { color: var(--primary); font-weight: 800; }
+    </style>
+</head>
+<body>
+
+<div class="master-view">
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text" placeholder="搜索服务名称/拼音...">
+        </div>
+    </div>
+    <div class="category-tabs">
+        <div class="tab active">全部</div>
+        <div class="tab">洗护</div>
+        <div class="tab">美容</div>
+        <div class="tab">医疗</div>
+        <div class="tab">寄养</div>
+    </div>
+    <div class="service-list">
+        <div class="service-item active">
+            <div class="service-icon">🧴</div>
+            <div class="service-info">
+                <div class="service-name">精油SPA洗浴 (大型犬)</div>
+                <div class="service-meta">洗护 • 60min</div>
+            </div>
+            <div class="service-price">￥128</div>
+        </div>
+        <div class="service-item">
+            <div class="service-icon">✂️</div>
+            <div class="service-info">
+                <div class="service-name">全套造型修剪</div>
+                <div class="service-meta">美容 • 90min</div>
+            </div>
+            <div class="service-price">￥188</div>
+        </div>
+        <div class="service-item">
+            <div class="service-icon">💉</div>
+            <div class="service-info">
+                <div class="service-name">狂犬疫苗接种</div>
+                <div class="service-meta">医疗 • 15min</div>
+            </div>
+            <div class="service-price">￥80</div>
+        </div>
+        <div class="service-item">
+            <div class="service-icon">🐾</div>
+            <div class="service-info">
+                <div class="service-name">基础爪部护理</div>
+                <div class="service-meta">洗护 • 20min</div>
+            </div>
+            <div class="service-price">￥35</div>
+        </div>
+        <div class="service-item">
+            <div class="service-icon">🏥</div>
+            <div class="service-info">
+                <div class="service-name">药浴皮肤管理</div>
+                <div class="service-meta">医疗 • 45min</div>
+            </div>
+            <div class="service-price">￥150</div>
+        </div>
+    </div>
+</div>
+
+<div class="detail-view">
+    <div class="header">
+        <div>
+            <h1>精油SPA洗浴 (大型犬)</h1>
+            <p>服务编码: SVR-20240503-001 • 创建于 2024-01-12</p>
+        </div>
+        <button class="edit-btn">编辑服务项目</button>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="label">累计订单量</div>
+            <div class="value">1,284</div>
+            <div class="trend">↑ 12.5% 较上月</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">本月预估营收</div>
+            <div class="value">￥ 16,435.00</div>
+            <div class="trend">↑ 8.4% 较上月</div>
+        </div>
+    </div>
+
+    <div class="section-title">⚙️ 提成配置</div>
+    <div class="config-card">
+        <div class="input-group">
+            <label>固定提成金额 (元)</label>
+            <div class="value-box">25.00</div>
+        </div>
+        <div class="input-group">
+            <label>比例提成 (%)</label>
+            <div class="value-box">10 %</div>
+        </div>
+        <div class="input-group">
+            <label>对应职级模板</label>
+            <div class="value-box">高级美容师模板</div>
+        </div>
+        <div class="input-group">
+            <label>最低业绩保护</label>
+            <div class="value-box">15.00</div>
+        </div>
+    </div>
+
+    <div class="section-title">🕒 最近操作记录</div>
+    <div class="history-list">
+        <div class="history-item">
+            ● 管理员 <span class="highlight">任坤</span> 修改了 <span class="tag-blue">价格</span> 从 ￥118 改为 ￥128
+            <div class="history-time">2024-05-02 14:30:12</div>
+        </div>
+        <div class="history-item">
+            ● 系统自动更新了 <span class="highlight">销售统计数据</span>
+            <div class="history-time">2024-05-01 00:00:01</div>
+        </div>
+        <div class="history-item">
+            ● 管理员 <span class="highlight">任坤</span> 更新了 <span class="tag-blue">提成模板</span> 绑定
+            <div class="history-time">2024-04-15 10:20:45</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -33,13 +33,12 @@ private:
 private slots:
     void onAddEmployee();
     void onEditEmployee();
+    void onEditEmployeeFromDrawer(const struct EmployeeInfo &info);
     void onDeleteEmployee();
-    void onBatchDelete();
     void onFilterChanged();
     void onSearchTextChanged(const QString &text);
     void onPrevPage();
     void onNextPage();
-    void onJumpPage();
     void updatePagination();
     void showBigImage(const QString &path);
     void hideBigImage();
@@ -49,20 +48,19 @@ private:
     QTableWidget *empTable;
     QLineEdit *searchEdit;
     QComboBox *roleFilterCombo;
-    QComboBox *statusFilterCombo;
+    QWidget *statusFilterContainer;
+    QString m_currentRoleFilter;
+    QString m_currentStatusFilter;
 
     // 统计卡片数值与趋势标签
     QLabel *totalEmpLabel;
     QLabel *todayAttendLabel;
+    QLabel *onLeaveLabel;
     QLabel *attendRateLabel;
-    QLabel *totalSalaryLabel;
-    QLabel *totalSalaryTrend;
 
     // 分页
     QPushButton *prevBtn;
     QPushButton *nextBtn;
-    QLineEdit *jumpEdit;
-    QIntValidator *jumpValidator;
     QLabel *pageLabel;
     int m_currentPage;
     int m_pageSize;

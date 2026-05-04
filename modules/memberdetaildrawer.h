@@ -18,6 +18,7 @@ class MemberDetailDrawer : public QWidget
 signals:
     void sig_addPetRequested(const QString &memberId, const QString &memberName);
     void sig_jumpToPetRequested(const QString &petId);
+    void sig_editMemberRequested(const MemberInfo &info);
 
 public:
     explicit MemberDetailDrawer(QWidget *parent = nullptr);
@@ -47,6 +48,7 @@ private:
 
     // Header components
     QLabel *m_nameLabel;
+    QPushButton *m_editBtn;
     QLabel *m_levelLabel;
     QLabel *m_idLabel;
     QLabel *m_petCountLabel;

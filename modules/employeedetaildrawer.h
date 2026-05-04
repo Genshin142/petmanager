@@ -27,6 +27,7 @@ public:
 signals:
     void avatarClicked(const QString &path);
     void closeRequested();
+    void editRequested(const EmployeeInfo &info);
 
 private:
     void setupUI();
@@ -38,6 +39,7 @@ private:
     // UI Elements
     QLabel *m_avatarLabel;
     QLabel *m_nameLabel;
+    QPushButton *m_editBtn;
     QLabel *m_roleLabel;
     QLabel *m_idLabel;
 

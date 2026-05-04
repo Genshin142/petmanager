@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PetManager - 服务管理 (全屏表格版)</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg-gray: #f8fafc;
+            --border: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --danger: #ef4444;
+            --success: #22c55e;
+        }
+
+        body {
+            font-family: 'Inter', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            background-color: var(--bg-gray);
+            color: var(--text-main);
+            padding: 30px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            padding: 24px;
+        }
+
+        /* 顶部工具栏 */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            gap: 20px;
+        }
+
+        .search-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex: 1;
+        }
+
+        .search-input {
+            width: 320px;
+            padding: 10px 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #f1f5f9;
+            font-size: 14px;
+        }
+
+        .category-chips {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chip {
+            padding: 6px 16px;
+            background: #f1f5f9;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .chip.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-outline-danger { background: #fff1f2; color: var(--danger); border: 1px solid #fecaca; }
+
+        /* 表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        thead th {
+            text-align: left;
+            padding: 15px;
+            background: #f8fafc;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #f1f5f9;
+        }
+
+        tbody tr.selected {
+            background: #eff6ff;
+        }
+
+        tbody td {
+            padding: 15px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid var(--border);
+            cursor: pointer;
+        }
+
+        .service-img {
+            width: 45px;
+            height: 45px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .status-success { background: #dcfce7; color: #166534; }
+        .status-warning { background: #fef9c3; color: #854d0e; }
+
+        .op-btn {
+            color: var(--primary);
+            font-weight: 700;
+            cursor: pointer;
+            margin-right: 15px;
+            text-decoration: none;
+        }
+
+        .op-btn.delete { color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="toolbar">
+        <div class="search-area">
+            <input type="text" class="search-input" placeholder="搜索服务名称、条形码、分类...">
+            <div class="category-chips">
+                <div class="chip active">全部</div>
+                <div class="chip">洗护</div>
+                <div class="chip">美容</div>
+                <div class="chip">清洁用品</div>
+                <div class="chip">宠物玩具</div>
+                <div class="chip">洗护医疗</div>
+            </div>
+        </div>
+        <div class="action-buttons">
+            <button class="btn btn-outline-danger">批量删除</button>
+            <button class="btn btn-primary">+ 新增服务项目</button>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 40px;"><input type="checkbox" class="checkbox"></th>
+                <th style="width: 60px;">图标</th>
+                <th>服务编码</th>
+                <th>服务名称</th>
+                <th>分类</th>
+                <th>标准时长</th>
+                <th>标准价格</th>
+                <th>累计销量</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="selected">
+                <td><input type="checkbox" class="checkbox" checked></td>
+                <td><div class="service-img">🧴</div></td>
+                <td>SVR-1001</td>
+                <td>精油SPA洗浴 (大型犬)</td>
+                <td>洗护</td>
+                <td>60 分钟</td>
+                <td>￥ 128.00</td>
+                <td>1284</td>
+                <td><span class="status-badge status-success">启用中</span></td>
+                <td>
+                    <span class="op-btn">详情</span>
+                    <span class="op-btn delete">下架</span>
+                </td>
+            </tr>
+            <tr>
+                <td><input type="checkbox" class="checkbox"></td>
+                <td><div class="service-img">✂️</div></td>
+                <td>SVR-1002</td>
+                <td>全套造型修剪</td>
+                <td>美容</td>
+                <td>90 分钟</td>
+                <td>￥ 188.00</td>
+                <td>856</td>
+                <td><span class="status-badge status-success">启用中</span></td>
+                <td>
+                    <span class="op-btn">详情</span>
+                    <span class="op-btn delete">下架</span>
+                </td>
+            </tr>
+            <tr>
+                <td><input type="checkbox" class="checkbox"></td>
+                <td><div class="service-img">💉</div></td>
+                <td>SVR-1003</td>
+                <td>狂犬疫苗接种</td>
+                <td>医疗</td>
+                <td>15 分钟</td>
+                <td>￥ 80.00</td>
+                <td>320</td>
+                <td><span class="status-badge status-warning">库存告急</span></td>
+                <td>
+                    <span class="op-btn">详情</span>
+                    <span class="op-btn delete">下架</span>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

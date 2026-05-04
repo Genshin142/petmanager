@@ -11,7 +11,7 @@
 
 LogisticsDetailDrawer::LogisticsDetailDrawer(QWidget *parent) : QWidget(parent)
 {
-    setFixedWidth(400); // Fixed width
+    setFixedWidth(450); // 统一宽度为 450px
     setStyleSheet("LogisticsDetailDrawer { background: white; border-left: 1px solid #ebeef5; }");
     
     QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
@@ -54,7 +54,7 @@ void LogisticsDetailDrawer::setupUI()
     m_nameLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #303133; background: transparent;");
     
     m_idLabel = new QLabel("ID: --");
-    m_idLabel->setStyleSheet("font-size: 14px; color: #606266; background: transparent; font-weight: 500;");
+    m_idLabel->setStyleSheet("font-size: 14px; color: #606266; background: transparent; ");
     
     m_statusTag = new QLabel("待处理");
     m_statusTag->setStyleSheet("background: #fa8c16; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");

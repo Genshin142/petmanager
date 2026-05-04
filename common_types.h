@@ -117,6 +117,20 @@ struct ProductInfo {
     bool isActive = true;    // 是否在架 (档案管理专用)
 };
 
+struct ServiceInfo {
+    QString id;
+    QString name;
+    QString category;        // 洗护, 美容, 寄养, 训练, 医疗, 其他
+    double price = 0.0;
+    int durationMinutes = 0; // 预计耗时
+    double commissionFixed = 0.0; // 固定提成
+    int commissionPercent = 0;    // 比例提成 (%)
+    int salesCount = 0;
+    bool isActive = true;
+    QString description;
+    QString icon;            // 图标路径
+};
+
 struct StockInRecord {
     QString dateTime;
     QString productName;
@@ -200,6 +214,7 @@ struct OrderInfo {
 };
 
 Q_DECLARE_METATYPE(OrderInfo)
+Q_DECLARE_METATYPE(ServiceInfo)
 
 struct AppointmentStats {
     int total = 0;

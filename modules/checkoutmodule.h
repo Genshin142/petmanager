@@ -39,10 +39,11 @@ private:
     QLabel *m_statTodayRevenue;
     QLabel *m_statPeriodRevenue;
     QLabel *m_statPendingCount;
-    QLabel *m_statAvgTicketSub;
+    QLabel *m_statAvgTicket;
     CustomCalendarEdit *m_startDateEdit;
     CustomCalendarEdit *m_endDateEdit;
-    QComboBox *m_moduleCombo;
+    QWidget *moduleFilterContainer;
+    QString m_currentModuleFilter;
 
     void setDateRange(const QDate &start, const QDate &end);
     

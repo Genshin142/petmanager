@@ -24,15 +24,84 @@
 #include <QApplication>
 #include <QHelpEvent>
 #include <QStyledItemDelegate>
+#include <QButtonGroup>
 
-PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pageSize(10)
+// --- 复刻：全行圆角边框选中委托 ---
+class PetRowDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->fillRect(opt.rect, Qt::white);
+
+        if (opt.state & QStyle::State_Selected) {
+            bool isFirst = (index.column() == 0);
+            bool isLast = (index.column() == index.model()->columnCount() - 1);
+            QRect rect = opt.rect.adjusted(1, 4, -1, -4);
+            int radius = 8;
+            QColor borderColor("#3b82f6");
+            QColor bgColor("#eff6ff");
+
+            painter->fillRect(opt.rect, bgColor);
+            painter->setPen(QPen(borderColor, 2));
+            
+            if (isFirst) {
+                QPainterPath path;
+                path.moveTo(opt.rect.right() + 1, rect.top()); 
+                path.lineTo(rect.left() + radius, rect.top());
+                path.arcTo(QRect(rect.left(), rect.top(), radius*2, radius*2), 90, 90);
+                path.lineTo(rect.left(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.left(), rect.bottom() - radius*2, radius*2, radius*2), 180, 90);
+                path.lineTo(opt.rect.right() + 1, rect.bottom());
+                painter->drawPath(path);
+            } else if (isLast) {
+                QPainterPath path;
+                path.moveTo(opt.rect.left() - 1, rect.top());
+                path.lineTo(rect.right() - radius, rect.top());
+                path.arcTo(QRect(rect.right() - radius*2, rect.top(), radius*2, radius*2), 90, -90);
+                path.lineTo(rect.right(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.right() - radius*2, rect.bottom() - radius*2, radius*2, radius*2), 0, -90);
+                path.lineTo(opt.rect.left() - 1, rect.bottom());
+                painter->drawPath(path);
+            } else {
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.top()), QPoint(opt.rect.right() + 1, rect.top()));
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.bottom()), QPoint(opt.rect.right() + 1, rect.bottom()));
+            }
+        } else {
+            painter->setPen(QPen(QColor("#f1f5f9"), 1));
+            painter->drawLine(opt.rect.bottomLeft(), opt.rect.bottomRight());
+        }
+
+        // 只有非 CellWidget 的列才绘制默认文本
+        if (!index.model()->data(index, Qt::UserRole + 1).toBool()) {
+            painter->setPen(QColor((opt.state & QStyle::State_Selected) ? "#1e40af" : "#303133"));
+            QFont font = painter->font();
+            font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
+            font.setPointSize(10);
+            painter->setFont(font);
+            QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+            painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
+        }
+        
+        painter->restore();
+    }
+};
+
+PetModule::PetModule(QWidget *parent) : QWidget(parent),
+    prevBtn(nullptr), nextBtn(nullptr), pageLabel(nullptr), m_currentPage(1), m_pageSize(10),
+    jumpEdit(nullptr), jumpValidator(nullptr), jumpBtn(nullptr)
 {
     m_drawer = new PetRecordDrawer(this);
     connect(m_drawer, &PetRecordDrawer::logAdded, this, &PetModule::onLogAdded);
     connect(m_drawer, &PetRecordDrawer::closeRequested, this, [=](){ m_drawer->hideDrawer(); });
+    connect(m_drawer, &PetRecordDrawer::editRequested, this, &PetModule::onEditPetFromDrawer);
     
     this->setObjectName("PetModule");
-    this->setStyleSheet("#PetModule QPushButton { color: #606266; text-align: center; }");
+    this->setStyleSheet("#PetModule QPushButton { color: #64748b; text-align: center; font-weight: 700; }");
 
     setupUI();
     
@@ -59,7 +128,7 @@ PetModule::PetModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pag
 void PetModule::setupUI()
 {
     QHBoxLayout *rootLayout = new QHBoxLayout(this);
-    rootLayout->setContentsMargins(0, 0, 15, 0); // 整体左移一点，预留右边缘间距
+    rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
     QWidget *mainWidget = new QWidget();
@@ -67,183 +136,196 @@ void PetModule::setupUI()
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(20);
 
-    QHBoxLayout *headerLayout = new QHBoxLayout();
+    // --- 顶部统计与标题容器 (复刻会员模块风格) ---
+    QFrame *topContainer = new QFrame();
+    topContainer->setObjectName("TopStatisticsContainer");
+    topContainer->setFixedHeight(160); // 限制高度
+    topContainer->setStyleSheet("#TopStatisticsContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *topLayout = new QVBoxLayout(topContainer);
+    topLayout->setContentsMargins(25, 15, 25, 15);
+    topLayout->setSpacing(12);
+
+    // 1. 顶部标题
     QLabel *titleLabel = new QLabel("宠物数字化健康档案中心");
-    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold;");
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold; border: none; background: transparent;");
+    topLayout->addWidget(titleLabel);
 
-    headerLayout->addWidget(titleLabel);
-    headerLayout->addStretch();
-    mainLayout->addLayout(headerLayout);
-
+    // ═══════════════════════════════════════════
+    // 2. 统计卡片行
+    // ═══════════════════════════════════════════
     QHBoxLayout *statLayout = new QHBoxLayout();
-    auto createStatCard = [&](const QString &icon, const QString &title, QLabel* &valLabel, const QString &color) {
+    statLayout->setSpacing(15);
+    topLayout->addLayout(statLayout);
+
+    mainLayout->addWidget(topContainer);
+    auto createStatCard = [&](const QString &icon, const QString &label, QLabel* &outValueLabel, const QColor &color) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15); shadow->setColor(QColor(0, 0, 0, 30)); shadow->setOffset(0, 2);
-        card->setGraphicsEffect(shadow);
-        QHBoxLayout *cl = new QHBoxLayout(card);
-        cl->setContentsMargins(20, 15, 20, 15);
+        card->setFixedHeight(80);
+        card->setStyleSheet("QFrame { background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; } ");
+        
+        QHBoxLayout *l = new QHBoxLayout(card);
+        l->setContentsMargins(20, 10, 20, 10);
+
         QLabel *iconLabel = new QLabel(icon);
         if (icon.isEmpty()) {
             iconLabel->hide();
         } else {
-            iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
-            iconLabel->setStyleSheet(QString("font-size: 24px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color));
+            iconLabel->setFixedSize(40, 40);
+            iconLabel->setAlignment(Qt::AlignCenter);
+            iconLabel->setStyleSheet(QString("font-size: 20px; color: %1; background: white; border-radius: 8px; border: 1px solid #f1f5f9;").arg(color.name()));
         }
-        QVBoxLayout *vl = new QVBoxLayout(); vl->setSpacing(2);
-        QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 24px; border: none; background: transparent;");
-        vl->addWidget(tl); vl->addWidget(valLabel); vl->addStretch();
         if (!icon.isEmpty()) {
-            cl->addWidget(iconLabel); cl->addSpacing(15);
+            l->addWidget(iconLabel);
+            l->addSpacing(12);
         }
-        cl->addLayout(vl); cl->addStretch();
+
+        QVBoxLayout *textLayout = new QVBoxLayout();
+        textLayout->setSpacing(2);
+        
+        QLabel *labelTitle = new QLabel(label);
+        labelTitle->setStyleSheet("color: #94a3b8; font-size: 12px; border: none; background: transparent;");
+        
+        outValueLabel = new QLabel("0");
+        outValueLabel->setStyleSheet("font-size: 20px; color: #1e293b; border: none; background: transparent; font-weight: bold;");
+        
+        textLayout->addWidget(labelTitle);
+        textLayout->addWidget(outValueLabel);
+        textLayout->addStretch();
+
+        l->addLayout(textLayout);
+        l->addStretch();
+
         return card;
     };
-    statLayout->addWidget(createStatCard("", "在册宠物", totalPetsLabel, "#409eff"));
-    statLayout->addWidget(createStatCard("", "在店寄养", boardingPetsLabel, "#67c23a"));
-    statLayout->addWidget(createStatCard("", "洗护进行中", groomingPetsLabel, "#e6a23c"));
-    mainLayout->addLayout(statLayout);
+    statLayout->addWidget(createStatCard("", "在册宠物", totalPetsLabel, QColor("#3b82f6")));
+    statLayout->addWidget(createStatCard("", "在店寄养", boardingPetsLabel, QColor("#10b981")));
+    statLayout->addWidget(createStatCard("", "洗护进行中", groomingPetsLabel, QColor("#f59e0b")));
+    // 已由 topLayout 管理
 
-    QHBoxLayout *operationLayout = new QHBoxLayout();
-    // -- 搜索栏 (移动到左侧) --
+    // --- 3. 操作中控台 (搜索 + 状态筛选) ---
+    QFrame *operationCard = new QFrame();
+    operationCard->setFixedHeight(64);
+    operationCard->setStyleSheet("QFrame { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QHBoxLayout *operationLayout = new QHBoxLayout(operationCard);
+    operationLayout->setContentsMargins(15, 0, 15, 0);
+    operationLayout->setSpacing(20);
+
+    // -- 搜索栏 --
     searchEdit = new QLineEdit();
     searchEdit->setPlaceholderText(" 搜索宠物名称、品种、主人姓名...");
     searchEdit->setFixedWidth(280); 
-    searchEdit->setFixedHeight(32);
-    searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } QLineEdit:focus { border-color: #409eff; outline: none; }");
+    searchEdit->setFixedHeight(36);
+    searchEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 15px; font-size: 13px; background: #f8fafc; } "
+        "QLineEdit:focus { border-color: #3b82f6; background: white; outline: none; }"
+    );
     connect(searchEdit, &QLineEdit::textChanged, this, &PetModule::onSearch);
     operationLayout->addWidget(searchEdit);
     
+    // -- 状态筛选按钮组 --
+    m_statusGroup = new QButtonGroup(this);
+    m_statusGroup->setExclusive(true);
+    
+    QWidget *filterBox = new QWidget();
+    QHBoxLayout *filterLayout = new QHBoxLayout(filterBox);
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    filterLayout->setSpacing(8);
+    
+    QStringList statuses = {"全部", "寄养中", "洗护中", "在家"};
+    for (int i = 0; i < statuses.size(); ++i) {
+        QPushButton *btn = new QPushButton(statuses[i]);
+        btn->setCheckable(true);
+        btn->setAutoExclusive(true); // 启用自动互斥，简化逻辑
+        btn->setFixedHeight(36);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 18px; padding: 0 16px; color: #606266; font-size: 13px; } "
+            "QPushButton:hover { background: #ecf5ff; border-color: #409eff; color: #409eff; } "
+            "QPushButton:checked { background: #409eff; border-color: #409eff; color: white; font-weight: bold; } "
+        );
+        if (i == 0) btn->setChecked(true);
+        m_statusGroup->addButton(btn, i);
+        filterLayout->addWidget(btn);
+    }
+    connect(m_statusGroup, QOverload<int>::of(&QButtonGroup::idClicked), this, &PetModule::onStatusFilterChanged);
+    
+    operationLayout->addSpacing(10);
+    operationLayout->addWidget(filterBox);
     operationLayout->addStretch();
     
-    // -- 批量操作按钮 --
-    QPushButton *batchDeleteBtn = new QPushButton("批量删除");
-    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
-    batchDeleteBtn->setFixedHeight(32);
-    batchDeleteBtn->setStyleSheet(
-        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 6px; font-size: 12px; padding: 0 15px; }"
-        "QPushButton:hover { background-color: #f56c6c; color: white; }"
-    );
-    connect(batchDeleteBtn, &QPushButton::clicked, this, &PetModule::onBatchDelete);
-    operationLayout->addWidget(batchDeleteBtn);
-    mainLayout->addLayout(operationLayout);
+    mainLayout->addWidget(operationCard);
 
     petTable = new QTableWidget();
-    petTable->setColumnCount(8);
+    petTable->setColumnCount(7);
     petTable->setHorizontalHeaderLabels({
-        "选择", "宠物ID", "宠物信息", "所属主人", "基本属性", "在店状态", "入店时间", "操作"
+        "宠物ID", "宠物信息", "所属主人", "基本属性", "在店状态", "入店时间", "操作"
     });
+    petTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    petTable->setItemDelegate(new PetRowDelegate(petTable));
     
-    petTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    petTable->setColumnWidth(0, 60);  // 扩大“选择”列，确保文字显示完整
-    petTable->setColumnWidth(1, 80);
-    petTable->setColumnWidth(2, 200); // 宠物信息
-    petTable->setColumnWidth(3, 140); // 所属主人
-    petTable->setColumnWidth(4, 120); // 基本属性
-    petTable->setColumnWidth(5, 140); // 在店状态
-    petTable->setColumnWidth(6, 140); // 入店时间
-    petTable->setColumnWidth(7, 150); // 操作列锁定宽度
+    petTable->setColumnWidth(0, 80);  // ID
+    petTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); // 信息
+    petTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch); // 属性
+    petTable->setColumnWidth(6, 180); // 操作按钮固定宽度
+    petTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
+    petTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); 
 
-    // 设置伸缩模式：将所有中间列设为拉伸，平分剩余空间，避免某一列过宽
-    petTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); 
-    petTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); // 选择列固定
-    petTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); // ID列固定
-    petTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive); // 允许手动调宽宠物信息
-    petTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Fixed); // 强制操作列不被压缩
-
-
+    // 4. 表格卡片容器 (12px 圆角)
+    QFrame *tableCard = new QFrame();
+    tableCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #ebeef5; }");
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableCard);
+    tableLayout->setContentsMargins(0, 5, 0, 0);
+    
     petTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background-color: white; alternate-background-color: white; color: black; outline: none; selection-background-color: #b3d8ff; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; padding: 5px; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; color: black; } " 
-        "QTableWidget::item:focus { background-color: transparent; } "
-        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; color: #606266; font-size: 13px;  font-weight: bold; } "
+        "QTableWidget { border: none; background: white; outline: none; border-radius: 12px; } "
+        "QHeaderView { border: none; background: transparent; border-radius: 12px 12px 0 0; }"
     );
-
     petTable->setShowGrid(false);
-    petTable->setAlternatingRowColors(false);
     petTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     petTable->setSelectionMode(QAbstractItemView::SingleSelection);
     petTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     petTable->setFocusPolicy(Qt::NoFocus);
     petTable->verticalHeader()->setVisible(false);
-    petTable->verticalHeader()->setDefaultSectionSize(65);
-
+    petTable->verticalHeader()->setDefaultSectionSize(60);
     connect(petTable, &QTableWidget::currentCellChanged, this, &PetModule::onCurrentCellChanged);
 
-    mainLayout->addWidget(petTable);
+    tableLayout->addWidget(petTable);
 
+    mainLayout->addWidget(tableCard);
+
+    // 6. 统计栏（集成在 tableCard 底部）
     QFrame *statFrame = new QFrame();
-    statFrame->setFixedHeight(45);
-    statFrame->setStyleSheet("QFrame { background: #f8f9fb; border-top: 1px solid #ebeef5; padding: 0 12px; }");
+    statFrame->setFixedHeight(50);
+    // 背景改为白色，移除 border
+    statFrame->setStyleSheet("QFrame { background: white; border: none; padding: 0 12px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     QHBoxLayout *footerLayout = new QHBoxLayout(statFrame);
-    footerLayout->addStretch();
-
-    jumpEdit = new QLineEdit();
-    jumpEdit->setFixedWidth(36);
-    jumpEdit->setMaxLength(3);
-    jumpEdit->setFixedHeight(24);
-    jumpEdit->setAlignment(Qt::AlignCenter);
-    jumpEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0; font-size: 13px; background: white; margin: 0; } "
-        "QLineEdit:focus { border-color: #409eff; outline: none; }"
-    );
-    jumpValidator = new QIntValidator(1, 1, this);
-    jumpEdit->setValidator(jumpValidator);
-
-    QLabel *jumpPrefix = new QLabel("跳转到第");
-    jumpPrefix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
-    QLabel *jumpSuffix = new QLabel("页");
-    jumpSuffix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
-
-    jumpBtn = new QPushButton("确认");
-    jumpBtn->setCursor(Qt::PointingHandCursor);
-    jumpBtn->setFixedSize(44, 24);
-    jumpBtn->setStyleSheet(
-        "QPushButton { border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 2px 0; text-align: center; margin: 0; }"
-        "QPushButton:hover { border-color: #409eff; color: #409eff; }"
-    );
-
-    QWidget *jumpGroup = new QWidget();
-    jumpGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    QHBoxLayout *jumpLayout = new QHBoxLayout(jumpGroup);
-    jumpLayout->setContentsMargins(0, 0, 0, 0);
-    jumpLayout->setSpacing(2);
-    jumpLayout->addWidget(jumpPrefix);
-    jumpLayout->addWidget(jumpEdit);
-    jumpLayout->addWidget(jumpSuffix);
-    jumpLayout->addWidget(jumpBtn);
+    tableLayout->addWidget(statFrame);
 
     prevBtn = new QPushButton("上一页");
     nextBtn = new QPushButton("下一页");
     pageLabel = new QLabel("第 1 页 / 共 1 页");
 
-    QString pageStyle = "QPushButton { height: 24px; border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 0 8px; text-align: center; margin: 0; } "
-                        "QPushButton:hover { border-color: #409eff; color: #409eff; } "
-                        "QPushButton:disabled { background: #f5f7fa; color: #c0c4cc; border-color: #e4e7ed; }";
+    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
+                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
+                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
     prevBtn->setStyleSheet(pageStyle);
     nextBtn->setStyleSheet(pageStyle);
+
     prevBtn->setCursor(Qt::PointingHandCursor);
     nextBtn->setCursor(Qt::PointingHandCursor);
-    pageLabel->setStyleSheet("color: #909399; font-size: 13px; margin: 0; padding: 0 4px;");
+    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; margin: 0 10px;");
 
     QWidget *pageGroup = new QWidget();
-    pageGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
     pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(2);
+    pageLayout->setSpacing(5); 
     pageLayout->addWidget(prevBtn);
     pageLayout->addWidget(pageLabel);
     pageLayout->addWidget(nextBtn);
 
-    footerLayout->addWidget(jumpGroup);
-    footerLayout->addSpacing(8);
+    footerLayout->addStretch(); // 关键：左侧弹簧推向右侧
     footerLayout->addWidget(pageGroup);
-
-    mainLayout->addWidget(statFrame);
+    footerLayout->addSpacing(15); 
     
     rootLayout->addWidget(mainWidget, 1);
     
@@ -268,8 +350,6 @@ void PetModule::setupUI()
 
     connect(prevBtn, &QPushButton::clicked, this, &PetModule::onPrevPage);
     connect(nextBtn, &QPushButton::clicked, this, &PetModule::onNextPage);
-    connect(jumpBtn, &QPushButton::clicked, this, &PetModule::onJumpPage);
-    connect(jumpEdit, &QLineEdit::returnPressed, this, &PetModule::onJumpPage);
 
     // 数据同步增强：对接中央数据管理器
     connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [this]() {
@@ -295,7 +375,6 @@ void PetModule::setupUI()
 
     refreshTable();
     updateStats();
-    updatePagination();
 }
 
 void PetModule::showEvent(QShowEvent *event)
@@ -332,21 +411,13 @@ void PetModule::addPet(const PetInfo &info)
 
 void PetModule::addPetRow(const PetInfo &info)
 {
-    
     int row = petTable->rowCount();
     petTable->insertRow(row);
-
-    QWidget *chkWidget = new QWidget();
-    QHBoxLayout *chkLayout = new QHBoxLayout(chkWidget);
-    chkLayout->setContentsMargins(0, 0, 0, 0);
-    QCheckBox *chkBox = new QCheckBox();
-    chkLayout->addWidget(chkBox, 0, Qt::AlignCenter);
-    petTable->setCellWidget(row, 0, chkWidget);
 
     QTableWidgetItem *idItem = new QTableWidgetItem(info.id);
     idItem->setTextAlignment(Qt::AlignCenter);
     idItem->setForeground(QColor("#909399"));
-    petTable->setItem(row, 1, idItem);
+    petTable->setItem(row, 0, idItem);
 
     QWidget *infoWidget = new QWidget();
     QHBoxLayout *infoLayout = new QHBoxLayout(infoWidget);
@@ -375,16 +446,18 @@ void PetModule::addPetRow(const PetInfo &info)
     
     QVBoxLayout *nameV = new QVBoxLayout();
     nameV->setSpacing(2);
+    nameV->setAlignment(Qt::AlignVCenter);
     QLabel *nameL = new QLabel();
     QString genderSym = (info.gender == "公" || info.gender == "雄" || info.gender == "M") ? "♂" : "♀";
     QString genderCol = (genderSym == "♂") ? "#409EFF" : "#F56C6C";
     nameL->setText(QString("%1 <span style='color:%2; font-weight:bold;'>%3</span>")
                    .arg(info.name).arg(genderCol).arg(genderSym));
-    nameL->setStyleSheet("font-weight: bold; color: #303133; font-size: 14px;");
+    nameL->setStyleSheet("font-weight: bold; color: #303133; font-size: 14px; border: none; background: transparent;");
     QLabel *breedL = new QLabel(info.breed);
-    breedL->setStyleSheet("color: #909399; font-size: 12px;");
+    breedL->setStyleSheet("color: #909399; font-size: 12px; border: none; background: transparent;");
     nameV->addWidget(nameL); nameV->addWidget(breedL);
     
+    infoLayout->addStretch();
     infoLayout->addWidget(avatarImg);
     infoLayout->addLayout(nameV);
     infoLayout->addStretch();
@@ -396,15 +469,15 @@ void PetModule::addPetRow(const PetInfo &info)
     // 关键修复：容器层不能设为穿透，否则子控件头像无法点中
     nameL->setAttribute(Qt::WA_TransparentForMouseEvents);
     breedL->setAttribute(Qt::WA_TransparentForMouseEvents);
-    petTable->setCellWidget(row, 2, infoWidget);
+    petTable->setCellWidget(row, 1, infoWidget);
 
     QTableWidgetItem *ownerItem = new QTableWidgetItem(QString("%1 (%2)").arg(info.ownerName, info.ownerId));
     ownerItem->setTextAlignment(Qt::AlignCenter);
-    petTable->setItem(row, 3, ownerItem);
+    petTable->setItem(row, 2, ownerItem);
 
     QTableWidgetItem *attrItem = new QTableWidgetItem(QString("%1 · %2").arg(info.species, info.age));
     attrItem->setTextAlignment(Qt::AlignCenter);
-    petTable->setItem(row, 4, attrItem);
+    petTable->setItem(row, 3, attrItem);
 
     QWidget *statusWrap = new QWidget();
     QHBoxLayout *statusL = new QHBoxLayout(statusWrap);
@@ -422,16 +495,16 @@ void PetModule::addPetRow(const PetInfo &info)
     else { bgColor = "#f0f9eb"; textColor = "#67c23a"; borderColor = "#e1f3d8"; }
 
     statusTag->setStyleSheet(QString(
-        "background-color: %1; color: %2; border: 1px solid %3; border-radius: 14px; font-size: 12px; font-weight: bold;"
-    ).arg(bgColor, textColor, borderColor));
+        "background-color: %1; color: %2; border: none; border-radius: 14px; font-size: 12px; font-weight: bold;"
+    ).arg(bgColor, textColor));
 
     statusL->addWidget(statusTag);
-    petTable->setCellWidget(row, 5, statusWrap);
+    petTable->setCellWidget(row, 4, statusWrap);
 
     QTableWidgetItem *timeItem = new QTableWidgetItem(info.joinTime);
     timeItem->setTextAlignment(Qt::AlignCenter);
     timeItem->setForeground(QColor("#909399"));
-    petTable->setItem(row, 6, timeItem);
+    petTable->setItem(row, 5, timeItem);
 
     QWidget *btnWrap = new QWidget();
     btnWrap->setMinimumWidth(140);
@@ -444,14 +517,12 @@ void PetModule::addPetRow(const PetInfo &info)
         b->setStyleSheet(style);
         return b;
     };
-    QPushButton *editB = createActBtn("修改", "QPushButton { background: #f0f7ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 3px; font-size: 11px; padding: 0; text-align: center; } QPushButton:hover { background: #409eff; color: white; }");
     QPushButton *delB = createActBtn("删除", "QPushButton { background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 3px; font-size: 11px; padding: 0; text-align: center; } QPushButton:hover { background: #f56c6c; color: white; }");
-    connect(editB, &QPushButton::clicked, this, &PetModule::onEditPet);
     connect(delB, &QPushButton::clicked, this, &PetModule::onDeletePet);
-    btnL->addWidget(editB); btnL->addWidget(delB);
-    petTable->setCellWidget(row, 7, btnWrap);
-
-    updatePagination();
+    
+    btnL->addWidget(delB);
+    petTable->setCellWidget(row, 6, btnWrap);
+    petTable->setItem(row, 6, new QTableWidgetItem("")); 
 }
 
 void PetModule::updateStats()
@@ -461,8 +532,7 @@ void PetModule::updateStats()
     int grooming = 0;
 
     for (int i = 0; i < total; ++i) {
-        if (petTable->isRowHidden(i)) continue;
-        QWidget *w = petTable->cellWidget(i, 5); // 在店状态的列索引变更为5
+        QWidget *w = petTable->cellWidget(i, 4); // 在店状态列索引为4
         if (w) {
             QLabel *tag = w->findChild<QLabel*>();
             if (tag) {
@@ -526,7 +596,7 @@ void PetModule::onSearch(const QString &keyword)
             continue;
         }
         bool match = false;
-        QList<int> searchCols = {1, 2, 3, 4};
+        QList<int> searchCols = {0, 1, 2, 3};
         for (int col : searchCols) {
             QTableWidgetItem *item = petTable->item(i, col);
             if (item && item->text().toLower().contains(kw)) {
@@ -547,9 +617,9 @@ void PetModule::onEditPet()
     if (!btn) return;
 
     for (int i = 0; i < petTable->rowCount(); ++i) {
-        QWidget *w = petTable->cellWidget(i, 11);
+        QWidget *w = petTable->cellWidget(i, 6);
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
-             QString petId = petTable->item(i, 1)->text();
+             QString petId = petTable->item(i, 0)->text();
              PetInfo info = PetDataManager::instance()->getPet(petId);
              if (info.id.isEmpty()) break;
              
@@ -572,9 +642,9 @@ void PetModule::onDeletePet()
     if (!btn) return;
 
     for (int i = 0; i < petTable->rowCount(); ++i) {
-        QWidget *w = petTable->cellWidget(i, 11);
+        QWidget *w = petTable->cellWidget(i, 6);
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
-            QString petId = petTable->item(i, 1)->text();
+            QString petId = petTable->item(i, 0)->text();
             if (CustomMessageDialog::confirm(this, "删除确认", "确定要永久删除该宠物档案吗？")) {
                 PetDataManager::instance()->removePet(petId);
             }
@@ -583,36 +653,10 @@ void PetModule::onDeletePet()
     }
 }
 
-void PetModule::onBatchDelete()
-{
-    QList<int> checkedRows;
-    for (int i = petTable->rowCount() - 1; i >= 0; --i) {
-        QWidget *w = petTable->cellWidget(i, 0);
-        if (w) {
-            QCheckBox *cb = w->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                checkedRows.append(i);
-            }
-        }
-    }
-    
-    if (checkedRows.isEmpty()) {
-        CustomMessageDialog::showWarning(this, "批量操作", "请先勾选需要删除的宠物档案。");
-        return;
-    }
-
-    if (CustomMessageDialog::confirm(this, "批量删除", QString("确定要删除选中的 %1 个宠物档案吗？此操作不可撤销。").arg(checkedRows.size()))) {
-        for (int row : checkedRows) {
-            QString petId = petTable->item(row, 1)->text();
-            PetDataManager::instance()->removePet(petId);
-        }
-    }
-}
-
 void PetModule::selectPetById(const QString &petId)
 {
     for (int i = 0; i < petTable->rowCount(); ++i) {
-        if (petTable->item(i, 1)->text() == petId) { // ID 位于第 1 列
+        if (petTable->item(i, 0)->text() == petId) { // ID 位于第 0 列
             petTable->setCurrentCell(i, 0);
             petTable->scrollToItem(petTable->item(i, 0));
             return;
@@ -655,35 +699,50 @@ void PetModule::onNextPage()
 
 void PetModule::onJumpPage()
 {
-    int page = jumpEdit->text().toInt();
-    if (page < 1) return;
-    
-    m_currentPage = page;
-    updatePagination();
-    jumpEdit->clear();
-    jumpEdit->clearFocus();
 }
 
 void PetModule::updatePagination()
 {
     int total = petTable->rowCount();
     QString kw = searchEdit->text().trimmed().toLower();
+    QString statusFilter = m_statusGroup->checkedButton()->text();
     
     QList<int> visibleRows;
     for (int i = 0; i < total; ++i) {
-        bool match = false;
-        if (kw.isEmpty()) {
-            match = true;
-        } else {
-            QList<int> searchCols = {1, 2, 3, 4};
+        bool match = true;
+        
+        // 1. 关键词过滤
+        if (!kw.isEmpty()) {
+            bool kwMatch = false;
+            QList<int> searchCols = {0, 1, 2, 3};
             for (int col : searchCols) {
                 QTableWidgetItem *item = petTable->item(i, col);
                 if (item && item->text().toLower().contains(kw)) {
-                    match = true;
+                    kwMatch = true;
                     break;
                 }
             }
+            if (!kwMatch) match = false;
         }
+        
+        // 2. 状态过滤
+        if (match && statusFilter != "全部") {
+            QWidget *w = petTable->cellWidget(i, 4); // 状态列索引
+            if (w) {
+                QLabel *tag = w->findChild<QLabel*>();
+                if (tag) {
+                    QString petStatus = tag->text();
+                    if (statusFilter == "寄养中") {
+                        if (!petStatus.contains("寄养")) match = false;
+                    } else if (statusFilter == "洗护中") {
+                        if (!petStatus.contains("洗护")) match = false;
+                    } else if (statusFilter == "在家") {
+                        if (!petStatus.contains("在家")) match = false;
+                    }
+                }
+            }
+        }
+
         if (match) visibleRows.append(i);
         petTable->setRowHidden(i, true);
     }
@@ -691,8 +750,6 @@ void PetModule::updatePagination()
     int totalVisible = visibleRows.size();
     int totalPages = qMax(1, (totalVisible + m_pageSize - 1) / m_pageSize);
     
-    if (jumpValidator) jumpValidator->setTop(totalPages);
-
     if (m_currentPage > totalPages) m_currentPage = totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
@@ -807,7 +864,7 @@ void PetModule::onCurrentCellChanged(int row, int column, int prevRow, int prevC
     Q_UNUSED(prevRow); Q_UNUSED(prevCol); Q_UNUSED(column);
     if (row < 0) return;
 
-    QTableWidgetItem *idItem = petTable->item(row, 1);
+    QTableWidgetItem *idItem = petTable->item(row, 0);
     if (!idItem) return;
 
     QString petId = idItem->text();
@@ -836,4 +893,25 @@ void PetModule::updateRowStatus(int row)
     
     // 同步刷新指定行的 UI 表现（如颜色、图标等）
     // 这里的逻辑已集成在 addPetRow 和状态 ComboBox 的 lambda 中
+}
+
+void PetModule::onEditPetFromDrawer(const PetInfo &info)
+{
+    AddPetDialog dlg(this);
+    dlg.setPetInfo(info);
+    if (dlg.exec() == QDialog::Accepted) {
+        PetInfo newInfo = dlg.getPetInfo();
+        PetDataManager::instance()->updatePet(newInfo);
+        
+        updateStats();
+        // 同步刷新抽屉详情
+        m_drawer->setPet(newInfo, PetDataManager::instance()->getLogs(newInfo.id));
+    }
+}
+
+void PetModule::onStatusFilterChanged(int /*id*/)
+{
+    m_currentPage = 1;
+    updatePagination();
+    updateStats();
 }

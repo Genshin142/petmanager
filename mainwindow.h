@@ -24,6 +24,7 @@ class PerformanceModule;
 class SalaryModule;
 class LogisticsModule;
 class InboundModule;
+class ServiceManagementModule;
 
 class MainWindow : public QMainWindow
 {
@@ -59,6 +60,8 @@ private:
     QPushButton *navSalary;
     QPushButton *navLogistics;
     QPushButton *navInbound;
+    QPushButton *navService;
+    ServiceManagementModule *serviceMod;
     
     
     void initSidebar();

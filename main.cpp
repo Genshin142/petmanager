@@ -1,9 +1,11 @@
 #include <QApplication>
 #include "loginwindow.h"
 #include "mainwindow.h"
+#include "utils/logger.h"
 
 int main(int argc, char *argv[])
 {
+    Logger::init();
     QApplication a(argc, argv);
     
     // 设置全局字体，确保全程序一致（特别是表格项等非 Widget 元素）
@@ -12,7 +14,7 @@ int main(int argc, char *argv[])
     
     a.setStyleSheet(
         "QWidget { font-family: 'Microsoft YaHei'; } "
-        "QHeaderView::section { background-color: #f2f6fc; color: #606266; padding: 4px; border: none; }"
+        "QHeaderView::section { background-color: white; color: #64748b; font-weight: bold; font-size: 13px; padding: 12px 4px; border: none; border-bottom: 1px solid #f1f5f9; }"
         
         // 全局约束：强制取消所有表格的交替底色与选中行的高亮变化
         "QTableView, QTableWidget {"

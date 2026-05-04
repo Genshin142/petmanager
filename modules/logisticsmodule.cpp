@@ -18,6 +18,7 @@
 #include <QPainterPath>
 #include "compactcalendar.h"
 #include <QEvent>
+#include <QTimer>
 #include <QMouseEvent>
 #include <QTableWidget>
 #include <QHeaderView>
@@ -95,12 +96,17 @@ private:
     QDialog* m_previewDialog;
 };
 
-LogisticsModule::LogisticsModule(QWidget *parent) : QWidget(parent)
+LogisticsModule::LogisticsModule(QWidget *parent) : QWidget(parent),
+    m_statTotalLabel(nullptr),
+    m_statPendingLabel(nullptr),
+    m_statOngoingLabel(nullptr),
+    m_statCompletedLabel(nullptr)
 {
     m_currentDate = QDate::currentDate();
     setupUI();
     connect(LogisticsManager::instance(), &LogisticsManager::logisticsDataChanged, this, &LogisticsModule::refreshTasks);
-    refreshTasks();
+    
+    QTimer::singleShot(0, this, &LogisticsModule::refreshTasks);
     startTimer(500); // 500ms for breathing animation & time checking
 }
 
@@ -112,7 +118,7 @@ void LogisticsModule::setupUI()
 
     QWidget *mainColumn = new QWidget();
     m_mainLayout = new QVBoxLayout(mainColumn);
-    m_mainLayout->setContentsMargins(30, 15, 30, 25);
+    m_mainLayout->setContentsMargins(20, 20, 20, 20);
     m_mainLayout->setSpacing(10);
 
     // Header Area
@@ -370,7 +376,7 @@ void LogisticsModule::onDateChanged(const QDate &date)
             hl->setContentsMargins(15, 10, 15, 10);
             
             QLabel *timeL = new QLabel(timeSlot);
-            timeL->setStyleSheet("font-weight: 900; color: #1e293b; font-size: 15px; letter-spacing: 0.5px;");
+            timeL->setStyleSheet("font-weight: bold; color: #1e293b; font-size: 15px; letter-spacing: 0.5px;");
             QLabel *badgeL = new QLabel(QString("%1 任务").arg(slotTasks.size()));
             if (slotTasks.isEmpty()) {
                 badgeL->setStyleSheet("background: #f4f4f5; color: #909399; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: bold; border: 1px solid #e9e9eb;");
@@ -693,10 +699,13 @@ void LogisticsModule::showCreateTaskDialog()
     dialog.setWindowTitle("新建派车调度单");
     dialog.setFixedSize(520, 680);
     dialog.setStyleSheet("QDialog { background: #f8f9fb; } QLabel { color: #606266; font-weight: bold; } "
-                         "QLineEdit, QComboBox { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding-left: 12px; color: #606266; } "
+                         "QLineEdit { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding-left: 12px; color: #606266; } "
                          "QLineEdit[readOnly=\"true\"] { background: #f5f7fa; color: #909399; border: 1px solid #e4e7ed; } "
-                         "QComboBox::drop-down { border: none; width: 30px; } "
-                         "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; }");
+                         "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
+                         "QComboBox:hover { border-color: #409eff; } "
+                         "QComboBox::drop-down { border: none; width: 24px; } "
+                         "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+                         "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }");
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     layout->setContentsMargins(30, 30, 30, 30);
@@ -1047,7 +1056,7 @@ void LogisticsModule::showHistoryDialog()
     table->setFocusPolicy(Qt::NoFocus);
     table->setStyleSheet(
         "QTableWidget { border: 1px solid #ebeef5; border-radius: 8px; gridline-color: transparent; }"
-        "QHeaderView::section { background: #f5f7fa; padding: 10px; border: none; font-weight: bold; color: #606266; }"
+        
         "QTableWidget::item { padding: 12px; border-bottom: 1px solid #f0f2f5; }"
     );
 
@@ -1141,10 +1150,10 @@ QWidget* LogisticsModule::createStatCard(const QString &title, const QString &va
     layout->setSpacing(4);
     
     QLabel *titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet("color: #909399; font-size: 13px; font-weight: 500; border: none; background: transparent;");
+    titleLabel->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
     
     *outValueLabel = new QLabel(value);
-    (*outValueLabel)->setStyleSheet(QString("color: %1; font-size: 24px; font-weight: bold; border: none; background: transparent; font-family: 'Segoe UI', Roboto;").arg(color));
+    (*outValueLabel)->setStyleSheet(QString("color: %1; font-size: 24px; font-weight: bold; border: none; background: transparent; ").arg(color));
     
     layout->addWidget(titleLabel);
     layout->addWidget(*outValueLabel);

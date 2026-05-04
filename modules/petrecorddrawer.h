@@ -36,6 +36,7 @@ signals:
     void logAdded(const QString &petId, const PetActivityLog &log);
     void avatarClicked(const QString &path);
     void closeRequested();
+    void editRequested(const PetInfo &info);
 
 private slots:
     void onSubmitQuickAction();
@@ -65,6 +66,7 @@ private:
     // Header Elements
     QLabel *m_avatarLabel;
     QLabel *m_nameLabel;
+    QPushButton *m_editBtn;
     QLabel *m_breedLabel;
     QLabel *m_ownerLabel;
     QLabel *m_roomBadge; 

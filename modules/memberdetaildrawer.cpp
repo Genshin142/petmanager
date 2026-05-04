@@ -7,11 +7,11 @@
 #include "petdatamanager.h"
 #include "custommessagedialog.h"
 
-MemberDetailDrawer::MemberDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(true)
+MemberDetailDrawer::MemberDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(false), m_imagePreviewOverlay(nullptr), m_previewLabel(nullptr)
 {
     setupUI();
     setupImagePreview();
-    setFixedWidth(380);
+    setFixedWidth(0);
 }
 
 void MemberDetailDrawer::setupUI()
@@ -20,20 +20,61 @@ void MemberDetailDrawer::setupUI()
     setStyleSheet("#MemberDetailDrawer { background-color: white; border-left: 1px solid #ebeef5; } "
                   "QLabel { border: none; background: transparent; padding: 0; margin: 0; }");
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    QVBoxLayout *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(20, 20, 20, 20); // 统一外边距，和左侧保持一致
+    outerLayout->setSpacing(0);
+
+    QFrame *container = new QFrame();
+    container->setObjectName("DrawerContainer");
+    container->setStyleSheet("#DrawerContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    
+    // 开启子控件裁切以保证圆角（关键）
+    container->setAttribute(Qt::WA_StyledBackground);
+    
+    QVBoxLayout *mainLayout = new QVBoxLayout(container);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
+    outerLayout->addWidget(container);
 
     // --- 1. 头部 (Avatar & Base Info) ---
     QWidget *header = new QWidget();
-    header->setFixedHeight(160); // 增加总高度
-    header->setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ffffff, stop:1 #f8faff);");
+    header->setFixedHeight(160); 
+    // 取消渐变，改为纯白，并保持顶部圆角以匹配大容器
+    header->setStyleSheet("QWidget { background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: none; }");
     QVBoxLayout *headerLayout = new QVBoxLayout(header);
-    headerLayout->setContentsMargins(20, 45, 20, 10); // 大幅增加顶部边距，使内容下沉
+    headerLayout->setContentsMargins(20, 15, 20, 10); 
+
+    // --- 顶部工具栏 ---
+    QHBoxLayout *topBar = new QHBoxLayout();
+    topBar->addStretch();
+    QPushButton *closeBtn = new QPushButton("×");
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setCursor(Qt::PointingHandCursor);
+    closeBtn->setStyleSheet("QPushButton { border: none; font-size: 24px; color: #909399; background: transparent; } QPushButton:hover { color: #f56c6c; }");
+    connect(closeBtn, &QPushButton::clicked, this, [=](){ this->hide(); });
+    topBar->addWidget(closeBtn);
+    headerLayout->addLayout(topBar);
+    headerLayout->addSpacing(10); // 适度减小间距
 
     QVBoxLayout *nameIdLayout = new QVBoxLayout();
+    
+    QHBoxLayout *nameRow = new QHBoxLayout();
     m_nameLabel = new QLabel("未选择会员");
-    m_nameLabel->setStyleSheet("font-size: 22px; color: #303133; font-weight: bold;"); // 姓名也稍微加大
+    m_nameLabel->setStyleSheet("font-size: 24px; color: #303133; font-weight: bold;"); 
+    
+    m_editBtn = new QPushButton("编辑资料");
+    m_editBtn->setCursor(Qt::PointingHandCursor);
+    m_editBtn->setFixedHeight(28); 
+    m_editBtn->setMinimumWidth(85);
+    m_editBtn->setStyleSheet(
+        "QPushButton { background: #ecf5ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 6px; font-size: 12px; font-weight: bold; padding: 0 12px; } "
+        "QPushButton:hover { background: #409eff; color: white; }"
+    );
+    m_editBtn->hide(); 
+    
+    nameRow->addWidget(m_nameLabel);
+    nameRow->addStretch(); // 重点：推到最右侧
+    nameRow->addWidget(m_editBtn);
     
     QHBoxLayout *badgeLayout = new QHBoxLayout();
     m_levelLabel = new QLabel("普通会员");
@@ -48,11 +89,11 @@ void MemberDetailDrawer::setupUI()
     m_petCountLabel = new QLabel("宠物资产: 0");
     m_petCountLabel->setStyleSheet("background: #fdf6ec; color: #e6a23c; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; margin-left: 10px;");
     badgeLayout->addWidget(m_petCountLabel);
-    
     badgeLayout->addStretch();
     
-    nameIdLayout->addWidget(m_nameLabel);
-    nameIdLayout->addSpacing(15); // 增加姓名与标签之间的距离
+    // 核心组装逻辑：确保没有重复 addWidget
+    nameIdLayout->addLayout(nameRow);
+    nameIdLayout->addSpacing(12); 
     nameIdLayout->addLayout(badgeLayout);
     
     headerLayout->addLayout(nameIdLayout);
@@ -60,11 +101,11 @@ void MemberDetailDrawer::setupUI()
 
     // --- 2. 导航栏 (Tab Bar) ---
     QWidget *tabWidget = new QWidget();
-    tabWidget->setFixedHeight(46);
-    tabWidget->setStyleSheet("border-bottom: 1px solid #ebeef5; background: white;");
+    tabWidget->setFixedHeight(50);
+    tabWidget->setStyleSheet("border: none; background: white;");
     QHBoxLayout *tabLayout = new QHBoxLayout(tabWidget);
-    tabLayout->setContentsMargins(15, 0, 15, 0);
-    tabLayout->setSpacing(10);
+    tabLayout->setContentsMargins(15, 5, 15, 5);
+    tabLayout->setSpacing(8);
 
     m_tabGroup = new QButtonGroup(this);
     m_tabGroup->setExclusive(true);
@@ -77,9 +118,9 @@ void MemberDetailDrawer::setupUI()
         btn->setFixedHeight(44);
         btn->setMinimumWidth(70);
         btn->setStyleSheet(
-            "QPushButton { border: none; font-size: 14px; color: #606266; background: transparent; padding: 0 5px 4px 5px; } "
-            "QPushButton:hover { color: #409eff; } "
-            "QPushButton:checked { color: #409eff; font-weight: bold; border-bottom: 3px solid #409eff; padding-bottom: 1px; }"
+            "QPushButton { border: none; font-size: 14px; color: #64748b; background: transparent; border-radius: 18px; padding: 0 15px; } "
+            "QPushButton:hover { background: #f1f5f9; color: #1e293b; } "
+            "QPushButton:checked { color: #3b82f6; font-weight: bold; background: #eff6ff; }"
         );
         m_tabGroup->addButton(btn, i);
         tabLayout->addWidget(btn);
@@ -90,6 +131,7 @@ void MemberDetailDrawer::setupUI()
 
     // --- 3. 内容区 (Stacked Widget) ---
     m_stackedWidget = new QStackedWidget();
+    m_stackedWidget->setStyleSheet("QStackedWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     m_stackedWidget->addWidget(createProfilePage()); // Index 0
     m_stackedWidget->addWidget(createPetPage());     // Index 1
     m_stackedWidget->addWidget(createOrderPage());   // Index 2
@@ -102,6 +144,10 @@ void MemberDetailDrawer::setupUI()
         emit sig_addPetRequested(m_currentMember.id, m_currentMember.name);
     });
 
+    connect(m_editBtn, &QPushButton::clicked, this, [this](){
+        emit sig_editMemberRequested(m_currentMember);
+    });
+
     m_tabGroup->button(0)->setChecked(true);
 }
 
@@ -110,26 +156,31 @@ QWidget* MemberDetailDrawer::createProfilePage()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; } ");
+    // 强制 ScrollArea 及其 viewport 均为白色，且底部保持圆角
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QScrollArea > QWidget > QWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(16, 16, 16, 16);
-    contentLayout->setSpacing(16);
+    contentLayout->setContentsMargins(24, 16, 24, 16); // 增加一点左右边距
+    contentLayout->setSpacing(20); // 增加分组间的间距
 
     auto createGroupCard = [&](const QString &title, QVBoxLayout* &cardLayout) {
         QFrame *card = new QFrame();
-        card->setStyleSheet("background: #fcfcfd; border-radius: 8px; border: 1px solid #ebeef5;");
+        // 彻底去掉背景、圆角、边框
+        card->setStyleSheet("QFrame { background: white; border: none; border-radius: 0; }");
         QVBoxLayout *mainV = new QVBoxLayout(card);
-        mainV->setContentsMargins(15, 15, 15, 15);
+        mainV->setContentsMargins(0, 0, 0, 10); 
         mainV->setSpacing(12);
         
         QLabel *tLabel = new QLabel(title);
-        tLabel->setStyleSheet("color: #303133; font-size: 14px; font-weight: bold; margin-bottom: 5px; border: none; background: transparent;");
+        // 强化标题视觉，去掉背景
+        tLabel->setStyleSheet("color: #303133; font-size: 15px; font-weight: bold; border-bottom: 2px solid #f2f6fc; padding-bottom: 8px; margin-bottom: 5px;");
         mainV->addWidget(tLabel);
         
         cardLayout = new QVBoxLayout();
-        cardLayout->setSpacing(10);
+        cardLayout->setSpacing(12);
         mainV->addLayout(cardLayout);
         return card;
     };
@@ -140,7 +191,7 @@ QWidget* MemberDetailDrawer::createProfilePage()
         titleL->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
         titleL->setFixedWidth(70);
         valLabel = new QLabel("--");
-        valLabel->setStyleSheet("color: #303133; font-size: 13px; font-weight: 500; border: none; background: transparent;");
+        valLabel->setStyleSheet("color: #303133; font-size: 13px; border: none; background: transparent;");
         valLabel->setWordWrap(true);
         row->addWidget(titleL);
         row->addWidget(valLabel, 1);
@@ -197,7 +248,7 @@ QWidget* MemberDetailDrawer::createPetPage()
     
     // 按钮栏
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    m_addPetBtn = new QPushButton("+ 新增宠物档案");
+    m_addPetBtn = new QPushButton("新增宠物档案");
     m_addPetBtn->setCursor(Qt::PointingHandCursor);
     m_addPetBtn->setFixedHeight(36);
     m_addPetBtn->setStyleSheet(
@@ -254,6 +305,8 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
     m_currentMember = info;
     
     m_nameLabel->setText(info.name);
+    m_editBtn->setText("编辑资料"); // 强制确保文字显示
+    m_editBtn->show();
     
     // 更新等级颜色
     if (info.level.contains("黄金")) {
@@ -372,15 +425,20 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             pNameL->setStyleSheet("font-size: 14px; font-weight: bold; color: #303133; border:none;");
             
             QLabel *pGenderL = new QLabel(pInfo.gender == "公" ? "♂" : "♀");
-            pGenderL->setStyleSheet(pInfo.gender == "公" ? "color: #409eff; font-weight: bold;" : "color: #f56c6c; font-weight: bold;");
+            pGenderL->setFixedSize(22, 22);
+            pGenderL->setAlignment(Qt::AlignCenter);
+            pGenderL->setStyleSheet(pInfo.gender == "公" ? 
+                "color: #409eff; background: #ecf5ff; border: 1px solid #d9ecff; border-radius: 11px; font-weight: bold; font-size: 14px;" : 
+                "color: #f56c6c; background: #fef0f0; border: 1px solid #fde2e2; border-radius: 11px; font-weight: bold; font-size: 14px;");
             
             pTitleRow->addWidget(pNameL);
+            pTitleRow->addSpacing(5);
             pTitleRow->addWidget(pGenderL);
             pTitleRow->addStretch();
             
-            // 第二行：ID
-            QLabel *pIdLabel = new QLabel("ID: " + pInfo.id);
-            pIdLabel->setStyleSheet("color: #909399; font-size: 11px; border:none;");
+            // 第二行：ID + 品种
+            QLabel *pIdLabel = new QLabel(QString("ID: %1  |  %2").arg(pInfo.id, pInfo.breed));
+            pIdLabel->setStyleSheet("color: #909399; font-size: 11px; border: none; background: transparent;");
             
             // 第三行：状态 + 房间号
             QHBoxLayout *pStatusRow = new QHBoxLayout();
@@ -422,7 +480,9 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
 
 void MemberDetailDrawer::setupImagePreview()
 {
-    m_imagePreviewOverlay = new QWidget(this->window()); // 挂载到顶层窗口
+    QWidget *win = this->window();
+    if (!win) return;
+    m_imagePreviewOverlay = new QWidget(win); // 挂载到顶层窗口
     m_imagePreviewOverlay->setObjectName("DrawerPreviewOverlay");
     m_imagePreviewOverlay->setStyleSheet("#DrawerPreviewOverlay { background-color: rgba(0, 0, 0, 215); }");
     m_imagePreviewOverlay->hide();
@@ -436,21 +496,33 @@ void MemberDetailDrawer::setupImagePreview()
 
 void MemberDetailDrawer::showBigImage(const QString &path)
 {
+    if (path.isEmpty()) return;
+    
+    // 延迟初始化：只有在真正需要显示且 window() 可用时才创建
+    if (!m_imagePreviewOverlay) {
+        setupImagePreview();
+    }
+    
+    if (!m_imagePreviewOverlay || !m_previewLabel) return;
+    
+    m_currentPreviewPath = path;
     QPixmap pix(path);
-    if (pix.isNull()) pix.load(":/images/load_img.jpg");
-    
-    m_imagePreviewOverlay->setGeometry(this->window()->rect());
-    
-    int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
-    m_previewLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    
-    m_imagePreviewOverlay->show();
-    m_imagePreviewOverlay->raise();
+    if (!pix.isNull()) {
+        m_previewLabel->setPixmap(pix.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        QWidget *win = this->window();
+        if (win) {
+            m_imagePreviewOverlay->setGeometry(win->rect());
+            m_imagePreviewOverlay->show();
+            m_imagePreviewOverlay->raise();
+        }
+    }
 }
 
 void MemberDetailDrawer::hideBigImage()
 {
-    m_imagePreviewOverlay->hide();
+    if (m_imagePreviewOverlay) {
+        m_imagePreviewOverlay->hide();
+    }
 }
 
 bool MemberDetailDrawer::eventFilter(QObject *obj, QEvent *event)
@@ -486,8 +558,9 @@ bool MemberDetailDrawer::eventFilter(QObject *obj, QEvent *event)
 
 void MemberDetailDrawer::showDrawer()
 {
+    if (m_isOpened) return;
     m_isOpened = true;
-    setFixedWidth(380);
+    setFixedWidth(450);
 }
 
 void MemberDetailDrawer::hideDrawer()

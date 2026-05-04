@@ -12,6 +12,7 @@
 #include "modules/salarymodule.h"
 #include "modules/logisticsmodule.h"
 #include "modules/inboundmodule.h"
+#include "modules/servicemanagementmodule.h"
 #include "modules/logisticsmanager.h"
 #include "modules/petdatamanager.h"
 #include <QPushButton>
@@ -26,8 +27,22 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     ui->setupUi(this);
     this->setWindowState(Qt::WindowMaximized); // 默认启动最大化铺满全屏
     
+    // Initialize module pointers to prevent garbage values
+    memberMod = nullptr;
+    roleMod = nullptr;
+    petMod = nullptr;
+    productMod = nullptr;
+    fosterMod = nullptr;
+    apptMod = nullptr;
+    checkoutMod = nullptr;
+    statsMod = nullptr;
+    perfMod = nullptr;
+    salaryMod = nullptr;
+    logisticsMod = nullptr;
+    inboundMod = nullptr;
+    serviceMod = nullptr;
+
     initSidebar();
-    initModules(role);
 
     // 根据权限动态隔离
     ui->userNameLabel->setText(QString("当前用户：%1 (%2)").arg(userName).arg(role == ADMIN ? "管理员" : "营业店员"));
@@ -40,11 +55,16 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
         navSalary->setVisible(false);
     }
 
-    // 启动红点/状态提醒定时器并立即执行一次扫描
-    updateBadges(); 
-    QTimer *badgeTimer = new QTimer(this);
-    connect(badgeTimer, &QTimer::timeout, this, &MainWindow::updateBadges);
-    badgeTimer->start(2000); // 每2秒扫描一次业务状态
+    // Defer modules initialization to ensure a stable startup sequence
+    QTimer::singleShot(100, this, [this, role]() {
+        initModules(role);
+        updateBadges();
+        
+        // Setup a recurring timer for badge updates after initial load
+        QTimer *badgeTimer = new QTimer(this);
+        connect(badgeTimer, &QTimer::timeout, this, &MainWindow::updateBadges);
+        badgeTimer->start(5000); // 5s interval is safer than 2s
+    });
 }
 
 MainWindow::~MainWindow()
@@ -83,6 +103,11 @@ void MainWindow::initSidebar()
     navGroup->addButton(navInbound, 11);
     ui->sidebarLayout->insertWidget(4, navInbound); // 插在商品档案管理(index 3)后面
 
+    // 动态添加服务管理按钮
+    navService = new QPushButton("服务项目管理");
+    navGroup->addButton(navService, 12);
+    ui->sidebarLayout->insertWidget(5, navService); // 插在入库登记(index 4)后面
+
     // 动态添加薪资管理按钮
     navSalary = new QPushButton("薪资管理中心 (管理员)");
     navGroup->addButton(navSalary, 9);
@@ -106,18 +131,33 @@ void MainWindow::initSidebar()
 
 void MainWindow::initModules(UserRole role)
 {
+    qDebug() << "Initializing modules...";
     memberMod = new MemberModule(role, this);
+    qDebug() << "RoleModule...";
     roleMod = new RoleModule(this);
+    qDebug() << "PetModule...";
     petMod = new PetModule(this);
+    qDebug() << "ProductModule...";
     productMod = new ProductModule(role, this);
+    qDebug() << "FosterModule...";
     fosterMod = new FosterModule(this);
+    qDebug() << "AppointmentModule...";
     apptMod = new AppointmentModule(this);
+    qDebug() << "CheckoutModule...";
     checkoutMod = new CheckoutModule(this);
+    qDebug() << "PerformanceModule...";
     perfMod = new PerformanceModule(this);
+    qDebug() << "StatsModule...";
     statsMod = new StatsModule(this);
+    qDebug() << "SalaryModule...";
     salaryMod = new SalaryModule(this);
+    qDebug() << "LogisticsModule...";
     logisticsMod = new LogisticsModule(this);
+    qDebug() << "InboundModule...";
     inboundMod = new InboundModule(this);
+    qDebug() << "ServiceManagementModule...";
+    serviceMod = new ServiceManagementModule(role, this);
+    qDebug() << "Modules initialized.";
     
     ui->stack->addWidget(memberMod);  // index 0
     ui->stack->addWidget(roleMod);    // index 1
@@ -131,6 +171,7 @@ void MainWindow::initModules(UserRole role)
     ui->stack->addWidget(salaryMod);   // index 9
     ui->stack->addWidget(logisticsMod); // index 10
     ui->stack->addWidget(inboundMod);   // index 11
+    ui->stack->addWidget(serviceMod);   // index 12
 
     // 跨模块同步逻辑
     connect(memberMod, &MemberModule::sig_petAdded, petMod, &PetModule::addPet);
@@ -171,46 +212,54 @@ void MainWindow::onJumpToPetById(const QString &petId)
 
 void MainWindow::updateBadges()
 {
+    qDebug() << "Updating badges...";
     // 1. 车辆调度中心提醒 (基于临期任务)
-    QList<LogisticsTask> tasks = LogisticsManager::instance()->getAllTasks();
-    QDateTime now = QDateTime::currentDateTime();
-    int urgentLogisticsCount = 0;
-    
-    for (const auto &task : tasks) {
-        if (task.status != "待处理") continue;
-        if (task.appointmentTime.contains(now.date().toString("yyyy-MM-dd"))) {
-            QString startTimeStr = task.appointmentTime.mid(11, 5);
-            QTime startTime = QTime::fromString(startTimeStr, "HH:mm");
-            if (now.time() >= startTime.addSecs(-1800)) { // 30分钟内
-                urgentLogisticsCount++;
+    if (LogisticsManager::instance()) {
+        QList<LogisticsTask> tasks = LogisticsManager::instance()->getAllTasks();
+        QDateTime now = QDateTime::currentDateTime();
+        int urgentLogisticsCount = 0;
+        
+        for (const auto &task : tasks) {
+            if (task.status != "待处理") continue;
+            if (task.appointmentTime.contains(now.date().toString("yyyy-MM-dd"))) {
+                QString startTimeStr = task.appointmentTime.mid(11, 5);
+                QTime startTime = QTime::fromString(startTimeStr, "HH:mm");
+                if (startTime.isValid() && now.time() >= startTime.addSecs(-1800)) { // 30分钟内
+                    urgentLogisticsCount++;
+                }
+            }
+        }
+        
+        if (navLogistics) {
+            if (urgentLogisticsCount > 0) {
+                navLogistics->setText(QString("车辆调度中心  (%1)").arg(urgentLogisticsCount));
+                navLogistics->setStyleSheet("QPushButton { color: #ff4d4f; font-weight: bold; } "
+                                            "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
+            } else {
+                navLogistics->setText("车辆调度中心");
+                navLogistics->setStyleSheet(""); // 恢复默认侧边栏样式
             }
         }
     }
-    
-    if (navLogistics) {
-        if (urgentLogisticsCount > 0) {
-            navLogistics->setText(QString("车辆调度中心  (%1)").arg(urgentLogisticsCount));
-            navLogistics->setStyleSheet("QPushButton { color: #ff4d4f; font-weight: bold; } "
-                                        "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
-        } else {
-            navLogistics->setText("车辆调度中心");
-            navLogistics->setStyleSheet(""); // 恢复默认侧边栏样式
-        }
-    }
+    qDebug() << "Logistics badge updated.";
 
     if (ui->navProduct) {
         int lowStockCount = 0;
-        if (productMod) lowStockCount = productMod->getLowStockCount();
+        // 3. 商品库存报警 (确保模块已初始化)
+        if (productMod) {
+            lowStockCount = productMod->getLowStockCount();
+        }
 
         if (lowStockCount > 0) {
-            ui->navProduct->setText(QString("商品库存管理  (%1)").arg(lowStockCount));
+            ui->navProduct->setText(QString("商品档案管理  (%1)").arg(lowStockCount));
             ui->navProduct->setStyleSheet("QPushButton { color: #faad14; font-weight: bold; } "
                                         "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
         } else {
-            ui->navProduct->setText("商品库存管理");
+            ui->navProduct->setText("商品档案管理");
             ui->navProduct->setStyleSheet("");
         }
-}
+    }
+    qDebug() << "Product badge updated.";
 }
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {

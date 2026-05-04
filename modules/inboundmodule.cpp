@@ -73,12 +73,13 @@ void InboundModule::setupUI()
     statLayout->addWidget(createStatCard("", "待上架批次", m_pendingShelvesLabel, "#e6a23c"));
     masterLayout->addLayout(statLayout);
 
-    // --- 2. Filter Bar ---
-    QWidget *filterBar = new QWidget();
-    filterBar->setStyleSheet("background: #f8fafc; border-radius: 12px;"); // 去除边框，使用浅背景
+    // --- 操作中控台 (Operation Console) ---
+    QFrame *filterBar = new QFrame();
+    filterBar->setFixedHeight(64);
+    filterBar->setStyleSheet("QFrame { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
     QHBoxLayout *filterLayout = new QHBoxLayout(filterBar);
-    filterLayout->setContentsMargins(15, 10, 15, 10);
-    filterLayout->setSpacing(15);
+    filterLayout->setContentsMargins(15, 0, 15, 0);
+    filterLayout->setSpacing(12);
 
     // Search
     m_searchEdit = new QLineEdit();
@@ -126,16 +127,18 @@ void InboundModule::setupUI()
 
     // Category Buttons
     m_categoryGroup = new QButtonGroup(this);
+    m_categoryGroup->setExclusive(true);
     QStringList cats = {"全部", "主食", "零食", "玩具", "洗护"};
     for (int i = 0; i < cats.size(); ++i) {
         QPushButton *btn = new QPushButton(cats[i]);
         btn->setCheckable(true);
-        btn->setFixedHeight(34);
-        btn->setMinimumWidth(64);
-        btn->setStyleSheet("QPushButton { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 17px; "
-                           "color: #64748b; font-size: 13px; font-weight: bold; padding: 0 15px; } "
-                           "QPushButton:hover:!checked { background: #f1f5f9; border-color: #cbd5e1; } "
-                           "QPushButton:checked { background: #3b82f6; border-color: #3b82f6; color: white; }");
+        btn->setFixedHeight(36);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 18px; padding: 0 15px; color: #606266; font-size: 13px; } "
+            "QPushButton:hover { background: #ecf5ff; border-color: #409eff; color: #409eff; } "
+            "QPushButton:checked { background: #409eff; border-color: #409eff; color: white; font-weight: bold; } "
+        );
         if (i == 0) btn->setChecked(true);
         m_categoryGroup->addButton(btn, i);
         filterLayout->addWidget(btn);
@@ -147,7 +150,7 @@ void InboundModule::setupUI()
     QPushButton *newBtn = new QPushButton("新增入库登记");
     newBtn->setFixedHeight(36);
     newBtn->setFixedWidth(140); // 移除 emoji 后缩小宽度
-    newBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; font-weight: bold; border-radius: 6px; padding: 0 10px; border: none; } "
+    newBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; border-radius: 6px; padding: 0 10px; border: none; } "
                            "QPushButton:hover { background: #2563eb; } "
                            "QPushButton:pressed { background: #1d4ed8; }");
     filterLayout->addWidget(newBtn);
@@ -176,11 +179,56 @@ void InboundModule::setupUI()
     
     m_recordTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_recordTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_recordTable->setStyleSheet("QTableWidget { background: white; border: 1px solid #e2e8f0; border-radius: 12px; } "
-                                "QHeaderView::section { background: #f8fafc; border: none; border-bottom: 1px solid #e2e8f0; font-weight: bold; padding: 10px; color: #475569; } "
-                                "QTableWidget::item { padding: 8px; }");
+    // 3. 表格卡片容器 (12px 圆角)
+    QFrame *tableCard = new QFrame();
+    tableCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #e2e8f0; }");
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableCard);
+    tableLayout->setContentsMargins(0, 5, 0, 0);
+
+    m_recordTable->setStyleSheet("QTableWidget { border: none; background: white; outline: none; border-radius: 12px; } "
+                                 
+                                 "QHeaderView { border: none; background: transparent; border-radius: 12px 12px 0 0; }");
     
-    masterLayout->addWidget(m_recordTable);
+    tableLayout->addWidget(m_recordTable);
+
+    // 4. 底部统计与分页
+    QFrame *statFrame = new QFrame();
+    statFrame->setFixedHeight(50);
+    // 背景改为白色，移除 border
+    statFrame->setStyleSheet("QFrame { background: white; border: none; padding: 0 12px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
+    QHBoxLayout *footerLayout = new QHBoxLayout(statFrame);
+    tableLayout->addWidget(statFrame);
+
+    prevBtn = new QPushButton("上一页");
+    nextBtn = new QPushButton("下一页");
+    pageLabel = new QLabel("第 1 页 / 共 1 页");
+
+    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
+                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
+                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
+    prevBtn->setStyleSheet(pageStyle);
+    nextBtn->setStyleSheet(pageStyle);
+
+    prevBtn->setCursor(Qt::PointingHandCursor);
+    nextBtn->setCursor(Qt::PointingHandCursor);
+    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
+
+    QWidget *pageGroup = new QWidget();
+    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setSpacing(5); 
+    pageLayout->addWidget(prevBtn);
+    pageLayout->addWidget(pageLabel);
+    pageLayout->addWidget(nextBtn);
+
+    footerLayout->addStretch(); // 关键：左侧弹簧推向右侧
+    footerLayout->addWidget(pageGroup);
+    footerLayout->addSpacing(15); 
+
+    masterLayout->addWidget(tableCard);
+
+    connect(prevBtn, &QPushButton::clicked, this, &InboundModule::onPrevPage);
+    connect(nextBtn, &QPushButton::clicked, this, &InboundModule::onNextPage);
 
     // --- 3. Detail Drawer ---
     setupDetailDrawer();
@@ -215,8 +263,6 @@ void InboundModule::setupUI()
     backLayout->addStretch();
 
     // Fake preview for sync
-    m_previewImg = new QLabel(); 
-
     // Connections
     connect(newBtn, &QPushButton::clicked, this, &InboundModule::onNewRegistration);
     connect(m_searchEdit, &QLineEdit::textChanged, this, &InboundModule::onFilterChanged);
@@ -224,6 +270,125 @@ void InboundModule::setupUI()
     connect(m_endDateEdit, &CustomCalendarEdit::dateChanged, this, &InboundModule::onFilterChanged);
     connect(m_categoryGroup, QOverload<int>::of(&QButtonGroup::idClicked), this, &InboundModule::onFilterChanged);
     connect(m_recordTable, &QTableWidget::itemSelectionChanged, this, &InboundModule::onRecordSelected);
+}
+
+void InboundModule::updateRecordList()
+{
+    m_recordTable->setRowCount(0);
+    QList<StockInRecord> allRecords = ProductDataManager::instance()->getAllRecords();
+
+    QString searchText = m_searchEdit->text().trimmed().toLower();
+    QDate start = QDate::fromString(m_startDateEdit->text(), "yyyy-MM-dd");
+    QDate end = QDate::fromString(m_endDateEdit->text(), "yyyy-MM-dd");
+    QString catFilter = m_selectedCategory;
+
+    // 1. 过滤
+    QList<StockInRecord> filtered;
+    for (const auto &rec : allRecords) {
+        // Date Filter
+        QDate recDate = QDateTime::fromString(rec.dateTime, "yyyy-MM-dd HH:mm:ss").date();
+        if (recDate < start || recDate > end) continue;
+
+        // Search Filter
+        if (!searchText.isEmpty()) {
+            if (!rec.productName.toLower().contains(searchText) && !rec.barcode.contains(searchText))
+                continue;
+        }
+
+        // Category Filter
+        if (catFilter != "全部" && rec.category != catFilter) continue;
+
+        filtered.append(rec);
+    }
+
+    // 2. 分页
+    int total = filtered.size();
+    int totalPages = qMax(1, (total + m_pageSize - 1) / m_pageSize);
+    if (m_currentPage > totalPages) m_currentPage = totalPages;
+    if (m_currentPage < 1) m_currentPage = 1;
+
+    int beginIdx = (m_currentPage - 1) * m_pageSize;
+    int endIdx = qMin(beginIdx + m_pageSize, total);
+
+    for (int i = beginIdx; i < endIdx; ++i) {
+        const auto &rec = filtered[i];
+        int row = m_recordTable->rowCount();
+        m_recordTable->insertRow(row);
+
+        auto createItem = [](const QString &text) {
+            auto *item = new QTableWidgetItem(text);
+            item->setTextAlignment(Qt::AlignCenter);
+            return item;
+        };
+
+        m_recordTable->setItem(row, 0, createItem(rec.dateTime));
+        m_recordTable->setItem(row, 1, createItem(rec.productName));
+        m_recordTable->setItem(row, 2, createItem(rec.barcode));
+        m_recordTable->setItem(row, 3, createItem(rec.productionDate));
+        m_recordTable->setItem(row, 4, createItem(rec.category.isEmpty() ? "未分类" : rec.category));
+        m_recordTable->setItem(row, 5, createItem(rec.supplier.isEmpty() ? "未知" : rec.supplier));
+        m_recordTable->setItem(row, 6, createItem(QString::number(rec.quantity)));
+        
+        QWidget *tagWrapper = new QWidget();
+        QHBoxLayout *tagLayout = new QHBoxLayout(tagWrapper);
+        tagLayout->setContentsMargins(0, 0, 0, 0);
+        tagLayout->setSpacing(0);
+        
+        QLabel *statusTag = new QLabel(rec.isShelved ? "已上架" : "待上架");
+        statusTag->setFixedSize(65, 24); 
+        statusTag->setAlignment(Qt::AlignCenter);
+        tagLayout->addWidget(statusTag, 0, Qt::AlignCenter); 
+        
+        if (!rec.isShelved) {
+            statusTag->setStyleSheet("background: #fff7e6; color: #fa8c16; border-radius: 4px; font-size: 11px;");
+        } else {
+            statusTag->setStyleSheet("background: #f0f9eb; color: #67c23a; border-radius: 4px; font-size: 11px;");
+        }
+        
+        m_recordTable->setCellWidget(row, 7, tagWrapper);
+    }
+
+    pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
+    prevBtn->setEnabled(m_currentPage > 1);
+    nextBtn->setEnabled(m_currentPage < totalPages);
+
+    // 默认选中第一行
+    if (m_recordTable->rowCount() > 0) {
+        m_recordTable->setCurrentCell(0, 0);
+        onRecordSelected();
+    }
+}
+
+void InboundModule::onPrevPage() {
+    if (m_currentPage > 1) {
+        m_currentPage--;
+        updateRecordList();
+    }
+}
+
+void InboundModule::onNextPage() {
+    m_currentPage++;
+    updateRecordList();
+}
+
+void InboundModule::onFilterChanged()
+{
+    // 处理发送者
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (btn && m_categoryGroup && m_categoryGroup->buttons().contains(btn)) {
+        m_selectedCategory = btn->text();
+    }
+
+    // 动态维护范围限制
+    QDate start = QDate::fromString(m_startDateEdit->text(), "yyyy-MM-dd");
+    QDate end = QDate::fromString(m_endDateEdit->text(), "yyyy-MM-dd");
+    
+    m_endDateEdit->setMinimumDate(start);
+    m_startDateEdit->setMaximumDate(qMin(end, QDate::currentDate()));
+
+    m_currentPage = 1;
+    updateRecordList();
+    updateStats();
 }
 
 void InboundModule::updateStats()
@@ -250,13 +415,14 @@ void InboundModule::setupDetailDrawer()
     m_detailDrawer = new QWidget();
     m_detailDrawer->setObjectName("detailDrawer");
     m_detailDrawer->setStyleSheet("QWidget#detailDrawer { background: white; border-left: 1px solid #f1f5f9; }");
+    m_detailDrawer->setFixedWidth(450); // 统一宽度为 450px
     
     QVBoxLayout *l = new QVBoxLayout(m_detailDrawer);
     l->setContentsMargins(25, 25, 25, 25);
     l->setSpacing(20);
 
     m_drawerTitle = new QLabel("入库详情记录");
-    m_drawerTitle->setStyleSheet("font-size: 18px; font-weight: 800; color: #1e293b;");
+    m_drawerTitle->setStyleSheet("font-size: 18px; font-weight: bold; color: #1e293b;");
     l->addWidget(m_drawerTitle);
 
     QScrollArea *scroll = new QScrollArea();
@@ -278,90 +444,6 @@ void InboundModule::onNewRegistration()
     InboundRegistrationDialog dlg(this);
     connect(&dlg, &InboundRegistrationDialog::recordAdded, this, &InboundModule::updateRecordList);
     dlg.exec();
-}
-
-void InboundModule::onFilterChanged()
-{
-    // 动态维护范围限制：右边不能小于左边，左边不能大于右边
-    QDate start = QDate::fromString(m_startDateEdit->text(), "yyyy-MM-dd");
-    QDate end = QDate::fromString(m_endDateEdit->text(), "yyyy-MM-dd");
-    
-    m_endDateEdit->setMinimumDate(start);
-    m_startDateEdit->setMaximumDate(qMin(end, QDate::currentDate()));
-
-    updateRecordList();
-}
-
-void InboundModule::updateRecordList()
-{
-    QList<StockInRecord> allRecords = ProductDataManager::instance()->getAllRecords();
-    m_recordTable->setRowCount(0);
-
-    QString searchText = m_searchEdit->text().trimmed().toLower();
-    QDate start = QDate::fromString(m_startDateEdit->text(), "yyyy-MM-dd");
-    QDate end = QDate::fromString(m_endDateEdit->text(), "yyyy-MM-dd");
-    QString catFilter = m_categoryGroup->checkedButton() ? m_categoryGroup->checkedButton()->text() : "全部";
-
-    for (const auto &rec : allRecords) {
-        // Date Filter
-        QDate recDate = QDateTime::fromString(rec.dateTime, "yyyy-MM-dd HH:mm:ss").date();
-        if (recDate < start || recDate > end) continue;
-
-        // Search Filter
-        if (!searchText.isEmpty()) {
-            if (!rec.productName.toLower().contains(searchText) && !rec.barcode.contains(searchText))
-                continue;
-        }
-
-        // Category Filter
-        ProductInfo info = ProductDataManager::instance()->getProduct(rec.barcode);
-        if (catFilter != "全部" && info.category != catFilter) continue;
-
-        // Add to table
-        int row = m_recordTable->rowCount();
-        m_recordTable->insertRow(row);
-
-        auto createItem = [](const QString &text) {
-            auto *item = new QTableWidgetItem(text);
-            item->setTextAlignment(Qt::AlignCenter);
-            return item;
-        };
-
-        m_recordTable->setItem(row, 0, createItem(rec.dateTime));
-        m_recordTable->setItem(row, 1, createItem(rec.productName));
-        m_recordTable->setItem(row, 2, createItem(rec.barcode));
-        m_recordTable->setItem(row, 3, createItem(rec.productionDate));
-        m_recordTable->setItem(row, 4, createItem(info.category.isEmpty() ? "未分类" : info.category));
-        m_recordTable->setItem(row, 5, createItem(rec.supplier.isEmpty() ? "未知" : rec.supplier));
-        m_recordTable->setItem(row, 6, createItem(QString::number(rec.quantity)));
-        
-        QWidget *tagWrapper = new QWidget();
-        QHBoxLayout *tagLayout = new QHBoxLayout(tagWrapper);
-        tagLayout->setContentsMargins(0, 0, 0, 0);
-        tagLayout->setSpacing(0);
-        
-        QLabel *statusTag = new QLabel(rec.isShelved ? "已上架" : "待上架");
-        statusTag->setFixedSize(65, 24); 
-        statusTag->setAlignment(Qt::AlignCenter);
-        tagLayout->addWidget(statusTag, 0, Qt::AlignCenter); 
-        
-        if (!rec.isShelved) {
-            statusTag->setStyleSheet("background: #fff7e6; color: #fa8c16; border-radius: 4px; font-size: 11px;");
-        } else {
-            statusTag->setStyleSheet("background: #f0f9eb; color: #67c23a; border-radius: 4px; font-size: 11px;");
-        }
-        
-        m_recordTable->setCellWidget(row, 7, tagWrapper);
-    }
-
-    // 默认选中第一行
-    if (m_recordTable->rowCount() > 0) {
-        m_recordTable->setCurrentCell(0, 0);
-        onRecordSelected();
-    } else {
-        // 如果没有数据，清空详情面板（可选）
-        // clearDetailPanel(); // 如果有这个函数的话
-    }
 }
 
 void InboundModule::onRecordSelected()
@@ -436,7 +518,7 @@ void InboundModule::onRecordSelected()
     textInfo->setAlignment(Qt::AlignVCenter);
     
     QLabel *nameLabel = new QLabel(prodName);
-    nameLabel->setStyleSheet("font-size: 18px; font-weight: 800; color: #1e293b; border: none;");
+    nameLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #1e293b; border: none;");
     nameLabel->setWordWrap(true);
     
     QLabel *barcodeLabel = new QLabel("条码：" + barcode);
@@ -463,9 +545,9 @@ void InboundModule::onRecordSelected()
         l->setSpacing(4);
         
         QLabel *title = new QLabel(label);
-        title->setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 600; border: none;");
+        title->setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold; border: none;");
         QLabel *value = new QLabel(val.isEmpty() ? "-" : val);
-        value->setStyleSheet("color: #1e293b; font-size: 13px; font-weight: 700; border: none;");
+        value->setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none;");
         value->setWordWrap(true);
         
         l->addWidget(title);

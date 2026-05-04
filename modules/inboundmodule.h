@@ -25,6 +25,8 @@ private slots:
     void onRecordSelected();
     void updateRecordList();
     void updateStats();
+    void onPrevPage();
+    void onNextPage();
 
 private:
     void setupUI();
@@ -81,8 +83,12 @@ private:
     QStringList m_imagePaths;
     int m_currentImgIndex = 0;
     
-    // Preview label from old UI (needed for sync if used, but mostly for backdrop)
-    QLabel *m_previewImg; 
+    // Pagination
+    QPushButton *prevBtn;
+    QPushButton *nextBtn;
+    QLabel *pageLabel;
+    int m_currentPage = 1;
+    int m_pageSize = 15;
 };
 
 #endif // INBOUNDMODULE_H

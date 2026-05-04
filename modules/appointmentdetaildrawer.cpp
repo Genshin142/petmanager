@@ -137,7 +137,7 @@ void AppointmentDetailDrawer::setupUI()
     m_delPhotoBtn->setCursor(Qt::PointingHandCursor);
     m_delPhotoBtn->setToolTip("从档案中删除此照片");
     m_delPhotoBtn->setStyleSheet(
-        "QPushButton { background: #ff4d4f; color: white; border-radius: 14px; font-family: Arial; font-weight: bold; border: 2px solid white; font-size: 16px; text-align: center; padding: 0; } "
+        "QPushButton { background: #ff4d4f; color: white; border-radius: 14px; font-weight: bold; border: 2px solid white; font-size: 16px; text-align: center; padding: 0; } "
         "QPushButton:hover { background: #ff7875; }"
     );
     m_delPhotoBtn->hide(); 
@@ -275,7 +275,7 @@ void AppointmentDetailDrawer::addInfoRow(QGridLayout *grid, int row, const QStri
     lLbl->setStyleSheet("color: #606266; font-size: 13px;");
     lLbl->setFixedWidth(75);
     QLabel *vLbl = new QLabel(value.isEmpty() ? "--" : value);
-    vLbl->setStyleSheet("color: #333333; font-size: 14px; font-weight: 500;");
+    vLbl->setStyleSheet("color: #333333; font-size: 14px; ");
     vLbl->setWordWrap(true);
     grid->addWidget(lLbl, row, 0, Qt::AlignTop);
     grid->addWidget(vLbl, row, 1, Qt::AlignTop);
@@ -509,7 +509,7 @@ void AppointmentDetailDrawer::clearSelection()
     m_mainStack->setCurrentIndex(1);
 }
 
-void AppointmentDetailDrawer::showDrawer() { m_isOpened = true; setFixedWidth(420); }
+void AppointmentDetailDrawer::showDrawer() { m_isOpened = true; setFixedWidth(450); }
 void AppointmentDetailDrawer::hideDrawer() { m_isOpened = false; setFixedWidth(0); }
 
 void AppointmentDetailDrawer::paintEvent(QPaintEvent *event)

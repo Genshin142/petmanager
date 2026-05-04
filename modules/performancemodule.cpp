@@ -11,7 +11,8 @@
 #include <QCheckBox>
 #include <QIntValidator>
 
-PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent)
+PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent),
+    m_currentPage(1), m_pageSize(10), pageLabel(nullptr), jumpEdit(nullptr), prevBtn(nullptr), nextBtn(nullptr), jumpValidator(nullptr)
 {
     setupUI();
     
@@ -30,7 +31,7 @@ PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent)
 void PerformanceModule::setupUI()
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(25, 25, 25, 25);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(20);
 
     // 1. 标题
@@ -105,7 +106,7 @@ void PerformanceModule::setupUI()
     searchEdit->setFixedWidth(200);
     searchEdit->setFixedHeight(32);
     searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 15px; font-size: 13px; background: white; } "
         "QLineEdit:focus { border-color: #409eff; outline: none; }"
     );
     filterLayout->addWidget(searchEdit);
@@ -123,18 +124,14 @@ void PerformanceModule::setupUI()
     endDayCombo = new QComboBox(); endDayCombo->setFixedWidth(100);
 
     auto initDateGroup = [&](QComboBox* y, QComboBox* m, QComboBox* d, const QDate &initDate) {
-        QString style = "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 4px 20px 4px 10px; font-size: 13px; background: #f5f7fa; color: #606266; } "
-                        "QComboBox:focus { border-color: #409eff; background: white; } "
+        QString style = "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
+                        "QComboBox:hover { border-color: #409eff; } "
                         "QComboBox::drop-down { border: none; width: 24px; } "
-                        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; }"
-                        "QComboBox QAbstractItemView {"
-                        "   border: 1px solid #e4e7ed; background-color: #ffffff; border-radius: 4px;"
-                        "}"
-                        "QComboBox QAbstractItemView::item { height: 35px; padding-left: 10px; color: #606266; }"
-                        "QComboBox QAbstractItemView::item:selected { background-color: #f5f7fa; color: #409eff; border-left: 3px solid #409eff; }";
+                        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+                        "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }";
         
         QString scrollStyle = "QScrollBar:vertical { width: 0px; background: transparent; margin: 0px; } "
-                             "QScrollBar::handle:vertical { background: #dcdfe6; border-radius: 4px; min-height: 20px; } "
+                             "QScrollBar::handle:vertical { background: #dcdfe6; border-radius: 6px; min-height: 20px; } "
                              "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }";
 
         y->setStyleSheet(style); m->setStyleSheet(style); d->setStyleSheet(style);
@@ -225,7 +222,7 @@ void PerformanceModule::setupUI()
         "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; outline: none; } "
         "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
         "QTableWidget::item:selected { background-color: #b3d8ff; } " 
-        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; font-weight: bold; } "
+        
         "QCheckBox::indicator { width: 16px; height: 16px; }"
         "QCheckBox::indicator:unchecked { border: 1px solid #dcdfe6; background: white; border-radius: 2px; }"
         "QCheckBox::indicator:checked { image: url(:/images/check.svg); background: #409eff; border: 1px solid #409eff; border-radius: 2px; }"
@@ -245,50 +242,32 @@ void PerformanceModule::setupUI()
     bottomLayout->addStretch();
     
     // 分页组件
-    QHBoxLayout *pageLayout = new QHBoxLayout();
     pageLabel = new QLabel("第 1 页 / 共 1 页");
-    pageLabel->setStyleSheet("color: #606266; font-size: 13px;");
-    
-    QLabel *jumpLbl1 = new QLabel("跳转到"); jumpLbl1->setStyleSheet("color: #606266; font-size: 13px;");
-    jumpEdit = new QLineEdit();
-    jumpEdit->setFixedSize(40, 26);
-    jumpEdit->setAlignment(Qt::AlignCenter);
-    jumpValidator = new QIntValidator(1, 1, this);
-    jumpEdit->setValidator(jumpValidator);
-    jumpEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; background: white; } QLineEdit:focus { border-color: #409eff; }");
-    QLabel *jumpLbl2 = new QLabel("页"); jumpLbl2->setStyleSheet("color: #606266; font-size: 13px;");
-    
-    QPushButton *goBtn = new QPushButton("确认");
-    goBtn->setFixedSize(40, 26);
-    goBtn->setCursor(Qt::PointingHandCursor);
-    goBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; font-size: 12px; } QPushButton:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }");
+    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
     
     prevBtn = new QPushButton("上一页");
-    prevBtn->setFixedSize(60, 26);
-    prevBtn->setCursor(Qt::PointingHandCursor);
-    prevBtn->setStyleSheet(goBtn->styleSheet());
-    
     nextBtn = new QPushButton("下一页");
-    nextBtn->setFixedSize(60, 26);
+    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
+                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
+                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
+    prevBtn->setStyleSheet(pageStyle);
+    nextBtn->setStyleSheet(pageStyle);
+    prevBtn->setCursor(Qt::PointingHandCursor);
     nextBtn->setCursor(Qt::PointingHandCursor);
-    nextBtn->setStyleSheet(goBtn->styleSheet());
 
-    pageLayout->addWidget(jumpLbl1);
-    pageLayout->addWidget(jumpEdit);
-    pageLayout->addWidget(jumpLbl2);
-    pageLayout->addWidget(goBtn);
-    pageLayout->addSpacing(15);
+    QWidget *pageGroup = new QWidget();
+    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setSpacing(5);
     pageLayout->addWidget(prevBtn);
     pageLayout->addWidget(pageLabel);
     pageLayout->addWidget(nextBtn);
 
-    bottomLayout->addLayout(pageLayout);
+    bottomLayout->addWidget(pageGroup);
     mainLayout->addWidget(bottomBar);
 
     connect(prevBtn, &QPushButton::clicked, this, &PerformanceModule::onPrevPage);
     connect(nextBtn, &QPushButton::clicked, this, &PerformanceModule::onNextPage);
-    connect(goBtn, &QPushButton::clicked, this, &PerformanceModule::onJumpPage);
-    connect(jumpEdit, &QLineEdit::returnPressed, this, &PerformanceModule::onJumpPage);
 }
 
 void PerformanceModule::addPerformanceRow(const QString &date, const QString &empId, const QString &empName, 
@@ -325,7 +304,7 @@ void PerformanceModule::updatePagination()
     int total = filteredData.size();
     int totalPages = qMax(1, (total + m_pageSize - 1) / m_pageSize);
     
-    if (jumpValidator) jumpValidator->setTop(totalPages);
+    // if (jumpValidator) jumpValidator->setTop(totalPages);
     if (m_currentPage > totalPages) m_currentPage = totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
@@ -474,13 +453,6 @@ void PerformanceModule::onNextPage()
 
 void PerformanceModule::onJumpPage()
 {
-    int page = jumpEdit->text().toInt();
-    if (page >= 1) {
-        m_currentPage = page;
-        updatePagination();
-    }
-    jumpEdit->clear();
-    jumpEdit->clearFocus();
 }
 
 void PerformanceModule::onBatchVerify()

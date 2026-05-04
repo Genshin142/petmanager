@@ -44,9 +44,16 @@ SOURCES += \
     modules/staffdatamanager.cpp \
     modules/staffselectiondialog.cpp \
     modules/pricemanager.cpp \
-    modules/orderdetaildrawer.cpp
+    modules/orderdetaildrawer.cpp \
+    modules/servicedatamanager.cpp \
+    modules/servicemanagementmodule.cpp \
+    modules/quickorderdialog.cpp \
+    modules/servicedialog.cpp \
+    modules/boardingdatamanager.cpp \
+    utils/logger.cpp
 
 HEADERS += \
+    utils/logger.h \
     loginwindow.h \
     mainwindow.h \
     modules/membermodule.h \
@@ -89,7 +96,12 @@ HEADERS += \
     modules/staffdatamanager.h \
     modules/staffselectiondialog.h \
     modules/pricemanager.h \
-    modules/orderdetaildrawer.h
+    modules/orderdetaildrawer.h \
+    modules/servicedatamanager.h \
+    modules/servicemanagementmodule.h \
+    modules/quickorderdialog.h \
+    modules/servicedialog.h \
+    modules/boardingdatamanager.h
 
 FORMS += \
     loginwindow.ui \

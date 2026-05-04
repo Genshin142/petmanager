@@ -141,14 +141,15 @@ protected:
 private slots:
     void onSearch(const QString &keyword);
     void onEditPet();
+    void onEditPetFromDrawer(const PetInfo &info);
     void onDeletePet();
     void onPrevPage();
     void onNextPage();
     void onJumpPage();
-    void onBatchDelete();
     
     // UI 增强相关槽函数
     void onCurrentCellChanged(int currentRow, int currentColumn, int previousRow, int previousColumn);
+    void onStatusFilterChanged(int id);
     void onLogAdded(const QString &petId, const PetActivityLog &log);
     void onQuickAction(); // 处理投喂/洗护按钮
 
@@ -160,6 +161,9 @@ private:
     QLabel *totalPetsLabel;
     QLabel *boardingPetsLabel;
     QLabel *groomingPetsLabel;
+
+    // 状态筛选
+    QButtonGroup *m_statusGroup;
 
     // 分页辅助
     QPushButton *prevBtn;

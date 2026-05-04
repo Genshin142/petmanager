@@ -28,7 +28,7 @@ struct EmployeeInfo {
     QString emergencyPhone;    // 紧急联系人电话
     QString address;           // 家庭住址
     QString education;         // 学历
-    QString department;        // 所属部门
+    QString department;        // 部门
 };
 
 class AddEmployeeDialog : public QDialog

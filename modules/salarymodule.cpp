@@ -13,7 +13,8 @@
 #include <QCheckBox>
 #include <QIntValidator>
 
-SalaryModule::SalaryModule(QWidget *parent) : QWidget(parent)
+SalaryModule::SalaryModule(QWidget *parent) : QWidget(parent),
+    m_currentPage(1), m_pageSize(10), pageLabel(nullptr), jumpEdit(nullptr), prevBtn(nullptr), nextBtn(nullptr), jumpValidator(nullptr)
 {
     setupUI();
     initData();
@@ -32,53 +33,17 @@ void SalaryModule::setupUI()
 
     // 2. 筛选工具栏
     QFrame *toolbar = new QFrame();
-    toolbar->setStyleSheet("QFrame { background: white; border-radius: 8px; }");
+    toolbar->setStyleSheet("QFrame { background: white; border-radius: 6px; }");
     QHBoxLayout *toolLayout = new QHBoxLayout(toolbar);
     
     auto styleCombo = [&](QComboBox* cb) {
-        cb->setFixedHeight(34);
+        cb->setFixedHeight(36);
         cb->setStyleSheet(
-            "QComboBox {"
-            "   border: 1px solid #dcdfe6;"
-            "   border-radius: 17px;"
-            "   padding: 0px 25px 0px 15px;"
-            "   background: white;"
-            "   color: #606266;"
-            "   font-size: 13px;"
-            "}"
-            "QComboBox:hover { border-color: #c0c4cc; }"
-            "QComboBox:focus { border-color: #409eff; }"
-            "QComboBox::drop-down {"
-            "   subcontrol-origin: padding;"
-            "   subcontrol-position: top right;"
-            "   width: 30px;"
-            "   border: none;"
-            "}"
-            "QComboBox::down-arrow {"
-            "   image: url(:/images/chevron-down.svg);"
-            "   width: 14px;"
-            "   height: 14px;"
-            "}"
-            "QComboBox QAbstractItemView {"
-            "   border: 1px solid #e4e7ed;"
-            "   background-color: #ffffff;"
-            "   border-radius: 4px;"
-            "   outline: none;"
-            "}"
-            "QComboBox QAbstractItemView::item {"
-            "   height: 35px;"
-            "   padding-left: 10px;"
-            "   color: #606266;"
-            "}"
-            "QComboBox QAbstractItemView::item:hover {"
-            "   background-color: #f5f7fa;"
-            "   color: #409eff;"
-            "}"
-            "QComboBox QAbstractItemView::item:selected {"
-            "   background-color: #f5f7fa;"
-            "   color: #409eff;"
-            "   border-left: 3px solid #409eff;"
-            "}"
+            "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
+            "QComboBox:hover { border-color: #409eff; } "
+            "QComboBox::drop-down { border: none; width: 24px; } "
+            "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+            "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }"
         );
         cb->view()->verticalScrollBar()->setStyleSheet(
             "QScrollBar:vertical { width: 0px; background: transparent; margin: 0px; } "
@@ -112,7 +77,7 @@ void SalaryModule::setupUI()
     searchBtn->setFixedHeight(34);
     searchBtn->setCursor(Qt::PointingHandCursor);
     searchBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 17px; border: none; font-size: 13px; text-align: center; padding: 0 5px; } "
+        "QPushButton { background: #409eff; color: white; border-radius: 6px; border: none; font-size: 13px; text-align: center; padding: 0 5px; } "
         "QPushButton:hover { background: #66b1ff; } "
         "QPushButton:pressed { background: #3a8ee6; }"
     );
@@ -121,7 +86,7 @@ void SalaryModule::setupUI()
     exportBtn->setFixedWidth(110);
     exportBtn->setFixedHeight(34);
     exportBtn->setStyleSheet(
-        "QPushButton { background: white; color: #606266; border-radius: 17px; border: 1px solid #dcdfe6; font-size: 13px; text-align: center; padding: 0 5px; } "
+        "QPushButton { background: white; color: #606266; border-radius: 6px; border: 1px solid #dcdfe6; font-size: 13px; text-align: center; padding: 0 5px; } "
         "QPushButton:hover { border-color: #409eff; color: #409eff; } "
     );
 
@@ -130,7 +95,7 @@ void SalaryModule::setupUI()
     batchPayBtn->setFixedHeight(34);
     batchPayBtn->setCursor(Qt::PointingHandCursor);
     batchPayBtn->setStyleSheet(
-        "QPushButton { background: #67c23a; color: white; border-radius: 17px; border: none; font-size: 13px; text-align: center; padding: 0 5px; } "
+        "QPushButton { background: #67c23a; color: white; border-radius: 6px; border: none; font-size: 13px; text-align: center; padding: 0 5px; } "
         "QPushButton:hover { background: #85ce61; } "
     );
 
@@ -143,7 +108,7 @@ void SalaryModule::setupUI()
     searchEdit->setFixedWidth(180);
     searchEdit->setFixedHeight(34);
     searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 17px; padding: 0 15px; font-size: 13px; background: white; text-align: center; } "
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 15px; font-size: 13px; background: white; text-align: center; } "
         "QLineEdit:focus { border-color: #409eff; outline: none; }"
     );
     toolLayout->addWidget(searchEdit);
@@ -162,7 +127,7 @@ void SalaryModule::setupUI()
     // 3. Tab 展示区
     QTabWidget *tabs = new QTabWidget();
     tabs->setStyleSheet(
-        "QTabWidget::pane { border: 1px solid #ebeef5; background: white; border-radius: 4px; } "
+        "QTabWidget::pane { border: 1px solid #ebeef5; background: white; border-radius: 6px; } "
         "QTabBar::tab { background: #f5f7fa; padding: 12px 25px; border: 1px solid #ebeef5; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; min-width: 100px; color: #909399; } "
         "QTabBar::tab:selected { background: white; color: #409eff; border-bottom-color: white; } "
     );
@@ -194,7 +159,7 @@ void SalaryModule::setupUI()
         "QTableWidget { gridline-color: #ebeef5; outline: none; border: 1px solid #ebeef5; background-color: white; color: black; } "
         "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
         "QTableWidget::item:selected { background-color: #b3d8ff; color: black; } " 
-        "QHeaderView::section { background-color: #f5f7fa; padding: 10px; border: none; color: #606266; font-size: 13px; font-weight: bold; } "
+        
     );
     
     tabs->addTab(salaryTable, "本月薪资明细");
@@ -204,58 +169,42 @@ void SalaryModule::setupUI()
     // 4. 底部概览与分页
     QFrame *bottomBar = new QFrame();
     bottomBar->setFixedHeight(60);
-    bottomBar->setStyleSheet("background: #f8f9fb; border-top: 1px solid #ebeef5;");
-    QHBoxLayout *bottomLayout = new QHBoxLayout(bottomBar);
+    // 分页组件
+    pageLabel = new QLabel("第 1 页 / 共 1 页");
+    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
     
-    totalPaidLabel = new QLabel("本月已发放金额: ¥0.00");
+    prevBtn = new QPushButton("上一页");
+    nextBtn = new QPushButton("下一页");
+    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
+                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
+                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
+    prevBtn->setStyleSheet(pageStyle);
+    nextBtn->setStyleSheet(pageStyle);
+    prevBtn->setCursor(Qt::PointingHandCursor);
+    nextBtn->setCursor(Qt::PointingHandCursor);
+
+    QWidget *pageGroup = new QWidget();
+    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pageLayout->setSpacing(5);
+    pageLayout->addWidget(prevBtn);
+    pageLayout->addWidget(pageLabel);
+    pageLayout->addWidget(nextBtn);
+
+    QHBoxLayout *bottomLayout = new QHBoxLayout(bottomBar);
+    bottomLayout->setContentsMargins(15, 0, 15, 0);
+    
+    totalPaidLabel = new QLabel("已发放: ￥0.00");
     totalPaidLabel->setStyleSheet("color: #67c23a; font-size: 14px; font-weight: bold;");
-    pendingLabel = new QLabel("待结算金额: ¥0.00");
+    pendingLabel = new QLabel("待发放: ￥0.00");
     pendingLabel->setStyleSheet("color: #f56c6c; font-size: 14px; font-weight: bold;");
     
     bottomLayout->addWidget(totalPaidLabel);
     bottomLayout->addSpacing(30);
     bottomLayout->addWidget(pendingLabel);
     bottomLayout->addStretch();
+    bottomLayout->addWidget(pageGroup);
     
-    // 分页组件
-    QHBoxLayout *pageLayout = new QHBoxLayout();
-    pageLabel = new QLabel("第 1 页 / 共 1 页");
-    pageLabel->setStyleSheet("color: #606266; font-size: 13px;");
-    
-    QLabel *jumpLbl1 = new QLabel("跳转到"); jumpLbl1->setStyleSheet("color: #606266; font-size: 13px;");
-    jumpEdit = new QLineEdit();
-    jumpEdit->setFixedSize(40, 26);
-    jumpEdit->setAlignment(Qt::AlignCenter);
-    jumpValidator = new QIntValidator(1, 1, this);
-    jumpEdit->setValidator(jumpValidator);
-    jumpEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; } QLineEdit:focus { border-color: #409eff; }");
-    QLabel *jumpLbl2 = new QLabel("页"); jumpLbl2->setStyleSheet("color: #606266; font-size: 13px;");
-    
-    QPushButton *goBtn = new QPushButton("确认");
-    goBtn->setFixedSize(40, 26);
-    goBtn->setCursor(Qt::PointingHandCursor);
-    goBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 4px; color: #606266; font-size: 12px; } QPushButton:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }");
-    
-    prevBtn = new QPushButton("上一页");
-    prevBtn->setFixedSize(60, 26);
-    prevBtn->setCursor(Qt::PointingHandCursor);
-    prevBtn->setStyleSheet(goBtn->styleSheet());
-    
-    nextBtn = new QPushButton("下一页");
-    nextBtn->setFixedSize(60, 26);
-    nextBtn->setCursor(Qt::PointingHandCursor);
-    nextBtn->setStyleSheet(goBtn->styleSheet());
-
-    pageLayout->addWidget(jumpLbl1);
-    pageLayout->addWidget(jumpEdit);
-    pageLayout->addWidget(jumpLbl2);
-    pageLayout->addWidget(goBtn);
-    pageLayout->addSpacing(15);
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
-
-    bottomLayout->addLayout(pageLayout);
     mainLayout->addWidget(bottomBar);
 
     connect(searchBtn, &QPushButton::clicked, this, &SalaryModule::onFilter);
@@ -264,8 +213,6 @@ void SalaryModule::setupUI()
     
     connect(prevBtn, &QPushButton::clicked, this, &SalaryModule::onPrevPage);
     connect(nextBtn, &QPushButton::clicked, this, &SalaryModule::onNextPage);
-    connect(goBtn, &QPushButton::clicked, this, &SalaryModule::onJumpPage);
-    connect(jumpEdit, &QLineEdit::returnPressed, this, &SalaryModule::onJumpPage);
 }
 
 void SalaryModule::initData()
@@ -298,7 +245,7 @@ void SalaryModule::addSalaryRow(const SalaryRecord &record)
     QCheckBox *cb = new QCheckBox();
     cb->setStyleSheet("QCheckBox::indicator { width: 16px; height: 16px; }"
                       "QCheckBox::indicator:unchecked { border: 1px solid #dcdfe6; background: white; border-radius: 2px; }"
-                      "QCheckBox::indicator:checked { image: url(:/images/check.svg); background: #409eff; border: 1px solid #409eff; border-radius: 2px; }");
+                      "QCheckBox::indicator:checked { background: #409eff; border: 1px solid #409eff; border-radius: 2px; }");
     // 只有待发放可被勾选
     if (record.status != "待发放") cb->setEnabled(false);
     cbLayout->addWidget(cb);
@@ -371,7 +318,7 @@ void SalaryModule::updatePagination()
     int total = m_salaryData.size();
     int totalPages = qMax(1, (total + m_pageSize - 1) / m_pageSize);
     
-    if (jumpValidator) jumpValidator->setTop(totalPages);
+    // if (jumpValidator) jumpValidator->setTop(totalPages);
     if (m_currentPage > totalPages) m_currentPage = totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
@@ -422,13 +369,6 @@ void SalaryModule::onNextPage()
 
 void SalaryModule::onJumpPage()
 {
-    int page = jumpEdit->text().toInt();
-    if (page >= 1) {
-        m_currentPage = page;
-        updatePagination();
-    }
-    jumpEdit->clear();
-    jumpEdit->clearFocus();
 }
 
 void SalaryModule::onBatchPay()

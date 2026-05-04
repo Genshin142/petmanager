@@ -18,8 +18,72 @@
 #include <QEvent>
 #include <QFile>
 #include <QTimer>
+#include <QStyledItemDelegate>
 
-RoleModule::RoleModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_pageSize(30)
+// --- 复刻：全行圆角边框选中委托 ---
+class RoleRowDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->fillRect(opt.rect, Qt::white);
+
+        if (opt.state & QStyle::State_Selected) {
+            bool isFirst = (index.column() == 0);
+            bool isLast = (index.column() == index.model()->columnCount() - 1);
+            QRect rect = opt.rect.adjusted(1, 4, -1, -4);
+            int radius = 8;
+            QColor borderColor("#3b82f6");
+            QColor bgColor("#eff6ff");
+
+            painter->fillRect(opt.rect, bgColor);
+            painter->setPen(QPen(borderColor, 2));
+            
+            if (isFirst) {
+                QPainterPath path;
+                path.moveTo(opt.rect.right() + 1, rect.top()); 
+                path.lineTo(rect.left() + radius, rect.top());
+                path.arcTo(QRect(rect.left(), rect.top(), radius*2, radius*2), 90, 90);
+                path.lineTo(rect.left(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.left(), rect.bottom() - radius*2, radius*2, radius*2), 180, 90);
+                path.lineTo(opt.rect.right() + 1, rect.bottom());
+                painter->drawPath(path);
+            } else if (isLast) {
+                QPainterPath path;
+                path.moveTo(opt.rect.left() - 1, rect.top());
+                path.lineTo(rect.right() - radius, rect.top());
+                path.arcTo(QRect(rect.right() - radius*2, rect.top(), radius*2, radius*2), 90, -90);
+                path.lineTo(rect.right(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.right() - radius*2, rect.bottom() - radius*2, radius*2, radius*2), 0, -90);
+                path.lineTo(opt.rect.left() - 1, rect.bottom());
+                painter->drawPath(path);
+            } else {
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.top()), QPoint(opt.rect.right() + 1, rect.top()));
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.bottom()), QPoint(opt.rect.right() + 1, rect.bottom()));
+            }
+        } else {
+            painter->setPen(QPen(QColor("#f1f5f9"), 1));
+            painter->drawLine(opt.rect.bottomLeft(), opt.rect.bottomRight());
+        }
+
+        // 绘制文本
+        painter->setPen(QColor((opt.state & QStyle::State_Selected) ? "#1e40af" : "#303133"));
+        QFont font = painter->font();
+        font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
+        font.setPointSize(10);
+        painter->setFont(font);
+        QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+        painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
+        
+        painter->restore();
+    }
+};
+
+RoleModule::RoleModule(QWidget *parent) : QWidget(parent), m_currentRoleFilter("全部职位"), m_currentStatusFilter("全部状态"), m_currentPage(1), m_pageSize(20)
 {
     // 预加载默认头像并裁剪为圆形
     m_maleAvatar = createCircularAvatar(QPixmap(":/images/male.png"), 36);
@@ -28,6 +92,7 @@ RoleModule::RoleModule(QWidget *parent) : QWidget(parent), m_currentPage(1), m_p
     m_drawer = new EmployeeDetailDrawer(this);
     connect(m_drawer, &EmployeeDetailDrawer::closeRequested, this, [=](){ m_drawer->hideDrawer(); });
     connect(m_drawer, &EmployeeDetailDrawer::avatarClicked, this, &RoleModule::showBigImage);
+    connect(m_drawer, &EmployeeDetailDrawer::editRequested, this, &RoleModule::onEditEmployeeFromDrawer);
 
     setupUI();
     
@@ -109,73 +174,65 @@ void RoleModule::setupUI()
 
     QWidget *masterWidget = new QWidget();
     QVBoxLayout *mainLayout = new QVBoxLayout(masterWidget);
-    mainLayout->setContentsMargins(25, 25, 25, 25);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(20);
 
-    // 1. 顶部标题栏
-    QHBoxLayout *headerLayout = new QHBoxLayout();
+    // --- 顶部统计与标题容器 (复刻会员模块风格) ---
+    QFrame *topContainer = new QFrame();
+    topContainer->setObjectName("TopStatisticsContainer");
+    topContainer->setFixedHeight(160); // 限制高度，防止过度拉伸
+    topContainer->setStyleSheet("#TopStatisticsContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *topLayout = new QVBoxLayout(topContainer);
+    topLayout->setContentsMargins(25, 15, 25, 15);
+    topLayout->setSpacing(12);
+
+    // 1. 顶部标题
     QLabel *titleLabel = new QLabel("员工权限与考勤管理", this);
-    titleLabel->setStyleSheet("font-size: 22px; color: #303133; font-weight: bold;");
-    headerLayout->addWidget(titleLabel);
-    headerLayout->addStretch();
-    mainLayout->addLayout(headerLayout);
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold; border: none; background: transparent;");
+    topLayout->addWidget(titleLabel);
 
     // ═══════════════════════════════════════════
     // 2. 统计卡片行
     // ═══════════════════════════════════════════
     QHBoxLayout *statLayout = new QHBoxLayout();
-    statLayout->setSpacing(20);
+    statLayout->setSpacing(15);
+    topLayout->addLayout(statLayout);
 
-    auto createStatCard = [&](const QString &icon, const QString &label, QLabel* &outValueLabel, QLabel* &outTrendLabel, const QColor &color, bool showTrend = true) {
+    mainLayout->addWidget(topContainer);
+
+    auto createStatCard = [&](const QString &icon, const QString &label, QLabel* &outValueLabel, const QColor &color) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
+        card->setFixedHeight(80);
+        card->setStyleSheet("QFrame { background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; } ");
         
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15);
-        shadow->setColor(QColor(0, 0, 0, 20));
-        shadow->setOffset(0, 4);
-        card->setGraphicsEffect(shadow);
-
         QHBoxLayout *l = new QHBoxLayout(card);
-        l->setContentsMargins(20, 15, 20, 15);
+        l->setContentsMargins(20, 10, 20, 10);
 
         QLabel *iconLabel = new QLabel(icon);
         if (icon.isEmpty()) {
             iconLabel->hide();
         } else {
-            iconLabel->setFixedSize(50, 50);
+            iconLabel->setFixedSize(40, 40);
             iconLabel->setAlignment(Qt::AlignCenter);
-            iconLabel->setStyleSheet(QString("font-size: 28px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color.name()));
+            iconLabel->setStyleSheet(QString("font-size: 20px; color: %1; background: white; border-radius: 8px; border: 1px solid #f1f5f9;").arg(color.name()));
         }
         if (!icon.isEmpty()) {
             l->addWidget(iconLabel);
-            l->addSpacing(15);
+            l->addSpacing(12);
         }
 
         QVBoxLayout *textLayout = new QVBoxLayout();
         textLayout->setSpacing(2);
         
         QLabel *labelTitle = new QLabel(label);
-        labelTitle->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
+        labelTitle->setStyleSheet("color: #94a3b8; font-size: 12px; border: none; background: transparent;");
         
         outValueLabel = new QLabel("--");
-        outValueLabel->setStyleSheet("font-size: 22px; color: #303133; border: none; background: transparent; font-weight: bold;");
+        outValueLabel->setStyleSheet("font-size: 20px; color: #1e293b; border: none; background: transparent; font-weight: bold;");
         
         textLayout->addWidget(labelTitle);
         textLayout->addWidget(outValueLabel);
-
-        if (showTrend) {
-            QHBoxLayout *trendLayout = new QHBoxLayout();
-            outTrendLabel = new QLabel("--");
-            outTrendLabel->setStyleSheet("color: #67c23a; font-size: 11px; border: none; background: transparent;");
-            trendLayout->addWidget(outTrendLabel);
-            trendLayout->addStretch();
-            textLayout->addLayout(trendLayout);
-        } else {
-            outTrendLabel = nullptr;
-            textLayout->addStretch();
-        }
+        textLayout->addStretch();
 
         l->addLayout(textLayout);
         l->addStretch();
@@ -183,86 +240,100 @@ void RoleModule::setupUI()
         return card;
     };
 
-    QLabel* dummy = nullptr;
-    statLayout->addWidget(createStatCard("", "在职员工", totalEmpLabel, dummy, QColor("#409eff"), false));
-    statLayout->addWidget(createStatCard("", "今日实到", todayAttendLabel, attendRateLabel, QColor("#67c23a")));
-    mainLayout->addLayout(statLayout);
+    statLayout->addWidget(createStatCard("", "在职员工", totalEmpLabel, QColor("#3b82f6")));
+    statLayout->addWidget(createStatCard("", "今日实到", todayAttendLabel, QColor("#67c23a")));
+    statLayout->addWidget(createStatCard("", "请假人数", onLeaveLabel, QColor("#e6a23c")));
+    statLayout->addWidget(createStatCard("", "当日出勤率", attendRateLabel, QColor("#3b82f6")));
 
-    // 3. 紧贴表格的操作栏
-    QHBoxLayout *operationLayout = new QHBoxLayout();
-    operationLayout->setContentsMargins(0, 0, 0, 0);
+    // 3. 紧贴表格的操作栏 (增加卡片容器包裹)
+    QFrame *operationCard = new QFrame();
+    operationCard->setObjectName("OperationCard");
+    operationCard->setStyleSheet("#OperationCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    
+    QHBoxLayout *operationLayout = new QHBoxLayout(operationCard);
+    operationLayout->setContentsMargins(20, 10, 20, 10);
+    operationLayout->setSpacing(0);
 
     // -- 1. 搜索与筛选 (左侧) --
     searchEdit = new QLineEdit();
     searchEdit->setPlaceholderText(" 搜索姓名、工号、电话...");
     searchEdit->setFixedWidth(200);
-    searchEdit->setFixedHeight(32);
+    searchEdit->setFixedHeight(36);
     searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 15px; font-size: 13px; background: white; } "
         "QLineEdit:focus { border-color: #409eff; outline: none; }"
     );
 
     roleFilterCombo = new QComboBox();
     roleFilterCombo->setFixedWidth(110);
-    roleFilterCombo->setFixedHeight(32);
+    roleFilterCombo->setFixedHeight(36);
     roleFilterCombo->addItems({"全部职位", "店员", "高级美容师", "宠物医生", "实习生", "店长"});
     roleFilterCombo->setStyleSheet(
-        "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; background: white; font-size: 13px; } "
+        "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
+        "QComboBox:hover { border-color: #409eff; } "
         "QComboBox::drop-down { border: none; width: 24px; } "
-        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; }"
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }"
     );
 
-    statusFilterCombo = new QComboBox();
-    statusFilterCombo->setFixedWidth(100);
-    statusFilterCombo->setFixedHeight(32);
-    statusFilterCombo->addItems({"全部状态", "在岗", "离岗", "请假", "离职"});
-    statusFilterCombo->setStyleSheet(
-        "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; background: white; font-size: 13px; } "
-        "QComboBox::drop-down { border: none; width: 24px; } "
-        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; }"
-    );
+    statusFilterContainer = new QWidget();
+    QHBoxLayout *statusLayout = new QHBoxLayout(statusFilterContainer);
+    statusLayout->setContentsMargins(0, 0, 0, 0);
+    statusLayout->setSpacing(8);
+
+    QStringList statuses = {"全部状态", "在岗", "离岗", "请假", "离职"};
+    for (const QString &st : statuses) {
+        QPushButton *btn = new QPushButton(st);
+        btn->setCheckable(true);
+        btn->setAutoExclusive(true);
+        btn->setFixedHeight(36);
+        btn->setCursor(Qt::PointingHandCursor);
+        if (st == m_currentStatusFilter) btn->setChecked(true);
+
+        btn->setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; color: #606266; font-size: 13px; } "
+            "QPushButton:hover { background: #ecf5ff; border-color: #409eff; color: #409eff; } "
+            "QPushButton:checked { background: #409eff; border-color: #409eff; color: white; font-weight: bold; } "
+        );
+
+        connect(btn, &QPushButton::clicked, this, [=](){
+            m_currentStatusFilter = st;
+            onFilterChanged();
+        });
+        statusLayout->addWidget(btn);
+    }
 
     operationLayout->addWidget(searchEdit);
     operationLayout->addSpacing(8);
     operationLayout->addWidget(roleFilterCombo);
     operationLayout->addSpacing(8);
-    operationLayout->addWidget(statusFilterCombo);
+    operationLayout->addWidget(statusFilterContainer);
 
     // -- 2. 中间弹簧 --
     operationLayout->addStretch();
 
-    // -- 3. 右侧：批量操作与新增 --
-    QPushButton *batchDeleteBtn = new QPushButton("批量删除");
-    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
-    batchDeleteBtn->setFixedHeight(32);
-    batchDeleteBtn->setStyleSheet(
-        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 6px; font-size: 12px; padding: 0 15px; }"
-        "QPushButton:hover { background-color: #f56c6c; color: white; }"
-    );
-    connect(batchDeleteBtn, &QPushButton::clicked, this, &RoleModule::onBatchDelete);
-
-    QPushButton *addBtn = new QPushButton("+ 录入员工");
+    QPushButton *addBtn = new QPushButton("录入员工");
     addBtn->setCursor(Qt::PointingHandCursor);
-    addBtn->setFixedHeight(32);
-    addBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; padding: 0 15px; border-radius: 4px; font-size: 13px; } QPushButton:hover { background: #85ce61; }");
+    addBtn->setFixedHeight(36);
+    addBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; padding: 0 15px; border-radius: 6px; font-size: 13px; } QPushButton:hover { background: #2563eb; }");
     connect(addBtn, &QPushButton::clicked, this, &RoleModule::onAddEmployee);
 
-    operationLayout->addWidget(batchDeleteBtn);
-    operationLayout->addSpacing(12);
     operationLayout->addWidget(addBtn);
 
-    mainLayout->addLayout(operationLayout);
+    mainLayout->addWidget(operationCard);
 
-    // ═══════════════════════════════════════════
-    // 4. 数据表格
-    // ═══════════════════════════════════════════
+    // 4. 表格卡片容器 (12px 圆角)
+    QFrame *tableCard = new QFrame();
+    tableCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #ebeef5; }");
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableCard);
+    tableLayout->setContentsMargins(0, 5, 0, 0);
+
     empTable = new QTableWidget();
     empTable->setColumnCount(7);
-    // 核心列: 0=选择, 1=工号, 2=姓名, 3=职位, 4=手机号, 5=状态, 6=操作
-    empTable->setHorizontalHeaderLabels({"选择", "工号", "姓名", "职位", "手机号", "状态", "操作"});
+    empTable->setHorizontalHeaderLabels({"工号", "员工信息", "职位", "状态", "联系电话", "入职日期", "操作"});
+    empTable->setItemDelegate(new RoleRowDelegate(empTable));
     
     empTable->setShowGrid(false);
-    empTable->setAlternatingRowColors(false);
     empTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     empTable->setSelectionMode(QAbstractItemView::SingleSelection);
     empTable->setFocusPolicy(Qt::NoFocus);
@@ -272,26 +343,25 @@ void RoleModule::setupUI()
     empTable->verticalHeader()->setDefaultSectionSize(60);
 
     empTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; outline: none; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; } "
-        "QHeaderView::section { background-color: #f5f7fa; padding: 10px; border: none; color: #606266; font-size: 13px; font-weight: bold; } "
+        "QTableWidget { border: none; background: white; outline: none; border-radius: 6px; } "
+        
+        "QHeaderView { border: none; background: transparent; border-radius: 12px 12px 0 0; }"
     );
+    
+    tableLayout->addWidget(empTable);
+    mainLayout->addWidget(tableCard);
 
     QHeaderView *header = empTable->horizontalHeader();
     header->setDefaultAlignment(Qt::AlignCenter);
     header->setSectionResizeMode(QHeaderView::Stretch); // 默认所有列拉伸
     
     // 针对特定列进行固定
-    header->setSectionResizeMode(0, QHeaderView::Fixed); empTable->setColumnWidth(0, 48);  // 选择
-    header->setSectionResizeMode(1, QHeaderView::Fixed); empTable->setColumnWidth(1, 80);  // 工号
-    header->setSectionResizeMode(6, QHeaderView::Fixed); empTable->setColumnWidth(6, 180); // 操作
+    header->setSectionResizeMode(0, QHeaderView::Fixed); empTable->setColumnWidth(0, 80);
+    header->setSectionResizeMode(1, QHeaderView::Stretch);
+    header->setSectionResizeMode(6, QHeaderView::Fixed); empTable->setColumnWidth(6, 120);
     
-    // 姓名(2)、职位(3)、手机号(4)、状态(5) 保持默认的 Stretch，从而实现四列等宽平均
-
     connect(empTable, &QTableWidget::currentCellChanged, this, &RoleModule::onCurrentCellChanged);
 
-    mainLayout->addWidget(empTable);
     // --- 初始化全屏大图预览层 ---
     m_imagePreviewOverlay = new QWidget(this);
     m_imagePreviewOverlay->setObjectName("EmployeePreviewOverlay");
@@ -308,90 +378,51 @@ void RoleModule::setupUI()
     // ═══════════════════════════════════════════
     // 5. 底部统计+分页栏
     // ═══════════════════════════════════════════
+    // 5. 底部统计+分页栏 (模仿会员中心)
     QFrame *statFrame = new QFrame();
     statFrame->setFixedHeight(50);
-    statFrame->setStyleSheet("QFrame { background: #f8f9fb; border-top: 1px solid #ebeef5; padding: 0 12px; }");
+    // 背景改为白色，移除顶部边框，设置底部圆角
+    statFrame->setStyleSheet("QFrame { background: white; border: none; padding: 0 12px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     QHBoxLayout *footerLayout = new QHBoxLayout(statFrame);
-
-    QLabel *footerInfo = new QLabel("员工档案管理");
-    footerInfo->setStyleSheet("color: #909399; font-size: 13px;");
-    footerLayout->addWidget(footerInfo);
-    footerLayout->addStretch();
-
-    // 分页控件
-    jumpEdit = new QLineEdit();
-    jumpEdit->setFixedWidth(36);
-    jumpEdit->setMaxLength(3);
-    jumpEdit->setFixedHeight(24);
-    jumpEdit->setAlignment(Qt::AlignCenter);
-    jumpEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0; font-size: 13px; background: white; margin: 0; } "
-        "QLineEdit:focus { border-color: #409eff; outline: none; }"
-    );
-    jumpValidator = new QIntValidator(1, 1, this);
-    jumpEdit->setValidator(jumpValidator);
-
-    QLabel *jumpPrefix = new QLabel("跳转到第");
-    jumpPrefix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
-    QLabel *jumpSuffix = new QLabel("页");
-    jumpSuffix->setStyleSheet("color: #606266; font-size: 13px; margin: 0; padding: 0;");
-
-    QPushButton *jumpBtn = new QPushButton("确认");
-    jumpBtn->setCursor(Qt::PointingHandCursor);
-    jumpBtn->setFixedSize(44, 24);
-    jumpBtn->setStyleSheet(
-        "QPushButton { border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 2px 0; text-align: center; }"
-        "QPushButton:hover { border-color: #409eff; color: #409eff; }"
-    );
+    
+    // 关键：将分页栏加入表格卡片的布局中，而不是 mainLayout
+    tableLayout->addWidget(statFrame);
 
     prevBtn = new QPushButton("上一页");
     nextBtn = new QPushButton("下一页");
     pageLabel = new QLabel("第 1 页 / 共 1 页");
 
-    QString pageStyle = "QPushButton { height: 24px; border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 0 8px; text-align: center; } "
-                        "QPushButton:hover { border-color: #409eff; color: #409eff; } "
-                        "QPushButton:disabled { background: #f5f7fa; color: #c0c4cc; border-color: #e4e7ed; }";
+    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
+                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
+                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
     prevBtn->setStyleSheet(pageStyle);
     nextBtn->setStyleSheet(pageStyle);
     prevBtn->setCursor(Qt::PointingHandCursor);
     nextBtn->setCursor(Qt::PointingHandCursor);
-    pageLabel->setStyleSheet("color: #909399; font-size: 13px; margin: 0; padding: 0 2px;");
-
-    QWidget *jumpGroup = new QWidget();
-    jumpGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    QHBoxLayout *jumpLayout = new QHBoxLayout(jumpGroup);
-    jumpLayout->setContentsMargins(0, 0, 0, 0);
-    jumpLayout->setSpacing(2);
-    jumpLayout->addWidget(jumpPrefix);
-    jumpLayout->addWidget(jumpEdit);
-    jumpLayout->addWidget(jumpSuffix);
-    jumpLayout->addWidget(jumpBtn);
+    
+    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
 
     QWidget *pageGroup = new QWidget();
-    pageGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
     pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(2);
+    pageLayout->setSpacing(5);
     pageLayout->addWidget(prevBtn);
     pageLayout->addWidget(pageLabel);
     pageLayout->addWidget(nextBtn);
 
-    footerLayout->addWidget(jumpGroup);
-    footerLayout->addSpacing(8);
+    footerLayout->addStretch(); // 将分页推向右侧
     footerLayout->addWidget(pageGroup);
-
-    mainLayout->addWidget(statFrame);
 
     // ═══════════════════════════════════════════
     // 6. 事件绑定
     // ═══════════════════════════════════════════
     connect(searchEdit, &QLineEdit::textChanged, this, &RoleModule::onSearchTextChanged);
-    connect(roleFilterCombo, &QComboBox::currentTextChanged, this, [=](){ onFilterChanged(); });
-    connect(statusFilterCombo, &QComboBox::currentTextChanged, this, [=](){ onFilterChanged(); });
+    connect(roleFilterCombo, &QComboBox::currentTextChanged, this, [=](const QString &text){ 
+        m_currentRoleFilter = text;
+        onFilterChanged(); 
+    });
     connect(prevBtn, &QPushButton::clicked, this, &RoleModule::onPrevPage);
     connect(nextBtn, &QPushButton::clicked, this, &RoleModule::onNextPage);
-    connect(jumpBtn, &QPushButton::clicked, this, &RoleModule::onJumpPage);
-    connect(jumpEdit, &QLineEdit::returnPressed, this, &RoleModule::onJumpPage);
 
     empTable->setContextMenuPolicy(Qt::NoContextMenu);
 
@@ -418,23 +449,29 @@ void RoleModule::updateStats()
 {
     int totalEmp = 0;
     int todayAttend = 0;
+    int onLeave = 0;
 
     for (int i = 0; i < empTable->rowCount(); ++i) {
-        // 检查状态 (新索引：第 5 列)
-        QWidget* statusWidget = empTable->cellWidget(i, 5);
+        if (empTable->isRowHidden(i)) continue;
+        // 检查状态 (新索引：第 3 列)
+        QWidget* statusWidget = empTable->cellWidget(i, 3);
         if (statusWidget) {
             QLabel* tag = statusWidget->findChild<QLabel*>();
             if (tag) {
-                if (tag->text() != "离职") totalEmp++;
-                if (tag->text() == "在岗") todayAttend++;
+                QString status = tag->text();
+                if (status != "离职") totalEmp++;
+                if (status == "在岗") todayAttend++;
+                if (status == "请假") onLeave++;
             }
         }
     }
 
     totalEmpLabel->setText(QString("%1人").arg(totalEmp));
     todayAttendLabel->setText(QString("%1人").arg(todayAttend));
+    onLeaveLabel->setText(QString("%1人").arg(onLeave));
+    
     double rate = (totalEmp > 0) ? (double)todayAttend / totalEmp * 100 : 0;
-    attendRateLabel->setText(QString("当日出勤率: %1%").arg(rate, 0, 'f', 1));
+    attendRateLabel->setText(QString("%1%").arg(rate, 0, 'f', 1));
 }
 
 void RoleModule::addEmployeeRow(const QString &id, const QString &name, const QString &role, const QString &status, 
@@ -462,129 +499,98 @@ void RoleModule::setEmployeeRowData(int row, const QString &id, const QString &n
     info.gender = gender; info.age = age; info.phone = phone; info.email = email;
     info.idCard = idCard; info.baseSalary = (int)baseSalary; info.imgPath = imgPath;
     
-    // 注入一些默认的 HR 字段（后期可通过编辑对话框修改）
+    // 注入一些默认的 HR 字段
     info.joinDate = "2023-01-01";
-    info.emergencyContact = "张三 (紧急)";
-    info.emergencyPhone = "13011112222";
-    info.department = (role == "店长") ? "总店管理层" : "一线服务部";
-    info.education = (age > 30) ? "本科" : "大专";
-    info.address = "广东省广州市天河区某某街道 101 号";
 
     auto setItem = [&](int col, const QString &text, const QColor &color = QColor()) {
         QTableWidgetItem *item = new QTableWidgetItem(text);
         item->setTextAlignment(Qt::AlignCenter);
-        QFont font("Microsoft YaHei", 9);
-        item->setFont(font);
         if (color.isValid()) item->setForeground(QBrush(color));
         empTable->setItem(row, col, item);
     };
 
-    // 第0列：复选框
-    QWidget *checkContainer = new QWidget();
-    QHBoxLayout *checkLayout = new QHBoxLayout(checkContainer);
-    checkLayout->setContentsMargins(0, 0, 0, 0);
-    checkLayout->setAlignment(Qt::AlignCenter);
-    QCheckBox *cb = new QCheckBox();
-    cb->setStyleSheet("QCheckBox::indicator { width: 18px; height: 18px; }");
-    checkLayout->addWidget(cb);
-    empTable->setCellWidget(row, 0, checkContainer);
-
-    // 第1列：工号 (并绑定全量数据)
+    // 0. 工号
     QTableWidgetItem *idItem = new QTableWidgetItem(id);
     idItem->setTextAlignment(Qt::AlignCenter);
-    idItem->setData(Qt::UserRole, QVariant::fromValue(info)); // 核心：绑定对象
-    empTable->setItem(row, 1, idItem);
+    idItem->setData(Qt::UserRole, QVariant::fromValue(info));
+    empTable->setItem(row, 0, idItem);
 
-    // 第2列：圆形头像 + 姓名
-    QWidget *nameContainer = new QWidget();
-    QHBoxLayout *nameLayout = new QHBoxLayout(nameContainer);
-    nameLayout->setContentsMargins(0, 0, 0, 0); 
-    nameLayout->setSpacing(12);
-    nameLayout->setAlignment(Qt::AlignCenter); 
+    // 1. 员工信息 (头像 + 姓名)
+    QWidget *infoWidget = new QWidget();
+    QHBoxLayout *infoLayout = new QHBoxLayout(infoWidget);
+    infoLayout->setContentsMargins(12, 5, 12, 5); infoLayout->setSpacing(12);
+    infoLayout->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
     QLabel *avatarLabel = new QLabel();
-    avatarLabel->setFixedSize(36, 36);
-    
-    QPixmap targetAvatar;
-    QString actualImgPath = imgPath;
-    if (actualImgPath.isEmpty() || !QFile(actualImgPath).exists()) {
-        targetAvatar = gender == "女" ? m_femaleAvatar : m_maleAvatar;
-        actualImgPath = gender == "女" ? ":/images/female.png" : ":/images/male.png";
-    } else {
-        targetAvatar = createCircularAvatar(QPixmap(actualImgPath), 36);
-    }
-    
+    avatarLabel->setFixedSize(40, 40);
+    avatarLabel->setStyleSheet("border: none; background: transparent;"); // 确保没有外框
+    QPixmap targetAvatar = imgPath.isEmpty() ? (gender == "女" ? m_femaleAvatar : m_maleAvatar) : createCircularAvatar(QPixmap(imgPath), 40);
     avatarLabel->setPixmap(targetAvatar);
-    avatarLabel->setScaledContents(false);
-    avatarLabel->setStyleSheet("border: none; background: transparent;");
-    avatarLabel->setCursor(Qt::PointingHandCursor);
-    avatarLabel->setProperty("imgPath", actualImgPath);
+    avatarLabel->setProperty("imgPath", imgPath.isEmpty() ? (gender == "女" ? ":/images/female.png" : ":/images/male.png") : imgPath);
     avatarLabel->installEventFilter(this);
 
     QLabel *nameLabel = new QLabel(name);
-    nameLabel->setStyleSheet("font-size: 13px; color: #303133; border: none; background: transparent;");
-
-    nameLayout->addWidget(avatarLabel);
-    nameLayout->addWidget(nameLabel);
+    nameLabel->setStyleSheet("font-weight: bold; color: #303133; font-size: 14px; border: none; background: transparent;");
     
-    nameContainer->setProperty("row", row);
-    nameContainer->installEventFilter(this);
-    nameContainer->setCursor(Qt::PointingHandCursor);
-    
-    empTable->setCellWidget(row, 2, nameContainer);
+    infoLayout->addWidget(avatarLabel);
+    infoLayout->addWidget(nameLabel);
+    infoLayout->addStretch();
+    infoWidget->setProperty("row", row);
+    infoWidget->installEventFilter(this);
+    empTable->setCellWidget(row, 1, infoWidget);
 
-    // 第3列：职位
-    setItem(3, role);
+    // 2. 职位
+    setItem(2, role);
 
-    // 第4列：手机号
-    setItem(4, phone);
-
-    // 第8列：状态标签
+    // 3. 状态
     QWidget *statusContainer = new QWidget();
     QHBoxLayout *sLayout = new QHBoxLayout(statusContainer);
-    sLayout->setContentsMargins(0, 0, 0, 0);
-    sLayout->setAlignment(Qt::AlignCenter);
+    sLayout->setContentsMargins(0, 0, 0, 0); sLayout->setAlignment(Qt::AlignCenter);
     QLabel *statusTag = new QLabel(status);
-    QString tagStyle = "padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 500; ";
+    QString tagStyle = "padding: 2px 12px; border-radius: 14px; font-size: 11px; font-weight: bold; ";
     if (status == "在岗") tagStyle += "background-color: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;";
     else if (status == "请假") tagStyle += "background-color: #fdf6ec; color: #e6a23c; border: 1px solid #faecd8;";
     else if (status == "离岗") tagStyle += "background-color: #f4f4f5; color: #909399; border: 1px solid #e4e7ed;";
-    else if (status == "离职") tagStyle += "background-color: #909399; color: #ffffff; border: 1px solid #909399;"; // 统一使用 10px 圆角和边框
     else tagStyle += "background-color: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2;";
     statusTag->setStyleSheet(tagStyle);
     sLayout->addWidget(statusTag);
-    empTable->setCellWidget(row, 5, statusContainer); // 索引改为 5
+    empTable->setCellWidget(row, 3, statusContainer);
 
-    // 第6列：操作按钮
+    // 4. 联系电话
+    setItem(4, phone);
+
+    // 5. 入职日期
+    setItem(5, info.joinDate);
+
+    // 6. 操作
     QWidget *btnContainer = new QWidget();
+    btnContainer->setStyleSheet("background: transparent; border: none;"); 
     QHBoxLayout *btnLayout = new QHBoxLayout(btnContainer);
-    btnLayout->setContentsMargins(0, 0, 0, 0);
-    btnLayout->setSpacing(6);
-    btnLayout->setAlignment(Qt::AlignCenter);
-
-    QPushButton *editBtn = new QPushButton("修改");
-    editBtn->setCursor(Qt::PointingHandCursor);
-    editBtn->setFixedHeight(28);
-    editBtn->setFixedWidth(65);
-    editBtn->setStyleSheet(
-        "QPushButton { background-color: #ecf5ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 4px; font-size: 12px; padding: 0 10px; }"
-        "QPushButton:hover { background-color: #409eff; color: white; }"
-    );
-    connect(editBtn, &QPushButton::clicked, this, &RoleModule::onEditEmployee);
+    btnLayout->setContentsMargins(0, 0, 0, 0); btnLayout->setSpacing(8); btnLayout->setAlignment(Qt::AlignCenter);
 
     QPushButton *delBtn = new QPushButton("删除");
     delBtn->setCursor(Qt::PointingHandCursor);
-    delBtn->setFixedHeight(28);
-    delBtn->setFixedWidth(65);
+    delBtn->setFixedSize(65, 28);
     delBtn->setStyleSheet(
-        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 4px; font-size: 12px; padding: 0 10px; }"
-        "QPushButton:hover { background-color: #f56c6c; color: white; }"
+        "QPushButton { "
+        "  background-color: #fef0f0; "
+        "  color: #f56c6c !important; "
+        "  border: 1px solid #fbc4c4; "
+        "  border-radius: 4px; "
+        "  font-size: 12px; "
+        "  padding: 0; "
+        "  text-align: center; "
+        "} "
+        "QPushButton:hover { "
+        "  background-color: #f56c6c; "
+        "  color: white !important; "
+        "}"
     );
+    
     connect(delBtn, &QPushButton::clicked, this, &RoleModule::onDeleteEmployee);
-
-    btnLayout->addWidget(editBtn);
     btnLayout->addWidget(delBtn);
-    empTable->setCellWidget(row, 6, btnContainer); // 索引改为 6
+    empTable->setCellWidget(row, 6, btnContainer);
+    empTable->setItem(row, 6, new QTableWidgetItem("")); 
 }
 
 // ═══════════════════════════════════════════
@@ -607,8 +613,8 @@ void RoleModule::onSearchTextChanged(const QString &text)
 void RoleModule::updatePagination()
 {
     QString searchText = searchEdit->text().trimmed().toLower();
-    QString selectedRole = roleFilterCombo->currentText();
-    QString selectedStatus = statusFilterCombo->currentText();
+    QString selectedRole = m_currentRoleFilter;
+    QString selectedStatus = m_currentStatusFilter;
 
     QList<int> visibleRows;
 
@@ -616,13 +622,13 @@ void RoleModule::updatePagination()
         // 文本搜索匹配（工号、姓名、手机号）
         bool textMatch = searchText.isEmpty();
         if (!textMatch) {
-            for (int col : {1, 2, 5}) {
+            for (int col : {0, 1, 4}) {
                 QString cellText;
-                if (col == 2) {
+                if (col == 1) {
                     // 从 Widget 中提取姓名
-                    QWidget *w = empTable->cellWidget(i, 2);
+                    QWidget *w = empTable->cellWidget(i, 1);
                     if (w) {
-                        QLabel *lbl = w->findChildren<QLabel*>().last(); // 姓名标签通常在后面
+                        QLabel *lbl = w->findChildren<QLabel*>().last(); 
                         if (lbl) cellText = lbl->text();
                     }
                 } else {
@@ -640,14 +646,14 @@ void RoleModule::updatePagination()
         // 职位筛选
         bool roleMatch = (selectedRole == "全部职位");
         if (!roleMatch) {
-            QTableWidgetItem *item = empTable->item(i, 3);
+            QTableWidgetItem *item = empTable->item(i, 2);
             if (item) roleMatch = (item->text() == selectedRole);
         }
 
-        // 状态筛选
+        // 状态筛选 (索引 3)
         bool statusMatch = (selectedStatus == "全部状态");
         if (!statusMatch) {
-            QWidget *w = empTable->cellWidget(i, 8);
+            QWidget *w = empTable->cellWidget(i, 3);
             if (w) {
                 QLabel *lbl = w->findChild<QLabel*>();
                 if (lbl) statusMatch = (lbl->text() == selectedStatus);
@@ -663,7 +669,6 @@ void RoleModule::updatePagination()
     // 计算分页
     int totalVisible = visibleRows.size();
     int totalPages = qMax(1, (totalVisible + m_pageSize - 1) / m_pageSize);
-    if (jumpValidator) jumpValidator->setTop(totalPages);
     if (m_currentPage > totalPages) m_currentPage = totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
@@ -677,6 +682,13 @@ void RoleModule::updatePagination()
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
     prevBtn->setEnabled(m_currentPage > 1);
     nextBtn->setEnabled(m_currentPage < totalPages);
+
+    // 自动选中第一行
+    if (totalVisible > 0) {
+        empTable->selectRow(visibleRows[start]);
+    } else {
+        empTable->clearSelection();
+    }
 
     if (totalVisible == 0) {
         prevBtn->setEnabled(false);
@@ -695,15 +707,6 @@ void RoleModule::onNextPage()
 {
     m_currentPage++; updatePagination();
 }
-void RoleModule::onJumpPage()
-{
-    int page = jumpEdit->text().toInt();
-    if (page < 1) return;
-    m_currentPage = page;
-    updatePagination();
-    jumpEdit->clear();
-    jumpEdit->clearFocus();
-}
 
 // ═══════════════════════════════════════════
 // 增删改操作
@@ -717,7 +720,7 @@ void RoleModule::onAddEmployee()
         // 自动生成新工号
         int maxId = 0;
         for (int i = 0; i < empTable->rowCount(); ++i) {
-            QTableWidgetItem *item = empTable->item(i, 1);
+            QTableWidgetItem *item = empTable->item(i, 0);
             if (item && item->text().startsWith("E")) {
                 int cur = item->text().mid(1).toInt();
                 if (cur > maxId) maxId = cur;
@@ -741,10 +744,10 @@ void RoleModule::onEditEmployee()
     if (!btn) return;
     
     for (int i = 0; i < empTable->rowCount(); ++i) {
-        QWidget *w = empTable->cellWidget(i, 6); // 操作按钮在第 6 列
+        QWidget *w = empTable->cellWidget(i, 7); // 操作按钮在第 7 列
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
              // 核心：直接从 UserRole 获取完整对象
-             EmployeeInfo info = empTable->item(i, 1)->data(Qt::UserRole).value<EmployeeInfo>();
+             EmployeeInfo info = empTable->item(i, 0)->data(Qt::UserRole).value<EmployeeInfo>();
              
              AddEmployeeDialog dlg(this);
              dlg.setEmployeeInfo(info);
@@ -772,9 +775,9 @@ void RoleModule::onDeleteEmployee()
     if (!btn) return;
 
     for (int i = 0; i < empTable->rowCount(); ++i) {
-        QWidget *w = empTable->cellWidget(i, 6);
+        QWidget *w = empTable->cellWidget(i, 7);
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
-            EmployeeInfo info = empTable->item(i, 1)->data(Qt::UserRole).value<EmployeeInfo>();
+            EmployeeInfo info = empTable->item(i, 0)->data(Qt::UserRole).value<EmployeeInfo>();
             if (CustomMessageDialog::confirm(this, "删除确认", QString("确定要删除员工 [%1] 的档案吗？").arg(info.name))) {
                 StaffDataManager::instance()->removeStaff(info.id);
                 empTable->removeRow(i);
@@ -786,28 +789,6 @@ void RoleModule::onDeleteEmployee()
     }
 }
 
-void RoleModule::onBatchDelete()
-{
-    QList<int> checkedRows;
-    for (int i = empTable->rowCount() - 1; i >= 0; --i) {
-        QWidget *w = empTable->cellWidget(i, 0);
-        if (w) {
-            QCheckBox *cb = w->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                checkedRows.append(i);
-            }
-        }
-    }
-    if (checkedRows.isEmpty()) return;
-
-    if (CustomMessageDialog::confirm(this, "批量删除", QString("确定要删除选中的 %1 名员工吗？").arg(checkedRows.size()))) {
-        for (int row : checkedRows) {
-            empTable->removeRow(row);
-        }
-        updateStats();
-        updatePagination();
-    }
-}
 
 void RoleModule::onCurrentCellChanged(int currentRow, int currentColumn, int previousRow, int previousColumn)
 {
@@ -820,7 +801,7 @@ void RoleModule::onCurrentCellChanged(int currentRow, int currentColumn, int pre
         return;
     }
 
-    QTableWidgetItem *idItem = empTable->item(currentRow, 1);
+    QTableWidgetItem *idItem = empTable->item(currentRow, 0);
     if (!idItem) return; 
 
     // 直接提取绑定的全量对象
@@ -832,5 +813,34 @@ void RoleModule::onCurrentCellChanged(int currentRow, int currentColumn, int pre
         if (m_drawer->width() < 100) {
             m_drawer->showDrawer();
         }
+    }
+}
+
+void RoleModule::onEditEmployeeFromDrawer(const EmployeeInfo &info)
+{
+    // 1. 在表格中寻找对应行
+    int row = -1;
+    for (int i = 0; i < empTable->rowCount(); ++i) {
+        if (empTable->item(i, 0)->text() == info.id) {
+            row = i;
+            break;
+        }
+    }
+    
+    if (row == -1) return;
+
+    // 2. 弹出编辑对话框
+    AddEmployeeDialog dlg(this);
+    dlg.setEmployeeInfo(info);
+    if (dlg.exec() == QDialog::Accepted) {
+        EmployeeInfo newInfo = dlg.employeeInfo();
+        
+        // 3. 更新表格 UI
+        addEmployeeRowInPlace(row, newInfo);
+        
+        // 4. 同步更新详情页 Drawer
+        m_drawer->setEmployee(newInfo);
+        
+        updateStats();
     }
 }

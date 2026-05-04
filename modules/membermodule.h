@@ -28,6 +28,7 @@ private slots:
     void showAddMemberDialog();
     void onCellClicked(int row, int column);
     void onSearchTextChanged(const QString &text);
+    void onEditMemberFromDrawer(const MemberInfo &info); // 处理详情页发起的编辑
     void exportData();
     void updateStatistics();
     void onPrevPage();
@@ -47,6 +48,7 @@ private:
     QTableWidget *memTable;
     QLineEdit *searchEdit;
     QComboBox *levelFilterCombo;
+    QString m_currentLevelFilter;
     
     // 统计标签
     QLabel *totalMemberLabel;

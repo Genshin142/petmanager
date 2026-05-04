@@ -856,3 +856,23 @@ void MemberModule::onBatchDelete()
         CustomMessageDialog::showWarning(this, "成功", "批量删除成功");
     }
 }
+
+void MemberModule::onEditMemberFromDrawer(const MemberInfo &info)
+{
+    // Update the member table with edited info
+    for (int r = 0; r < memTable->rowCount(); ++r) {
+        if (memTable->item(r, 1)->text() == info.id) {
+            memTable->item(r, 2)->setText(info.name);
+            memTable->item(r, 2)->setData(Qt::UserRole, info.birthday);
+            memTable->item(r, 3)->setText(info.gender);
+            memTable->item(r, 4)->setText(info.phone);
+            memTable->item(r, 5)->setText(info.level);
+            updateStatistics();
+            
+            // Refresh drawer
+            onCellClicked(r, 0);
+            break;
+        }
+    }
+}
+

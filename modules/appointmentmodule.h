@@ -23,11 +23,11 @@ public:
 private slots:
     void onAppointmentSelected(const QModelIndex &index);
     void onFilter(const QString &text);
+    void onStatusFilterChanged(int index);
     void onPrevDay();
     void onNextDay();
     void onToday();
     void onAddAppointment();
-    void onStatusFilterChanged(int index);
     
     // 业务流转接口
     void handleConfirm(const QString &id);

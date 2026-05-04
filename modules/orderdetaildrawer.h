@@ -39,6 +39,7 @@ private:
     QLabel *m_petAvatar;
     QLabel *m_petInfoLabel;
     QLabel *m_memberNameLabel;
+    QVBoxLayout *m_headerInfoLayout;
     
     QWidget *m_itemsContainer;
     QVBoxLayout *m_itemsLayout;
