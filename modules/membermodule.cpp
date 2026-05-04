@@ -22,6 +22,72 @@
 #include <QFont>
 #include <QGraphicsDropShadowEffect>
 #include <QIntValidator>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QPainterPath>
+
+// --- 复刻：全行圆角边框选中委托 ---
+class MemberRowDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->fillRect(opt.rect, Qt::white);
+
+        if (opt.state & QStyle::State_Selected) {
+            bool isFirst = (index.column() == 0);
+            bool isLast = (index.column() == index.model()->columnCount() - 1);
+            QRect rect = opt.rect.adjusted(1, 4, -1, -4);
+            int radius = 8;
+            QColor borderColor("#3b82f6");
+            QColor bgColor("#eff6ff");
+
+            painter->fillRect(opt.rect, bgColor);
+            painter->setPen(QPen(borderColor, 2));
+            
+            if (isFirst) {
+                QPainterPath path;
+                path.moveTo(opt.rect.right() + 1, rect.top()); 
+                path.lineTo(rect.left() + radius, rect.top());
+                path.arcTo(QRect(rect.left(), rect.top(), radius*2, radius*2), 90, 90);
+                path.lineTo(rect.left(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.left(), rect.bottom() - radius*2, radius*2, radius*2), 180, 90);
+                path.lineTo(opt.rect.right() + 1, rect.bottom());
+                painter->drawPath(path);
+            } else if (isLast) {
+                QPainterPath path;
+                path.moveTo(opt.rect.left() - 1, rect.top());
+                path.lineTo(rect.right() - radius, rect.top());
+                path.arcTo(QRect(rect.right() - radius*2, rect.top(), radius*2, radius*2), 90, -90);
+                path.lineTo(rect.right(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.right() - radius*2, rect.bottom() - radius*2, radius*2, radius*2), 0, -90);
+                path.lineTo(opt.rect.left() - 1, rect.bottom());
+                painter->drawPath(path);
+            } else {
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.top()), QPoint(opt.rect.right() + 1, rect.top()));
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.bottom()), QPoint(opt.rect.right() + 1, rect.bottom()));
+            }
+        } else {
+            painter->setPen(QPen(QColor("#f1f5f9"), 1));
+            painter->drawLine(opt.rect.bottomLeft(), opt.rect.bottomRight());
+        }
+
+        // 绘制文本
+        painter->setPen(QColor((opt.state & QStyle::State_Selected) ? "#1e40af" : "#303133"));
+        QFont font = painter->font();
+        font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
+        font.setPointSize(10);
+        painter->setFont(font);
+        QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+        painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
+        
+        painter->restore();
+    }
+};
 
 MemberModule::MemberModule(UserRole role, QWidget *parent) : QWidget(parent), m_role(role), m_currentPage(1), m_pageSize(30)
 {
@@ -41,53 +107,54 @@ void MemberModule::setupUI()
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(15);
 
-    // 1. 顶部标题栏
-    QHBoxLayout *headerLayout = new QHBoxLayout();
-    QLabel *titleLabel = new QLabel("会员信息管理", this);
-    titleLabel->setStyleSheet("font-size: 22px; color: #303133; font-weight: bold;");
-    headerLayout->addWidget(titleLabel);
-    headerLayout->addStretch();
-    mainLayout->addLayout(headerLayout);
+    // 1. 顶部统计与标题容器 (复刻员工模块风格)
+    QFrame *topContainer = new QFrame();
+    topContainer->setObjectName("TopStatisticsContainer");
+    topContainer->setFixedHeight(160); // 限制高度，防止过度拉伸
+    topContainer->setStyleSheet("#TopStatisticsContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *topLayout = new QVBoxLayout(topContainer);
+    topLayout->setContentsMargins(25, 15, 25, 15);
+    topLayout->setSpacing(12);
 
-    // 2. 统计卡片行
+    // 1.1 顶部标题
+    QLabel *titleLabel = new QLabel("会员信息管理", this);
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold; border: none; background: transparent;");
+    topLayout->addWidget(titleLabel);
+
+    // 1.2 统计卡片行
     QHBoxLayout *statLayout = new QHBoxLayout();
-    statLayout->setSpacing(20);
+    statLayout->setSpacing(15);
+    topLayout->addLayout(statLayout);
 
     auto createStatCard = [&](const QString &icon, const QString &label, QLabel* &outValueLabel, const QColor &color) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
+        card->setFixedHeight(80);
+        card->setStyleSheet("QFrame { background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; } ");
         
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15);
-        shadow->setColor(QColor(0, 0, 0, 20));
-        shadow->setOffset(0, 4);
-        card->setGraphicsEffect(shadow);
-
         QHBoxLayout *l = new QHBoxLayout(card);
-        l->setContentsMargins(20, 15, 20, 15);
+        l->setContentsMargins(20, 10, 20, 10);
 
         QLabel *iconLabel = new QLabel(icon);
         if (icon.isEmpty()) {
             iconLabel->hide();
         } else {
-            iconLabel->setFixedSize(50, 50);
+            iconLabel->setFixedSize(40, 40);
             iconLabel->setAlignment(Qt::AlignCenter);
-            iconLabel->setStyleSheet(QString("font-size: 28px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color.name()));
+            iconLabel->setStyleSheet(QString("font-size: 20px; color: %1; background: white; border-radius: 8px; border: 1px solid #f1f5f9;").arg(color.name()));
         }
         if (!icon.isEmpty()) {
             l->addWidget(iconLabel);
-            l->addSpacing(15);
+            l->addSpacing(12);
         }
 
         QVBoxLayout *textLayout = new QVBoxLayout();
         textLayout->setSpacing(2);
         
         QLabel *labelTitle = new QLabel(label);
-        labelTitle->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
+        labelTitle->setStyleSheet("color: #94a3b8; font-size: 12px; border: none; background: transparent;");
         
         outValueLabel = new QLabel("--");
-        outValueLabel->setStyleSheet("font-size: 22px; color: #303133; border: none; background: transparent; font-weight: bold;");
+        outValueLabel->setStyleSheet("font-size: 20px; color: #1e293b; border: none; background: transparent; font-weight: bold;");
         
         textLayout->addWidget(labelTitle);
         textLayout->addWidget(outValueLabel);
@@ -99,36 +166,43 @@ void MemberModule::setupUI()
         return card;
     };
 
-    statLayout->addWidget(createStatCard("", "总计会员", totalMemberLabel, QColor("#409eff")));
-    statLayout->addWidget(createStatCard("", "普通会员", regularMemberLabel, QColor("#909399")));
+    statLayout->addWidget(createStatCard("", "总计会员", totalMemberLabel, QColor("#3b82f6")));
+    statLayout->addWidget(createStatCard("", "普通会员", regularMemberLabel, QColor("#94a3b8")));
     statLayout->addWidget(createStatCard("", "黄金会员", goldMemberLabel, QColor("#e6a23c")));
-    statLayout->addWidget(createStatCard("", "铂金会员", platinumMemberLabel, QColor("#409eff")));
+    statLayout->addWidget(createStatCard("", "铂金会员", platinumMemberLabel, QColor("#3b82f6")));
     statLayout->addWidget(createStatCard("", "钻石会员", diamondMemberLabel, QColor("#f56c6c")));
     
-    mainLayout->addLayout(statLayout);
+    mainLayout->addWidget(topContainer);
 
-    // 3. 紧贴表格的操作栏 (左侧批量按钮，右侧搜索/筛选/新增)
-    QHBoxLayout *operationLayout = new QHBoxLayout();
-    operationLayout->setContentsMargins(0, 0, 0, 0);
+    // 3. 紧贴表格的操作栏 (增加卡片容器包裹)
+    QFrame *operationCard = new QFrame();
+    operationCard->setObjectName("OperationCard");
+    operationCard->setStyleSheet("#OperationCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    
+    QHBoxLayout *operationLayout = new QHBoxLayout(operationCard);
+    operationLayout->setContentsMargins(20, 10, 20, 10);
+    operationLayout->setSpacing(0);
     
     // -- 搜索与筛选 (移动到左侧) --
     searchEdit = new QLineEdit();
     searchEdit->setPlaceholderText(" 搜索姓名、手机号、ID...");
     searchEdit->setFixedWidth(200);
-    searchEdit->setFixedHeight(32);
+    searchEdit->setFixedHeight(36);
     searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; font-size: 13px; background: white; } "
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 15px; font-size: 13px; background: white; } "
         "QLineEdit:focus { border-color: #409eff; outline: none; }"
     );
 
     levelFilterCombo = new QComboBox();
     levelFilterCombo->setFixedWidth(110);
-    levelFilterCombo->setFixedHeight(32);
+    levelFilterCombo->setFixedHeight(36);
     levelFilterCombo->addItems({"全部等级", "普通会员", "黄金会员", "铂金会员", "钻石会员"});
     levelFilterCombo->setStyleSheet(
-        "QComboBox { border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; background: white; font-size: 13px; } "
+        "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
+        "QComboBox:hover { border-color: #409eff; } "
         "QComboBox::drop-down { border: none; width: 24px; } "
-        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; }"
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }"
     );
     connect(levelFilterCombo, &QComboBox::currentTextChanged, this, [=](){ this->onSearchTextChanged(searchEdit->text()); });
 
@@ -139,79 +213,69 @@ void MemberModule::setupUI()
     // 中间弹簧
     operationLayout->addStretch();
 
-    // -- 右侧：批量操作与新增 --
-    QPushButton *batchDeleteBtn = new QPushButton("批量删除");
-    batchDeleteBtn->setCursor(Qt::PointingHandCursor);
-    batchDeleteBtn->setFixedHeight(32);
-    batchDeleteBtn->setStyleSheet(
-        "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 6px; font-size: 12px; padding: 0 15px; }"
-        "QPushButton:hover { background-color: #f56c6c; color: white; }"
-    );
-    connect(batchDeleteBtn, &QPushButton::clicked, this, &MemberModule::onBatchDelete);
-
-    QPushButton *addBtn = new QPushButton("+ 新增会员档案");
+    // -- 右侧：新增 --
+    QPushButton *addBtn = new QPushButton("录入会员");
     addBtn->setCursor(Qt::PointingHandCursor);
-    addBtn->setFixedHeight(32);
-    addBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; padding: 0 15px; border-radius: 4px; font-size: 13px; } QPushButton:hover { background: #85ce61; }");
+    addBtn->setFixedHeight(36);
+    addBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; padding: 0 15px; border-radius: 6px; font-size: 13px; } QPushButton:hover { background: #2563eb; }");
     connect(addBtn, &QPushButton::clicked, this, &MemberModule::showAddMemberDialog);
-
-    operationLayout->addWidget(batchDeleteBtn);
-    operationLayout->addSpacing(12);
     operationLayout->addWidget(addBtn);
 
-    mainLayout->addLayout(operationLayout);
+    mainLayout->addWidget(operationCard);
 
-    // 3. 内容区：仅放置表格
+    // 4. 表格卡片容器 (12px 圆角)
+    QFrame *tableCard = new QFrame();
+    tableCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #ebeef5; }");
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableCard);
+    tableLayout->setContentsMargins(0, 5, 0, 0);
+
     memTable = new QTableWidget();
-    memTable->setColumnCount(12);
-    memTable->setHorizontalHeaderLabels({"选择", "会员ID", "会员姓名", "性别", "手机号码", "会员等级", "储值余额", "累计消费金额", "可用积分", "最后到店", "宠物档案", "操作"});
+    memTable->setColumnCount(11);
+    memTable->setHorizontalHeaderLabels({"会员ID", "会员姓名", "性别", "手机号码", "会员等级", "储值余额", "累计消费金额", "可用积分", "最后到店", "宠物档案", "操作"});
+    memTable->setItemDelegate(new MemberRowDelegate(memTable));
 
     // 固定的列宽策略与居中对齐
     memTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     memTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); 
-    memTable->setColumnWidth(0, 48); 
-    memTable->setColumnWidth(3, 50);
-    memTable->horizontalHeader()->setSectionResizeMode(10, QHeaderView::Fixed);
-    memTable->setColumnWidth(10, 150); 
-    memTable->horizontalHeader()->setSectionResizeMode(11, QHeaderView::Fixed);
-    memTable->setColumnWidth(11, 240); 
+     
+    memTable->setColumnWidth(2, 50);
     memTable->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
-    memTable->setColumnWidth(9, 120); 
+    memTable->setColumnWidth(9, 150); 
+    memTable->horizontalHeader()->setSectionResizeMode(10, QHeaderView::Fixed);
+    memTable->setColumnWidth(10, 240); 
+    memTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
+    memTable->setColumnWidth(8, 120); 
 
     memTable->setShowGrid(false);
-    memTable->setAlternatingRowColors(false);
     memTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     memTable->setSelectionMode(QAbstractItemView::SingleSelection);
     memTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     memTable->setFocusPolicy(Qt::NoFocus);
     memTable->verticalHeader()->setVisible(false);
-    memTable->verticalHeader()->setDefaultSectionSize(48);
-
-    // 隐藏已在详情页显示的列
-    memTable->setColumnHidden(6, true); // 余额
-    memTable->setColumnHidden(7, true); // 消费
-    memTable->setColumnHidden(8, true); // 积分
-    memTable->setColumnHidden(9, true); // 最后到店
-    memTable->setColumnHidden(10, true); // 宠物档案
+    memTable->verticalHeader()->setDefaultSectionSize(60);
 
     memTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #f0f7ff; color: #409eff; } " 
-        "QHeaderView::section { background-color: #f5f7fa; padding: 12px; border: none; border-bottom: 1px solid #ebeef5; color: #606266; font-size: 13px; font-weight: bold; } "
+        "QTableWidget { border: none; background: white; outline: none; border-radius: 6px; } "
+        "QHeaderView { border: none; background: transparent; border-radius: 12px 12px 0 0; }"
     );
 
-    mainLayout->addWidget(memTable, 1);
+    // 隐藏已在详情页显示的列
+    memTable->setColumnHidden(5, true); // 余额
+    memTable->setColumnHidden(6, true); // 消费
+    memTable->setColumnHidden(7, true); // 积分
+    memTable->setColumnHidden(8, true); // 最后到店
+    memTable->setColumnHidden(9, true); // 宠物档案
 
-    // 5. 统计栏（固定高度，不抢夺表格空间）
+    tableLayout->addWidget(memTable);
+    mainLayout->addWidget(tableCard);
+
+    // 5. 底部统计栏（固定高度，并入表格卡片）
     QFrame *statFrame = new QFrame();
     statFrame->setFixedHeight(50);
-    statFrame->setStyleSheet("QFrame { background: #f8f9fb; border-top: 1px solid #ebeef5; padding: 0 12px; }");
+    statFrame->setStyleSheet("QFrame { background: white; border: none; padding: 0 12px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     QHBoxLayout *footerLayout = new QHBoxLayout(statFrame);
+    tableLayout->addWidget(statFrame);
 
-    QLabel *footerInfo = new QLabel("会员档案管理");
-    footerInfo->setStyleSheet("color: #909399; font-size: 13px;");
-    footerLayout->addWidget(footerInfo);
     footerLayout->addStretch();
 
     // 分页控件
@@ -247,15 +311,15 @@ void MemberModule::setupUI()
     nextBtn = new QPushButton("下一页");
     pageLabel = new QLabel("第 1 页 / 共 1 页");
 
-    QString pageStyle = "QPushButton { height: 24px; border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 0 8px; text-align: center; } "
-                        "QPushButton:hover { border-color: #409eff; color: #409eff; } "
-                        "QPushButton:disabled { background: #f5f7fa; color: #c0c4cc; border-color: #e4e7ed; }";
+    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
+                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
+                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
     prevBtn->setStyleSheet(pageStyle);
     nextBtn->setStyleSheet(pageStyle);
 
     prevBtn->setCursor(Qt::PointingHandCursor);
     nextBtn->setCursor(Qt::PointingHandCursor);
-    pageLabel->setStyleSheet("color: #909399; font-size: 13px; margin: 0; padding: 0 2px;");
+    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
 
     // 将跳转控制器单独包裹，以便设置更紧凑的间距，防止间隔过大
     QWidget *jumpGroup = new QWidget();
@@ -278,11 +342,8 @@ void MemberModule::setupUI()
     pageLayout->addWidget(pageLabel);
     pageLayout->addWidget(nextBtn);
 
-    footerLayout->addWidget(jumpGroup);
-    footerLayout->addSpacing(8);
+    footerLayout->addStretch();
     footerLayout->addWidget(pageGroup);
-
-    mainLayout->addWidget(statFrame);
 
     // --- 组装根布局 (左侧主体容器 + 右侧全高详情抽屉) ---
     rootLayout->addWidget(leftContainer, 1);
@@ -312,8 +373,8 @@ void MemberModule::setupUI()
 
             // 定位表格中的行并更新宠物列（即使列已隐藏）
             for (int i = 0; i < memTable->rowCount(); ++i) {
-                if (memTable->item(i, 1)->text() == memberId) {
-                    QWidget *wrapper = memTable->cellWidget(i, 10);
+                if (memTable->item(i, 0)->text() == memberId) {
+                    QWidget *wrapper = memTable->cellWidget(i, 9);
                     QComboBox *petCombo = wrapper ? wrapper->findChild<QComboBox*>() : nullptr;
                     if (petCombo) {
                         if (!petCombo->isEnabled() || petCombo->itemText(0) == "无") petCombo->clear();
@@ -328,7 +389,32 @@ void MemberModule::setupUI()
             CustomMessageDialog::showWarning(this, "成功", QString("已为会员 %1 添加新宠物：%2").arg(memberName, pet.name));
         }
     });
-
+ 
+    // 处理详情页的修改资料请求
+    connect(m_detailDrawer, &MemberDetailDrawer::sig_editMemberRequested, this, [=](const MemberInfo &info){
+        AddMemberDialog dialog(this);
+        dialog.setInitialData(info);
+        if (dialog.exec() == QDialog::Accepted) {
+            MemberInfo newInfo = dialog.getMemberInfo();
+            // 定位表格中的行并同步更新
+            for (int i = 0; i < memTable->rowCount(); ++i) {
+                if (memTable->item(i, 0)->text() == newInfo.id) {
+                    memTable->item(i, 1)->setText(newInfo.name);
+                    memTable->item(i, 1)->setData(Qt::UserRole, newInfo.birthday);
+                    memTable->item(i, 2)->setText(newInfo.gender);
+                    memTable->item(i, 3)->setText(newInfo.phone);
+                    memTable->item(i, 4)->setText(newInfo.level);
+                    
+                    // 重新触发点击以刷新详情面板
+                    onCellClicked(i, 0);
+                    break;
+                }
+            }
+            updateStatistics();
+            CustomMessageDialog::showWarning(this, "修改成功", QString("会员 %1 的资料已更新").arg(newInfo.name));
+        }
+    });
+ 
     // 搜索联动
     connect(searchEdit, &QLineEdit::textChanged, this, &MemberModule::onSearchTextChanged);
 
@@ -358,27 +444,21 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
     };
 
     // 复选框
-    QWidget *chkWidget = new QWidget();
-    QHBoxLayout *chkLayout = new QHBoxLayout(chkWidget);
-    chkLayout->setContentsMargins(0, 0, 0, 0);
-    QCheckBox *chkBox = new QCheckBox();
-    chkLayout->addWidget(chkBox, 0, Qt::AlignCenter);
-    memTable->setCellWidget(r, 0, chkWidget);
 
-    memTable->setItem(r, 1, createItem(id));
+    memTable->setItem(r, 0, createItem(id));
     
     QTableWidgetItem *nameItem = createItem(name);
     nameItem->setData(Qt::UserRole, birthday); // 隐式存储生日
-    memTable->setItem(r, 2, nameItem);
+    memTable->setItem(r, 1, nameItem);
     
-    memTable->setItem(r, 3, createItem(gender));
+    memTable->setItem(r, 2, createItem(gender));
 
-    memTable->setItem(r, 4, createItem(phone));
-    memTable->setItem(r, 5, createItem(level));
-    memTable->setItem(r, 6, createItem(QString::number(balance, 'f', 2)));
-    memTable->setItem(r, 7, createItem(QString::number(consume_amt, 'f', 2)));
-    memTable->setItem(r, 8, createItem(QString::number(pts)));
-    memTable->setItem(r, 9, createItem(lastVisit));
+    memTable->setItem(r, 3, createItem(phone));
+    memTable->setItem(r, 4, createItem(level));
+    memTable->setItem(r, 5, createItem(QString::number(balance, 'f', 2)));
+    memTable->setItem(r, 6, createItem(QString::number(consume_amt, 'f', 2)));
+    memTable->setItem(r, 7, createItem(QString::number(pts)));
+    memTable->setItem(r, 8, createItem(lastVisit));
     
     // 【美化：使用 Element UI 风格的下拉框】
     QStringList petNames;
@@ -442,8 +522,8 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
         petRenderWidget = comboWrapper;
     }
 
-    memTable->setCellWidget(r, 10, petRenderWidget);
-    memTable->setItem(r, 10, new QTableWidgetItem()); // 必须占位
+    memTable->setCellWidget(r, 9, petRenderWidget);
+    memTable->setItem(r, 9, new QTableWidgetItem()); // 必须占位
 
     // 【修复2：使用标准 QWidget 渲染操作列，并加上明显的底色保证可见性】
     QWidget *actionWidget = new QWidget();
@@ -468,17 +548,14 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
 
     // 生成显眼的按钮
     QPushButton *rechargeBtn = createBtn("充值", "#f0f9eb", "#67c23a", "#c2e7b0"); // 绿色
-    QPushButton *editBtn = createBtn("修改", "#ecf5ff", "#409eff", "#b3d8ff"); // 蓝色
     QPushButton *deleteBtn = createBtn("删除", "#fef0f0", "#f56c6c", "#fbc4c4"); // 红色
 
     // 这里特别限制操作按钮的最大宽度为 70左右
     rechargeBtn->setFixedWidth(66);
-    editBtn->setFixedWidth(70);
     deleteBtn->setFixedWidth(70);
 
     actionLayout->addStretch(); // 左侧弹簧
     actionLayout->addWidget(rechargeBtn);
-    actionLayout->addWidget(editBtn);
     actionLayout->addWidget(deleteBtn);
     actionLayout->addStretch(); // 右侧弹簧
 
@@ -491,46 +568,20 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
         QMessageBox::information(this, "充值", QString("即将为会员 [%1] 充值... (待接续接口)").arg(name));
     });
 
-    // 【按钮逻辑】
-    connect(editBtn, &QPushButton::clicked, this, [=](){
-        AddMemberDialog dialog(this);
-        MemberInfo info;
-        info.id = memTable->item(r, 1)->text();
-        info.name = memTable->item(r, 2)->text();
-        info.gender = memTable->item(r, 3)->text();
-        info.birthday = memTable->item(r, 2)->data(Qt::UserRole).toString(); // 从隐式数据读取
-        info.phone = phone; // 原始手机号（避免读取脱敏后的）
-        info.level = memTable->item(r, 5)->text();
-        info.balance = memTable->item(r, 6)->text().toDouble();
-        info.consume_amt = memTable->item(r, 7)->text().toDouble();
-        info.points = memTable->item(r, 8)->text().toInt();
-        
-        dialog.setInitialData(info);
-        if (dialog.exec() == QDialog::Accepted) {
-            MemberInfo newInfo = dialog.getMemberInfo();
-            // 更新 UI
-            memTable->item(r, 2)->setText(newInfo.name);
-            memTable->item(r, 2)->setData(Qt::UserRole, newInfo.birthday);
-            memTable->item(r, 3)->setText(newInfo.gender);
-            memTable->item(r, 4)->setText(newInfo.phone);
-            memTable->item(r, 5)->setText(newInfo.level);
-            updateStatistics();
-        }
-    });
 
 
     connect(deleteBtn, &QPushButton::clicked, this, [=](){
         // 动态定位被点击按钮所在的行
         int currentRow = -1;
         for (int i = 0; i < memTable->rowCount(); ++i) {
-            if (memTable->cellWidget(i, 11) == actionWidget) {
+            if (memTable->cellWidget(i, 10) == actionWidget) {
                 currentRow = i;
                 break;
             }
         }
 
         if (currentRow >= 0) {
-            QString memberName = memTable->item(currentRow, 2)->text();
+            QString memberName = memTable->item(currentRow, 1)->text();
             if(CustomMessageDialog::confirm(this, "业务确认", "确定移除会员 [" + memberName + "] 的档案吗？")) {
                 memTable->removeRow(currentRow);
                 updateStatistics();
@@ -538,7 +589,7 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
         }
     });
 
-    memTable->setCellWidget(r, 11, actionWidget);
+    memTable->setCellWidget(r, 10, actionWidget);
     
     updatePagination();
 }
@@ -564,8 +615,8 @@ void MemberModule::updateStatistics()
     int regular = 0, gold = 0, platinum = 0, diamond = 0;
     
     for(int i=0; i<total; ++i) {
-        if(memTable->item(i, 5)) {
-            QString level = memTable->item(i, 5)->text();
+        if(memTable->item(i, 4)) {
+            QString level = memTable->item(i, 4)->text();
             if(level.contains("普通")) regular++;
             else if(level.contains("黄金")) gold++;
             else if(level.contains("铂金")) platinum++;
@@ -592,13 +643,17 @@ void MemberModule::onSearchTextChanged(const QString &text)
     
     int visibleCount = 0;
     for (int i = 0; i < memTable->rowCount(); ++i) {
-        bool textMatch = (memTable->item(i, 1)->text().contains(text, Qt::CaseInsensitive) ||
-                          memTable->item(i, 2)->text().contains(text, Qt::CaseInsensitive) ||
-                          memTable->item(i, 4)->text().contains(text));
+        auto item0 = memTable->item(i, 0);
+        auto item1 = memTable->item(i, 1);
+        auto item3 = memTable->item(i, 3);
+        bool textMatch = ((item0 && item0->text().contains(text, Qt::CaseInsensitive)) ||
+                          (item1 && item1->text().contains(text, Qt::CaseInsensitive)) ||
+                          (item3 && item3->text().contains(text)));
                           
         bool levelMatch = true;
-        if (selectedLevel != "全部等级" && memTable->item(i, 5)) {
-            levelMatch = (memTable->item(i, 5)->text() == selectedLevel);
+        auto item4 = memTable->item(i, 4);
+        if (selectedLevel != "全部等级" && item4) {
+            levelMatch = (item4->text() == selectedLevel);
         }
 
         if (textMatch && levelMatch) {
@@ -644,10 +699,11 @@ void MemberModule::updatePagination()
 
     // 1. 筛选符合搜索条件的行
     for (int i = 0; i < memTable->rowCount(); ++i) {
-        bool match = searchText.isEmpty() || 
-                    (memTable->item(i, 0)->text().contains(searchText, Qt::CaseInsensitive) ||
-                     memTable->item(i, 1)->text().contains(searchText, Qt::CaseInsensitive) ||
-                     memTable->item(i, 2)->text().contains(searchText));
+        auto item0 = memTable->item(i, 0);
+        auto item1 = memTable->item(i, 1);
+        bool match = searchText.isEmpty() ||
+                    ((item0 && item0->text().contains(searchText, Qt::CaseInsensitive)) ||
+                     (item1 && item1->text().contains(searchText, Qt::CaseInsensitive)));
         
         if (match) {
             visibleRows.append(i);
@@ -731,17 +787,17 @@ void MemberModule::exportData()
         for(int r=0; r<memTable->rowCount(); ++r) {
             bool shouldExport = true;
             if (!exportAll) {
-                bool textMatch = (memTable->item(r, 1)->text().contains(searchText, Qt::CaseInsensitive) ||
-                                  memTable->item(r, 2)->text().contains(searchText, Qt::CaseInsensitive) ||
-                                  memTable->item(r, 4)->text().contains(searchText));
+                bool textMatch = (memTable->item(r, 0)->text().contains(searchText, Qt::CaseInsensitive) ||
+                                  memTable->item(r, 1)->text().contains(searchText, Qt::CaseInsensitive) ||
+                                  memTable->item(r, 3)->text().contains(searchText));
                 bool levelMatch = true;
-                if (selectedLevel != "全部等级" && memTable->item(r, 5)) levelMatch = (memTable->item(r, 5)->text() == selectedLevel);
+                if (selectedLevel != "全部等级" && memTable->item(r, 4)) levelMatch = (memTable->item(r, 4)->text() == selectedLevel);
                 shouldExport = textMatch && levelMatch;
             }
 
             if (shouldExport) {
                 QString petsStr = "无";
-                QWidget *wrapper = memTable->cellWidget(r, 10);
+                QWidget *wrapper = memTable->cellWidget(r, 9);
                 if (wrapper) {
                     QComboBox *c = wrapper->findChild<QComboBox*>();
                     if (c) {
@@ -751,15 +807,15 @@ void MemberModule::exportData()
                     }
                 }
                 ts << QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10\n").arg(
+                          memTable->item(r,0)->text(), 
                           memTable->item(r,1)->text(), 
                           memTable->item(r,2)->text(), 
                           memTable->item(r,3)->text(), 
                           memTable->item(r,4)->text(), 
-                          memTable->item(r,5)->text(), 
+                          memTable->item(r,5)->text(),
                           memTable->item(r,6)->text(),
                           memTable->item(r,7)->text(),
                           memTable->item(r,8)->text(),
-                          memTable->item(r,9)->text(),
                           petsStr);
             }
         }
@@ -774,24 +830,37 @@ void MemberModule::onCellClicked(int row, int column)
     if (row < 0 || row >= memTable->rowCount()) return;
 
     MemberInfo info;
-    info.id = memTable->item(row, 1)->text();
-    info.name = memTable->item(row, 2)->text();
-    info.gender = memTable->item(row, 3)->text();
-    info.phone = memTable->item(row, 4)->text();
-    info.level = memTable->item(row, 5)->text();
-    info.balance = memTable->item(row, 6)->text().replace("¥ ", "").toDouble();
-    info.consume_amt = memTable->item(row, 7)->text().replace("¥ ", "").toDouble();
-    info.points = memTable->item(row, 8)->text().toInt();
+    auto item0 = memTable->item(row, 0);
+    auto item1 = memTable->item(row, 1);
+    auto item2 = memTable->item(row, 2);
+    auto item3 = memTable->item(row, 3);
+    auto item4 = memTable->item(row, 4);
+    auto item5 = memTable->item(row, 5);
+    auto item6 = memTable->item(row, 6);
+    auto item7 = memTable->item(row, 7);
+    auto item8 = memTable->item(row, 8);
+
+    if (!item0 || !item1 || !item2 || !item3 || !item4) return;
+
+    info.id = item0->text();
+    info.name = item1->text();
+    info.gender = item2->text();
+    info.phone = item3->text();
+    info.level = item4->text();
     
-    // 生日通常存储在 UserRole 中（参考 editBtn 逻辑）
-    info.birthday = memTable->item(row, 2)->data(Qt::UserRole).toString();
+    if (item5) info.balance = item5->text().replace("¥ ", "").toDouble();
+    if (item6) info.consume_amt = item6->text().replace("¥ ", "").toDouble();
+    if (item7) info.points = item7->text().toInt();
+    
+    // 生日通常存储在 UserRole 中
+    info.birthday = item1->data(Qt::UserRole).toString();
     if(info.birthday.isEmpty()) info.birthday = "1990-01-01"; // Fallback
 
-    QString lastVisit = memTable->item(row, 9)->text();
+    QString lastVisit = item8 ? item8->text() : "";
     
     // 获取宠物档案文字
     QString petsStr = "";
-    QWidget *petWrapper = memTable->cellWidget(row, 10);
+    QWidget *petWrapper = memTable->cellWidget(row, 9);
     if (petWrapper) {
         QComboBox *petCombo = petWrapper->findChild<QComboBox*>();
         if (petCombo) {
@@ -800,7 +869,7 @@ void MemberModule::onCellClicked(int row, int column)
             }
         }
     }
-    if(petsStr.isEmpty()) petsStr = memTable->item(row, 10) ? memTable->item(row, 10)->text() : "暂无";
+    if(petsStr.isEmpty()) petsStr = memTable->item(row, 9) ? memTable->item(row, 9)->text() : "暂无";
 
     m_detailDrawer->setMember(info, lastVisit, petsStr);
     m_detailDrawer->showDrawer();
@@ -811,7 +880,7 @@ QString MemberModule::generateNextMemberId()
     int maxId = 0;
     // 遍历表格所有行（包括跨页的数据，因为数据都在 memTable 里，只是部分行 hidden）
     for (int i = 0; i < memTable->rowCount(); ++i) {
-        QTableWidgetItem *item = memTable->item(i, 1); // ID 列索引为 1
+        QTableWidgetItem *item = memTable->item(i, 0); // ID 列索引为 1
         if (item) {
             QString idStr = item->text();
             if (idStr.startsWith("M") && idStr.length() > 1) {
@@ -827,46 +896,17 @@ QString MemberModule::generateNextMemberId()
     return QString("M%1").arg(maxId + 1, 3, 10, QChar('0'));
 }
 
-void MemberModule::onBatchDelete()
-{
-    QList<int> rowsToDelete;
-    for (int i = 0; i < memTable->rowCount(); ++i) {
-        QWidget *widget = memTable->cellWidget(i, 0);
-        if (widget) {
-            QCheckBox *cb = widget->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                rowsToDelete << i;
-            }
-        }
-    }
-
-    if (rowsToDelete.isEmpty()) {
-        CustomMessageDialog::showWarning(this, "提示", "请先勾选需要删除的会员");
-        return;
-    }
-
-    if (CustomMessageDialog::confirm(this, "确认删除", QString("确定要删除选中的 %1 名会员吗？").arg(rowsToDelete.size()))) {
-        // 从后往前删，避免索引偏移
-        std::sort(rowsToDelete.begin(), rowsToDelete.end(), std::greater<int>());
-        for (int row : rowsToDelete) {
-            memTable->removeRow(row);
-        }
-        updateStatistics();
-        updatePagination();
-        CustomMessageDialog::showWarning(this, "成功", "批量删除成功");
-    }
-}
 
 void MemberModule::onEditMemberFromDrawer(const MemberInfo &info)
 {
     // Update the member table with edited info
     for (int r = 0; r < memTable->rowCount(); ++r) {
-        if (memTable->item(r, 1)->text() == info.id) {
-            memTable->item(r, 2)->setText(info.name);
-            memTable->item(r, 2)->setData(Qt::UserRole, info.birthday);
-            memTable->item(r, 3)->setText(info.gender);
-            memTable->item(r, 4)->setText(info.phone);
-            memTable->item(r, 5)->setText(info.level);
+        if (memTable->item(r, 0)->text() == info.id) {
+            memTable->item(r, 1)->setText(info.name);
+            memTable->item(r, 1)->setData(Qt::UserRole, info.birthday);
+            memTable->item(r, 2)->setText(info.gender);
+            memTable->item(r, 3)->setText(info.phone);
+            memTable->item(r, 4)->setText(info.level);
             updateStatistics();
             
             // Refresh drawer

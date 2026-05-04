@@ -243,7 +243,7 @@ void ProductModule::setupUI() {
     if (m_role == UserRole::STAFF) listingBtn->setVisible(false);
     filterLayout->addWidget(listingBtn);
 
-    invLayout->addWidget(operationCard);
+
 
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
@@ -291,8 +291,8 @@ void ProductModule::setupUI() {
     
     // 3. 商品列表
     prodTable = new QTableWidget();
-    prodTable->setColumnCount(10);
-    prodTable->setHorizontalHeaderLabels({"选择", "图片", "条形码", "商品名称", "规格单位", "成本价", "销售价", "当前库存", "库存状态", "操作"});
+    prodTable->setColumnCount(9);
+    prodTable->setHorizontalHeaderLabels({"图片", "条形码", "商品名称", "规格单位", "成本价", "销售价", "当前库存", "库存状态", "操作"});
     prodTable->setItemDelegate(new ProductRowDelegate(prodTable));
     
     prodTable->setShowGrid(false);
@@ -311,20 +311,20 @@ void ProductModule::setupUI() {
 
     prodTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     prodTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    prodTable->setColumnWidth(0, 60);  // 选择
-    prodTable->setColumnWidth(1, 80);  // 图片
-    prodTable->setColumnWidth(2, 120); // 条形码
-    prodTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch); // 商品名称拉伸
-    prodTable->setColumnWidth(9, 100); // 操作按钮
+      // 选择
+    prodTable->setColumnWidth(0, 80);  // 图片
+    prodTable->setColumnWidth(1, 120); // 条形码
+    prodTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch); // 商品名称拉伸
+    prodTable->setColumnWidth(8, 100); // 操作按钮
+    
     
     prodTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     prodTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
-    prodTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    prodTable->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
+    prodTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
     
     // 隐藏/显示成本列
     if (m_role != UserRole::ADMIN) {
-        prodTable->hideColumn(5);
+        prodTable->hideColumn(4);
     }
 
     // 4. 底部统计与分页
@@ -374,14 +374,13 @@ void ProductModule::setupUI() {
 
     invLayout->addLayout(headerLayout);
     invLayout->addLayout(statLayout);
-    invLayout->addLayout(filterLayout);
+    invLayout->addWidget(operationCard);
     invLayout->addWidget(tableContainer);
 
     m_mainTabs->addTab(inventoryTab, "库存看板");
 
     // 设置全局详情抽屉
     setupDetailDrawer();
-    m_detailDrawer->show();
     m_detailDrawer->setFixedWidth(450); // 统一宽度为 450px
 
     globalMasterDetail->addWidget(m_mainTabs, 1);
@@ -400,7 +399,9 @@ void ProductModule::setupUI() {
     connect(prodTable, &QTableWidget::itemSelectionChanged, this, [=](){
         int row = prodTable->currentRow();
         if (row >= 0) {
-            QString barcode = prodTable->item(row, 2)->text();
+            auto item1 = prodTable->item(row, 1);
+            if (!item1) return;
+            QString barcode = item1->text();
             ProductInfo info = ProductDataManager::instance()->getProduct(barcode);
             updateDetailDrawer(info);
             openDrawer();
@@ -432,12 +433,6 @@ void ProductModule::addProductRow(const ProductInfo &info) {
     QString imgPath = info.images.isEmpty() ? "E:/QT/work/PetManager/images/stores/default.png" : info.images.first();
 
     // 0. 选择勾选框
-    QWidget *chkWidget = new QWidget();
-    QHBoxLayout *chkLayout = new QHBoxLayout(chkWidget);
-    chkLayout->setContentsMargins(0, 0, 0, 0);
-    QCheckBox *chkBox = new QCheckBox();
-    chkLayout->addWidget(chkBox, 0, Qt::AlignCenter);
-    prodTable->setCellWidget(row, 0, chkWidget);
 
     // 1. 图片列
     QWidget *imgContainer = new QWidget();
@@ -460,7 +455,7 @@ void ProductModule::addProductRow(const ProductInfo &info) {
     }
     imgLabel->setAlignment(Qt::AlignCenter);
     imgLayout->addWidget(imgLabel);
-    prodTable->setCellWidget(row, 1, imgContainer);
+    prodTable->setCellWidget(row, 0, imgContainer);
 
     // 安装事件过滤器以便点击图片预览
     imgLabel->installEventFilter(this);
@@ -474,18 +469,18 @@ void ProductModule::addProductRow(const ProductInfo &info) {
         prodTable->setItem(row, col, item);
     };
 
-    setItem(2, info.barcode);
-    setItem(3, info.name, true);
-    setItem(4, info.spec);
-    setItem(5, QString("￥%1").arg(info.costPrice, 0, 'f', 2));
-    setItem(6, QString("￥%1").arg(info.price, 0, 'f', 2));
+    setItem(1, info.barcode);
+    setItem(2, info.name, true);
+    setItem(3, info.spec);
+    setItem(4, QString("￥%1").arg(info.costPrice, 0, 'f', 2));
+    setItem(5, QString("￥%1").arg(info.price, 0, 'f', 2));
     
     // 库存数值项 (第 7 列)
     QTableWidgetItem *stockItem = new QTableWidgetItem(QString::number(info.stock));
     stockItem->setTextAlignment(Qt::AlignCenter);
     stockItem->setData(Qt::UserRole, info.minStock); // 存储预警阈值
     if (info.stock <= info.minStock) stockItem->setForeground(QColor("#f56c6c"));
-    prodTable->setItem(row, 7, stockItem);
+    prodTable->setItem(row, 6, stockItem);
 
     // 状态标签 (第 8 列)
     QWidget *tagContainer = new QWidget();
@@ -507,7 +502,7 @@ void ProductModule::addProductRow(const ProductInfo &info) {
         tag->setStyleSheet(baseStyle + "background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;");
     }
     tagLayout->addWidget(tag);
-    prodTable->setCellWidget(row, 8, tagContainer);
+    prodTable->setCellWidget(row, 7, tagContainer);
 
     // 9. 操作列 (编辑与下架按钮)
     QWidget *optContainer = new QWidget();
@@ -530,7 +525,7 @@ void ProductModule::addProductRow(const ProductInfo &info) {
     connect(delBtn, &QPushButton::clicked, this, &ProductModule::onDeleteProduct);
 
     optLayout->addWidget(delBtn);
-    prodTable->setCellWidget(row, 9, optContainer);
+    prodTable->setCellWidget(row, 8, optContainer);
     
     // 如果已下架，整行变灰
     if (!info.isActive) {
@@ -565,7 +560,7 @@ void ProductModule::onEditProduct() {
         return;
     }
 
-    QString barcode = prodTable->item(row, 2)->text();
+    QString barcode = prodTable->item(row, 1)->text();
     ProductInfo info = ProductDataManager::instance()->getProduct(barcode);
     if (info.barcode.isEmpty()) return;
 
@@ -1118,8 +1113,8 @@ void ProductModule::updateStats() {
 
     for (int i = 0; i < varieties; ++i) {
         // 列索引修正：5:成本, 6:售价, 7:库存
-        QTableWidgetItem *priceItem = prodTable->item(i, 6);
-        QTableWidgetItem *stockItem = prodTable->item(i, 7);
+        QTableWidgetItem *priceItem = prodTable->item(i, 5);
+        QTableWidgetItem *stockItem = prodTable->item(i, 6);
         
         if (!priceItem || !stockItem) continue;
 
@@ -1164,7 +1159,7 @@ void ProductModule::onNextPage()
         bool match = false;
         if (kw.isEmpty()) match = true;
         else {
-            for (int col : {2, 3, 4}) { // 条码、名称、规格偏移
+            for (int col : {1, 2, 3}) { // 条码、名称、规格偏移
                 QTableWidgetItem *item = prodTable->item(i, col);
                 if (item && item->text().toLower().contains(kw)) { match = true; break; }
             }
@@ -1199,7 +1194,7 @@ void ProductModule::updatePagination()
         if (kw.isEmpty()) {
             match = true;
         } else {
-            for (int col : {2, 3, 4}) { // 搜索列偏移
+            for (int col : {1, 2, 3}) { // 搜索列偏移
                 QTableWidgetItem *item = prodTable->item(i, col);
                 if (item && item->text().toLower().contains(kw)) {
                     match = true;
@@ -1247,7 +1242,9 @@ void ProductModule::onDeleteProduct() {
     int row = prodTable->currentRow();
     if (row < 0) return;
 
-    QString barcode = prodTable->item(row, 2)->text();
+    auto item1 = prodTable->item(row, 1);
+    if (!item1) return;
+    QString barcode = item1->text();
     ProductInfo info = ProductDataManager::instance()->getProduct(barcode);
     if (info.barcode.isEmpty()) return;
 
@@ -1267,39 +1264,12 @@ void ProductModule::onDeleteProduct() {
     }
 }
 
-void ProductModule::onBatchDelete()
-{
-    QList<int> checkedRows;
-    for (int i = prodTable->rowCount() - 1; i >= 0; --i) {
-        QWidget *w = prodTable->cellWidget(i, 0); // 勾选列在第 0 列
-        if (w) {
-            QCheckBox *cb = w->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                checkedRows.append(i);
-            }
-        }
-    }
-    
-    if (checkedRows.isEmpty()) {
-        QMessageBox::warning(this, "批量操作", "请先勾选需要删除的商品记录。");
-        return;
-    }
-
-    if (QMessageBox::question(this, "批量删除", QString("确定要删除选中的 %1 个商品档案吗？此操作不可撤销。").arg(checkedRows.size()),
-                               QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
-        for (int row : checkedRows) {
-            prodTable->removeRow(row);
-        }
-        updateStats();
-        updatePagination();
-    }
-}
 
 int ProductModule::getLowStockCount() const
 {
     int count = 0;
     for (int i = 0; i < prodTable->rowCount(); ++i) {
-        QTableWidgetItem *stockItem = prodTable->item(i, 7); // 库存数值项在第 7 列
+        QTableWidgetItem *stockItem = prodTable->item(i, 6); // 库存数值项在第 7 列
         if (stockItem) {
             int stock = stockItem->text().toInt();
             int minStock = stockItem->data(Qt::UserRole).toInt();
@@ -1824,7 +1794,7 @@ void ProductModule::updateDetailDrawer(const ProductInfo &info) {
 void ProductModule::onShowBatchDetails(int row, int col) {
     Q_UNUSED(col);
     if (row < 0) return;
-    QString barcode = prodTable->item(row, 2)->text();
+    QString barcode = prodTable->item(row, 1)->text();
     ProductInfo pInfo = ProductDataManager::instance()->getProduct(barcode);
     QList<StockBatch> batches = ProductDataManager::instance()->getBatchesForProduct(barcode);
 

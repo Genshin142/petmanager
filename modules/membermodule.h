@@ -35,9 +35,6 @@ private slots:
     void onNextPage();
     void onJumpPage();
 
-    // 批量操作
-    void onBatchDelete();
-
 private:
     void setupUI();
     void addSampleData();

@@ -25,16 +25,26 @@ void EmployeeDetailDrawer::setupUI()
     setStyleSheet("#EmployeeDetailDrawer { background-color: white; border-left: 1px solid #ebeef5; } "
                   "QLabel { border: none; background: transparent; padding: 0; margin: 0; }");
     
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    QVBoxLayout *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(20, 20, 20, 20); // 关键：与左侧卡片边距对齐
+    outerLayout->setSpacing(0);
+
+    QFrame *container = new QFrame();
+    container->setObjectName("DrawerContainer");
+    container->setStyleSheet("#DrawerContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    container->setAttribute(Qt::WA_StyledBackground);
+    
+    QVBoxLayout *mainLayout = new QVBoxLayout(container);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
+    outerLayout->addWidget(container);
 
     // --- 1. 顶部：员工名片 ---
     QWidget *header = new QWidget();
-    header->setFixedHeight(200);
-    header->setStyleSheet("background: white; border: none;");
+    header->setFixedHeight(220); 
+    header->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: none;");
     QVBoxLayout *headerTop = new QVBoxLayout(header);
-    headerTop->setContentsMargins(20, 10, 20, 10);
+    headerTop->setContentsMargins(20, 15, 20, 0);
 
     // 关闭按钮
     QHBoxLayout *topBar = new QHBoxLayout();
@@ -74,16 +84,40 @@ void EmployeeDetailDrawer::setupUI()
     infoLayout->addSpacing(15);
     infoLayout->addLayout(nameCol);
     infoLayout->addStretch();
-    headerTop->addLayout(infoLayout);
-    headerTop->addStretch(); // 重点：向上顶，留出底部空间
+    
+    m_editBtn = new QPushButton();
+    m_editBtn->setFixedSize(80, 32);
+    m_editBtn->setCursor(Qt::PointingHandCursor);
+    m_editBtn->setStyleSheet(
+        "QPushButton { background: #ecf5ff; border: 1px solid #b3d8ff; border-radius: 6px; } "
+        "QPushButton:hover { background: #409eff; }"
+    );
+    
+    // 在按钮内部添加 Label 以确保文字百分之百显示
+    QHBoxLayout *btnLayout = new QHBoxLayout(m_editBtn);
+    btnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *btnText = new QLabel(QString::fromUtf8("编辑资料"));
+    btnText->setAlignment(Qt::AlignCenter);
+    btnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    btnLayout->addWidget(btnText);
+    
+    // 监听按钮的 hover 状态来改变 Label 颜色（可选，但为了更好的体验）
+    // 这里简单处理，如果不追求 hover 变色可以不写复杂逻辑
+    
+    connect(m_editBtn, &QPushButton::clicked, this, [this](){ emit editRequested(m_currentEmployee); });
+    infoLayout->addWidget(m_editBtn, 0, Qt::AlignTop);
 
-    // --- 2. 导航栏 (Tab Bar) ---
+    headerTop->addLayout(infoLayout);
+    headerTop->addSpacing(15); 
+    
+    // --- 2. 导航栏 (Tab Bar - Segmented Control Style) ---
     QWidget *tabWidget = new QWidget();
-    tabWidget->setFixedHeight(46); // 增加高度
-    tabWidget->setStyleSheet("border-bottom: 1px solid #ebeef5;");
+    tabWidget->setFixedHeight(40);
+    tabWidget->setObjectName("SegmentedControl");
+    tabWidget->setStyleSheet("#SegmentedControl { background: #f1f5f9; border-radius: 20px; border: none; }");
     QHBoxLayout *tabLayout = new QHBoxLayout(tabWidget);
-    tabLayout->setContentsMargins(15, 0, 15, 0);
-    tabLayout->setSpacing(10); // 减小间距，防止溢出
+    tabLayout->setContentsMargins(4, 4, 4, 4);
+    tabLayout->setSpacing(4);
 
     m_tabGroup = new QButtonGroup(this);
     m_tabGroup->setExclusive(true);
@@ -93,31 +127,42 @@ void EmployeeDetailDrawer::setupUI()
         QPushButton *btn = new QPushButton(tabs[i]);
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setFixedHeight(44); // 仅固定高度
-        btn->setMinimumWidth(70); // 设置最小宽度，允许自动伸展
+        btn->setFixedHeight(32);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->setStyleSheet(
-            "QPushButton { border: none; font-size: 14px; color: #606266; background: transparent; padding: 0 5px 4px 5px; } "
-            "QPushButton:hover { color: #409eff; } "
-            "QPushButton:checked { color: #409eff; font-weight: bold; border-bottom: 3px solid #409eff; padding-bottom: 1px; }"
+            "QPushButton { border: none; font-size: 13px; color: #64748b; background: transparent; border-radius: 16px; padding: 0; text-align: center; } "
+            "QPushButton:hover { color: #1e293b; } "
+            "QPushButton:checked { color: #3b82f6; font-weight: bold; background: white; }"
         );
         m_tabGroup->addButton(btn, i);
         tabLayout->addWidget(btn);
     }
-    tabLayout->addStretch();
-    headerTop->addWidget(tabWidget); // 添加到头部的最下方
+
+    // --- 居中并限制宽度 ---
+    QWidget *tabContainer = new QWidget();
+    QHBoxLayout *tabContainerLayout = new QHBoxLayout(tabContainer);
+    tabContainerLayout->setContentsMargins(0, 5, 0, 5); // 增加一点上下间距
+    tabContainerLayout->addStretch();
+    tabWidget->setFixedWidth(240);
+    tabContainerLayout->addWidget(tabWidget);
+    tabContainerLayout->addStretch();
+
+    headerTop->addWidget(tabContainer); // 添加到头部的最下方
     mainLayout->addWidget(header);
 
     // --- 3. 堆叠内容区 ---
     m_stackedWidget = new QStackedWidget();
+    m_stackedWidget->setStyleSheet("QStackedWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     m_stackedWidget->addWidget(createProfilePage());    // Index 0
     m_stackedWidget->addWidget(createSchedulePage());   // Index 1
     
     // 动态占位
     QWidget *logPage = new QWidget();
+    logPage->setStyleSheet("background: white; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *logLayout = new QVBoxLayout(logPage);
     QLabel *logEmpty = new QLabel("暂无最新操作动态");
     logEmpty->setAlignment(Qt::AlignCenter);
-    logEmpty->setStyleSheet("color: #909399;");
+    logEmpty->setStyleSheet("color: #909399; font-size: 13px;");
     logLayout->addWidget(logEmpty);
     m_stackedWidget->addWidget(logPage); // Index 2
 
@@ -132,9 +177,11 @@ QWidget* EmployeeDetailDrawer::createProfilePage()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; } ");
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QScrollArea > QWidget > QWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(16, 16, 16, 16);
     contentLayout->setSpacing(16);
@@ -199,9 +246,11 @@ QWidget* EmployeeDetailDrawer::createSchedulePage()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; } ");
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QScrollArea > QWidget > QWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(16, 16, 16, 16);
     contentLayout->setSpacing(16);
@@ -366,7 +415,8 @@ void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
     
     m_nameLabel->setText(info.name);
     m_roleLabel->setText(info.role);
-    m_idLabel->setText(QString("工号: %1").arg(info.id));
+    m_idLabel->setText(QString::fromUtf8("工号: %1").arg(info.id));
+    // 内部 Label 方式不需要在这里重复 setText
     
     m_genderAgeVal->setText(QString("%1 / %2岁").arg(info.gender).arg(info.age));
     m_phoneVal->setText(info.phone);
@@ -403,7 +453,8 @@ void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
     QPainter painter(&target);
     painter.setRenderHint(QPainter::Antialiasing);
     QPainterPath path;
-    path.addEllipse(0, 0, avatarSize.width(), avatarSize.height());
+    // 留出 1px 边距防止裁切边缘被截断
+    path.addEllipse(1, 1, avatarSize.width() - 2, avatarSize.height() - 2);
     painter.setClipPath(path);
     painter.drawPixmap(0, 0, pixmap.scaled(avatarSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
     m_avatarLabel->setPixmap(target);

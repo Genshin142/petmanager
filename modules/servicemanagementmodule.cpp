@@ -193,21 +193,20 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
     tableLayout->addWidget(toolbarWidget);
 
     m_serviceTable = new QTableWidget();
-    m_serviceTable->setColumnCount(9);
-    m_serviceTable->setHorizontalHeaderLabels({"选择", "服务编码", "服务名称", "分类", "标准时长", "服务价格", "累计销量", "当前状态", "操作"});
+    m_serviceTable->setColumnCount(8);
+    m_serviceTable->setHorizontalHeaderLabels({"服务编码", "服务名称", "分类", "标准时长", "服务价格", "累计销量", "当前状态", "操作"});
     m_serviceTable->setItemDelegate(new ServiceRowDelegate(m_serviceTable));
     
     // 精确控制列宽对齐
     m_serviceTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     m_serviceTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    m_serviceTable->setColumnWidth(0, 60);  // 选择
-    m_serviceTable->setColumnWidth(1, 130); // 编码
-    m_serviceTable->setColumnWidth(2, 220); // 名称
-    m_serviceTable->setColumnWidth(3, 100); // 分类
-    m_serviceTable->setColumnWidth(4, 100); // 时长
-    m_serviceTable->setColumnWidth(5, 110); // 价格
-    m_serviceTable->setColumnWidth(6, 100); // 销量
-    m_serviceTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::ResizeToContents); // 状态
+    m_serviceTable->setColumnWidth(0, 130); // 编码
+    m_serviceTable->setColumnWidth(1, 220); // 名称
+    m_serviceTable->setColumnWidth(2, 100); // 分类
+    m_serviceTable->setColumnWidth(3, 100); // 时长
+    m_serviceTable->setColumnWidth(4, 110); // 价格
+    m_serviceTable->setColumnWidth(5, 100); // 销量
+    m_serviceTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents); // 状态
     m_serviceTable->horizontalHeader()->setStretchLastSection(true); // 操作列自动填充
 
     m_serviceTable->verticalHeader()->setVisible(false);
@@ -455,34 +454,27 @@ void ServiceManagementModule::updateTableData()
         m_serviceTable->insertRow(row);
         m_serviceTable->setRowHeight(row, 50);
 
-        // 0. 选择
-        QWidget *cbW = new QWidget();
-        QHBoxLayout *cbL = new QHBoxLayout(cbW);
-        cbL->setContentsMargins(0, 0, 0, 0);
-        cbL->setAlignment(Qt::AlignCenter);
-        cbL->addWidget(new QCheckBox());
-        m_serviceTable->setCellWidget(row, 0, cbW);
 
         // 1. 服务编码
         QTableWidgetItem *idItem = new QTableWidgetItem("SVR-100" + QString::number(row + 1));
         idItem->setData(Qt::UserRole, info.id);
         idItem->setTextAlignment(Qt::AlignCenter);
-        m_serviceTable->setItem(row, 1, idItem);
+        m_serviceTable->setItem(row, 0, idItem);
 
         // 2. 服务名称
-        addItem(row, 2, info.name, true);
+        addItem(row, 1, info.name, true);
 
         // 3. 所属分类
-        addItem(row, 3, info.category);
+        addItem(row, 2, info.category);
 
         // 4. 标准时长
-        addItem(row, 4, QString("%1 分钟").arg(info.durationMinutes));
+        addItem(row, 3, QString("%1 分钟").arg(info.durationMinutes));
 
         // 5. 服务价格
-        addItem(row, 5, QString("￥ %1").arg(info.price, 0, 'f', 2));
+        addItem(row, 4, QString("￥ %1").arg(info.price, 0, 'f', 2));
 
         // 6. 累计销量
-        addItem(row, 6, QString::number(info.salesCount));
+        addItem(row, 5, QString::number(info.salesCount));
 
         // 7. 当前状态
         QWidget *stW = new QWidget();
@@ -494,7 +486,7 @@ void ServiceManagementModule::updateTableData()
             "background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 11px;" :
             "background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 11px;");
         stL->addWidget(stLh);
-        m_serviceTable->setCellWidget(row, 7, stW);
+        m_serviceTable->setCellWidget(row, 6, stW);
 
         // 8. 操作
         QWidget *opW = new QWidget();
@@ -513,7 +505,7 @@ void ServiceManagementModule::updateTableData()
         downBtn->setCursor(Qt::PointingHandCursor);
         connect(downBtn, &QPushButton::clicked, this, &ServiceManagementModule::onToggleServiceStatus);
         opL->addWidget(downBtn);
-        m_serviceTable->setCellWidget(row, 8, opW);
+        m_serviceTable->setCellWidget(row, 7, opW);
     }
 
     // 更新分页控件状态
@@ -549,7 +541,7 @@ void ServiceManagementModule::onTableSelectionChanged()
     if (items.isEmpty()) return;
     int row = items.first()->row();
     // ID 现在存储在第 1 列 (服务编码列)
-    QString id = m_serviceTable->item(row, 1)->data(Qt::UserRole).toString();
+    QString id = m_serviceTable->item(row, 0)->data(Qt::UserRole).toString();
     updateDetailPanel(ServiceDataManager::instance()->getService(id));
 }
 

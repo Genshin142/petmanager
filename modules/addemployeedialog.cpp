@@ -158,16 +158,11 @@ void AddEmployeeDialog::setupUI()
     idCardEdit->setPlaceholderText("请输入 18 位身份证号");
     formLayout->addWidget(idCardEdit, 5, 1, 1, 3);
 
-    // 第七行：学历 / 部门
+    // 第七行：学历
     addLabel("最高学历:", 6, 0);
     eduCombo = new QComboBox();
     eduCombo->addItems({"大专", "本科", "硕士", "博士", "其他"});
-    formLayout->addWidget(eduCombo, 6, 1);
-
-    addLabel("所属部门:", 6, 2);
-    deptCombo = new QComboBox();
-    deptCombo->addItems({"总店管理层", "一线服务部", "技术支持部", "行政财务部"});
-    formLayout->addWidget(deptCombo, 6, 3);
+    formLayout->addWidget(eduCombo, 6, 1, 1, 3);
 
     // 第八行：基本薪资 / 入职日期
     addLabel("基本底薪:", 7, 0);
@@ -285,7 +280,6 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
     
     // HR 新增字段回填
     eduCombo->setCurrentText(info.education.isEmpty() ? "本科" : info.education);
-    deptCombo->setCurrentText(info.department.isEmpty() ? "一线服务部" : info.department);
     emergencyEdit->setText(info.emergencyContact);
     emergencyPhoneEdit->setText(info.emergencyPhone);
     addressEdit->setText(info.address);
@@ -339,7 +333,7 @@ EmployeeInfo AddEmployeeDialog::employeeInfo() const
 
     // 提取新增 HR 字段
     info.education = eduCombo->currentText();
-    info.department = deptCombo->currentText();
+    info.department = ""; // 移除部门
     info.emergencyContact = emergencyEdit->text();
     info.emergencyPhone = emergencyPhoneEdit->text();
     info.address = addressEdit->text();

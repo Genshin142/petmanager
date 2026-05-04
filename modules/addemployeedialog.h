@@ -68,7 +68,6 @@ private:
     
     // 新增 HR 控件
     QComboBox *eduCombo;
-    QComboBox *deptCombo;
     QLineEdit *emergencyEdit;
     QLineEdit *emergencyPhoneEdit;
     QLineEdit *addressEdit;

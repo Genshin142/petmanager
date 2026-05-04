@@ -46,7 +46,6 @@ private slots:
     void onPreviewImage();
     void onEditProduct();
     void onDeleteProduct();
-    void onBatchDelete();
     void onShowBatchDetails(int row, int col);
 
 private:

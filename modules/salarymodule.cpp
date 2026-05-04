@@ -90,129 +90,79 @@ void SalaryModule::setupUI()
         "QPushButton:hover { border-color: #409eff; color: #409eff; } "
     );
 
-    QPushButton *batchPayBtn = new QPushButton("批量发放薪资");
-    batchPayBtn->setFixedWidth(130);
-    batchPayBtn->setFixedHeight(34);
-    batchPayBtn->setCursor(Qt::PointingHandCursor);
-    batchPayBtn->setStyleSheet(
-        "QPushButton { background: #67c23a; color: white; border-radius: 6px; border: none; font-size: 13px; text-align: center; padding: 0 5px; } "
-        "QPushButton:hover { background: #85ce61; } "
-    );
-
-    toolLayout->addWidget(new QLabel("选择员工:"));
     toolLayout->addWidget(employeeCombo);
-    toolLayout->addSpacing(10);
-    
-    QLineEdit *searchEdit = new QLineEdit();
-    searchEdit->setPlaceholderText(" 搜索姓名/工号...");
-    searchEdit->setFixedWidth(180);
-    searchEdit->setFixedHeight(34);
-    searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 15px; font-size: 13px; background: white; text-align: center; } "
-        "QLineEdit:focus { border-color: #409eff; outline: none; }"
-    );
-    toolLayout->addWidget(searchEdit);
-    toolLayout->addSpacing(10);
-    toolLayout->addWidget(new QLabel("查看日期:"));
     toolLayout->addWidget(yearCombo);
     toolLayout->addWidget(monthCombo);
-    toolLayout->addSpacing(10);
-    toolLayout->addWidget(searchBtn);
     toolLayout->addStretch();
-    toolLayout->addWidget(batchPayBtn);
-    toolLayout->addSpacing(10);
+    toolLayout->addWidget(searchBtn);
     toolLayout->addWidget(exportBtn);
     mainLayout->addWidget(toolbar);
 
-    // 3. Tab 展示区
-    QTabWidget *tabs = new QTabWidget();
-    tabs->setStyleSheet(
-        "QTabWidget::pane { border: 1px solid #ebeef5; background: white; border-radius: 6px; } "
-        "QTabBar::tab { background: #f5f7fa; padding: 12px 25px; border: 1px solid #ebeef5; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; min-width: 100px; color: #909399; } "
-        "QTabBar::tab:selected { background: white; color: #409eff; border-bottom-color: white; } "
-    );
-
-    // 页1: 薪资明细
+    // 3. 表格
     salaryTable = new QTableWidget();
-    salaryTable->setColumnCount(8);
-    salaryTable->setHorizontalHeaderLabels({"选择", "工号", "姓名", "底薪", "提成/绩效", "实发总计", "发放状态", "操作"});
-    salaryTable->setColumnWidth(0, 48); // 选择
-    salaryTable->setColumnWidth(1, 100); // ID
-    salaryTable->setColumnWidth(2, 120); // 姓名
-    salaryTable->setColumnWidth(3, 120); // 底薪
-    salaryTable->setColumnWidth(4, 120); // 提成
-    salaryTable->setColumnWidth(5, 120); // 实发
-    salaryTable->setColumnWidth(6, 100); // 状态
-    salaryTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Stretch); // 操作分配剩余宽度
+    salaryTable->setColumnCount(7);
+    salaryTable->setHorizontalHeaderLabels({"工号", "姓名", "底薪", "提成/绩效", "实发总计", "发放状态", "操作"});
+    salaryTable->setColumnWidth(0, 100);
+    salaryTable->setColumnWidth(1, 120);
+    salaryTable->setColumnWidth(2, 120);
+    salaryTable->setColumnWidth(3, 120);
+    salaryTable->setColumnWidth(4, 120);
+    salaryTable->setColumnWidth(5, 100);
+    salaryTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
     
     salaryTable->setFrameShape(QFrame::NoFrame);
     salaryTable->setAlternatingRowColors(false);
-    salaryTable->verticalHeader()->setVisible(false);
-    salaryTable->verticalHeader()->setDefaultSectionSize(45);
-    salaryTable->setShowGrid(false);
     salaryTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    salaryTable->setSelectionMode(QAbstractItemView::SingleSelection);
     salaryTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    salaryTable->setFocusPolicy(Qt::NoFocus);
-
+    salaryTable->verticalHeader()->setVisible(false);
+    salaryTable->verticalHeader()->setDefaultSectionSize(44);
+    salaryTable->setShowGrid(false);
     salaryTable->setStyleSheet(
-        "QTableWidget { gridline-color: #ebeef5; outline: none; border: 1px solid #ebeef5; background-color: white; color: black; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; color: black; } " 
-        
+        "QTableWidget { background: white; border: 1px solid #ebeef5; } "
+        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; padding: 6px; } "
+        "QTableWidget::item:selected { background: #f0f7ff; color: #409eff; } "
+        "QHeaderView::section { background: #f5f7fa; border: none; border-bottom: 1px solid #ebeef5; padding: 10px; color: #606266; font-size: 13px; font-weight: bold; }"
     );
-    
-    tabs->addTab(salaryTable, "本月薪资明细");
-    tabs->addTab(new QWidget(), "历史发放记录");
-    mainLayout->addWidget(tabs);
+    salaryTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    mainLayout->addWidget(salaryTable, 1);
 
-    // 4. 底部概览与分页
-    QFrame *bottomBar = new QFrame();
-    bottomBar->setFixedHeight(60);
-    // 分页组件
-    pageLabel = new QLabel("第 1 页 / 共 1 页");
-    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
-    
+    // 4. 底部统计与分页
+    QFrame *footer = new QFrame();
+    footer->setFixedHeight(50);
+    footer->setStyleSheet("QFrame { background: #f8f9fb; border-top: 1px solid #ebeef5; }");
+    QHBoxLayout *footerLayout = new QHBoxLayout(footer);
+
+    totalPaidLabel = new QLabel("本月已发放金额: ¥0.00");
+    totalPaidLabel->setStyleSheet("color: #67c23a; font-size: 13px; font-weight: bold;");
+    pendingLabel = new QLabel("待结算金额: ¥0.00");
+    pendingLabel->setStyleSheet("color: #f56c6c; font-size: 13px; font-weight: bold;");
+
+    footerLayout->addWidget(totalPaidLabel);
+    footerLayout->addSpacing(20);
+    footerLayout->addWidget(pendingLabel);
+    footerLayout->addStretch();
+
     prevBtn = new QPushButton("上一页");
     nextBtn = new QPushButton("下一页");
-    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
-                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
-                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
+    pageLabel = new QLabel("第 1 页 / 共 1 页");
+    QString pageStyle = "QPushButton { height: 24px; border: 1px solid #dcdfe6; border-radius: 4px; background: white; color: #606266; font-size: 12px; padding: 0 8px; } "
+                        "QPushButton:hover { border-color: #409eff; color: #409eff; } "
+                        "QPushButton:disabled { background: #f5f7fa; color: #c0c4cc; }";
     prevBtn->setStyleSheet(pageStyle);
     nextBtn->setStyleSheet(pageStyle);
     prevBtn->setCursor(Qt::PointingHandCursor);
     nextBtn->setCursor(Qt::PointingHandCursor);
+    pageLabel->setStyleSheet("color: #909399; font-size: 13px;");
 
-    QWidget *pageGroup = new QWidget();
-    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(5);
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
+    footerLayout->addWidget(prevBtn);
+    footerLayout->addWidget(pageLabel);
+    footerLayout->addWidget(nextBtn);
+    mainLayout->addWidget(footer);
 
-    QHBoxLayout *bottomLayout = new QHBoxLayout(bottomBar);
-    bottomLayout->setContentsMargins(15, 0, 15, 0);
-    
-    totalPaidLabel = new QLabel("已发放: ￥0.00");
-    totalPaidLabel->setStyleSheet("color: #67c23a; font-size: 14px; font-weight: bold;");
-    pendingLabel = new QLabel("待发放: ￥0.00");
-    pendingLabel->setStyleSheet("color: #f56c6c; font-size: 14px; font-weight: bold;");
-    
-    bottomLayout->addWidget(totalPaidLabel);
-    bottomLayout->addSpacing(30);
-    bottomLayout->addWidget(pendingLabel);
-    bottomLayout->addStretch();
-    bottomLayout->addWidget(pageGroup);
-    
-    mainLayout->addWidget(bottomBar);
-
-    connect(searchBtn, &QPushButton::clicked, this, &SalaryModule::onFilter);
-    connect(exportBtn, &QPushButton::clicked, this, &SalaryModule::onExport);
-    connect(batchPayBtn, &QPushButton::clicked, this, &SalaryModule::onBatchPay);
-    
     connect(prevBtn, &QPushButton::clicked, this, &SalaryModule::onPrevPage);
     connect(nextBtn, &QPushButton::clicked, this, &SalaryModule::onNextPage);
+    connect(searchBtn, &QPushButton::clicked, this, &SalaryModule::onFilter);
+    connect(exportBtn, &QPushButton::clicked, this, &SalaryModule::onExport);
 }
 
 void SalaryModule::initData()
@@ -236,20 +186,6 @@ void SalaryModule::addSalaryRow(const SalaryRecord &record)
 {
     int row = salaryTable->rowCount();
     salaryTable->insertRow(row);
-    
-    // 第 0 列: 勾选框
-    QWidget *cbWidget = new QWidget();
-    QHBoxLayout *cbLayout = new QHBoxLayout(cbWidget);
-    cbLayout->setContentsMargins(0, 0, 0, 0);
-    cbLayout->setAlignment(Qt::AlignCenter);
-    QCheckBox *cb = new QCheckBox();
-    cb->setStyleSheet("QCheckBox::indicator { width: 16px; height: 16px; }"
-                      "QCheckBox::indicator:unchecked { border: 1px solid #dcdfe6; background: white; border-radius: 2px; }"
-                      "QCheckBox::indicator:checked { background: #409eff; border: 1px solid #409eff; border-radius: 2px; }");
-    // 只有待发放可被勾选
-    if (record.status != "待发放") cb->setEnabled(false);
-    cbLayout->addWidget(cb);
-    salaryTable->setCellWidget(row, 0, cbWidget);
 
     auto setItem = [&](int col, QString text) {
         QTableWidgetItem *item = new QTableWidgetItem(text);
@@ -258,17 +194,17 @@ void SalaryModule::addSalaryRow(const SalaryRecord &record)
         salaryTable->setItem(row, col, item);
     };
 
-    setItem(1, record.empId);
-    setItem(2, record.name);
-    setItem(3, QString("¥%1").arg(record.baseSalary, 0, 'f', 2));
-    setItem(4, QString("¥%1").arg(record.commission, 0, 'f', 2));
+    setItem(0, record.empId);
+    setItem(1, record.name);
+    setItem(2, QString("¥%1").arg(record.baseSalary, 0, 'f', 2));
+    setItem(3, QString("¥%1").arg(record.commission, 0, 'f', 2));
     
     double total = record.baseSalary + record.commission;
     QTableWidgetItem *totalItem = new QTableWidgetItem(QString("¥%1").arg(total, 0, 'f', 2));
     totalItem->setTextAlignment(Qt::AlignCenter);
     totalItem->setForeground(QColor("#409eff"));
     totalItem->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
-    salaryTable->setItem(row, 5, totalItem);
+    salaryTable->setItem(row, 4, totalItem);
 
     QTableWidgetItem *statusItem = new QTableWidgetItem(record.status);
     statusItem->setTextAlignment(Qt::AlignCenter);
@@ -277,7 +213,7 @@ void SalaryModule::addSalaryRow(const SalaryRecord &record)
     } else {
         statusItem->setForeground(QColor("#67c23a"));
     }
-    salaryTable->setItem(row, 6, statusItem);
+    salaryTable->setItem(row, 5, statusItem);
 
     // 操作列
     QWidget *actionWidget = new QWidget();
@@ -309,7 +245,7 @@ void SalaryModule::addSalaryRow(const SalaryRecord &record)
         actionLayout->addWidget(doneLbl);
     }
 
-    salaryTable->setCellWidget(row, 7, actionWidget);
+    salaryTable->setCellWidget(row, 6, actionWidget);
 }
 
 void SalaryModule::updatePagination()
@@ -371,37 +307,7 @@ void SalaryModule::onJumpPage()
 {
 }
 
-void SalaryModule::onBatchPay()
-{
-    int count = 0;
-    
-    for (int i = 0; i < salaryTable->rowCount(); ++i) {
-        QWidget *w = salaryTable->cellWidget(i, 0);
-        if (w) {
-            QCheckBox *cb = w->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                QString empId = salaryTable->item(i, 1)->text();
-                // 找到并更新数据集
-                for (auto &record : m_salaryData) {
-                    if (record.empId == empId && record.status == "待发放") {
-                        record.status = "已发放";
-                        count++;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    
-    if (count == 0) {
-        CustomMessageDialog::showWarning(this, "批量发放", "请先勾选需要发放且状态为「待发放」的记录！");
-        return;
-    }
-    
-    CustomMessageDialog::showSuccess(this, "系统提示", QString("批量发放成功，共计影响 %1 条薪资记录！").arg(count));
-    updatePagination();
-    updateStats();
-}
+
 
 void SalaryModule::onPaySingle()
 {
@@ -409,10 +315,10 @@ void SalaryModule::onPaySingle()
     if (!btn) return;
     
     for (int i = 0; i < salaryTable->rowCount(); ++i) {
-        QWidget *w = salaryTable->cellWidget(i, 7); // 操作列是第 7 列
+        QWidget *w = salaryTable->cellWidget(i, 6); // 操作列是第 7 列
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
-            QString empId = salaryTable->item(i, 1)->text();
-            QString name = salaryTable->item(i, 2)->text();
+            QString empId = salaryTable->item(i, 0)->text();
+            QString name = salaryTable->item(i, 1)->text();
             
             if (CustomMessageDialog::confirm(this, "发放确认", QString("是否确认发放【%1】的当月薪资？记录之后不可逆。").arg(name))) {
                 for (auto &record : m_salaryData) {

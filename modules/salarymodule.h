@@ -50,11 +50,10 @@ private slots:
     void onFilter();
     void onExport();
     
-    // 分页与批量事件
+    // 分页事件
     void onPrevPage();
     void onNextPage();
     void onJumpPage();
-    void onBatchPay();
     void onPaySingle();
     void onRecalculateSingle(); // 单个重新核算
 };

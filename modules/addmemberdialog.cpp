@@ -26,6 +26,24 @@ AddMemberDialog::AddMemberDialog(QWidget *parent) :
     shadow->setColor(QColor(0, 0, 0, 60));
     shadow->setOffset(0, 0);
     ui->bgFrame->setGraphicsEffect(shadow);
+ 
+    // 创建标题栏标签
+    QLabel *titleLabel = new QLabel("新增会员档案", ui->bgFrame);
+    titleLabel->setObjectName("titleLabel");
+    titleLabel->setStyleSheet("font-size: 18px; color: #303133; font-weight: bold; background: transparent; margin-bottom: 10px;");
+    
+    // 如果 bgFrame 有布局，则插入到最上方
+    if (ui->bgFrame->layout()) {
+        ui->bgFrame->layout()->setContentsMargins(25, 20, 25, 20);
+        // 假设是 QVBoxLayout 或 QGridLayout，尝试插入
+        QVBoxLayout *vbox = qobject_cast<QVBoxLayout*>(ui->bgFrame->layout());
+        if (vbox) {
+            vbox->insertWidget(0, titleLabel);
+        } else {
+            // 如果不是 vbox，就简单 addWidget
+            ui->bgFrame->layout()->addWidget(titleLabel);
+        }
+    }
 
     // 设置现代化的 UI 样式
     this->setStyleSheet(
@@ -194,7 +212,6 @@ MemberInfo AddMemberDialog::getMemberInfo() const
 
 void AddMemberDialog::setInitialData(const MemberInfo &info)
 {
-    // 修改标题
     QLabel *titleLabel = findChild<QLabel*>("titleLabel");
     if (titleLabel) {
         titleLabel->setText("修改会员信息");

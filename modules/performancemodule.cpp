@@ -197,17 +197,17 @@ void PerformanceModule::setupUI()
 
     // 4. 表格
     perfTable = new QTableWidget();
-    perfTable->setColumnCount(8);
-    perfTable->setHorizontalHeaderLabels({"选择", "成交日期", "员工ID", "员工姓名", "业绩类型", "成交金额", "提成核算", "操作/状态"});
+    perfTable->setColumnCount(7);
+    perfTable->setHorizontalHeaderLabels({"成交日期", "员工ID", "员工姓名", "业绩类型", "成交金额", "提成核算", "操作/状态"});
     
-    perfTable->setColumnWidth(0, 48); // 分配复选框
+     // 列宽分配
+    perfTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     perfTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     perfTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     perfTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     perfTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
     perfTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
     perfTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
-    perfTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Stretch);
 
     perfTable->setShowGrid(false);
     perfTable->setAlternatingRowColors(false);
@@ -221,11 +221,7 @@ void PerformanceModule::setupUI()
     perfTable->setStyleSheet(
         "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; outline: none; } "
         "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; } " 
-        
-        "QCheckBox::indicator { width: 16px; height: 16px; }"
-        "QCheckBox::indicator:unchecked { border: 1px solid #dcdfe6; background: white; border-radius: 2px; }"
-        "QCheckBox::indicator:checked { image: url(:/images/check.svg); background: #409eff; border: 1px solid #409eff; border-radius: 2px; }"
+        "QTableWidget::item:selected { background-color: #b3d8ff; } "
     );
 
     mainLayout->addWidget(perfTable);
@@ -316,15 +312,6 @@ void PerformanceModule::updatePagination()
         int row = perfTable->rowCount();
         perfTable->insertRow(row);
         
-        // Col 0: CheckBox
-        QWidget *cbWidget = new QWidget();
-        QHBoxLayout *cbLayout = new QHBoxLayout(cbWidget);
-        cbLayout->setContentsMargins(0, 0, 0, 0); cbLayout->setAlignment(Qt::AlignCenter);
-        QCheckBox *cb = new QCheckBox();
-        if (record.isVerified) cb->setEnabled(false); // 已核销的不允许操作
-        cbLayout->addWidget(cb);
-        perfTable->setCellWidget(row, 0, cbWidget);
-        
         auto setItem = [&](int col, QString text) {
             QTableWidgetItem *item = new QTableWidgetItem(text);
             item->setTextAlignment(Qt::AlignCenter);
@@ -332,17 +319,17 @@ void PerformanceModule::updatePagination()
             perfTable->setItem(row, col, item);
         };
         
-        setItem(1, record.date);
-        setItem(2, record.empId);
-        setItem(3, record.empName);
-        setItem(4, record.type);
-        setItem(5, QString("￥%1").arg(record.amount, 0, 'f', 0));
+        setItem(0, record.date);
+        setItem(1, record.empId);
+        setItem(2, record.empName);
+        setItem(3, record.type);
+        setItem(4, QString("￥%1").arg(record.amount, 0, 'f', 0));
         
         QTableWidgetItem *commItem = new QTableWidgetItem(QString("￥%1").arg(record.commission, 0, 'f', 1));
         commItem->setTextAlignment(Qt::AlignCenter);
-        commItem->setForeground(QColor("#e6a23c")); // 橘色醒目
+        commItem->setForeground(QColor("#e6a23c"));
         commItem->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
-        perfTable->setItem(row, 6, commItem);
+        perfTable->setItem(row, 5, commItem);
         
         // Col 7: Action / Status
         QWidget *actionWidget = new QWidget();
@@ -366,7 +353,7 @@ void PerformanceModule::updatePagination()
             lbl->setStyleSheet("color: #909399; font-size: 12px;");
             actionLayout->addWidget(lbl);
         }
-        perfTable->setCellWidget(row, 7, actionWidget);
+        perfTable->setCellWidget(row, 6, actionWidget);
     }
     
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
@@ -459,26 +446,19 @@ void PerformanceModule::onBatchVerify()
 {
     int count = 0;
     for (int i = 0; i < perfTable->rowCount(); ++i) {
-        QWidget *w = perfTable->cellWidget(i, 0);
-        if (w) {
-            QCheckBox *cb = w->findChild<QCheckBox*>();
-            if (cb && cb->isChecked()) {
-                QString rowDate = perfTable->item(i, 1)->text();
-                QString rowEmpId = perfTable->item(i, 2)->text();
-                // 回写
-                for (auto &r : m_perfData) {
-                    if (r.date == rowDate && r.empId == rowEmpId && !r.isVerified) {
-                        r.isVerified = true;
-                        count++;
-                        break;
-                    }
-                }
+        QString rowDate = perfTable->item(i, 0)->text();
+        QString rowEmpId = perfTable->item(i, 1)->text();
+        for (auto &r : m_perfData) {
+            if (r.date == rowDate && r.empId == rowEmpId && !r.isVerified) {
+                r.isVerified = true;
+                count++;
+                break;
             }
         }
     }
     
     if (count == 0) {
-        CustomMessageDialog::showWarning(this, "批量操作", "请先在前方的方框中勾选尚未核销的记录！");
+        CustomMessageDialog::showWarning(this, "批量操作", "当前页没有待核销的记录！");
         return;
     }
     

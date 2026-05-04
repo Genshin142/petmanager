@@ -42,8 +42,7 @@ void MemberDetailDrawer::setupUI()
     // 取消渐变，改为纯白，并保持顶部圆角以匹配大容器
     header->setStyleSheet("QWidget { background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: none; }");
     QVBoxLayout *headerLayout = new QVBoxLayout(header);
-    headerLayout->setContentsMargins(20, 15, 20, 10); 
-
+    headerLayout->setContentsMargins(20, 15, 20, 0); // 将底部边距从 10 减小到 0
     // --- 顶部工具栏 ---
     QHBoxLayout *topBar = new QHBoxLayout();
     topBar->addStretch();
@@ -54,7 +53,7 @@ void MemberDetailDrawer::setupUI()
     connect(closeBtn, &QPushButton::clicked, this, [=](){ this->hide(); });
     topBar->addWidget(closeBtn);
     headerLayout->addLayout(topBar);
-    headerLayout->addSpacing(10); // 适度减小间距
+    headerLayout->addSpacing(4); // 从 10 减小到 4
 
     QVBoxLayout *nameIdLayout = new QVBoxLayout();
     
@@ -62,14 +61,22 @@ void MemberDetailDrawer::setupUI()
     m_nameLabel = new QLabel("未选择会员");
     m_nameLabel->setStyleSheet("font-size: 24px; color: #303133; font-weight: bold;"); 
     
-    m_editBtn = new QPushButton("编辑资料");
+    m_editBtn = new QPushButton();
     m_editBtn->setCursor(Qt::PointingHandCursor);
     m_editBtn->setFixedHeight(28); 
     m_editBtn->setMinimumWidth(85);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #ecf5ff; color: #409eff; border: 1px solid #b3d8ff; border-radius: 6px; font-size: 12px; font-weight: bold; padding: 0 12px; } "
-        "QPushButton:hover { background: #409eff; color: white; }"
+        "QPushButton { background: #ecf5ff; border: 1px solid #b3d8ff; border-radius: 6px; } "
+        "QPushButton:hover { background: #409eff; }"
     );
+    
+    QHBoxLayout *editBtnLayout = new QHBoxLayout(m_editBtn);
+    editBtnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *editBtnText = new QLabel(QString::fromUtf8("编辑资料"));
+    editBtnText->setAlignment(Qt::AlignCenter);
+    editBtnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    editBtnLayout->addWidget(editBtnText);
+    
     m_editBtn->hide(); 
     
     nameRow->addWidget(m_nameLabel);
@@ -99,13 +106,14 @@ void MemberDetailDrawer::setupUI()
     headerLayout->addLayout(nameIdLayout);
     headerLayout->addStretch();
 
-    // --- 2. 导航栏 (Tab Bar) ---
+    // --- 2. 导航栏 (Tab Bar - Segmented Control Style) ---
     QWidget *tabWidget = new QWidget();
-    tabWidget->setFixedHeight(50);
-    tabWidget->setStyleSheet("border: none; background: white;");
+    tabWidget->setFixedHeight(40);
+    tabWidget->setObjectName("SegmentedControl");
+    tabWidget->setStyleSheet("#SegmentedControl { background: #f1f5f9; border-radius: 20px; border: none; }");
     QHBoxLayout *tabLayout = new QHBoxLayout(tabWidget);
-    tabLayout->setContentsMargins(15, 5, 15, 5);
-    tabLayout->setSpacing(8);
+    tabLayout->setContentsMargins(4, 4, 4, 4);
+    tabLayout->setSpacing(4);
 
     m_tabGroup = new QButtonGroup(this);
     m_tabGroup->setExclusive(true);
@@ -115,19 +123,28 @@ void MemberDetailDrawer::setupUI()
         QPushButton *btn = new QPushButton(tabs[i]);
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setFixedHeight(44);
-        btn->setMinimumWidth(70);
+        btn->setFixedHeight(32);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->setStyleSheet(
-            "QPushButton { border: none; font-size: 14px; color: #64748b; background: transparent; border-radius: 18px; padding: 0 15px; } "
-            "QPushButton:hover { background: #f1f5f9; color: #1e293b; } "
-            "QPushButton:checked { color: #3b82f6; font-weight: bold; background: #eff6ff; }"
+            "QPushButton { border: none; font-size: 13px; color: #64748b; background: transparent; border-radius: 16px; padding: 0; text-align: center; } "
+            "QPushButton:hover { color: #1e293b; } "
+            "QPushButton:checked { color: #3b82f6; font-weight: bold; background: white; }"
         );
         m_tabGroup->addButton(btn, i);
         tabLayout->addWidget(btn);
     }
 
+    // --- 3. 居中并限制宽度 ---
+    QWidget *tabContainer = new QWidget();
+    QHBoxLayout *tabContainerLayout = new QHBoxLayout(tabContainer);
+    tabContainerLayout->setContentsMargins(0, 0, 0, 0);
+    tabContainerLayout->addStretch();
+    tabWidget->setFixedWidth(240); // 限制宽度为 240px
+    tabContainerLayout->addWidget(tabWidget);
+    tabContainerLayout->addStretch();
+
     mainLayout->addWidget(header);
-    mainLayout->addWidget(tabWidget);
+    mainLayout->addWidget(tabContainer);
 
     // --- 3. 内容区 (Stacked Widget) ---
     m_stackedWidget = new QStackedWidget();
@@ -240,10 +257,14 @@ QWidget* MemberDetailDrawer::createPetPage()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    // 统一背景与圆角
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QScrollArea > QWidget > QWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *l = new QVBoxLayout(content);
-    l->setContentsMargins(16, 16, 16, 16);
+    l->setContentsMargins(24, 16, 24, 16);
     l->setSpacing(15);
     
     // 按钮栏
@@ -290,8 +311,9 @@ QWidget* MemberDetailDrawer::createPetPage()
 QWidget* MemberDetailDrawer::createOrderPage()
 {
     QWidget *w = new QWidget();
+    w->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *l = new QVBoxLayout(w);
-    l->setContentsMargins(16, 16, 16, 16);
+    l->setContentsMargins(24, 32, 24, 16);
     
     QLabel *empty = new QLabel("暂无消费记录");
     empty->setAlignment(Qt::AlignCenter);
@@ -303,9 +325,7 @@ QWidget* MemberDetailDrawer::createOrderPage()
 void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVisit, const QString &pets)
 {
     m_currentMember = info;
-    
     m_nameLabel->setText(info.name);
-    m_editBtn->setText("编辑资料"); // 强制确保文字显示
     m_editBtn->show();
     
     // 更新等级颜色

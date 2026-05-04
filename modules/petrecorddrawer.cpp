@@ -35,16 +35,26 @@ void PetRecordDrawer::setupUI()
     setStyleSheet("#PetRecordDrawer { background-color: white; border-left: 1px solid #ebeef5; } "
                   "QLabel { border: none; background: transparent; padding: 0; margin: 0; }");
     
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    QVBoxLayout *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(20, 20, 20, 20); 
+    outerLayout->setSpacing(0);
+
+    QFrame *container = new QFrame();
+    container->setObjectName("DrawerContainer");
+    container->setStyleSheet("#DrawerContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    container->setAttribute(Qt::WA_StyledBackground);
+    
+    QVBoxLayout *mainLayout = new QVBoxLayout(container);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
+    outerLayout->addWidget(container);
 
     // --- 1. 顶部：宠物名片 (常驻) ---
     QWidget *header = new QWidget();
-    header->setFixedHeight(160);
-    header->setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ffffff, stop:1 #f8faff);");
+    header->setFixedHeight(200); // 增加高度
+    header->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: none;");
     QVBoxLayout *headerLayout = new QVBoxLayout(header);
-    headerLayout->setContentsMargins(20, 30, 20, 10);
+    headerLayout->setContentsMargins(20, 15, 20, 0);
 
     // 关闭按钮
     QHBoxLayout *topBar = new QHBoxLayout();
@@ -86,20 +96,40 @@ void PetRecordDrawer::setupUI()
     infoLayout->addSpacing(15);
     infoLayout->addLayout(nameCol);
     infoLayout->addStretch();
-    infoLayout->addWidget(m_roomBadge, 0, Qt::AlignTop);
+
+    // 恢复编辑按钮
+    m_editBtn = new QPushButton();
+    m_editBtn->setFixedSize(80, 32);
+    m_editBtn->setCursor(Qt::PointingHandCursor);
+    m_editBtn->setStyleSheet(
+        "QPushButton { background: #ecf5ff; border: 1px solid #b3d8ff; border-radius: 6px; } "
+        "QPushButton:hover { background: #409eff; }"
+    );
     
+    QHBoxLayout *btnLayout = new QHBoxLayout(m_editBtn);
+    btnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *btnText = new QLabel(QString::fromUtf8("编辑资料"));
+    btnText->setAlignment(Qt::AlignCenter);
+    btnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    btnLayout->addWidget(btnText);
+
+    connect(m_editBtn, &QPushButton::clicked, this, [this](){ emit editRequested(m_currentPet); });
+    infoLayout->addWidget(m_editBtn, 0, Qt::AlignTop);
+
     headerLayout->addLayout(infoLayout);
+    headerLayout->addSpacing(15); // 增加间距
     headerLayout->addStretch();
 
     mainLayout->addWidget(header);
 
-    // --- 2. 导航栏 (Tab Bar) ---
+       // --- 2. 导航栏 (Tab Bar - Segmented Control Style) ---
     QWidget *tabWidget = new QWidget();
-    tabWidget->setFixedHeight(46);
-    tabWidget->setStyleSheet("border-bottom: 1px solid #ebeef5; background: white;");
+    tabWidget->setFixedHeight(40);
+    tabWidget->setObjectName("SegmentedControl");
+    tabWidget->setStyleSheet("#SegmentedControl { background: #f1f5f9; border-radius: 20px; border: none; }");
     QHBoxLayout *tabLayout = new QHBoxLayout(tabWidget);
-    tabLayout->setContentsMargins(20, 0, 20, 0);
-    tabLayout->setSpacing(25);
+    tabLayout->setContentsMargins(4, 4, 4, 4);
+    tabLayout->setSpacing(4);
 
     m_tabGroup = new QButtonGroup(this);
     m_tabGroup->setExclusive(true);
@@ -109,20 +139,31 @@ void PetRecordDrawer::setupUI()
         QPushButton *btn = new QPushButton(tabs[i]);
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setFixedHeight(44);
+        btn->setFixedHeight(32);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->setStyleSheet(
-            "QPushButton { border: none; font-size: 14px; color: #606266; background: transparent; padding: 0 5px 2px 5px; } "
-            "QPushButton:hover { color: #409eff; } "
-            "QPushButton:checked { color: #409eff; font-weight: bold; border-bottom: 3px solid #409eff; }"
+            "QPushButton { border: none; font-size: 13px; color: #64748b; background: transparent; border-radius: 16px; padding: 0; text-align: center; } "
+            "QPushButton:hover { color: #1e293b; } "
+            "QPushButton:checked { color: #3b82f6; font-weight: bold; background: white; }"
         );
         m_tabGroup->addButton(btn, i);
         tabLayout->addWidget(btn);
     }
-    tabLayout->addStretch();
-    mainLayout->addWidget(tabWidget);
+
+    // --- 居中并限制宽度 ---
+    QWidget *tabContainer = new QWidget();
+    QHBoxLayout *tabContainerLayout = new QHBoxLayout(tabContainer);
+    tabContainerLayout->setContentsMargins(0, 5, 0, 5);
+    tabContainerLayout->addStretch();
+    tabWidget->setFixedWidth(240);
+    tabContainerLayout->addWidget(tabWidget);
+    tabContainerLayout->addStretch();
+
+    mainLayout->addWidget(tabContainer);
 
     // --- 3. 内容区 (Stacked Widget) ---
     m_stackedWidget = new QStackedWidget();
+    m_stackedWidget->setStyleSheet("QStackedWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     m_stackedWidget->addWidget(createArchivePage());        // Index 0
     m_stackedWidget->addWidget(createBoardingPage());       // Index 1
     m_stackedWidget->addWidget(createServiceHistoryPage());  // Index 2
@@ -142,7 +183,6 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     // --- 顶部 Header 更新 ---
     m_nameLabel->setText(info.name);
     m_breedLabel->setText(info.breed);
-    
     if (info.status == "在店 (寄养中)") {
         m_roomBadge->setText("房间：" + (info.roomNo.isEmpty() ? "B-102" : info.roomNo));
         m_roomBadge->show();
@@ -159,7 +199,8 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     QPainter p(&target);
     p.setRenderHint(QPainter::Antialiasing);
     QPainterPath path;
-    path.addEllipse(0, 0, size.width(), size.height());
+    // 留出 1px 边距防止裁切边缘被截断
+    path.addEllipse(1, 1, size.width() - 2, size.height() - 2);
     p.setClipPath(path);
     p.drawPixmap(0, 0, pixmap.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
     m_avatarLabel->setPixmap(target);
@@ -367,9 +408,11 @@ QWidget* PetRecordDrawer::createServiceHistoryPage()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; } ");
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QScrollArea > QWidget > QWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     m_serviceHistoryLayout = new QVBoxLayout(content);
     m_serviceHistoryLayout->setContentsMargins(16, 20, 16, 20);
     m_serviceHistoryLayout->setSpacing(15);
@@ -383,9 +426,11 @@ QWidget* PetRecordDrawer::createArchivePage()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; } ");
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QScrollArea > QWidget > QWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(16, 16, 16, 16);
     contentLayout->setSpacing(16);
@@ -476,9 +521,11 @@ QWidget* PetRecordDrawer::createBoardingPage()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("QScrollArea { background: transparent; } ");
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QScrollArea > QWidget > QWidget { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(20, 20, 20, 20);
     contentLayout->setSpacing(20);
