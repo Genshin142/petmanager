@@ -438,13 +438,13 @@ QWidget* PetRecordDrawer::createArchivePage()
     auto createGroupCard = [&](const QString &title, QVBoxLayout* &cardLayout) {
         QFrame *card = new QFrame();
         card->setObjectName("ArchiveGroupCard");
-        card->setStyleSheet("QFrame#ArchiveGroupCard { background: #fcfcfd; border-radius: 8px; border: 1px solid #ebeef5; } QLabel { border: none; }");
+        card->setStyleSheet("QFrame#ArchiveGroupCard { background: #fcfcfd; border-radius: 8px; border: 1px solid #ebeef5; } QLabel { border: none; background: transparent; }");
         QVBoxLayout *mainV = new QVBoxLayout(card);
         mainV->setContentsMargins(15, 15, 15, 15);
         mainV->setSpacing(12);
         
         QLabel *tLabel = new QLabel(title);
-        tLabel->setStyleSheet("color: #303133; font-size: 14px; font-weight: bold; margin-bottom: 5px;");
+        tLabel->setStyleSheet("color: #303133; font-size: 14px; font-weight: bold; margin-bottom: 5px; background: transparent;");
         mainV->addWidget(tLabel);
         
         cardLayout = new QVBoxLayout();
@@ -456,10 +456,10 @@ QWidget* PetRecordDrawer::createArchivePage()
     auto addDetailRow = [&](QVBoxLayout *layout, const QString &label, QLabel* &valLabel) {
         QHBoxLayout *row = new QHBoxLayout();
         QLabel *titleL = new QLabel(label);
-        titleL->setStyleSheet("color: #909399; font-size: 13px;");
+        titleL->setStyleSheet("color: #909399; font-size: 13px; background: transparent;");
         titleL->setFixedWidth(75);
         valLabel = new QLabel("--");
-        valLabel->setStyleSheet("color: #303133; font-size: 13px; font-weight: 500;");
+        valLabel->setStyleSheet("color: #303133; font-size: 13px; font-weight: 500; background: transparent;");
         valLabel->setWordWrap(true);
         row->addWidget(titleL);
         row->addWidget(valLabel, 1);
@@ -533,7 +533,7 @@ QWidget* PetRecordDrawer::createBoardingPage()
     // 1. 摘要卡片
     m_detailCard = new QFrame();
     m_detailCard->setObjectName("BoardingSummaryCard");
-    m_detailCard->setStyleSheet("QFrame#BoardingSummaryCard { background: #fcfcfd; border: 1px solid #ebeef5; border-radius: 12px; } QLabel { border: none; }");
+    m_detailCard->setStyleSheet("QFrame#BoardingSummaryCard { background: #fcfcfd; border: 1px solid #ebeef5; border-radius: 12px; } QLabel { border: none; background: transparent; }");
     QVBoxLayout *cardLayout = new QVBoxLayout(m_detailCard);
     cardLayout->setContentsMargins(15, 15, 15, 15);
     cardLayout->setSpacing(12);
@@ -545,19 +545,20 @@ QWidget* PetRecordDrawer::createBoardingPage()
     m_durationVal = new QLabel("--");
     m_dateOutTitle = new QLabel("离店时间");
 
-    auto styleVal = [](QLabel *l, const QString &c) { l->setStyleSheet(QString("color: %1; font-size: 15px; font-weight: bold;").arg(c)); };
+    auto styleVal = [](QLabel *l, const QString &c) { l->setStyleSheet(QString("color: %1; font-size: 15px; font-weight: bold; background: transparent;").arg(c)); };
     styleVal(m_weightInVal, "#e6a23c");
     styleVal(m_weightOutVal, "#909399");
     styleVal(m_dateInVal, "#303133");
     styleVal(m_dateOutVal, "#303133");
     styleVal(m_durationVal, "#f56c6c");
+    m_dateOutTitle->setStyleSheet("color: #909399; font-size: 13px; background: transparent;");
 
     auto addRow = [&](const QString &l1, QLabel *v1, const QString &l2, QLabel *v2, QLabel *customTitle2 = nullptr) {
         QHBoxLayout *r = new QHBoxLayout();
         auto makePart = [&](const QString &l, QLabel *v, QLabel *ct = nullptr) {
             QVBoxLayout *c = new QVBoxLayout(); c->setSpacing(2);
             QLabel *title = ct ? ct : new QLabel(l);
-            title->setStyleSheet("color: #909399; font-size: 13px;");
+            title->setStyleSheet("color: #909399; font-size: 13px; background: transparent;");
             c->addWidget(title); c->addWidget(v);
             return c;
         };

@@ -466,7 +466,7 @@ void EmployeeDetailDrawer::showDrawer()
     m_isOpened = true;
     m_animation->stop();
     m_animation->setStartValue(width());
-    m_animation->setEndValue(380); // 增加目标宽度到 380px，确保四页签完美排布
+    m_animation->setEndValue(450); // 统一宽度为 450px，与会员模块一致
     m_animation->start();
 }
 

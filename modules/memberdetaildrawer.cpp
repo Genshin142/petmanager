@@ -7,11 +7,16 @@
 #include "petdatamanager.h"
 #include "custommessagedialog.h"
 
-MemberDetailDrawer::MemberDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(false), m_imagePreviewOverlay(nullptr), m_previewLabel(nullptr)
+MemberDetailDrawer::MemberDetailDrawer(QWidget *parent) : QWidget(parent), m_imagePreviewOverlay(nullptr), m_previewLabel(nullptr), m_isOpened(false)
+
 {
     setupUI();
     setupImagePreview();
     setFixedWidth(0);
+    
+    m_animation = new QPropertyAnimation(this, "sideWidth");
+    m_animation->setDuration(300);
+    m_animation->setEasingCurve(QEasingCurve::OutCubic);
 }
 
 void MemberDetailDrawer::setupUI()
@@ -580,13 +585,17 @@ void MemberDetailDrawer::showDrawer()
 {
     if (m_isOpened) return;
     m_isOpened = true;
-    setFixedWidth(450);
+    m_animation->stop();
+    m_animation->setStartValue(width());
+    m_animation->setEndValue(450); 
+    m_animation->start();
 }
-
+ 
 void MemberDetailDrawer::hideDrawer()
 {
-    // If you want it always visible, hideDrawer could do nothing
-    // but for flexibility we keep it as an instant close if needed
     m_isOpened = false;
-    setFixedWidth(0);
+    m_animation->stop();
+    m_animation->setStartValue(width());
+    m_animation->setEndValue(0);
+    m_animation->start();
 }

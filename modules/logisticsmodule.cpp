@@ -1040,7 +1040,7 @@ void LogisticsModule::showHistoryDialog()
 
     QTableWidget *table = new QTableWidget();
     table->setColumnCount(7);
-    table->setHorizontalHeaderLabels({"日期/时段", "宠物信息", "主人信息", "业务类型", "接送地址", "关联原因", "任务状态"});
+    table->setHorizontalHeaderLabels({"日期/时段", "宠物信息", "主人信息", "业务类型", "接送地址", "关联原因", "状态"});
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     table->horizontalHeader()->setStretchLastSection(true);
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents); // 日期

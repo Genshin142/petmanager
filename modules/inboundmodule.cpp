@@ -32,38 +32,45 @@ void InboundModule::setupUI()
     masterLayout->setContentsMargins(0, 0, 0, 0);
     masterLayout->setSpacing(20);
 
+    // --- 0 & 1. 顶部统计与标题容器 ---
+    QFrame *topContainer = new QFrame();
+    topContainer->setObjectName("TopStatisticsContainer");
+    topContainer->setFixedHeight(160);
+    topContainer->setStyleSheet("#TopStatisticsContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *topLayout = new QVBoxLayout(topContainer);
+    topLayout->setContentsMargins(25, 15, 25, 15);
+    topLayout->setSpacing(12);
+
     // --- 0. Header: Title ---
     QHBoxLayout *headerLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel("商品入库登记中心");
-    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold;");
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold; border: none; background: transparent;");
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
-    masterLayout->addLayout(headerLayout);
+    topLayout->addLayout(headerLayout);
 
     // --- 1. Stats: Cards ---
     QHBoxLayout *statLayout = new QHBoxLayout();
+    statLayout->setSpacing(15);
     auto createStatCard = [&](const QString &icon, const QString &title, QLabel* &valLabel, const QString &color) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15); shadow->setColor(QColor(0, 0, 0, 30)); shadow->setOffset(0, 2);
-        card->setGraphicsEffect(shadow);
+        card->setFixedHeight(80);
+        card->setStyleSheet("QFrame { background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; } ");
         QHBoxLayout *cl = new QHBoxLayout(card);
-        cl->setContentsMargins(20, 15, 20, 15);
+        cl->setContentsMargins(20, 10, 20, 10);
         QLabel *iconLabel = new QLabel(icon);
         if (icon.isEmpty()) {
             iconLabel->hide();
         } else {
-            iconLabel->setFixedSize(50, 50); iconLabel->setAlignment(Qt::AlignCenter);
-            iconLabel->setStyleSheet(QString("font-size: 24px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color));
+            iconLabel->setFixedSize(40, 40); iconLabel->setAlignment(Qt::AlignCenter);
+            iconLabel->setStyleSheet(QString("font-size: 20px; color: %1; background: white; border-radius: 8px; border: 1px solid #f1f5f9;").arg(color));
         }
         QVBoxLayout *vl = new QVBoxLayout(); vl->setSpacing(2);
-        QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 24px; border: none; background: transparent;");
+        QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #94a3b8; font-size: 12px; border: none; background: transparent;");
+        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #1e293b; font-size: 20px; border: none; background: transparent; font-weight: bold;");
         vl->addWidget(tl); vl->addWidget(valLabel); vl->addStretch();
         if (!icon.isEmpty()) {
-            cl->addWidget(iconLabel); cl->addSpacing(15);
+            cl->addWidget(iconLabel); cl->addSpacing(12);
         }
         cl->addLayout(vl); cl->addStretch();
         return card;
@@ -71,7 +78,9 @@ void InboundModule::setupUI()
     statLayout->addWidget(createStatCard("", "总入库品种", m_totalCategoriesLabel, "#409eff"));
     statLayout->addWidget(createStatCard("", "今日入库量", m_todayItemsLabel, "#67c23a"));
     statLayout->addWidget(createStatCard("", "待上架批次", m_pendingShelvesLabel, "#e6a23c"));
-    masterLayout->addLayout(statLayout);
+    topLayout->addLayout(statLayout);
+    
+    masterLayout->addWidget(topContainer);
 
     // --- 操作中控台 (Operation Console) ---
     QFrame *filterBar = new QFrame();

@@ -194,7 +194,7 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
 
     m_serviceTable = new QTableWidget();
     m_serviceTable->setColumnCount(8);
-    m_serviceTable->setHorizontalHeaderLabels({"服务编码", "服务名称", "分类", "标准时长", "服务价格", "累计销量", "当前状态", "操作"});
+    m_serviceTable->setHorizontalHeaderLabels({"服务编码", "服务名称", "分类", "标准时长", "服务价格", "累计销量", "状态", "操作"});
     m_serviceTable->setItemDelegate(new ServiceRowDelegate(m_serviceTable));
     
     // 精确控制列宽对齐
@@ -275,7 +275,7 @@ void ServiceManagementModule::setupDetailPanel()
     m_detailPanel = new QWidget();
     m_detailPanel->setStyleSheet("background-color: white; border-left: 1px solid #f1f5f9;");
     QVBoxLayout *outerLayout = new QVBoxLayout(m_detailPanel);
-    outerLayout->setContentsMargins(0, 0, 0, 0);
+    outerLayout->setContentsMargins(0, 20, 20, 20); // 顶部保持 20px 对齐
 
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);

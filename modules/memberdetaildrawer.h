@@ -15,11 +15,13 @@
 class MemberDetailDrawer : public QWidget
 {
     Q_OBJECT
+    Q_PROPERTY(int sideWidth READ width WRITE setFixedWidth)
+
 signals:
     void sig_addPetRequested(const QString &memberId, const QString &memberName);
     void sig_jumpToPetRequested(const QString &petId);
     void sig_editMemberRequested(const MemberInfo &info);
-
+ 
 public:
     explicit MemberDetailDrawer(QWidget *parent = nullptr);
 
@@ -75,6 +77,7 @@ private:
 
     MemberInfo m_currentMember;
     bool m_isOpened;
+    QPropertyAnimation *m_animation;
 };
 
 #endif // MEMBERDETAILDRAWER_H

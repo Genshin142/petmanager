@@ -206,7 +206,8 @@ public:
 
         // 容器背景
         QFrame *container = new QFrame();
-        container->setStyleSheet("QFrame { background: white; border-radius: 15px; }");
+        container->setObjectName("VaccineContainer");
+        container->setStyleSheet("QFrame#VaccineContainer { background: white; border-radius: 15px; border: 1px solid #dcdfe6; }");
         QVBoxLayout *layout = new QVBoxLayout(container);
         layout->setContentsMargins(25, 25, 25, 25);
         layout->setSpacing(0); // 内部使用 addSpacing 精确控制
@@ -220,12 +221,12 @@ public:
         
         // 新增：标题栏操作按钮
         QPushButton *addBtn = new QPushButton();
-        addBtn->setText("+ 新增接种记录");
-        addBtn->setFixedSize(130, 30);
+        addBtn->setText("新增接种记录");
+        addBtn->setFixedSize(110, 30); // 适当缩小宽度使文字更居中紧凑
         addBtn->setCursor(Qt::PointingHandCursor);
         addBtn->setStyleSheet(
             "QPushButton { background-color: #409eff; color: white; border: none; border-radius: 4px; "
-            "font-size: 12px; font-weight: bold; text-align: center; padding: 0 5px; } "
+            "font-size: 13px; font-weight: bold; text-align: center; padding: 0; } "
             "QPushButton:hover { background-color: #66b1ff; }"
         );
         

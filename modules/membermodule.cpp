@@ -105,7 +105,7 @@ void MemberModule::setupUI()
     QWidget *leftContainer = new QWidget();
     QVBoxLayout *mainLayout = new QVBoxLayout(leftContainer);
     mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(15);
+    mainLayout->setSpacing(20);
 
     // 1. 顶部统计与标题容器 (复刻员工模块风格)
     QFrame *topContainer = new QFrame();
@@ -180,7 +180,7 @@ void MemberModule::setupUI()
     operationCard->setStyleSheet("#OperationCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
     
     QHBoxLayout *operationLayout = new QHBoxLayout(operationCard);
-    operationLayout->setContentsMargins(20, 10, 20, 10);
+    operationLayout->setContentsMargins(25, 12, 25, 12);
     operationLayout->setSpacing(0);
     
     // -- 搜索与筛选 (移动到左侧) --

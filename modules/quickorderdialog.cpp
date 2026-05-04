@@ -1,7 +1,4 @@
 #include "quickorderdialog.h"
-#include "petdatamanager.h"
-#include "boardingdatamanager.h"
-#include "servicedatamanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QDateTime>
@@ -36,9 +33,9 @@ void QuickOrderDialog::setupUI()
     m_petWrapper = new QWidget();
 }
 
-void QuickOrderDialog::onCategoryChanged(int id) {}
+void QuickOrderDialog::onCategoryChanged(int id) { Q_UNUSED(id); }
 void QuickOrderDialog::onTileClicked() {}
-void QuickOrderDialog::onSearchItems(const QString &text) {}
+void QuickOrderDialog::onSearchItems(const QString &text) { Q_UNUSED(text); }
 
 void QuickOrderDialog::onRemoveCartItem(int row)
 {
@@ -55,8 +52,8 @@ void QuickOrderDialog::onCreateOrder()
     accept();
 }
 
-void QuickOrderDialog::onMemberSearch(const QString &text) {}
-void QuickOrderDialog::onMemberChanged(int index) {}
+void QuickOrderDialog::onMemberSearch(const QString &text) { Q_UNUSED(text); }
+void QuickOrderDialog::onMemberChanged(int index) { Q_UNUSED(index); }
 
 void QuickOrderDialog::updateCartUI() {}
-void QuickOrderDialog::updateTilePanel(const QString &category, const QString &searchKw) {}
+void QuickOrderDialog::updateTilePanel(const QString &category, const QString &searchKw) { Q_UNUSED(category); Q_UNUSED(searchKw); }

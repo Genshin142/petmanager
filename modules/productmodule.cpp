@@ -292,7 +292,7 @@ void ProductModule::setupUI() {
     // 3. 商品列表
     prodTable = new QTableWidget();
     prodTable->setColumnCount(9);
-    prodTable->setHorizontalHeaderLabels({"图片", "条形码", "商品名称", "规格单位", "成本价", "销售价", "当前库存", "库存状态", "操作"});
+    prodTable->setHorizontalHeaderLabels({"图片", "条形码", "商品名称", "规格单位", "成本价", "销售价", "当前库存", "状态", "操作"});
     prodTable->setItemDelegate(new ProductRowDelegate(prodTable));
     
     prodTable->setShowGrid(false);
@@ -1294,7 +1294,7 @@ void ProductModule::setupDetailDrawer() {
     m_detailDrawer->hide();
     
     QVBoxLayout *mainLayout = new QVBoxLayout(m_detailDrawer);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setContentsMargins(0, 20, 20, 20); // 顶部保持 20px 对齐
     mainLayout->setSpacing(0);
 
     // ===== 抽屉头部（关闭按钮 + 标题 + 编辑按钮） =====

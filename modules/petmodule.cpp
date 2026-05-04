@@ -204,11 +204,11 @@ void PetModule::setupUI()
 
     // --- 3. 操作中控台 (搜索 + 状态筛选) ---
     QFrame *operationCard = new QFrame();
-    operationCard->setFixedHeight(64);
-    operationCard->setStyleSheet("QFrame { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    operationCard->setObjectName("OperationCard");
+    operationCard->setStyleSheet("#OperationCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
     QHBoxLayout *operationLayout = new QHBoxLayout(operationCard);
-    operationLayout->setContentsMargins(15, 0, 15, 0);
-    operationLayout->setSpacing(20);
+    operationLayout->setContentsMargins(25, 12, 25, 12);
+    operationLayout->setSpacing(0);
 
     // -- 搜索栏 --
     searchEdit = new QLineEdit();
@@ -216,11 +216,12 @@ void PetModule::setupUI()
     searchEdit->setFixedWidth(280); 
     searchEdit->setFixedHeight(36);
     searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 15px; font-size: 13px; background: #f8fafc; } "
-        "QLineEdit:focus { border-color: #3b82f6; background: white; outline: none; }"
+        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 15px; font-size: 13px; background: white; } "
+        "QLineEdit:focus { border-color: #409eff; outline: none; }"
     );
     connect(searchEdit, &QLineEdit::textChanged, this, &PetModule::onSearch);
     operationLayout->addWidget(searchEdit);
+    operationLayout->addSpacing(12);
     
     // -- 状态筛选按钮组 --
     m_statusGroup = new QButtonGroup(this);
@@ -231,7 +232,7 @@ void PetModule::setupUI()
     filterLayout->setContentsMargins(0, 0, 0, 0);
     filterLayout->setSpacing(8);
     
-    QStringList statuses = {"全部", "寄养中", "洗护中", "在家"};
+    QStringList statuses = {"全部", "已预约", "寄养中", "洗护中", "待接走", "在家"};
     for (int i = 0; i < statuses.size(); ++i) {
         QPushButton *btn = new QPushButton(statuses[i]);
         btn->setCheckable(true);
@@ -249,7 +250,6 @@ void PetModule::setupUI()
     }
     connect(m_statusGroup, QOverload<int>::of(&QButtonGroup::idClicked), this, &PetModule::onStatusFilterChanged);
     
-    operationLayout->addSpacing(10);
     operationLayout->addWidget(filterBox);
     operationLayout->addStretch();
     
@@ -258,7 +258,7 @@ void PetModule::setupUI()
     petTable = new QTableWidget();
     petTable->setColumnCount(7);
     petTable->setHorizontalHeaderLabels({
-        "宠物ID", "宠物信息", "所属主人", "基本属性", "在店状态", "入店时间", "操作"
+        "宠物ID", "宠物信息", "所属主人", "基本属性", "状态", "入店时间", "操作"
     });
     petTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     petTable->setItemDelegate(new PetRowDelegate(petTable));
@@ -488,11 +488,11 @@ void PetModule::addPetRow(const PetInfo &info)
     statusTag->setAlignment(Qt::AlignCenter);
     
     QString bgColor, textColor, borderColor;
-    if (info.status.contains("寄养中")) { bgColor = "#ecf5ff"; textColor = "#409eff"; borderColor = "#b3d8ff"; }
-    else if (info.status.contains("洗护中")) { bgColor = "#fdf6ec"; textColor = "#e6a23c"; borderColor = "#faecd8"; }
-    else if (info.status.contains("在途")) { bgColor = "#e1f3d8"; textColor = "#67c23a"; borderColor = "#b7eb8f"; }
-    else if (info.status.contains("回家")) { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e4e7ed"; }
-    else { bgColor = "#f0f9eb"; textColor = "#67c23a"; borderColor = "#e1f3d8"; }
+    if (info.status == "寄养中") { bgColor = "#ecf5ff"; textColor = "#409eff"; borderColor = "#b3d8ff"; }
+    else if (info.status == "洗护中") { bgColor = "#fdf6ec"; textColor = "#e6a23c"; borderColor = "#faecd8"; }
+    else if (info.status == "已预约") { bgColor = "#e1f3d8"; textColor = "#67c23a"; borderColor = "#b7eb8f"; }
+    else if (info.status == "待接走") { bgColor = "#fef0f0"; textColor = "#f56c6c"; borderColor = "#fbc4c4"; }
+    else { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e4e7ed"; }
 
     statusTag->setStyleSheet(QString(
         "background-color: %1; color: %2; border: none; border-radius: 14px; font-size: 12px; font-weight: bold;"
@@ -537,8 +537,8 @@ void PetModule::updateStats()
             QLabel *tag = w->findChild<QLabel*>();
             if (tag) {
                 QString st = tag->text();
-                if (st.contains("寄养中")) boarding++;
-                else if (st.contains("洗护中")) grooming++;
+                if (st == "寄养中") boarding++;
+                else if (st == "洗护中") grooming++;
             }
         }
     }
@@ -733,11 +733,15 @@ void PetModule::updatePagination()
                 if (tag) {
                     QString petStatus = tag->text();
                     if (statusFilter == "寄养中") {
-                        if (!petStatus.contains("寄养")) match = false;
+                        if (petStatus != "寄养中") match = false;
                     } else if (statusFilter == "洗护中") {
-                        if (!petStatus.contains("洗护")) match = false;
+                        if (petStatus != "洗护中") match = false;
+                    } else if (statusFilter == "已预约") {
+                        if (petStatus != "已预约") match = false;
+                    } else if (statusFilter == "待接走") {
+                        if (petStatus != "待接走") match = false;
                     } else if (statusFilter == "在家") {
-                        if (!petStatus.contains("在家")) match = false;
+                        if (petStatus != "在家") match = false;
                     }
                 }
             }

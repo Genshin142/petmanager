@@ -101,7 +101,7 @@ void SalaryModule::setupUI()
     // 3. 表格
     salaryTable = new QTableWidget();
     salaryTable->setColumnCount(7);
-    salaryTable->setHorizontalHeaderLabels({"工号", "姓名", "底薪", "提成/绩效", "实发总计", "发放状态", "操作"});
+    salaryTable->setHorizontalHeaderLabels({"工号", "姓名", "底薪", "提成/绩效", "实发总计", "状态", "操作"});
     salaryTable->setColumnWidth(0, 100);
     salaryTable->setColumnWidth(1, 120);
     salaryTable->setColumnWidth(2, 120);

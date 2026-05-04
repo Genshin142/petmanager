@@ -251,7 +251,7 @@ void RoleModule::setupUI()
     operationCard->setStyleSheet("#OperationCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
     
     QHBoxLayout *operationLayout = new QHBoxLayout(operationCard);
-    operationLayout->setContentsMargins(20, 10, 20, 10);
+    operationLayout->setContentsMargins(25, 12, 25, 12);
     operationLayout->setSpacing(0);
 
     // -- 1. 搜索与筛选 (左侧) --

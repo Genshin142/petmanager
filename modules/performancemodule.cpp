@@ -198,7 +198,7 @@ void PerformanceModule::setupUI()
     // 4. 表格
     perfTable = new QTableWidget();
     perfTable->setColumnCount(7);
-    perfTable->setHorizontalHeaderLabels({"成交日期", "员工ID", "员工姓名", "业绩类型", "成交金额", "提成核算", "操作/状态"});
+    perfTable->setHorizontalHeaderLabels({"成交日期", "员工ID", "员工姓名", "业绩类型", "成交金额", "提成核算", "状态"});
     
      // 列宽分配
     perfTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);

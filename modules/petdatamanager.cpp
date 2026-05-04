@@ -41,7 +41,7 @@ void PetDataManager::initMockData()
         m_pets[info.id] = info;
     };
 
-    addDemo("P001", "布丁", "狗", "金毛犬", "公", "2岁", "在店 (待结算)", "M001", "张三", "13800138000", "", "foster_outdoor_new.png");
+    addDemo("P001", "布丁", "狗", "金毛犬", "公", "2岁", "待接走", "M001", "张三", "13800138000", "", "foster_outdoor_new.png");
     addDemo("P002", "芝麻", "猫", "英短蓝猫", "母", "1岁", "寄养中", "M002", "李芳", "13911112222", "A-101", "foster_sleep_new.png");
     addDemo("P003", "豆豆", "狗", "柴犬", "公", "3岁", "在家", "M002", "李芳", "13911112222", "", "foster_bath_new.png");
     addDemo("P004", "小雪", "狗", "萨摩耶", "母", "2岁", "洗护中", "M004", "赵六", "13366667777", "", "load_img.jpg");
@@ -64,9 +64,9 @@ void PetDataManager::initMockData()
     // 3. 模拟订单数据 (Order) - 与预约/寄养深度勾连
     auto addOrd = [&](const QString &id, const QString &petId, const QString &details, double amt, const QString &status, const QString &source, const QString &relatedId) {
         OrderInfo o;
-        o.id = id; o.petId = petId; o.petName = m_pets[petId].name;
-        o.memberId = m_pets[petId].ownerId; // Fixed missing member ID
-        o.memberName = m_pets[petId].ownerName; o.itemDetails = details;
+        o.id = id; o.petId = petId; o.petName = m_pets.value(petId).name;
+        o.memberId = m_pets.value(petId).ownerId; // Fixed missing member ID
+        o.memberName = m_pets.value(petId).ownerName; o.itemDetails = details;
         o.totalAmount = amt; o.finalAmount = (status == "Paid" ? amt : 0);
         o.status = status; o.sourceModule = source; o.relatedId = relatedId;
         o.createTime = QDateTime::currentDateTime().addSecs(-7200).toString("yyyy-MM-dd HH:mm:ss");

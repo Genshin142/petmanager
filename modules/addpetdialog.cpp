@@ -43,7 +43,7 @@ void AddPetDialog::setupUI()
     ownerPhoneEdit = new QLineEdit();
     ownerPhoneEdit->setReadOnly(true);
     statusCombo = new QComboBox();
-    statusCombo->addItems({"待入店 (在家)", "接送中 (在途)", "在店 (寄养中)", "在店 (洗护中)", "已离店 (回家)"});
+    statusCombo->addItems({"在家", "已预约", "洗护中", "寄养中", "待接走"});
     joinTimeEdit = new QLineEdit();
     joinTimeEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
 
