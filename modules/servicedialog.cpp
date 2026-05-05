@@ -64,7 +64,7 @@ void ServiceDialog::setupUi()
     
     m_nameEdit = new QLineEdit(m_bgFrame);
     m_categoryCombo = new QComboBox(m_bgFrame);
-    m_categoryCombo->addItems({"洗护", "美容", "保健", "寄养", "接送", "其他"});
+    m_categoryCombo->addItems({"洗护", "美容", "保健", "寄养", "接送"});
     m_idEdit = new QLineEdit(m_bgFrame);
     m_idEdit->setPlaceholderText("自动生成可留空");
 
