@@ -133,11 +133,12 @@ void ServiceDialog::setupUi()
         // 下拉框特化样式
         "QComboBox::drop-down { border: none; width: 30px; }"
         "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; }"
-        "QComboBox QAbstractItemView { "
-        "   border: 1px solid #e2e8f0; background-color: white; "
+        "QComboBox QAbstractItemView, QListView { "
+        "   border: 1px solid #e2e8f0; background-color: white !important; "
         "   selection-background-color: #eff6ff; selection-color: #1e40af; "
         "   outline: none; "
         "}"
+
         
         // 按钮样式
         "QPushButton#saveBtn { "
