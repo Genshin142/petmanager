@@ -339,18 +339,18 @@ void PerformanceModule::updatePagination()
         
         if (!record.isVerified) {
             QPushButton *okBtn = new QPushButton("核销");
-            okBtn->setFixedSize(50, 26);
+            okBtn->setFixedSize(60, 26);
             okBtn->setCursor(Qt::PointingHandCursor);
-            okBtn->setStyleSheet("QPushButton { background: #f0f9eb; color: #67c23a; border: 1px solid #c2e7b0; border-radius: 3px; font-size: 11px; padding: 0; }"
-                                 "QPushButton:hover { background: #67c23a; color: white; }");
+            okBtn->setStyleSheet("QPushButton { background: #ffedd5; color: #9a3412; border-radius: 12px; font-size: 11px; font-weight: bold; border: none; }"
+                                 "QPushButton:hover { background: #9a3412; color: white; }");
             connect(okBtn, &QPushButton::clicked, this, &PerformanceModule::onVerifySingle);
             // 绑定数据到按钮
             okBtn->setProperty("date", record.date);
             okBtn->setProperty("empId", record.empId);
             actionLayout->addWidget(okBtn);
         } else {
-            QLabel *lbl = new QLabel("✔ 已入账");
-            lbl->setStyleSheet("color: #909399; font-size: 12px;");
+            QLabel *lbl = new QLabel("已入账");
+            lbl->setStyleSheet("background: #dcfce7; color: #166534; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: bold;");
             actionLayout->addWidget(lbl);
         }
         perfTable->setCellWidget(row, 6, actionWidget);

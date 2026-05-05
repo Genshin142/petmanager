@@ -490,16 +490,19 @@ void ProductModule::addProductRow(const ProductInfo &info) {
     tagLayout->setAlignment(Qt::AlignCenter);
     
     QLabel *tag = new QLabel();
-    QString baseStyle = "padding: 2px 10px; border-radius: 10px; font-size: 11px; ";
+    tag->setFixedHeight(22); // 统一高度
+    tag->setAlignment(Qt::AlignCenter);
+    QString tagStyle = "border-radius: 11px; font-size: 11px; font-weight: bold; border: 1px solid %1; background-color: %2; color: %3; padding: 0 12px;";
+    
     if (info.stock <= 0) {
         tag->setText("缺货");
-        tag->setStyleSheet(baseStyle + "background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4;");
+        tag->setStyleSheet(tagStyle.arg("#fbc4c4", "#fef0f0", "#f56c6c")); // Danger
     } else if (info.stock <= info.minStock) {
         tag->setText("库存告急");
-        tag->setStyleSheet(baseStyle + "background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591;");
+        tag->setStyleSheet(tagStyle.arg("#f5dab1", "#fff7e6", "#e6a23c")); // Warning
     } else {
         tag->setText("充足");
-        tag->setStyleSheet(baseStyle + "background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;");
+        tag->setStyleSheet(tagStyle.arg("#c2e7b0", "#f0f9eb", "#67c23a")); // Success
     }
     tagLayout->addWidget(tag);
     prodTable->setCellWidget(row, 7, tagContainer);
@@ -534,7 +537,7 @@ void ProductModule::addProductRow(const ProductInfo &info) {
             if (it) it->setForeground(QColor("#c0c4cc"));
         }
         tag->setText("已下架");
-        tag->setStyleSheet(baseStyle + "background: #f4f4f5; color: #909399; border: 1px solid #e9e9eb;");
+        tag->setStyleSheet(tagStyle.arg("#e9e9eb", "#f4f4f5", "#909399"));
     }
 
     // 同步刷新分页（仅当控件已初始化）
@@ -1842,7 +1845,8 @@ void ProductModule::onShowBatchDetails(int row, int col) {
 
         QLabel *statusLabel = new QLabel();
         statusLabel->setAlignment(Qt::AlignCenter);
-        QString statusStyle = "border-radius: 4px; font-size: 11px; margin: 4px; padding: 2px;";
+        statusLabel->setFixedHeight(22);
+        QString statusStyle = "border-radius: 11px; font-size: 11px; padding: 0 10px; font-weight: bold; border: none;";
 
         if (daysToExpiry < 0) {
             statusLabel->setText("已过期");
@@ -1861,7 +1865,14 @@ void ProductModule::onShowBatchDetails(int row, int col) {
             statusLabel->setText("正常");
             statusLabel->setStyleSheet(statusStyle + "background: #f0f9eb; color: #67c23a;");
         }
-        batchTable->setCellWidget(r, 6, statusLabel);
+        
+        // 居中容器
+        QWidget *tagWrapper = new QWidget();
+        QHBoxLayout *tagLayout = new QHBoxLayout(tagWrapper);
+        tagLayout->setContentsMargins(0, 0, 0, 0);
+        tagLayout->setAlignment(Qt::AlignCenter);
+        tagLayout->addWidget(statusLabel);
+        batchTable->setCellWidget(r, 6, tagWrapper);
     }
 
     layout->addWidget(batchTable);

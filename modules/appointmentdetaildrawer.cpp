@@ -85,8 +85,8 @@ void AppointmentDetailDrawer::setupUI()
     m_idLabel->setStyleSheet("font-size: 13px; color: #606266; background: transparent;");
     
     m_statusTag = new QLabel("待处理");
-    m_statusTag->setStyleSheet("background: #fa8c16; color: white; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: bold;");
-    m_statusTag->setFixedWidth(70);
+    m_statusTag->setStyleSheet("background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
+    m_statusTag->setFixedWidth(80);
     m_statusTag->setAlignment(Qt::AlignCenter);
 
     nameCol->addLayout(nameRow);
@@ -361,19 +361,19 @@ void AppointmentDetailDrawer::setAppointment(const QString &id)
     
     m_statusTag->setText(translatedStatus);
     if (isOverdue) {
-        m_statusTag->setStyleSheet("background: #dc2626; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     } else if (m_currentInfo.status == "Pending" || m_currentInfo.status == "待处理") {
-        m_statusTag->setStyleSheet("background: #fa8c16; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
-    } else if (m_currentInfo.status == "Confirmed" || m_currentInfo.status == "已确认") {
-        m_statusTag->setStyleSheet("background: #67c23a; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
+    } else if (m_currentInfo.status == "Confirmed" || m_currentInfo.status == "已确认" || m_currentInfo.status == "Completed" || m_currentInfo.status == "已完成") {
+        m_statusTag->setStyleSheet("background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     } else if (m_currentInfo.status == "In-Service" || m_currentInfo.status == "服务中") {
-        m_statusTag->setStyleSheet("background: #409eff; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     } else if (m_currentInfo.status == "Cancelled" || m_currentInfo.status == "已取消") {
-        m_statusTag->setStyleSheet("background: #f4f4f5; color: #909399; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold; border: 1px solid #e9e9eb; text-decoration: line-through;");
+        m_statusTag->setStyleSheet("background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; text-decoration: line-through;");
     } else if (m_currentInfo.status == "Expired" || m_currentInfo.status == "已过期") {
-        m_statusTag->setStyleSheet("background: #e5e5e5; color: #737373; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     } else {
-        m_statusTag->setStyleSheet("background: #c0c4cc; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     }
 
     // 2. 清理并重构内容区 (彻底隐藏并延迟清除，避免截图重影)

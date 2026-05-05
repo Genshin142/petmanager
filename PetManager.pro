@@ -46,10 +46,12 @@ SOURCES += \
     modules/pricemanager.cpp \
     modules/orderdetaildrawer.cpp \
     modules/servicedatamanager.cpp \
+    modules/memberdatamanager.cpp \
     modules/servicemanagementmodule.cpp \
     modules/quickorderdialog.cpp \
     modules/servicedialog.cpp \
     modules/boardingdatamanager.cpp \
+    modules/rechargedialog.cpp \
     utils/logger.cpp
 
 HEADERS += \
@@ -98,10 +100,12 @@ HEADERS += \
     modules/pricemanager.h \
     modules/orderdetaildrawer.h \
     modules/servicedatamanager.h \
+    modules/memberdatamanager.h \
     modules/servicemanagementmodule.h \
     modules/quickorderdialog.h \
     modules/servicedialog.h \
-    modules/boardingdatamanager.h
+    modules/boardingdatamanager.h \
+    modules/rechargedialog.h
 
 FORMS += \
     loginwindow.ui \

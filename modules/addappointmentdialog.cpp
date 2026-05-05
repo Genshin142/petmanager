@@ -836,21 +836,25 @@ void AddAppointmentDialog::onAddServiceRow()
     connect(boardingEndDateEdit, &QLineEdit::textChanged, this, updateAvailableRooms);
 
     auto updateFinalPrice = [=]() {
-        QString currentType = combo->currentText();
-        QString petId = m_petCombo->currentData().toString();
-        PetInfo pet = PetDataManager::instance()->getPet(petId);
+        // 计算所有选中的服务项总价 (从 ServiceDataManager 获取实时价格)
+        double totalAmount = 0.0;
+        auto allServices = ServiceDataManager::instance()->allServices();
         
-        // 计算附加项金额
-        double addons = 0.0;
-        auto tagBtns = tagsRow->findChildren<QPushButton*>();
+        auto tagBtns = tagsWrapper->findChildren<QPushButton*>();
         for (auto btn : tagBtns) {
             if (btn->isChecked()) {
-                addons += PriceManager::instance()->getBasePrice(btn->text());
+                QString name = btn->text();
+                // 在所有服务中查找对应名称的价格
+                for (const auto &info : allServices) {
+                    if (info.name == name) {
+                        totalAmount += info.price;
+                        break;
+                    }
+                }
             }
         }
 
-        double finalPrice = PriceManager::instance()->calculateFinalAmount(currentType, pet.breed, addons);
-        amtEdit->setText(QString::number(finalPrice, 'f', 2));
+        amtEdit->setText(QString::number(totalAmount, 'f', 2));
     };
 
     auto updateAtomicTags = [=](const QString &mainType) {
@@ -878,8 +882,33 @@ void AddAppointmentDialog::onAddServiceRow()
                     "QPushButton:checked { background: #eff6ff; border-color: #3b82f6; color: #3b82f6; }"
                 );
                 
-                // 价格联动
-                connect(tagBtn, &QPushButton::toggled, this, updateFinalPrice);
+                // 互斥与价格联动逻辑
+                connect(tagBtn, &QPushButton::clicked, this, [=](bool checked) {
+                    if (checked) {
+                        QString name = tagBtn->text();
+                        QString cat = combo->currentText();
+                        
+                        // 定义互斥组
+                        QMap<QString, QStringList> exclusionGroups;
+                        exclusionGroups["洗护"] << "基础洗护" << "深度洗护" << "深度护理";
+                        exclusionGroups["美容"] << "整体造型" << "局部修剪";
+                        exclusionGroups["寄养"] << "普通寄养房间" << "豪华套房寄养" << "多宠家庭房寄养" << "日托寄养";
+
+                        if (exclusionGroups.contains(cat)) {
+                            const QStringList &exclList = exclusionGroups[cat];
+                            if (exclList.contains(name)) {
+                                // 取消同组其他互斥项的选择
+                                auto otherBtns = tagsWrapper->findChildren<QPushButton*>();
+                                for (auto other : otherBtns) {
+                                    if (other != tagBtn && exclList.contains(other->text())) {
+                                        other->setChecked(false);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    updateFinalPrice();
+                });
                 
                 // 特殊逻辑：如果是“送回入户”，联动显示返程时间选择器
                 if (info.name == "送回入户") {

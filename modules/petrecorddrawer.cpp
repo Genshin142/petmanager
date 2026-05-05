@@ -69,8 +69,8 @@ void PetRecordDrawer::setupUI()
 
     QHBoxLayout *infoLayout = new QHBoxLayout();
     m_avatarLabel = new QLabel();
-    m_avatarLabel->setFixedSize(80, 80);
-    m_avatarLabel->setStyleSheet("border-radius: 40px; background: #f0f2f5; border: none;");
+    m_avatarLabel->setFixedSize(100, 100);
+    m_avatarLabel->setStyleSheet("border-radius: 50px; background: #f0f2f5; border: none;");
     m_avatarLabel->installEventFilter(this);
     m_avatarLabel->setCursor(Qt::PointingHandCursor);
 
@@ -88,8 +88,8 @@ void PetRecordDrawer::setupUI()
     m_roomBadge = new QLabel();
     m_roomBadge->hide();
     m_roomBadge->setStyleSheet(
-        "background: #ecf5ff; color: #409eff; border: 1px solid #d9ecff; "
-        "border-radius: 4px; padding: 4px 10px; font-weight: bold; font-size: 12px;"
+        "background: #dcfce7; color: #166534; "
+        "border-radius: 12px; padding: 4px 12px; font-weight: bold; font-size: 11px;"
     );
 
     infoLayout->addWidget(m_avatarLabel);
@@ -99,22 +99,22 @@ void PetRecordDrawer::setupUI()
 
     // 恢复编辑按钮
     m_editBtn = new QPushButton();
-    m_editBtn->setFixedSize(80, 32);
+    m_editBtn->setFixedSize(110, 40);
     m_editBtn->setCursor(Qt::PointingHandCursor);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #ecf5ff; border: 1px solid #b3d8ff; border-radius: 6px; } "
-        "QPushButton:hover { background: #409eff; }"
+        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
+        "QPushButton:hover { background: #2563eb; }"
     );
     
-    QHBoxLayout *btnLayout = new QHBoxLayout(m_editBtn);
-    btnLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel *btnText = new QLabel(QString::fromUtf8("编辑资料"));
-    btnText->setAlignment(Qt::AlignCenter);
-    btnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
-    btnLayout->addWidget(btnText);
+    QHBoxLayout *editBtnLayout = new QHBoxLayout(m_editBtn);
+    editBtnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *editBtnText = new QLabel("编辑资料");
+    editBtnText->setAlignment(Qt::AlignCenter);
+    editBtnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+    editBtnLayout->addWidget(editBtnText);
 
     connect(m_editBtn, &QPushButton::clicked, this, [this](){ emit editRequested(m_currentPet); });
-    infoLayout->addWidget(m_editBtn, 0, Qt::AlignTop);
+    // infoLayout->addWidget(m_editBtn, 0, Qt::AlignTop | Qt::AlignRight);
 
     headerLayout->addLayout(infoLayout);
     headerLayout->addSpacing(15); // 增加间距
@@ -171,6 +171,11 @@ void PetRecordDrawer::setupUI()
 
     connect(m_tabGroup, &QButtonGroup::idClicked, m_stackedWidget, &QStackedWidget::setCurrentIndex);
     m_tabGroup->button(0)->setChecked(true);
+    
+    // 采用绝对定位固定位置
+    m_editBtn->setParent(container);
+    m_editBtn->move(297, 21);
+    m_editBtn->raise();
 }
 
 void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &logs, const QList<PetMedia> &media, const QList<FosterBatch> &batches)
@@ -193,7 +198,7 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     // 头像处理
     QPixmap pixmap(info.avatarPath);
     if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
-    QSize size(80, 80);
+    QSize size(100, 100);
     QPixmap target(size);
     target.fill(Qt::transparent);
     QPainter p(&target);
@@ -298,10 +303,10 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
             typeL->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 14px;").arg(color));
             
             QLabel *statusL = new QLabel(appt.status == "Pending" ? "待处理" : (appt.status == "Completed" ? "已完成" : "进行中"));
-            QString statusStyle = "font-size: 11px; padding: 2px 8px; border-radius: 4px; ";
-            if (appt.status == "Completed") statusStyle += "background: #f0f9eb; color: #67c23a;";
-            else if (appt.status == "Pending") statusStyle += "background: #fef0f0; color: #f56c6c;";
-            else statusStyle += "background: #ecf5ff; color: #409eff;";
+            QString statusStyle = "font-size: 11px; padding: 4px 12px; border-radius: 12px; font-weight: bold; ";
+            if (appt.status == "Completed") statusStyle += "background: #dcfce7; color: #166534;";
+            else if (appt.status == "Pending") statusStyle += "background: #ffedd5; color: #9a3412;";
+            else statusStyle += "background: #e0f2fe; color: #0369a1;";
             statusL->setStyleSheet(statusStyle);
 
             top->addWidget(typeL);
@@ -317,8 +322,23 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
             timeL->setStyleSheet("color: #606266; font-size: 13px;");
             infoCol->addWidget(timeL);
 
+            // 操作人员和服务金额
+            QHBoxLayout *detailRow = new QHBoxLayout();
+            detailRow->setSpacing(15);
+            
+            QLabel *staffL = new QLabel("操作人: " + (appt.staff.isEmpty() ? "未指定" : appt.staff));
+            staffL->setStyleSheet("color: #909399; font-size: 12px;");
+            
+            QLabel *amountL = new QLabel(QString("金额: ¥%1").arg(appt.amount, 0, 'f', 2));
+            amountL->setStyleSheet("color: #f56c6c; font-size: 12px; font-weight: bold;");
+            
+            detailRow->addWidget(staffL);
+            detailRow->addWidget(amountL);
+            detailRow->addStretch();
+            infoCol->addLayout(detailRow);
+
             if (!appt.notes.isEmpty()) {
-                QLabel *noteL = new QLabel(appt.notes);
+                QLabel *noteL = new QLabel("备注: " + appt.notes);
                 noteL->setStyleSheet("color: #909399; font-size: 12px; font-style: italic;");
                 noteL->setWordWrap(true);
                 infoCol->addWidget(noteL);

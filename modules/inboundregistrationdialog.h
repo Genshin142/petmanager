@@ -18,9 +18,11 @@ class InboundRegistrationDialog : public QDialog
     Q_OBJECT
 public:
     explicit InboundRegistrationDialog(QWidget *parent = nullptr);
+    void setEditMode(const StockInRecord &rec, const ProductInfo &pInfo);
 
 signals:
     void recordAdded();
+    void recordUpdated();
 
 private slots:
     void onBarcodeEntered();
@@ -63,6 +65,9 @@ private:
     QComboBox *m_operatorCombo; // 新增：经办人
     class CustomCalendarEdit *m_dateEdit;
     QLineEdit *m_shelfLifeEdit;
+    QPushButton *m_confirmBtn;
+    bool m_isEditMode = false;
+    StockInRecord m_currentRecord;
 };
 
 #endif // INBOUNDREGISTRATIONDIALOG_H

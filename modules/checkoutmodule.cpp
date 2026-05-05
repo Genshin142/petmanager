@@ -510,10 +510,10 @@ void CheckoutModule::updatePagination()
         tagLayout->setContentsMargins(0, 0, 0, 0);
         tagLayout->setAlignment(Qt::AlignCenter);
         QLabel *tag = new QLabel(order.status == "Paid" ? "已支付" : (order.status == "Unpaid" ? "待结算" : "已取消"));
-        QString tagStyle = "padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; ";
+        QString tagStyle = "padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; ";
         if (order.status == "Paid") tagStyle += "background: #dcfce7; color: #166534;";
         else if (order.status == "Unpaid") tagStyle += "background: #ffedd5; color: #9a3412;";
-        else tagStyle += "background: #f1f5f9; color: #475569;";
+        else tagStyle += "background: #f1f5f9; color: #64748b;";
         tag->setStyleSheet(tagStyle);
         tagLayout->addWidget(tag);
         orderTable->setCellWidget(row, 6, tagContainer);

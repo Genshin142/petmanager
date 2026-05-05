@@ -484,12 +484,16 @@ void LogisticsModule::onDateChanged(const QDate &date)
                     
                     QLabel *statusTag = new QLabel(task.status);
                     statusTag->setAttribute(Qt::WA_TransparentForMouseEvents);
+                    statusTag->setFixedHeight(22);
+                    statusTag->setAlignment(Qt::AlignCenter);
+                    QString statusStyle = "border-radius: 11px; padding: 0 12px; font-size: 11px; font-weight: bold; border: none;";
+                    
                     if (task.status == "已完成" || task.status == "已离店 (回家)") {
-                        statusTag->setStyleSheet("background: #f0f9eb; color: #67c23a; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #e1f3d8;");
+                        statusTag->setStyleSheet(statusStyle + "background: #dcfce7; color: #166534;");
                     } else if (task.status == "待处理") {
-                        statusTag->setStyleSheet("background: #fff7ed; color: #ea580c; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #ffedd5;");
+                        statusTag->setStyleSheet(statusStyle + "background: #ffedd5; color: #9a3412;");
                     } else {
-                        statusTag->setStyleSheet("background: #eff6ff; color: #2563eb; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; border: 1px solid #dbeafe;");
+                        statusTag->setStyleSheet(statusStyle + "background: #eff6ff; color: #1e40af;");
                     }
 
                     rl->addWidget(avatarLbl);

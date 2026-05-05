@@ -11,6 +11,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include "../common_types.h"
+#include <QGraphicsDropShadowEffect>
 #include "memberdetaildrawer.h"
 
 class MemberModule : public QWidget
@@ -38,9 +39,14 @@ private slots:
 private:
     void setupUI();
     void addSampleData();
-    void addRow(const QString &id, const QString &name, const QString &gender, const QString &birthday, const QString &phone, const QString &level, double balance, double consume_amt, int pts, const QString &lastVisit, const QString &pets);
+    void addRow(const MemberInfo &info, const QString &lastVisit = "未知", const QString &pets = "无");
+    void updateRowInPlace(int r, const MemberInfo &info, const QString &lastVisit, const QString &pets);
     void updatePagination();
     QString generateNextMemberId();
+    
+    QGraphicsDropShadowEffect *tableShadow;
+    bool m_isRefreshing = false;
+    void refreshTablePreservingSelection(const QString &targetId);
     
     QTableWidget *memTable;
     QLineEdit *searchEdit;

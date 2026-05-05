@@ -1,0 +1,37 @@
+<h2>选择布局方案</h2>
+<p class="subtitle">针对包含“服务描述”的字段列表，哪种布局更符合你的偏好？</p>
+
+<div class="options">
+  <div class="option" data-choice="single_column" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>单列垂直布局</h3>
+      <p>与“新增会员档案”保持高度一致，字段从上往下排列。适合清晰的填写流，描述框放在最下方。</p>
+      <div class="mockup" style="margin-top: 10px; font-size: 12px; color: #64748b;">
+        <div class="mock-input">服务名称</div>
+        <div class="mock-input">所属分类</div>
+        <div class="mock-input">...</div>
+        <div class="mock-input" style="height: 60px;">服务描述 (多行)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="grouped" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>分组网格布局</h3>
+      <p>将基础信息（名称、分类、编码）和财务信息（价格、时长、提成）分组显示。更加紧凑，逻辑性强。</p>
+      <div class="mockup" style="margin-top: 10px; font-size: 12px; color: #64748b;">
+        <div style="font-weight: bold; margin-bottom: 4px;">基础信息</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+           <div class="mock-input">名称</div><div class="mock-input">分类</div>
+        </div>
+        <div style="font-weight: bold; margin-top: 8px; margin-bottom: 4px;">财务/时间</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+           <div class="mock-input">价格</div><div class="mock-input">时长</div>
+        </div>
+        <div class="mock-input" style="height: 40px; margin-top: 4px;">描述</div>
+      </div>
+    </div>
+  </div>
+</div>

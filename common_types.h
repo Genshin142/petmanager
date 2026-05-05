@@ -87,6 +87,7 @@ struct PetInfo {
     QString fosterStartTime; // 寄养开始时间
     QString fosterEndTime;   // 寄养结束时间
     double weight = 0.0;     // 当前体重 (kg)
+    bool isActive = true;    // 是否处于活跃状态 (逻辑删除)
 };
 
 struct ProductInfo {
@@ -147,6 +148,7 @@ struct StockInRecord {
     QStringList imgPaths; // 修改为多图路径
     int shelfLifeDays;    // 新增：从入库单带出的保质期天数
     bool isShelved = false; // 新增：是否已完成上架入库
+    bool isActive = true;   // 是否处于活跃状态 (逻辑删除)
 };
 
 struct StockBatch {

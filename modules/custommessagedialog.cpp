@@ -42,9 +42,13 @@ void CustomMessageDialog::setupUI(const QString &title, const QString &content, 
 
     // 自动居中父窗口
     if (parentWidget()) {
-        this->setParent(parentWidget());
-        QPoint centerPos = parentWidget()->geometry().center();
-        this->move(centerPos.x() - 210, centerPos.y() - 100);
+        // 先确保布局计算完成
+        this->adjustSize();
+        
+        QRect parentGeom = parentWidget()->geometry();
+        int x = parentGeom.center().x() - this->width() / 2;
+        int y = parentGeom.center().y() - this->height() / 2;
+        this->move(x, y);
     }
 
     // 主布局，留出阴影边距

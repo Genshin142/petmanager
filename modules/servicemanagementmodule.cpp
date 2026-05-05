@@ -202,12 +202,12 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
     m_serviceTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     m_serviceTable->setColumnWidth(0, 100); // 编码
     m_serviceTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); // 只有名称拉伸
-    m_serviceTable->setColumnWidth(2, 70);  // 分类
-    m_serviceTable->setColumnWidth(3, 70);  // 时长
-    m_serviceTable->setColumnWidth(4, 80);  // 价格
-    m_serviceTable->setColumnWidth(5, 70);  // 销量
-    m_serviceTable->setColumnWidth(6, 75);  // 状态
-    m_serviceTable->setColumnWidth(7, 100); // 操作
+    m_serviceTable->setColumnWidth(2, 90);  // 分类
+    m_serviceTable->setColumnWidth(3, 110); // 时长
+    m_serviceTable->setColumnWidth(4, 100); // 价格
+    m_serviceTable->setColumnWidth(5, 90);  // 销量
+    m_serviceTable->setColumnWidth(6, 85);  // 状态
+    m_serviceTable->setColumnWidth(7, 120); // 操作
     m_serviceTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     m_serviceTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
@@ -312,8 +312,8 @@ void ServiceManagementModule::setupDetailPanel()
     scrollContent->setObjectName("ScrollContent");
     scrollContent->setStyleSheet("QWidget#ScrollContent { background: white; border-radius: 12px; }");
     QVBoxLayout *detailLayout = new QVBoxLayout(scrollContent);
-    detailLayout->setContentsMargins(20, 25, 20, 25); 
-    detailLayout->setSpacing(30);
+    detailLayout->setContentsMargins(20, 15, 20, 15); 
+    detailLayout->setSpacing(15);
 
     // Title
     QHBoxLayout *header = new QHBoxLayout();
@@ -352,7 +352,7 @@ void ServiceManagementModule::setupDetailPanel()
         QLabel *t = new QLabel(title);
         t->setStyleSheet("color: #475569; font-size: 12px; font-weight: bold; border: none;"); // 缩小标题
         valLabel = new QLabel("0");
-        valLabel->setStyleSheet("color: #0f172a; font-size: 24px; font-weight: bold; margin: 2px 0; border: none;"); // 32px -> 24px
+        valLabel->setStyleSheet("color: #0f172a; font-size: 20px; font-weight: bold; margin: 2px 0; border: none;"); // 24px -> 20px
         l->addWidget(t);
         l->addWidget(valLabel);
         return card;
@@ -366,7 +366,7 @@ void ServiceManagementModule::setupDetailPanel()
         QWidget *w = new QWidget();
         w->setStyleSheet("background: transparent; border: none;"); // 强制透明无背景
         QHBoxLayout *l = new QHBoxLayout(w);
-        l->setContentsMargins(0, 15, 0, 5);
+        l->setContentsMargins(0, 5, 0, 2);
         l->setSpacing(8);
         
         // 蓝色视觉锚点条
@@ -386,7 +386,7 @@ void ServiceManagementModule::setupDetailPanel()
     detailLayout->addWidget(createSectionHeader("基础参数"));
 
     QFrame *baseCard = new QFrame();
-    baseCard->setStyleSheet("background: #f8fafc; border-radius: 8px; padding: 10px;");
+    baseCard->setStyleSheet("background: #f8fafc; border-radius: 8px; padding: 8px;");
     QGridLayout *baseGrid = new QGridLayout(baseCard);
     
     m_editPrice = new QLineEdit(); 
@@ -401,7 +401,7 @@ void ServiceManagementModule::setupDetailPanel()
         l->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; background: transparent;"); 
         edit = new QLineEdit();
         edit->setReadOnly(true);
-        edit->setStyleSheet("background: transparent; border: none; color: #0f172a; font-weight: bold; font-size: 16px;"); // 增大字号到 16px
+        edit->setStyleSheet("background: transparent; border: none; color: #0f172a; font-weight: bold; font-size: 14px;"); // 16px -> 14px
         vl->addWidget(l);
         vl->addWidget(edit);
         baseGrid->addLayout(vl, r, c);
@@ -419,8 +419,8 @@ void ServiceManagementModule::setupDetailPanel()
     QFrame *commCard = new QFrame();
     commCard->setStyleSheet("background: white; border: none;"); // 去掉边框
     QGridLayout *commGrid = new QGridLayout(commCard);
-    commGrid->setContentsMargins(0, 10, 0, 10);
-    commGrid->setSpacing(15);
+    commGrid->setContentsMargins(0, 5, 0, 5);
+    commGrid->setSpacing(10);
     auto addField = [&](const QString &label, QLineEdit* &edit, int r, int c) {
         QVBoxLayout *l = new QVBoxLayout();
         QLabel *lbl = new QLabel(label);
@@ -428,7 +428,7 @@ void ServiceManagementModule::setupDetailPanel()
         edit = new QLineEdit();
         edit->setReadOnly(true);
         // 去掉边框，仅保留圆角背景
-        edit->setStyleSheet("background: #f8fafc; border: none; border-radius: 8px; padding: 10px; color: #0f172a; font-weight: bold; font-size: 15px;"); // Added font-size 15px
+        edit->setStyleSheet("background: #f8fafc; border: none; border-radius: 8px; padding: 8px; color: #0f172a; font-weight: bold; font-size: 14px;"); 
         l->addWidget(lbl);
         l->addWidget(edit);
         commGrid->addLayout(l, r, c);
@@ -436,11 +436,18 @@ void ServiceManagementModule::setupDetailPanel()
     addField("固定提成金额 (元)", m_editCommFixed, 0, 0);
     detailLayout->addWidget(commCard);
 
+    // Description Section
+    detailLayout->addWidget(createSectionHeader("项目描述"));
+    m_lblDetailDesc = new QLabel();
+    m_lblDetailDesc->setWordWrap(true);
+    m_lblDetailDesc->setStyleSheet("color: #475569; line-height: 1.4; font-size: 13px; background: #f8fafc; border-radius: 8px; padding: 10px;");
+    detailLayout->addWidget(m_lblDetailDesc);
+
     // History Section
     detailLayout->addWidget(createSectionHeader("最近操作记录"));
     m_lblHistory = new QLabel();
     m_lblHistory->setWordWrap(true);
-    m_lblHistory->setStyleSheet("color: #475569; line-height: 1.8; font-size: 13px; background: transparent;");
+    m_lblHistory->setStyleSheet("color: #475569; line-height: 1.4; font-size: 13px; background: transparent;");
     detailLayout->addWidget(m_lblHistory);
 
     detailLayout->addStretch();
@@ -601,6 +608,8 @@ void ServiceManagementModule::updateDetailPanel(const ServiceInfo &info)
 
     m_editCommFixed->setText(QString::number(info.commissionFixed, 'f', 2));
     
+    m_lblDetailDesc->setText(info.description.isEmpty() ? "<font color='#94a3b8'>暂无项目描述</font>" : info.description);
+    
     // 清空旧记录，显示默认状态（如果以后需要持久化日志，可以从数据库读取）
     if (m_lblHistory->text().isEmpty()) {
         m_lblHistory->setText("<font color='#94a3b8'>暂无最近操作记录</font>");
@@ -649,6 +658,8 @@ void ServiceManagementModule::onEditService()
             changes << QString("时长由 <font color='#3b82f6'>%1分钟</font> 改为 <font color='#3b82f6'>%2分钟</font>").arg(QString::number(oldInfo.durationMinutes), QString::number(newInfo.durationMinutes));
         if (oldInfo.commissionFixed != newInfo.commissionFixed)
             changes << QString("提成由 <font color='#3b82f6'>¥%1</font> 改为 <font color='#3b82f6'>¥%2</font>").arg(QString::number(oldInfo.commissionFixed, 'f', 2), QString::number(newInfo.commissionFixed, 'f', 2));
+        if (oldInfo.description != newInfo.description)
+            changes << QString("描述已修改");
 
         if (!changes.isEmpty()) {
             // 2. 格式化日志

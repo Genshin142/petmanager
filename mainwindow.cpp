@@ -136,7 +136,7 @@ void MainWindow::initModules(UserRole role)
     qDebug() << "RoleModule...";
     roleMod = new RoleModule(this);
     qDebug() << "PetModule...";
-    petMod = new PetModule(this);
+    petMod = new PetModule(role, this);
     qDebug() << "ProductModule...";
     productMod = new ProductModule(role, this);
     qDebug() << "FosterModule...";
@@ -154,7 +154,7 @@ void MainWindow::initModules(UserRole role)
     qDebug() << "LogisticsModule...";
     logisticsMod = new LogisticsModule(this);
     qDebug() << "InboundModule...";
-    inboundMod = new InboundModule(this);
+    inboundMod = new InboundModule(role, this);
     qDebug() << "ServiceManagementModule...";
     serviceMod = new ServiceManagementModule(role, this);
     qDebug() << "Modules initialized.";

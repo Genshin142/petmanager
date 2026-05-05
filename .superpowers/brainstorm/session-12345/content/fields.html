@@ -1,0 +1,39 @@
+<h2>美化服务项目对话框</h2>
+<p class="subtitle">我们将基于现有的功能，采用“新增会员档案”的视觉风格进行升级。</p>
+
+<div class="section">
+  <h3>当前字段确认</h3>
+  <p>目前对话框包含以下字段，是否需要增减？</p>
+  <ul>
+    <li><b>服务名称</b> (必填)</li>
+    <li><b>所属分类</b> (洗护、美容、保健等)</li>
+    <li><b>服务编码</b> (自动生成，可留空)</li>
+    <li><b>服务价格</b> (元)</li>
+    <li><b>标准时长</b> (分钟)</li>
+    <li><b>固定提成</b> (元)</li>
+  </ul>
+</div>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="keep_all" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>保持现有字段</h3>
+      <p>仅进行视觉美化，不改变功能逻辑。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="add_desc" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>增加“服务描述”</h3>
+      <p>可以输入更详细的项目介绍。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="add_icon" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>增加“图标/图片”</h3>
+      <p>为服务项目设置一个视觉标识。</p>
+    </div>
+  </div>
+</div>

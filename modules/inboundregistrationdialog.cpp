@@ -102,11 +102,26 @@ void InboundRegistrationDialog::setupUI()
         QVBoxLayout *l = new QVBoxLayout();
         l->setSpacing(6);
         QLabel *lbl = new QLabel(label);
-        lbl->setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; border: none;"); // 明确去掉 label 边框
-        edit->setFixedHeight(34);
-        edit->setStyleSheet("QWidget { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; color: #606266; } "
-                           "QWidget:hover { border-color: #c0c4cc; } "
-                           "QWidget:focus { border-color: #409eff; }");
+        lbl->setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; border: none;");
+        edit->setFixedHeight(36);
+        
+        // 采用会员界面的专业样式
+        QString baseStyle = 
+            "QWidget { border: 1px solid #e2e8f0; border-radius: 6px; padding: 0 10px; font-size: 13px; background-color: #f8fafc; color: #0f172a; } "
+            "QWidget:hover { border-color: #cbd5e1; background-color: #f1f5f9; } "
+            "QWidget:focus { border: 2px solid #3b82f6; background-color: #ffffff; padding: 0 9px; } ";
+        
+        if (qobject_cast<QComboBox*>(edit)) {
+            QString comboStyle = baseStyle +
+                "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 30px; border-left: none; } "
+                "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; height: 14px; } "
+                "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background-color: white; selection-background-color: #eff6ff; selection-color: #1e40af; outline: none; padding: 4px; } "
+                "QComboBox QAbstractItemView::item { height: 30px; padding-left: 10px; border-radius: 4px; } ";
+            edit->setStyleSheet(comboStyle);
+        } else {
+            edit->setStyleSheet(baseStyle);
+        }
+        
         l->addWidget(lbl);
         l->addWidget(edit);
         formLayout->addLayout(l, row, col);
@@ -154,15 +169,15 @@ void InboundRegistrationDialog::setupUI()
     mainLayout->addWidget(formFrame);
 
     // Confirm Button
-    QPushButton *confirmBtn = new QPushButton("确认入库并同步资料");
-    confirmBtn->setFixedHeight(44);
-    confirmBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; font-size: 15px; font-weight: 800; border-radius: 8px; border: none; } "
+    m_confirmBtn = new QPushButton("确认入库并同步资料");
+    m_confirmBtn->setFixedHeight(44);
+    m_confirmBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; font-size: 15px; font-weight: 800; border-radius: 8px; border: none; } "
                                "QPushButton:hover { background: #2563eb; } "
                                "QPushButton:pressed { background: #1d4ed8; }");
-    mainLayout->addWidget(confirmBtn);
+    mainLayout->addWidget(m_confirmBtn);
 
     connect(m_barcodeEdit, &QLineEdit::returnPressed, this, &InboundRegistrationDialog::onBarcodeEntered);
-    connect(confirmBtn, &QPushButton::clicked, this, &InboundRegistrationDialog::onConfirmInbound);
+    connect(m_confirmBtn, &QPushButton::clicked, this, &InboundRegistrationDialog::onConfirmInbound);
 }
 
 void InboundRegistrationDialog::onBarcodeEntered()
@@ -207,6 +222,36 @@ void InboundRegistrationDialog::updatePreviewCard(const QString &barcode)
     }
 }
 
+void InboundRegistrationDialog::setEditMode(const StockInRecord &rec, const ProductInfo &pInfo)
+{
+    m_isEditMode = true;
+    m_currentRecord = rec;
+    
+    setWindowTitle("修改入库资料");
+    m_confirmBtn->setText("保存资料修改");
+    
+    // 填入数据
+    m_barcodeEdit->setText(rec.barcode);
+    m_barcodeEdit->setEnabled(false); // 条码不可改
+    
+    m_nameEdit->setText(rec.productName);
+    m_categoryCombo->setCurrentText(pInfo.category);
+    m_specEdit->setText(rec.spec);
+    m_originEdit->setText(pInfo.origin);
+    m_qtyEdit->setText(QString::number(rec.quantity));
+    m_costEdit->setText(QString::number(rec.costPrice, 'f', 2));
+    m_supplierEdit->setText(rec.supplier);
+    m_supplierPhoneEdit->setText(rec.supplierPhone);
+    m_dateEdit->setText(rec.productionDate);
+    m_shelfLifeEdit->setText(QString::number(rec.shelfLifeDays));
+    m_operatorCombo->setCurrentText(rec.operatorName);
+    
+    m_imagePaths = rec.imgPaths;
+    m_currentImgIndex = 0;
+    
+    updatePreviewCard(rec.barcode);
+}
+
 void InboundRegistrationDialog::onConfirmInbound()
 {
     QString barcode = m_barcodeEdit->text().trimmed();
@@ -228,8 +273,14 @@ void InboundRegistrationDialog::onConfirmInbound()
     rec.imgPaths = m_imagePaths;
     rec.shelfLifeDays = m_shelfLifeEdit->text().toInt();
 
-    ProductDataManager::instance()->addRecord(rec);
-    emit recordAdded();
+    if (m_isEditMode) {
+        // 更新现有记录 (需要 dateTime 和 barcode 匹配)
+        ProductDataManager::instance()->updateRecord(m_currentRecord.dateTime, m_currentRecord.barcode, rec);
+        emit recordUpdated();
+    } else {
+        ProductDataManager::instance()->addRecord(rec);
+        emit recordAdded();
+    }
     accept();
 }
 

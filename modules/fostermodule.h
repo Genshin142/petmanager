@@ -25,12 +25,13 @@ class CompactCalendar;
 class FosterCard : public QFrame {
     Q_OBJECT
 public:
-    explicit FosterCard(int roomNo, const QString &status, const QString &petId, const QString &petName, const QString &petBreed = "", const QString &ownerName = "", QWidget *parent = nullptr);
+    explicit FosterCard(int roomNo, const QString &status, const QString &roomType, const QString &petId, const QString &petName, const QString &petBreed = "", const QString &ownerName = "", QWidget *parent = nullptr);
     QString petId() const { return m_petId; }
     QString petName() const { return m_petName; }
     QString petBreed() const { return m_petBreed; }
     QString ownerName() const { return m_ownerName; }
     QString status() const { return m_status; }
+    QString roomType() const { return m_roomType; }
     int roomId() const { return m_roomNo; }
 
 signals:
@@ -44,6 +45,7 @@ protected:
 private:
     int m_roomNo;
     QString m_status;
+    QString m_roomType;
     QString m_petId;
     QString m_petName;
     QString m_petBreed;

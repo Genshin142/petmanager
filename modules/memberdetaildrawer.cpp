@@ -67,39 +67,45 @@ void MemberDetailDrawer::setupUI()
     m_nameLabel->setStyleSheet("font-size: 24px; color: #303133; font-weight: bold;"); 
     
     m_editBtn = new QPushButton();
+    m_editBtn->setFixedSize(110, 40);
     m_editBtn->setCursor(Qt::PointingHandCursor);
-    m_editBtn->setFixedHeight(28); 
-    m_editBtn->setMinimumWidth(85);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #ecf5ff; border: 1px solid #b3d8ff; border-radius: 6px; } "
-        "QPushButton:hover { background: #409eff; }"
+        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
+        "QPushButton:hover { background: #2563eb; }"
     );
     
     QHBoxLayout *editBtnLayout = new QHBoxLayout(m_editBtn);
     editBtnLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel *editBtnText = new QLabel(QString::fromUtf8("编辑资料"));
+    QLabel *editBtnText = new QLabel("编辑资料");
     editBtnText->setAlignment(Qt::AlignCenter);
-    editBtnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    editBtnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
     editBtnLayout->addWidget(editBtnText);
     
     m_editBtn->hide(); 
     
     nameRow->addWidget(m_nameLabel);
+    
+    m_idLabel = new QLabel("ID: --");
+    m_idLabel->setStyleSheet("color: #94a3b8; font-size: 14px; margin-left: 10px; font-weight: normal;");
+    nameRow->addWidget(m_idLabel);
+
     nameRow->addStretch(); // 重点：推到最右侧
-    nameRow->addWidget(m_editBtn);
+    // m_editBtn 不再加入布局，改用绝对定位
     
     QHBoxLayout *badgeLayout = new QHBoxLayout();
     m_levelLabel = new QLabel("普通会员");
-    m_levelLabel->setStyleSheet("background: #f0f9eb; color: #67c23a; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold;");
-    
-    m_idLabel = new QLabel("ID: --");
-    m_idLabel->setStyleSheet("color: #909399; font-size: 13px; margin-left: 10px;");
-    
+    m_levelLabel->setObjectName("LevelBadge");
+    m_levelLabel->setStyleSheet("QLabel#LevelBadge { background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; border: 1px solid #dcfce7; }");
     badgeLayout->addWidget(m_levelLabel);
-    badgeLayout->addWidget(m_idLabel);
+    
+    m_statusLabel = new QLabel("正常");
+    m_statusLabel->setObjectName("StatusBadge");
+    m_statusLabel->setStyleSheet("QLabel#StatusBadge { background: #eff6ff; color: #3b82f6; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #dbeafe; }");
+    badgeLayout->addWidget(m_statusLabel);
     
     m_petCountLabel = new QLabel("宠物资产: 0");
-    m_petCountLabel->setStyleSheet("background: #fdf6ec; color: #e6a23c; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; margin-left: 10px;");
+    m_petCountLabel->setObjectName("PetBadge");
+    m_petCountLabel->setStyleSheet("QLabel#PetBadge { background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #ffedd5; }");
     badgeLayout->addWidget(m_petCountLabel);
     badgeLayout->addStretch();
     
@@ -171,6 +177,11 @@ void MemberDetailDrawer::setupUI()
     });
 
     m_tabGroup->button(0)->setChecked(true);
+    
+    // 采用绝对定位固定位置
+    m_editBtn->setParent(container);
+    m_editBtn->move(297, 21);
+    m_editBtn->raise();
 }
 
 QWidget* MemberDetailDrawer::createProfilePage()
@@ -226,6 +237,7 @@ QWidget* MemberDetailDrawer::createProfilePage()
     addDetailRow(baseL, "性别", m_valGender);
     addDetailRow(baseL, "生日", m_valBirthday);
     addDetailRow(baseL, "联系电话", m_valPhone);
+    addDetailRow(baseL, "当前状态", m_valStatus);
 
     // 2. 账户资产
     QVBoxLayout *assetL;
@@ -278,9 +290,9 @@ QWidget* MemberDetailDrawer::createPetPage()
     m_addPetBtn->setCursor(Qt::PointingHandCursor);
     m_addPetBtn->setFixedHeight(36);
     m_addPetBtn->setStyleSheet(
-        "QPushButton { background: #67c23a; color: white; border-radius: 6px; font-size: 13px; font-weight: bold; padding: 0 15px; } "
-        "QPushButton:hover { background: #85ce61; } "
-        "QPushButton:pressed { background: #5daf34; }"
+        "QPushButton { background: #166534; color: white; border-radius: 6px; font-size: 13px; font-weight: bold; padding: 0 15px; } "
+        "QPushButton:hover { background: #15803d; } "
+        "QPushButton:pressed { background: #14532d; }"
     );
     btnLayout->addWidget(m_addPetBtn);
     btnLayout->addStretch();
@@ -335,17 +347,26 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
     
     // 更新等级颜色
     if (info.level.contains("黄金")) {
-        m_levelLabel->setStyleSheet("background: #fdf6ec; color: #e6a23c; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold;");
+        m_levelLabel->setStyleSheet("background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     } else if (info.level.contains("铂金")) {
-        m_levelLabel->setStyleSheet("background: #ecf5ff; color: #409eff; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold;");
+        m_levelLabel->setStyleSheet("background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     } else if (info.level.contains("钻石")) {
-        m_levelLabel->setStyleSheet("background: #f0f7ff; color: #a066ff; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold;");
+        m_levelLabel->setStyleSheet("background: #f3e8ff; color: #7e22ce; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     } else {
-        m_levelLabel->setStyleSheet("background: #f0f9eb; color: #67c23a; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold;");
+        m_levelLabel->setStyleSheet("background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     }
     m_levelLabel->setText(info.level);
 
     m_idLabel->setText("ID: " + info.id);
+
+    // 更新状态标签样式
+    if (info.status == "已注销") {
+        m_statusLabel->setStyleSheet("background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #e2e8f0;");
+    } else {
+        m_statusLabel->setStyleSheet("background: #eff6ff; color: #3b82f6; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #dbeafe;");
+    }
+    m_statusLabel->setText(info.status);
+    if (m_valStatus) m_valStatus->setText(info.status);
     
     // 统计宠物数量并更新标签
     QStringList petList = pets.split("/", Qt::SkipEmptyParts);
@@ -356,9 +377,9 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
     m_petCountLabel->setText(QString("宠物资产: %1").arg(count));
     // 如果没有宠物，使用中性色；有宠物使用温暖的橙色
     if(count == 0) {
-        m_petCountLabel->setStyleSheet("background: #f4f4f5; color: #909399; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; margin-left: 10px;");
+        m_petCountLabel->setStyleSheet("QLabel#PetBadge { background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #f1f5f9; }");
     } else {
-        m_petCountLabel->setStyleSheet("background: #fdf6ec; color: #e6a23c; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; margin-left: 10px;");
+        m_petCountLabel->setStyleSheet("QLabel#PetBadge { background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #ffedd5; }");
     }
 
     m_valGender->setText(info.gender);
@@ -471,21 +492,21 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             bool isFostering = (pInfo.status == "在店 (寄养中)");
 
             if (isFostering) {
-                statusStyle = "background: #fdf6ec; color: #e6a23c; border: 1px solid #f5dab1;";
+                statusStyle = "background: #ffedd5; color: #9a3412;";
             } else if (pInfo.status.contains("在店")) {
-                statusStyle = "background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;";
+                statusStyle = "background: #dcfce7; color: #166534;";
             } else {
-                statusStyle = "background: #f4f4f5; color: #909399; border: 1px solid #e9e9eb;";
+                statusStyle = "background: #f1f5f9; color: #64748b;";
             }
 
             QLabel *pStatusL = new QLabel(pInfo.status.split(" ").first());
-            pStatusL->setStyleSheet(statusStyle + "padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold;");
+            pStatusL->setStyleSheet(statusStyle + "padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
             pStatusRow->addWidget(pStatusL);
 
             if (isFostering) {
                 // 模拟房间号，后续可从 pInfo 扩展字段
                 QLabel *pRoomL = new QLabel("房间: B-102"); 
-                pRoomL->setStyleSheet("background: #ecf5ff; color: #409eff; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-left: 5px;");
+                pRoomL->setStyleSheet("background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 5px;");
                 pStatusRow->addWidget(pRoomL);
             }
             pStatusRow->addStretch();
@@ -571,7 +592,7 @@ bool MemberDetailDrawer::eventFilter(QObject *obj, QEvent *event)
             }
             return true;
         }
-
+        
         // 3. 点击遮罩层关闭预览
         if (obj == m_imagePreviewOverlay) {
             hideBigImage();
@@ -579,6 +600,14 @@ bool MemberDetailDrawer::eventFilter(QObject *obj, QEvent *event)
         }
     }
     return QWidget::eventFilter(obj, event);
+}
+
+void MemberDetailDrawer::updateBalance(double newBalance)
+{
+    m_currentMember.balance = newBalance;
+    if (m_valBalance) {
+        m_valBalance->setText(QString("¥ %1").arg(newBalance, 0, 'f', 2));
+    }
 }
 
 void MemberDetailDrawer::showDrawer()

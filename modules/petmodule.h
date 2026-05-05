@@ -124,7 +124,7 @@ class PetModule : public QWidget
 {
     Q_OBJECT
 public:
-    explicit PetModule(QWidget *parent = nullptr);
+    explicit PetModule(UserRole role, QWidget *parent = nullptr);
     void addPetRow(const PetInfo &info); // 使用结构体简化
     void addPet(const PetInfo &pet);
     void filterByMemberAndHighlightPet(const QString &memberName, const QString &petName);
@@ -152,6 +152,8 @@ private slots:
     void onStatusFilterChanged(int id);
     void onLogAdded(const QString &petId, const PetActivityLog &log);
     void onQuickAction(); // 处理投喂/洗护按钮
+    void onRestorePet();  // 恢复注销的宠物
+    void onHardDeletePet(); // 管理员彻底删除
 
 private:
     QTableWidget *petTable;
@@ -180,7 +182,9 @@ private:
     
     // 数据同步增强：不再在内部存储全量数据，而是通过 DataManager 获取
     void refreshTable();
+    void refreshTablePreservingSelection();
     void syncRowData(int row, const PetInfo &info);
+    bool m_isRefreshing = false;
 
     // 大图预览交互
     QWidget *m_imagePreviewOverlay;
@@ -189,6 +193,7 @@ private:
     QModelIndex m_lastHoveredIndex;
     void showBigImage(const QString &path);
     void hideBigImage();
+    UserRole m_role;
 };
 
 // 详情弹窗：疫苗接种档案

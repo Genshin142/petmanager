@@ -17,7 +17,7 @@ class InboundModule : public QWidget
 {
     Q_OBJECT
 public:
-    explicit InboundModule(QWidget *parent = nullptr);
+    explicit InboundModule(UserRole role, QWidget *parent = nullptr);
 
 private slots:
     void onNewRegistration();
@@ -27,6 +27,10 @@ private slots:
     void updateStats();
     void onPrevPage();
     void onNextPage();
+    void onDeleteRecord();
+    void onRestoreRecord();
+    void onHardDeleteRecord();
+    void onEditProductFromDrawer();
 
 private:
     void setupUI();
@@ -62,7 +66,8 @@ private:
 
     // UI Components - Detail Drawer
     QWidget *m_detailDrawer;
-    QLabel *m_drawerTitle;
+    QFrame *m_drawerContainer;
+    QPushButton *m_editBtn;
     QVBoxLayout *m_detailContentLayout;
     
     QLabel *m_detailPreviewImg;
@@ -89,6 +94,7 @@ private:
     QLabel *pageLabel;
     int m_currentPage = 1;
     int m_pageSize = 15;
+    UserRole m_role;
 };
 
 #endif // INBOUNDMODULE_H

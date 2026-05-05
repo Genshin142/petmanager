@@ -3,6 +3,7 @@
 #include <QDate>
 #include <QRandomGenerator>
 #include "logisticsmanager.h"
+#include "memberdatamanager.h"
 
 PetDataManager* PetDataManager::m_instance = nullptr;
 
@@ -47,7 +48,7 @@ void PetDataManager::initMockData()
     addDemo("P004", "小雪", "狗", "萨摩耶", "母", "2岁", "洗护中", "M004", "赵六", "13366667777", "", "load_img.jpg");
 
     // 2. 模拟预约数据 (Appointment) - 建立业务来源
-    auto addAppt = [&](const QString &id, const QString &petId, const QString &type, const QString &status, const QString &time) {
+    auto addAppt = [&](const QString &id, const QString &petId, const QString &type, const QString &status, const QString &time, const QString &staff = "陈店长", double amount = 150.0) {
         AppointmentInfo a;
         a.id = id; a.petId = petId; 
         PetInfo pet = m_pets[petId];
@@ -55,11 +56,13 @@ void PetDataManager::initMockData()
         a.memberName = pet.ownerName; a.memberPhone = pet.ownerPhone;
         a.type = type; a.status = status; a.date = QDate::currentDate().toString("yyyy-MM-dd");
         a.hour = time; a.service = (type == "Grooming" ? "精细洗护SPA" : "基础检查");
+        a.staff = staff;
+        a.amount = amount;
         m_appointments[id] = a;
     };
-    addAppt("APP-2026050201", "P001", "Grooming", "Completed", "09:00");
-    addAppt("APP-2026050202", "P004", "Grooming", "Ongoing", "14:30");
-    addAppt("APP-2026050203", "P003", "Health", "Pending", "16:00");
+    addAppt("APP-2026050201", "P001", "Grooming", "Completed", "09:00", "王技师", 180.0);
+    addAppt("APP-2026050202", "P004", "Grooming", "Ongoing", "14:30", "李美容师", 120.0);
+    addAppt("APP-2026050203", "P003", "Health", "Pending", "16:00", "张医生", 50.0);
 
     // 3. 模拟订单数据 (Order) - 与预约/寄养深度勾连
     auto addOrd = [&](const QString &id, const QString &petId, const QString &details, double amt, const QString &status, const QString &source, const QString &relatedId) {
@@ -125,11 +128,22 @@ void PetDataManager::addPet(const PetInfo &info)
 
 void PetDataManager::removePet(const QString &id)
 {
-    m_pets.remove(id);
-    m_activityLogs.remove(id);
-    m_petMedia.remove(id);
-    m_vaccineRecords.remove(id);
-    emit globalDataChanged();
+    if (m_pets.contains(id)) {
+        m_pets[id].isActive = false;
+        m_pets[id].status = "已注销";
+        notifyGlobalDataChanged();
+        notifyPetDataChanged(id);
+    }
+}
+
+void PetDataManager::restorePet(const QString &id)
+{
+    if (m_pets.contains(id)) {
+        m_pets[id].isActive = true;
+        m_pets[id].status = "在家"; // 恢复后默认为在家
+        notifyGlobalDataChanged();
+        notifyPetDataChanged(id);
+    }
 }
 
 void PetDataManager::notifyGlobalDataChanged()
@@ -547,4 +561,20 @@ PetDataManager::OrderStats PetDataManager::getOrderStats(const QDate &start, con
     if (paidCount > 0) stats.avgTicket = stats.totalRevenue / paidCount;
     if (totalValid > 0) stats.successRate = (double)paidCount / totalValid * 100.0;
     return stats;
+}
+
+void PetDataManager::hardDeletePet(const QString &id)
+{
+    if (m_pets.contains(id)) {
+        PetInfo info = m_pets[id];
+        // 同步从会员档案中移除
+        MemberDataManager::instance()->removePetFromMember(info.ownerId, info.name);
+        
+        m_pets.remove(id);
+        m_activityLogs.remove(id);
+        m_petMedia.remove(id);
+        m_vaccineRecords.remove(id);
+        m_historyBatches.remove(id);
+        notifyGlobalDataChanged();
+    }
 }

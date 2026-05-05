@@ -27,6 +27,7 @@ public:
 
 public slots:
     void setMember(const MemberInfo &info, const QString &lastVisit, const QString &pets);
+    void updateBalance(double newBalance);
     void showDrawer();
     void hideDrawer();
 
@@ -52,6 +53,7 @@ private:
     QLabel *m_nameLabel;
     QPushButton *m_editBtn;
     QLabel *m_levelLabel;
+    QLabel *m_statusLabel;
     QLabel *m_idLabel;
     QLabel *m_petCountLabel;
 
@@ -63,6 +65,7 @@ private:
     QLabel *m_valGender;
     QLabel *m_valBirthday;
     QLabel *m_valPhone;
+    QLabel *m_valStatus;
     QLabel *m_valLevel;
     QLabel *m_valBalance;
     QLabel *m_valPoints;

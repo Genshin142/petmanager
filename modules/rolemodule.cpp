@@ -358,7 +358,7 @@ void RoleModule::setupUI()
     // 针对特定列进行固定
     header->setSectionResizeMode(0, QHeaderView::Fixed); empTable->setColumnWidth(0, 80);
     header->setSectionResizeMode(1, QHeaderView::Stretch);
-    header->setSectionResizeMode(6, QHeaderView::Fixed); empTable->setColumnWidth(6, 120);
+    header->setSectionResizeMode(6, QHeaderView::Fixed); empTable->setColumnWidth(6, 180);
     
     connect(empTable, &QTableWidget::currentCellChanged, this, &RoleModule::onCurrentCellChanged);
 
@@ -439,6 +439,16 @@ void RoleModule::addSampleData()
 {
     // 从统一数据管理器加载初始数据，确保全程序一致
     auto all = StaffDataManager::instance()->allStaff();
+    
+    // 排序逻辑：离职状态排在最后，其余按工号排序
+    // 排序逻辑：离职员工排在最后，其余按工号排序
+    std::sort(all.begin(), all.end(), [](const EmployeeInfo &a, const EmployeeInfo &b){
+        bool resA = (a.status == "离职");
+        bool resB = (b.status == "离职");
+        if (resA != resB) return !resA;
+        return a.id < b.id;
+    });
+
     for (const auto &info : all) {
         addEmployeeRow(info.id, info.name, info.role, info.status, info.gender, info.age, 
                        info.phone, info.email, info.idCard, info.baseSalary, 0, 0, info.imgPath);
@@ -547,11 +557,11 @@ void RoleModule::setEmployeeRowData(int row, const QString &id, const QString &n
     QHBoxLayout *sLayout = new QHBoxLayout(statusContainer);
     sLayout->setContentsMargins(0, 0, 0, 0); sLayout->setAlignment(Qt::AlignCenter);
     QLabel *statusTag = new QLabel(status);
-    QString tagStyle = "padding: 2px 12px; border-radius: 14px; font-size: 11px; font-weight: bold; ";
-    if (status == "在岗") tagStyle += "background-color: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8;";
-    else if (status == "请假") tagStyle += "background-color: #fdf6ec; color: #e6a23c; border: 1px solid #faecd8;";
-    else if (status == "离岗") tagStyle += "background-color: #f4f4f5; color: #909399; border: 1px solid #e4e7ed;";
-    else tagStyle += "background-color: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2;";
+    QString tagStyle = "padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; ";
+    if (status == "在岗") tagStyle += "background-color: #dcfce7; color: #166534;";
+    else if (status == "请假") tagStyle += "background-color: #ffedd5; color: #9a3412;";
+    else if (status == "离岗") tagStyle += "background-color: #f1f5f9; color: #64748b;";
+    else tagStyle += "background-color: #fee2e2; color: #991b1b;";
     statusTag->setStyleSheet(tagStyle);
     sLayout->addWidget(statusTag);
     empTable->setCellWidget(row, 3, statusContainer);
@@ -566,29 +576,69 @@ void RoleModule::setEmployeeRowData(int row, const QString &id, const QString &n
     QWidget *btnContainer = new QWidget();
     btnContainer->setStyleSheet("background: transparent; border: none;"); 
     QHBoxLayout *btnLayout = new QHBoxLayout(btnContainer);
-    btnLayout->setContentsMargins(0, 0, 0, 0); btnLayout->setSpacing(8); btnLayout->setAlignment(Qt::AlignCenter);
+    btnLayout->setContentsMargins(10, 0, 10, 0); btnLayout->setSpacing(8); btnLayout->setAlignment(Qt::AlignCenter);
 
-    QPushButton *delBtn = new QPushButton("删除");
-    delBtn->setCursor(Qt::PointingHandCursor);
-    delBtn->setFixedSize(65, 28);
-    delBtn->setStyleSheet(
-        "QPushButton { "
-        "  background-color: #fef0f0; "
-        "  color: #f56c6c !important; "
-        "  border: 1px solid #fbc4c4; "
-        "  border-radius: 4px; "
-        "  font-size: 12px; "
-        "  padding: 0; "
-        "  text-align: center; "
-        "} "
-        "QPushButton:hover { "
-        "  background-color: #f56c6c; "
-        "  color: white !important; "
-        "}"
-    );
-    
-    connect(delBtn, &QPushButton::clicked, this, &RoleModule::onDeleteEmployee);
-    btnLayout->addWidget(delBtn);
+    if (status == "离职") {
+        // --- 离职状态下的操作按钮 ---
+        QPushButton *restoreBtn = new QPushButton("恢复");
+        restoreBtn->setCursor(Qt::PointingHandCursor);
+        restoreBtn->setFixedSize(70, 28);
+        restoreBtn->setStyleSheet(
+            "QPushButton { background-color: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; border-radius: 4px; font-size: 12px; padding: 0; text-align: center; } "
+            "QPushButton:hover { background-color: #3b82f6; color: white; }"
+        );
+        btnLayout->addWidget(restoreBtn);
+        connect(restoreBtn, &QPushButton::clicked, this, [=](){
+            if (CustomMessageDialog::confirm(this, "恢复确认", QString("确定恢复员工 [%1] 的在岗档案吗？").arg(name))) {
+                StaffDataManager::instance()->restoreStaff(id);
+                refreshTablePreservingSelection(id);
+                updateStats();
+                CustomMessageDialog::showSuccess(this, "恢复成功", QString("员工 %1 已重新入职").arg(name));
+            }
+        });
+
+        // 彻底删除
+        QPushButton *hardDelBtn = new QPushButton("彻底删除");
+        hardDelBtn->setCursor(Qt::PointingHandCursor);
+        hardDelBtn->setFixedSize(70, 28);
+        hardDelBtn->setStyleSheet(
+            "QPushButton { background-color: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; border-radius: 4px; font-size: 12px; padding: 0; text-align: center; } "
+            "QPushButton:hover { background-color: #dc2626; color: white; }"
+        );
+        btnLayout->addWidget(hardDelBtn);
+        connect(hardDelBtn, &QPushButton::clicked, this, [=](){
+            if (CustomMessageDialog::confirm(this, "彻底删除警示", QString("确定要永久抹除员工 [%1] 的所有档案吗？\n此操作不可撤销。").arg(name))) {
+                StaffDataManager::instance()->hardDeleteStaff(id);
+                m_drawer->hideDrawer();
+                
+                // 刷新数据
+                empTable->setRowCount(0);
+                addSampleData();
+                updateStats();
+                updatePagination();
+                CustomMessageDialog::showSuccess(this, "清理成功", QString("员工 %1 的档案已彻底移除").arg(name));
+            }
+        });
+    } else {
+        // --- 正常状态下的操作按钮 ---
+        QPushButton *delBtn = new QPushButton("删除");
+        delBtn->setCursor(Qt::PointingHandCursor);
+        delBtn->setFixedSize(70, 28);
+        delBtn->setStyleSheet(
+            "QPushButton { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; border-radius: 4px; font-size: 12px; padding: 0; text-align: center; } "
+            "QPushButton:hover { background-color: #f56c6c; color: white; }"
+        );
+        btnLayout->addWidget(delBtn);
+        connect(delBtn, &QPushButton::clicked, this, [=](){
+            if (CustomMessageDialog::confirm(this, "删除确认", QString("确定将员工 [%1] 标记为离职吗？\n离职后档案将保留在系统中。").arg(name))) {
+                StaffDataManager::instance()->removeStaff(id);
+                refreshTablePreservingSelection(id);
+                updateStats();
+                CustomMessageDialog::showSuccess(this, "操作成功", QString("员工 %1 已被标记为离职").arg(name));
+            }
+        });
+    }
+
     empTable->setCellWidget(row, 6, btnContainer);
     empTable->setItem(row, 6, new QTableWidgetItem("")); 
 }
@@ -665,6 +715,8 @@ void RoleModule::updatePagination()
         }
         empTable->setRowHidden(i, true); // 先全部隐藏
     }
+
+    // 2. 计算分页 (物理行顺序已在 addSampleData 中处理)
 
     // 计算分页
     int totalVisible = visibleRows.size();
@@ -744,7 +796,7 @@ void RoleModule::onEditEmployee()
     if (!btn) return;
     
     for (int i = 0; i < empTable->rowCount(); ++i) {
-        QWidget *w = empTable->cellWidget(i, 7); // 操作按钮在第 7 列
+        QWidget *w = empTable->cellWidget(i, 6); // 操作按钮在第 6 列
         if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
              // 核心：直接从 UserRole 获取完整对象
              EmployeeInfo info = empTable->item(i, 0)->data(Qt::UserRole).value<EmployeeInfo>();
@@ -757,10 +809,9 @@ void RoleModule::onEditEmployee()
                   // 同步更新数据中心
                   StaffDataManager::instance()->updateStaff(newInfo);
                   
-                  // 原位更新 UI
-                  empTable->removeRow(i);
-                  empTable->insertRow(i);
+                  // 原位刷新，避免详情页被收回
                   addEmployeeRowInPlace(i, newInfo);
+                  empTable->selectRow(i);
                   updateStats();
                   updatePagination();
              }
@@ -769,29 +820,64 @@ void RoleModule::onEditEmployee()
     }
 }
 
-void RoleModule::onDeleteEmployee()
-{
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
 
+void RoleModule::refreshTablePreservingSelection(const QString &targetId)
+{
+    m_isRefreshing = true;
+    
+    // 保存当前分页信息
+    int savedPage = m_currentPage;
+    
+    empTable->setRowCount(0);
+    addSampleData(); // 这里已经包含了排序逻辑
+    updateStats();
+    updatePagination();
+    
+    // 寻找并选中目标 ID
+    int targetIdx = -1;
     for (int i = 0; i < empTable->rowCount(); ++i) {
-        QWidget *w = empTable->cellWidget(i, 7);
-        if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
-            EmployeeInfo info = empTable->item(i, 0)->data(Qt::UserRole).value<EmployeeInfo>();
-            if (CustomMessageDialog::confirm(this, "删除确认", QString("确定要删除员工 [%1] 的档案吗？").arg(info.name))) {
-                StaffDataManager::instance()->removeStaff(info.id);
-                empTable->removeRow(i);
-                updateStats();
-                updatePagination();
-            }
+        if (empTable->item(i, 0) && empTable->item(i, 0)->text() == targetId) {
+            targetIdx = i;
             break;
         }
     }
+    
+    if (targetIdx != -1) {
+        // 计算该行所在的页码 (基于当前的筛选条件)
+        QList<int> visibleRows;
+        QString searchText = searchEdit->text();
+        QString selectedRole = roleFilterCombo->currentText();
+        QString selectedStatus = m_currentStatusFilter;
+        
+        for (int i = 0; i < empTable->rowCount(); ++i) {
+            bool match = true;
+            if (!searchText.isEmpty() && !empTable->item(i, 1)->text().contains(searchText, Qt::CaseInsensitive) && !empTable->item(i, 0)->text().contains(searchText, Qt::CaseInsensitive)) match = false;
+            if (selectedRole != "全部职位" && empTable->item(i, 2)->text() != selectedRole) match = false;
+            if (selectedStatus != "全部状态") {
+                QWidget *wa = empTable->cellWidget(i, 3);
+                if (wa) { QLabel *l = wa->findChild<QLabel*>(); if(l && l->text() != selectedStatus) match = false; }
+            }
+            if (match) visibleRows.append(i);
+        }
+        
+        int k = visibleRows.indexOf(targetIdx);
+        if (k != -1) {
+            m_currentPage = (k / m_pageSize) + 1;
+            updatePagination();
+            empTable->selectRow(targetIdx);
+            onCurrentCellChanged(targetIdx, 0, -1, -1);
+        }
+    } else {
+        m_currentPage = savedPage;
+        updatePagination();
+    }
+    
+    m_isRefreshing = false;
 }
-
 
 void RoleModule::onCurrentCellChanged(int currentRow, int currentColumn, int previousRow, int previousColumn)
 {
+    if (m_isRefreshing) return;
     Q_UNUSED(currentColumn);
     Q_UNUSED(previousRow);
     Q_UNUSED(previousColumn);

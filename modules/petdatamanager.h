@@ -20,6 +20,8 @@ public:
     QList<PetInfo> getPetsByOwner(const QString &ownerId) const;
     void addPet(const PetInfo &info);
     void removePet(const QString &id);
+    void restorePet(const QString &id);
+    void hardDeletePet(const QString &id);
     void notifyGlobalDataChanged();
     void notifyPetDataChanged(const QString &petId);
 

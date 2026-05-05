@@ -272,6 +272,19 @@ void ProductDataManager::addRecord(const StockInRecord &rec) {
     emit productDataChanged();
 }
 
+void ProductDataManager::updateRecord(const QString &oldDateTime, const QString &barcode, const StockInRecord &newRec) {
+    for (auto &r : m_records) {
+        if (r.dateTime == oldDateTime && r.barcode == barcode) {
+            r = newRec;
+            // 保持原有的 dateTime 还是更新？通常“编辑资料”不应该改动入库时间，除非用户明确要求。
+            // 这里我们保持原有的 dateTime 以维持记录唯一性（或者使用 newRec 的，但 setEditMode 时我们保持了原有的）
+            r.dateTime = oldDateTime; 
+            break;
+        }
+    }
+    emit productDataChanged();
+}
+
 QList<StockInRecord> ProductDataManager::getUnlistedInboundItems() const {
     QList<StockInRecord> unlisted;
     QSet<QString> listedBarcodes;
@@ -336,4 +349,38 @@ int ProductDataManager::calculateTotalStock(const QString &barcode) const {
         }
     }
     return total;
+}
+
+void ProductDataManager::removeRecord(const QString &dateTime, const QString &barcode) {
+    for (auto &r : m_records) {
+        if (r.dateTime == dateTime && r.barcode == barcode) {
+            r.isActive = false;
+            emit productDataChanged();
+            break;
+        }
+    }
+}
+
+void ProductDataManager::restoreRecord(const QString &dateTime, const QString &barcode) {
+    for (auto &r : m_records) {
+        if (r.dateTime == dateTime && r.barcode == barcode) {
+            r.isActive = true;
+            emit productDataChanged();
+            break;
+        }
+    }
+}
+
+void ProductDataManager::hardDeleteRecord(const QString &dateTime, const QString &barcode) {
+    for (int i = 0; i < m_records.size(); ++i) {
+        if (m_records[i].dateTime == dateTime && m_records[i].barcode == barcode) {
+            m_records.removeAt(i);
+            // 彻底删除逻辑：如果该条码对应的商品已存在于档案中，也将其删除
+            if (m_products.contains(barcode)) {
+                m_products.remove(barcode);
+            }
+            emit productDataChanged();
+            break;
+        }
+    }
 }

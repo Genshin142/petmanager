@@ -18,6 +18,9 @@ struct MemberInfo {
     double balance;      // 储值余额
     double consume_amt;  // 累计消费金额
     int points;         // 当前可用积分
+    bool isActive = true; // 是否有效（逻辑删除标志）
+    QString status = "正常"; // 状态：正常、已注销、锁定等
+    QString pets = "无";    // 关联的宠物信息字符串
 };
 
 class AddMemberDialog : public QDialog
@@ -35,6 +38,8 @@ public:
 
 private:
     Ui::AddMemberDialog *ui;
+    MemberInfo m_info;
+    class CustomCalendarEdit *m_birthdayEdit;
 };
 
 #endif // ADDMEMBERDIALOG_H

@@ -206,14 +206,19 @@ void SalaryModule::addSalaryRow(const SalaryRecord &record)
     totalItem->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
     salaryTable->setItem(row, 4, totalItem);
 
-    QTableWidgetItem *statusItem = new QTableWidgetItem(record.status);
-    statusItem->setTextAlignment(Qt::AlignCenter);
+    // 状态标签
+    QWidget *statusW = new QWidget();
+    QHBoxLayout *statusL = new QHBoxLayout(statusW);
+    statusL->setContentsMargins(0, 0, 0, 0);
+    statusL->setAlignment(Qt::AlignCenter);
+    QLabel *statusTag = new QLabel(record.status);
     if (record.status == "待发放") {
-        statusItem->setForeground(QColor("#f56c6c"));
+        statusTag->setStyleSheet("background: #ffedd5; color: #9a3412; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: bold;");
     } else {
-        statusItem->setForeground(QColor("#67c23a"));
+        statusTag->setStyleSheet("background: #dcfce7; color: #166534; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: bold;");
     }
-    salaryTable->setItem(row, 5, statusItem);
+    statusL->addWidget(statusTag);
+    salaryTable->setCellWidget(row, 5, statusW);
 
     // 操作列
     QWidget *actionWidget = new QWidget();

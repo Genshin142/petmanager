@@ -190,87 +190,85 @@ protected:
 // FosterCard 实现
 // ========================
 
-FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, const QString &petName, const QString &petBreed, const QString &ownerName, QWidget *parent)
-    : QFrame(parent), m_roomNo(roomNo), m_status(status), m_petId(petId), m_petName(petName), m_petBreed(petBreed), m_ownerName(ownerName)
+FosterCard::FosterCard(int roomNo, const QString &status, const QString &roomType, const QString &petId, const QString &petName, const QString &petBreed, const QString &ownerName, QWidget *parent)
+    : QFrame(parent), m_roomNo(roomNo), m_status(status), m_roomType(roomType), m_petId(petId), m_petName(petName), m_petBreed(petBreed), m_ownerName(ownerName)
 {
     setFixedSize(210, 155);
     setCursor(Qt::PointingHandCursor);
 
-    QString bg, border, textColor;
+    // --- 颜色定义 (对照用户图片) ---
+    QString headerBg, headerText, cardBorder, bodyBg, statusIcon;
+    if (m_roomType == "豪华房") {
+        headerBg = "#311b92"; headerText = "white"; cardBorder = "#1a237e";
+    } else if (m_roomType == "多宠房") {
+        headerBg = "#ff7043"; headerText = "white"; cardBorder = "#d84315";
+    } else {
+        // 标准房
+        headerBg = "#b2dfdb"; headerText = "#004d40"; cardBorder = "#80cbc4";
+    }
 
     if (status == "occupied") {
-        bg = "#4A90E2"; border = "#3178c6"; textColor = "white";
-    } else if (status == "cleaning" || status == "maintenance") {
-        // 橙黄色预警色系
-        bool isMaint = (status == "maintenance");
-        bg = isMaint ? "#FFF2E8" : "#FFF7E6"; // 维护比清洁稍微深一点
-        border = isMaint ? "#FF9C6E" : "#FFA940";
-        textColor = isMaint ? "#873800" : "#7c4a00";
+        bodyBg = "#f0f7ff"; 
     } else if (status == "booked") {
-        bg = "#F9F0FF"; border = "#B37FEB"; textColor = "#531DAB";
+        bodyBg = "#f9f0ff"; 
+    } else if (status == "cleaning") {
+        bodyBg = "#e0f7fa"; // 极浅青（清洁感）
+    } else if (status == "maintenance") {
+        bodyBg = "#fff3e0"; // 极浅橙（警告/维护感）
     } else {
-        bg = "#FFFFFF"; border = "#ADD8E6"; textColor = "#4a5c6b";
+        bodyBg = "white";
     }
 
     setStyleSheet(QString(
         "FosterCard { background: %1; border-radius: 14px; border: 2px solid %2; }"
-        "QLabel { border: none; background: transparent; }"
-    ).arg(bg, border));
+    ).arg(bodyBg, cardBorder));
 
     m_shadow = new QGraphicsDropShadowEffect(this);
-    m_shadow->setBlurRadius(10);
-    m_shadow->setColor(QColor(0, 0, 0, 30));
-    m_shadow->setOffset(0, 2);
+    m_shadow->setBlurRadius(12);
+    m_shadow->setColor(QColor(0, 0, 0, 25));
+    m_shadow->setOffset(0, 3);
     setGraphicsEffect(m_shadow);
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(14, 12, 14, 12);
-    layout->setSpacing(4);
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
 
-    // -- 顶行：房间号 + 状态图标 --
-    QHBoxLayout *topRow = new QHBoxLayout();
-    topRow->setContentsMargins(0, 0, 0, 0);
-    QLabel *roomLabel = new QLabel(QString("Room %1").arg(roomNo));
-    roomLabel->setStyleSheet(QString("font-size: 14px; font-weight: bold; color: %1;").arg(textColor));
-
-    QString statusIcon;
-    if (status == "occupied") statusIcon = "";
-    else if (status == "cleaning") statusIcon = "";
-    else if (status == "maintenance") statusIcon = "";
-    else if (status == "booked") statusIcon = "";
-    else statusIcon = "✅";
-
-    QLabel *iconLabel = new QLabel(statusIcon);
-    iconLabel->setStyleSheet("font-size: 15px;");
-    iconLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-    topRow->addWidget(roomLabel);
+    // -- 顶部标题栏 --
+    QFrame *header = new QFrame();
+    header->setFixedHeight(38);
+    header->setStyleSheet(QString(
+        "QFrame { "
+        "  background: %1; "
+        "  border-top-left-radius: 12px; "
+        "  border-top-right-radius: 12px; "
+        "  border: none; "
+        "} "
+    ).arg(headerBg));
     
-    // 新增：接送物流标识 (🚚)
-    if (!petId.isEmpty()) {
-        auto tasks = LogisticsManager::instance()->getTasksForPet(petId);
-        for (const auto &task : tasks) {
-            if (task.status != "已完成") {
-                QLabel *truckIcon = new QLabel();
-                truckIcon->setStyleSheet("font-size: 13px; margin-left: 5px;");
-                truckIcon->setToolTip(QString("接送服务: %1 (%2)").arg(task.type, task.status));
-                topRow->addWidget(truckIcon);
-                break; // 只要有一个未完成任务就显示图标
-            }
-        }
+    QHBoxLayout *headerL = new QHBoxLayout(header);
+    headerL->setContentsMargins(12, 0, 12, 0);
+    
+    QLabel *titleLabel = new QLabel(QString("Room %1  |  %2").arg(roomNo).arg(roomType));
+    titleLabel->setStyleSheet(QString("color: %1; font-size: 13px; font-weight: 800;").arg(headerText));
+    headerL->addWidget(titleLabel);
+    headerL->addStretch();
+
+    // 状态标识
+    if (status == "free") {
+        QLabel *checkIcon = new QLabel("✅"); 
+        checkIcon->setStyleSheet("font-size: 12px;");
+        headerL->addWidget(checkIcon);
     }
+    mainLayout->addWidget(header);
 
-    topRow->addStretch();
-    topRow->addWidget(iconLabel);
-    layout->addLayout(topRow);
+    // -- 内容区 --
+    QFrame *content = new QFrame();
+    content->setStyleSheet("background: transparent; border: none;");
+    mainLayout->addWidget(content, 1);
 
-    // -- 分割线 --
-    QFrame *line = new QFrame();
-    line->setFixedHeight(1);
-    QString lineColor = (status == "occupied") ? "rgba(255,255,255,0.25)" : (status == "cleaning" ? "rgba(255,169,64,0.3)" : "rgba(173,216,230,0.5)");
-    line->setStyleSheet(QString("background: %1; border: none;").arg(lineColor));
-    layout->addWidget(line);
-    layout->addSpacing(2);
+    QVBoxLayout *layout = new QVBoxLayout(content);
+    layout->setContentsMargins(14, 10, 14, 12);
+    layout->setSpacing(4);
 
     if (status == "occupied" && !petId.isEmpty()) {
         // ===== 已入住：头像 + 宠物名(主人) + ID =====
@@ -278,144 +276,34 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
         infoRow->setContentsMargins(0, 0, 0, 0);
         infoRow->setSpacing(10);
 
-        // 圆形头像
         m_avatar = new QLabel();
         m_avatar->setFixedSize(64, 64);
         m_avatar->setAlignment(Qt::AlignCenter);
-        m_avatar->setCursor(Qt::PointingHandCursor);
         m_avatar->setStyleSheet(
-            "font-size: 32px; background: rgba(255,255,255,0.25); "
-            "border-radius: 32px; border: 2px solid rgba(255,255,255,0.5);"
+            "background: white; border-radius: 32px; border: 2px solid #e1e4e8;"
         );
 
-        // 右侧文字信息
         QVBoxLayout *textCol = new QVBoxLayout();
         textCol->setSpacing(2);
         textCol->setContentsMargins(0, 0, 0, 0);
 
-        // 宠物名
         QLabel *nameLabel = new QLabel(petName);
-        nameLabel->setStyleSheet(QString("color: %1; font-size: 17px; font-weight: bold;").arg(textColor));
+        nameLabel->setStyleSheet("color: #2d3436; font-size: 17px; font-weight: bold;");
 
-        // 品种徽章 (小) + 性别
         PetInfo info = PetDataManager::instance()->getPet(petId);
         QString genderHtml = getGenderBadgeHtml(info.gender);
-        QLabel *breedTag = new QLabel(QString("%1 · %2").arg(petBreed, genderHtml));
-        
-        QString breedBg = (status == "occupied") ? "rgba(255,255,255,0.2)" : "rgba(74, 144, 226, 0.1)";
-        QString breedText = (status == "occupied") ? "white" : "#4A90E2";
-        breedTag->setStyleSheet(QString(
-            "color: %1; font-size: 12px; font-weight: bold; "
-            "padding: 2px 8px; background: %2; border-radius: 6px;"
-        ).arg(breedText, breedBg));
+        QLabel *breedTag = new QLabel(QString("%1 %2").arg(petBreed, genderHtml));
+        breedTag->setStyleSheet("color: #636e72; font-size: 12px;");
 
-        // 编号标签 (增强直观性)
         QLabel *idTag = new QLabel("ID: " + petId);
-        QString idColor = (status == "occupied") ? "rgba(255,255,255,0.9)" : "#4A5D6A";
-        idTag->setStyleSheet(QString("color: %1; font-size: 13px; font-weight: bold;").arg(idColor));
+        idTag->setStyleSheet("color: #b2bec3; font-size: 11px; font-weight: bold;");
 
         textCol->addWidget(nameLabel);
         textCol->addWidget(breedTag);
         textCol->addWidget(idTag);
 
-        // 加载真实头像
+        // 加载真实头像 (逻辑保持)
         if (!info.avatarPath.isEmpty() && (info.avatarPath.startsWith(":/") || QFile::exists(info.avatarPath))) {
-            m_avatar->setText("");
-            QPixmap pix(info.avatarPath);
-            if (!pix.isNull()) {
-                // 手动进行圆形剪裁，解决 QSS border-radius 对 Pixmap 失效的问题
-                QPixmap target(64, 64);
-                target.fill(Qt::transparent);
-                QPainter p(&target);
-                p.setRenderHint(QPainter::Antialiasing);
-                QPainterPath path;
-                path.addEllipse(0, 0, 64, 64);
-                p.setClipPath(path);
-                p.drawPixmap(0, 0, 64, 64, pix.scaled(64, 64, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-                
-                // 手动绘制内边框，确保与圆形图像完美贴合
-                p.setClipping(false);
-                p.setPen(QPen(QColor(255, 255, 255, 120), 2));
-                p.drawEllipse(1, 1, 62, 62);
-
-                m_avatar->setPixmap(target);
-                m_avatar->setStyleSheet("background: transparent; border: none;");
-                m_avatar->setProperty("avatarPath", info.avatarPath); // 记录路径用于放大
-            }
-        }
-
-        infoRow->addWidget(m_avatar);
-        infoRow->addLayout(textCol, 1);
-        layout->addLayout(infoRow);
-
-        // 底部：入住天数提示
-        QDate sDate = QDate::fromString(info.fosterStartTime, "yyyy-MM-dd");
-        int stayDays = sDate.isValid() ? qMax(1, (int)sDate.daysTo(QDate::currentDate()) + 1) : 1;
-        QLabel *dayLabel = new QLabel(QString("已入住 %1 天").arg(stayDays));
-        dayLabel->setStyleSheet("color: rgba(255,255,255,0.65); font-size: 11px;");
-        dayLabel->setAlignment(Qt::AlignRight);
-        layout->addStretch();
-        layout->addWidget(dayLabel);
-
-    } else if (status == "cleaning" || status == "maintenance") {
-        bool isMaint = (status == "maintenance");
-        // ===== 清洁/维护中：动态图标 + 文字 =====
-        QLabel *maintIcon = new QLabel();
-        maintIcon->setStyleSheet("font-size: 28px;");
-        maintIcon->setAlignment(Qt::AlignCenter);
-        layout->addSpacing(4);
-        layout->addWidget(maintIcon);
-
-        QLabel *maintText = new QLabel(isMaint ? "维护中" : "清洁中");
-        maintText->setStyleSheet(QString("color: %1; font-size: 13px; font-weight: bold;").arg(isMaint ? "#873800" : "#c47f00"));
-        maintText->setAlignment(Qt::AlignCenter);
-        layout->addWidget(maintText);
-
-        QLabel *reasonLabel = new QLabel(isMaint ? "设施报修排查中" : "例行消毒与深度清洁");
-        reasonLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(isMaint ? "#873800" : "#d4a24c"));
-        reasonLabel->setAlignment(Qt::AlignCenter);
-        layout->addWidget(reasonLabel);
-        layout->addStretch();
-
-    } else if (status == "booked") {
-        // ===== 被预约：展示预约宠物信息 =====
-        QHBoxLayout *infoRow = new QHBoxLayout();
-        infoRow->setContentsMargins(0, 0, 0, 0);
-        infoRow->setSpacing(10);
-
-        // 预约头像 (紫色边框)
-        m_avatar = new QLabel();
-        m_avatar->setFixedSize(64, 64);
-        m_avatar->setAlignment(Qt::AlignCenter);
-        m_avatar->setStyleSheet(
-            "font-size: 32px; background: rgba(114, 46, 209, 0.1); "
-            "border-radius: 32px; border: 2px solid #B37FEB;"
-        );
-
-        QVBoxLayout *textCol = new QVBoxLayout();
-        textCol->setSpacing(2);
-        textCol->setContentsMargins(0, 0, 0, 0);
-
-        QLabel *nameLabel = new QLabel(petName.isEmpty() ? "待定预约" : petName);
-        nameLabel->setStyleSheet("color: #531DAB; font-size: 17px; font-weight: bold;");
-
-        QLabel *breedTag = new QLabel(petBreed.isEmpty() ? "预约待入" : petBreed);
-        breedTag->setStyleSheet(
-            "color: #722ED1; font-size: 12px; font-weight: bold; "
-            "padding: 2px 8px; background: rgba(114, 46, 209, 0.1); border-radius: 6px;"
-        );
-
-        QLabel *idTag = new QLabel(petId.isEmpty() ? "预计明日 10:00" : "ID: " + petId);
-        idTag->setStyleSheet("color: #9254DE; font-size: 13px; font-weight: bold;");
-
-        textCol->addWidget(nameLabel);
-        textCol->addWidget(breedTag);
-        textCol->addWidget(idTag);
-
-        // 加载真实头像
-        PetInfo info = PetDataManager::instance()->getPet(petId);
-        if (!info.avatarPath.isEmpty() && (info.avatarPath.startsWith(":/") || QFile::exists(info.avatarPath))) {
-            m_avatar->setText("");
             QPixmap pix(info.avatarPath);
             if (!pix.isNull()) {
                 QPixmap target(64, 64);
@@ -435,26 +323,69 @@ FosterCard::FosterCard(int roomNo, const QString &status, const QString &petId, 
         infoRow->addLayout(textCol, 1);
         layout->addLayout(infoRow);
 
-        QLabel *statusLabel = new QLabel("● 房位已预留");
-        statusLabel->setStyleSheet("color: #722ED1; font-size: 11px; font-weight: bold;");
-        statusLabel->setAlignment(Qt::AlignRight);
+        QDate sDate = QDate::fromString(info.fosterStartTime, "yyyy-MM-dd");
+        int stayDays = sDate.isValid() ? qMax(1, (int)sDate.daysTo(QDate::currentDate()) + 1) : 1;
+        QLabel *dayLabel = new QLabel(QString("已入住 %1 天").arg(stayDays));
+        dayLabel->setStyleSheet("color: #95a5a6; font-size: 11px;");
+        dayLabel->setAlignment(Qt::AlignRight);
         layout->addStretch();
-        layout->addWidget(statusLabel);
-    } else {
-        // ===== 空闲：大图标 + 可预约 =====
-        QLabel *freeIcon = new QLabel();
-        freeIcon->setStyleSheet("font-size: 28px;");
-        freeIcon->setAlignment(Qt::AlignCenter);
-        layout->addSpacing(4);
-        layout->addWidget(freeIcon);
+        layout->addWidget(dayLabel);
 
+    } else if (status == "cleaning" || status == "maintenance") {
+        bool isMaint = (status == "maintenance");
+        QLabel *statusTitle = new QLabel(isMaint ? "维护中" : "清洁中");
+        
+        // 明显的区分色：清洁用青色，维护用橙色
+        QString titleColor = isMaint ? "#e65100" : "#00838f";
+        QString subtitleColor = isMaint ? "#ef6c00" : "#0097a7";
+        
+        statusTitle->setStyleSheet(QString("color: %1; font-size: 15px; font-weight: 900;").arg(titleColor));
+        statusTitle->setAlignment(Qt::AlignCenter);
+        layout->addStretch();
+        layout->addWidget(statusTitle);
+
+        QLabel *reasonLabel = new QLabel(isMaint ? "设施报修排查中" : "例行消毒与深度清洁");
+        reasonLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold;").arg(subtitleColor));
+        reasonLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(reasonLabel);
+        layout->addStretch();
+
+    } else if (status == "booked") {
+        QHBoxLayout *infoRow = new QHBoxLayout();
+        infoRow->setContentsMargins(0, 0, 0, 0);
+        infoRow->setSpacing(10);
+
+        m_avatar = new QLabel();
+        m_avatar->setFixedSize(60, 60);
+        m_avatar->setStyleSheet("background: #f8f9fa; border-radius: 30px; border: 1.5px dashed #d1d5da;");
+        
+        QVBoxLayout *textCol = new QVBoxLayout();
+        textCol->setSpacing(2);
+        
+        QLabel *nameLabel = new QLabel(petName.isEmpty() ? "待定预约" : petName);
+        nameLabel->setStyleSheet("color: #6f42c1; font-size: 16px; font-weight: bold;");
+        
+        QLabel *statusLabel = new QLabel("房位已预留");
+        statusLabel->setStyleSheet("color: #8a63d2; font-size: 12px;");
+        
+        textCol->addWidget(nameLabel);
+        textCol->addWidget(statusLabel);
+        
+        infoRow->addWidget(m_avatar);
+        infoRow->addLayout(textCol, 1);
+        layout->addLayout(infoRow);
+        layout->addStretch();
+
+    } else {
+        // 空闲
         QLabel *freeText = new QLabel("空闲");
-        freeText->setStyleSheet("color: #5a8a9e; font-size: 13px; font-weight: bold;");
+        freeText->setStyleSheet("color: #2c3e50; font-size: 16px; font-weight: 800;");
         freeText->setAlignment(Qt::AlignCenter);
+        layout->addStretch();
         layout->addWidget(freeText);
 
         QLabel *bookLabel = new QLabel("可预约入住");
-        bookLabel->setStyleSheet("color: #7ba8bd; font-size: 11px;");
+        bookLabel->setStyleSheet("color: #7f8c8d; font-size: 12px;");
         bookLabel->setAlignment(Qt::AlignCenter);
         layout->addWidget(bookLabel);
         layout->addStretch();
@@ -3732,7 +3663,12 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
             }
         }
 
-        FosterCard *card = new FosterCard(roomIdInt, status, pid, pname, breed, oname, this);
+        // 模拟房型分配：111-115 豪华，116-120 多宠，其余标准
+        QString roomType = "标准房";
+        if (roomIdInt >= 111 && roomIdInt <= 115) roomType = "豪华房";
+        else if (roomIdInt >= 116 && roomIdInt <= 120) roomType = "多宠房";
+
+        FosterCard *card = new FosterCard(roomIdInt, status, roomType, pid, pname, breed, oname, this);
         connect(card, &FosterCard::clicked, this, &FosterModule::onCardClicked);
         roomGrid->addWidget(card, i / cols, i % cols, Qt::AlignLeft | Qt::AlignTop);
     }

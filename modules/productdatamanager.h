@@ -21,8 +21,12 @@ public:
     // 记录管理
     QList<StockInRecord> getAllRecords() const;
     void addRecord(const StockInRecord &rec);
+    void updateRecord(const QString &oldDateTime, const QString &barcode, const StockInRecord &newRec);
     QList<StockInRecord> getUnlistedInboundItems() const;
     void markRecordAsShelved(const QString &barcode, const QString &productionDate);
+    void removeRecord(const QString &dateTime, const QString &barcode);
+    void restoreRecord(const QString &dateTime, const QString &barcode);
+    void hardDeleteRecord(const QString &dateTime, const QString &barcode);
     
     // 批次管理
     void addBatch(const StockBatch &batch);

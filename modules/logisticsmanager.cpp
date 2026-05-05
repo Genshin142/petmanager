@@ -108,7 +108,7 @@ void LogisticsManager::checkAndAutoUpdateTasks()
             if (task.status == "待处理" && newStatus == "进行中") {
                 PetInfo info = PetDataManager::instance()->getPet(task.petId);
                 if (!info.id.isEmpty()) {
-                    info.status = "接送中 (在途)";
+                    info.status = "接送中";
                     PetDataManager::instance()->updatePet(info);
                 }
             }

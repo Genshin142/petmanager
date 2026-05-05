@@ -70,7 +70,7 @@ void EmployeeDetailDrawer::setupUI()
     m_nameLabel->setStyleSheet("font-size: 20px; font-weight: 800; color: #303133;");
     
     m_roleLabel = new QLabel("--");
-    m_roleLabel->setStyleSheet("font-size: 13px; color: #409eff; font-weight: bold; background: #ecf5ff; border-radius: 4px; padding: 2px 8px;");
+    m_roleLabel->setStyleSheet("font-size: 11px; color: #0369a1; font-weight: bold; background: #e0f2fe; border-radius: 12px; padding: 4px 12px;");
     m_roleLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     
     m_idLabel = new QLabel("工号: --");
@@ -86,26 +86,25 @@ void EmployeeDetailDrawer::setupUI()
     infoLayout->addStretch();
     
     m_editBtn = new QPushButton();
-    m_editBtn->setFixedSize(80, 32);
+    m_editBtn->setFixedSize(110, 40);
     m_editBtn->setCursor(Qt::PointingHandCursor);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #ecf5ff; border: 1px solid #b3d8ff; border-radius: 6px; } "
-        "QPushButton:hover { background: #409eff; }"
+        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
+        "QPushButton:hover { background: #2563eb; }"
     );
     
-    // 在按钮内部添加 Label 以确保文字百分之百显示
     QHBoxLayout *btnLayout = new QHBoxLayout(m_editBtn);
     btnLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel *btnText = new QLabel(QString::fromUtf8("编辑资料"));
+    QLabel *btnText = new QLabel("编辑资料");
     btnText->setAlignment(Qt::AlignCenter);
-    btnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    btnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
     btnLayout->addWidget(btnText);
     
     // 监听按钮的 hover 状态来改变 Label 颜色（可选，但为了更好的体验）
     // 这里简单处理，如果不追求 hover 变色可以不写复杂逻辑
     
     connect(m_editBtn, &QPushButton::clicked, this, [this](){ emit editRequested(m_currentEmployee); });
-    infoLayout->addWidget(m_editBtn, 0, Qt::AlignTop);
+    // infoLayout->addWidget(m_editBtn, 0, Qt::AlignTop | Qt::AlignRight);
 
     headerTop->addLayout(infoLayout);
     headerTop->addSpacing(15); 
@@ -170,6 +169,11 @@ void EmployeeDetailDrawer::setupUI()
 
     connect(m_tabGroup, &QButtonGroup::idClicked, m_stackedWidget, &QStackedWidget::setCurrentIndex);
     m_tabGroup->button(0)->setChecked(true); // 默认选中档案
+    
+    // 采用绝对定位固定位置
+    m_editBtn->setParent(container);
+    m_editBtn->move(297, 21);
+    m_editBtn->raise();
 }
 
 QWidget* EmployeeDetailDrawer::createProfilePage()
@@ -344,13 +348,13 @@ QWidget* EmployeeDetailDrawer::createSchedulePage()
 
         QString style = "font-size: 12px; border-radius: 16px; border: none; font-weight: 500; ";
         if (day == today) {
-            style += "background: #409eff; color: white; font-weight: bold; border: 2px solid #1890ff;";
+            style += "background: #3b82f6; color: white; font-weight: bold; ";
         } else if (isLeave) {
-            style += "background: #fdf6ec; color: #e6a23c;"; // 警示橙
+            style += "background: #ffedd5; color: #9a3412;"; // 警示橙
         } else if (isWork) {
-            style += "background: #f0f9eb; color: #67c23a;"; // 清新绿
+            style += "background: #dcfce7; color: #166534;"; // 清新绿
         } else {
-            style += "background: #f5f7fa; color: #909399;"; // 极简灰
+            style += "background: #f1f5f9; color: #64748b;"; // 极简灰
         }
         
         dayLabel->setStyleSheet(style);

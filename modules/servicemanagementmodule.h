@@ -52,7 +52,7 @@ private:
     QWidget *m_detailPanel;
     QLabel *m_lblDetailName, *m_lblDetailSales, *m_lblDetailRevenue;
     QLineEdit *m_editCommFixed, *m_editPrice, *m_editDuration, *m_editCategory, *m_editId;
-    QLabel *m_lblHistory;
+    QLabel *m_lblHistory, *m_lblDetailDesc;
     
     ServiceInfo m_currentService;
 };

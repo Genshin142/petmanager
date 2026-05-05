@@ -18,6 +18,7 @@
 #include <QVBoxLayout>
 #include <QPixmap>
 #include <QBrush>
+#include <QTimer>
 #include <QColor>
 #include <QFont>
 #include <QGraphicsDropShadowEffect>
@@ -25,6 +26,10 @@
 #include <QStyledItemDelegate>
 #include <QPainter>
 #include <QPainterPath>
+#include <QDebug>
+#include "rechargedialog.h"
+#include "custommessagedialog.h"
+#include "memberdatamanager.h"
 
 // --- 复刻：全行圆角边框选中委托 ---
 class MemberRowDelegate : public QStyledItemDelegate {
@@ -217,7 +222,7 @@ void MemberModule::setupUI()
     QPushButton *addBtn = new QPushButton("录入会员");
     addBtn->setCursor(Qt::PointingHandCursor);
     addBtn->setFixedHeight(36);
-    addBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; padding: 0 15px; border-radius: 6px; font-size: 13px; } QPushButton:hover { background: #2563eb; }");
+    addBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; padding: 0 15px; border-radius: 6px; font-size: 13px; font-weight: bold; } QPushButton:hover { background: #2563eb; }");
     connect(addBtn, &QPushButton::clicked, this, &MemberModule::showAddMemberDialog);
     operationLayout->addWidget(addBtn);
 
@@ -230,8 +235,8 @@ void MemberModule::setupUI()
     tableLayout->setContentsMargins(0, 5, 0, 0);
 
     memTable = new QTableWidget();
-    memTable->setColumnCount(11);
-    memTable->setHorizontalHeaderLabels({"会员ID", "会员姓名", "性别", "手机号码", "会员等级", "储值余额", "累计消费金额", "可用积分", "最后到店", "宠物档案", "操作"});
+    memTable->setColumnCount(12);
+    memTable->setHorizontalHeaderLabels({"会员ID", "会员姓名", "性别", "手机号码", "会员等级", "状态", "储值余额", "累计消费金额", "可用积分", "最后到店", "宠物档案", "操作"});
     memTable->setItemDelegate(new MemberRowDelegate(memTable));
 
     // 固定的列宽策略与居中对齐
@@ -239,12 +244,12 @@ void MemberModule::setupUI()
     memTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); 
      
     memTable->setColumnWidth(2, 50);
-    memTable->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
-    memTable->setColumnWidth(9, 150); 
     memTable->horizontalHeader()->setSectionResizeMode(10, QHeaderView::Fixed);
-    memTable->setColumnWidth(10, 240); 
-    memTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
-    memTable->setColumnWidth(8, 120); 
+    memTable->setColumnWidth(10, 150); 
+    memTable->horizontalHeader()->setSectionResizeMode(11, QHeaderView::Fixed);
+    memTable->setColumnWidth(11, 240); 
+    memTable->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
+    memTable->setColumnWidth(9, 120); 
 
     memTable->setShowGrid(false);
     memTable->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -260,11 +265,11 @@ void MemberModule::setupUI()
     );
 
     // 隐藏已在详情页显示的列
-    memTable->setColumnHidden(5, true); // 余额
-    memTable->setColumnHidden(6, true); // 消费
-    memTable->setColumnHidden(7, true); // 积分
-    memTable->setColumnHidden(8, true); // 最后到店
-    memTable->setColumnHidden(9, true); // 宠物档案
+    memTable->setColumnHidden(6, true); // 余额
+    memTable->setColumnHidden(7, true); // 消费
+    memTable->setColumnHidden(8, true); // 积分
+    memTable->setColumnHidden(9, true); // 最后到店
+    memTable->setColumnHidden(10, true); // 宠物档案
 
     tableLayout->addWidget(memTable);
     mainLayout->addWidget(tableCard);
@@ -374,7 +379,7 @@ void MemberModule::setupUI()
             // 定位表格中的行并更新宠物列（即使列已隐藏）
             for (int i = 0; i < memTable->rowCount(); ++i) {
                 if (memTable->item(i, 0)->text() == memberId) {
-                    QWidget *wrapper = memTable->cellWidget(i, 9);
+                    QWidget *wrapper = memTable->cellWidget(i, 10);
                     QComboBox *petCombo = wrapper ? wrapper->findChild<QComboBox*>() : nullptr;
                     if (petCombo) {
                         if (!petCombo->isEnabled() || petCombo->itemText(0) == "无") petCombo->clear();
@@ -396,6 +401,10 @@ void MemberModule::setupUI()
         dialog.setInitialData(info);
         if (dialog.exec() == QDialog::Accepted) {
             MemberInfo newInfo = dialog.getMemberInfo();
+            
+            // 同步更新数据管理器
+            MemberDataManager::instance()->updateMember(newInfo);
+            
             // 定位表格中的行并同步更新
             for (int i = 0; i < memTable->rowCount(); ++i) {
                 if (memTable->item(i, 0)->text() == newInfo.id) {
@@ -405,6 +414,20 @@ void MemberModule::setupUI()
                     memTable->item(i, 3)->setText(newInfo.phone);
                     memTable->item(i, 4)->setText(newInfo.level);
                     
+                    // 更新状态列 (index 5)
+                    QWidget *statusTagContainer = new QWidget();
+                    QHBoxLayout *statusTagLayout = new QHBoxLayout(statusTagContainer);
+                    statusTagLayout->setContentsMargins(0, 0, 0, 0);
+                    statusTagLayout->setAlignment(Qt::AlignCenter);
+                    QLabel *statusTag = new QLabel(newInfo.status);
+                    QString statusStyle = "padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; ";
+                    if (newInfo.status == "正常") statusStyle += "background: #dcfce7; color: #166534; border: 1px solid #dcfce7;";
+                    else if (newInfo.status == "已注销") statusStyle += "background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0;";
+                    else statusStyle += "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;";
+                    statusTag->setStyleSheet(statusStyle);
+                    statusTagLayout->addWidget(statusTag);
+                    memTable->setCellWidget(i, 5, statusTagContainer);
+
                     // 重新触发点击以刷新详情面板
                     onCellClicked(i, 0);
                     break;
@@ -431,10 +454,15 @@ void MemberModule::setupUI()
     }
 }
 
-void MemberModule::addRow(const QString &id, const QString &name, const QString &gender, const QString &birthday, const QString &phone, const QString &level, double balance, double consume_amt, int pts, const QString &lastVisit, const QString &pets)
+void MemberModule::addRow(const MemberInfo &info, const QString &lastVisit, const QString &pets)
 {
     int r = memTable->rowCount();
     memTable->insertRow(r);
+    updateRowInPlace(r, info, lastVisit, pets);
+}
+
+void MemberModule::updateRowInPlace(int r, const MemberInfo &info, const QString &lastVisit, const QString &pets)
+{
 
     auto createItem = [&](const QString &text) {
         auto *item = new QTableWidgetItem(text);
@@ -443,22 +471,42 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
         return item;
     };
 
-    // 复选框
-
-    memTable->setItem(r, 0, createItem(id));
+    QTableWidgetItem *idItem = createItem(info.id);
+    idItem->setData(Qt::UserRole, QVariant::fromValue(info));
+    memTable->setItem(r, 0, idItem);
     
-    QTableWidgetItem *nameItem = createItem(name);
-    nameItem->setData(Qt::UserRole, birthday); // 隐式存储生日
+    QTableWidgetItem *nameItem = createItem(info.name);
+    nameItem->setData(Qt::UserRole, info.birthday); 
     memTable->setItem(r, 1, nameItem);
     
-    memTable->setItem(r, 2, createItem(gender));
+    memTable->setItem(r, 2, createItem(info.gender));
+    memTable->setItem(r, 3, createItem(info.phone));
+    memTable->setItem(r, 4, createItem(info.level));
+    
+    // 状态列 (带样式标签)
+    QWidget *statusTagContainer = new QWidget();
+    QHBoxLayout *statusTagLayout = new QHBoxLayout(statusTagContainer);
+    statusTagLayout->setContentsMargins(0, 0, 0, 0);
+    statusTagLayout->setAlignment(Qt::AlignCenter);
+    
+    QLabel *statusTag = new QLabel(info.status);
+    QString statusStyle = "padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; ";
+    if (info.status == "正常") {
+        statusStyle += "background: #dcfce7; color: #166534; border: 1px solid #dcfce7;";
+    } else if (info.status == "已注销") {
+        statusStyle += "background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0;"; // 灰色注销样式
+    } else {
+        statusStyle += "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;"; // 橙色锁定/异常样式
+    }
+    statusTag->setStyleSheet(statusStyle);
+    statusTagLayout->addWidget(statusTag);
+    memTable->setCellWidget(r, 5, statusTagContainer);
+    memTable->setItem(r, 5, new QTableWidgetItem()); // 占位
 
-    memTable->setItem(r, 3, createItem(phone));
-    memTable->setItem(r, 4, createItem(level));
-    memTable->setItem(r, 5, createItem(QString::number(balance, 'f', 2)));
-    memTable->setItem(r, 6, createItem(QString::number(consume_amt, 'f', 2)));
-    memTable->setItem(r, 7, createItem(QString::number(pts)));
-    memTable->setItem(r, 8, createItem(lastVisit));
+    memTable->setItem(r, 6, createItem(QString::number(info.balance, 'f', 2)));
+    memTable->setItem(r, 7, createItem(QString::number(info.consume_amt, 'f', 2)));
+    memTable->setItem(r, 8, createItem(QString::number(info.points)));
+    memTable->setItem(r, 9, createItem(lastVisit));
     
     // 【美化：使用 Element UI 风格的下拉框】
     QStringList petNames;
@@ -509,7 +557,7 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
 
             if (CustomMessageDialog::confirm(this, "页面跳转确认", 
                 QString("检测到您选择了宠物档案：[%1]\n是否立即跳转到“宠物健康档案中心”查看详情？").arg(petLabel))) {
-                emit sig_requestPetJump(name, petName);
+                emit sig_requestPetJump(info.name, petName);
             }
         });
 
@@ -522,8 +570,8 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
         petRenderWidget = comboWrapper;
     }
 
-    memTable->setCellWidget(r, 9, petRenderWidget);
-    memTable->setItem(r, 9, new QTableWidgetItem()); // 必须占位
+    memTable->setCellWidget(r, 10, petRenderWidget);
+    memTable->setItem(r, 10, new QTableWidgetItem()); // 必须占位
 
     // 【修复2：使用标准 QWidget 渲染操作列，并加上明显的底色保证可见性】
     QWidget *actionWidget = new QWidget();
@@ -540,7 +588,7 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
         btn->setFixedWidth(85); // 确保 4 个中文字符 + 边距绝对完整显示
         // 赋予按钮背景色和边框，避免在某些主题下全透明不可见
         btn->setStyleSheet(QString(
-                               "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; font-size: 12px; padding: 0 10px; }"
+                               "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; font-size: 12px; padding: 0 5px; text-align: center; }"
                                "QPushButton:hover { opacity: 0.8; background-color: %2; color: white; }"
                                ).arg(bgColor, textColor, borderColor));
         return btn;
@@ -550,63 +598,133 @@ void MemberModule::addRow(const QString &id, const QString &name, const QString 
     QPushButton *rechargeBtn = createBtn("充值", "#f0f9eb", "#67c23a", "#c2e7b0"); // 绿色
     QPushButton *deleteBtn = createBtn("删除", "#fef0f0", "#f56c6c", "#fbc4c4"); // 红色
 
-    // 这里特别限制操作按钮的最大宽度为 70左右
-    rechargeBtn->setFixedWidth(66);
+    // 统一样式：正常状态宽度
+    rechargeBtn->setFixedWidth(70);
     deleteBtn->setFixedWidth(70);
+
+    if (info.status == "已注销") {
+        // --- “已注销”状态下的按钮替换逻辑 ---
+        rechargeBtn->setText("恢复");
+        rechargeBtn->setStyleSheet(
+            "QPushButton { background-color: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; border-radius: 4px; font-size: 12px; padding: 0; text-align: center; }"
+            "QPushButton:hover { background-color: #3b82f6; color: white; }"
+        );
+        rechargeBtn->setFixedWidth(70); // 统一为 70px
+        
+        if (m_role == ADMIN) {
+            deleteBtn->setText("彻底删除");
+            deleteBtn->setStyleSheet(
+                "QPushButton { background-color: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; border-radius: 4px; font-size: 12px; padding: 0; text-align: center; }"
+                "QPushButton:hover { background-color: #dc2626; color: white; }"
+            );
+            deleteBtn->setFixedWidth(70); // 统一为 70px
+            deleteBtn->setVisible(true);
+        } else {
+            deleteBtn->setVisible(false);
+        }
+    } else {
+        // 正常状态下的显示逻辑
+        if (m_role == STAFF) {
+            deleteBtn->setVisible(false);
+        }
+    }
 
     actionLayout->addStretch(); // 左侧弹簧
     actionLayout->addWidget(rechargeBtn);
     actionLayout->addWidget(deleteBtn);
     actionLayout->addStretch(); // 右侧弹簧
 
-    if (m_role == STAFF) {
-        deleteBtn->setVisible(false);
-    }
-
-    // 【充值按钮逻辑】
+    // 【按钮逻辑绑定】
     connect(rechargeBtn, &QPushButton::clicked, this, [=](){
-        QMessageBox::information(this, "充值", QString("即将为会员 [%1] 充值... (待接续接口)").arg(name));
+        if (info.status == "已注销") {
+            // 恢复逻辑
+            if (CustomMessageDialog::confirm(this, "恢复确认", QString("确定恢复会员 [%1] 的档案吗？").arg(info.name))) {
+                MemberDataManager::instance()->restoreMember(info.id);
+                refreshTablePreservingSelection(info.id);
+                updateStatistics();
+                CustomMessageDialog::showSuccess(this, "恢复成功", QString("会员 %1 已恢复正常状态").arg(info.name));
+            }
+        } else {
+            // 充值逻辑
+            // 获取当前最新数据
+            int rowIdx = -1;
+            for (int i = 0; i < memTable->rowCount(); ++i) {
+                if (memTable->cellWidget(i, 11) == actionWidget) {
+                    rowIdx = i;
+                    break;
+                }
+            }
+            if (rowIdx < 0) return;
+
+            MemberInfo currentInfo;
+            currentInfo.id = memTable->item(rowIdx, 0)->text();
+            currentInfo.name = memTable->item(rowIdx, 1)->text();
+            currentInfo.level = memTable->item(rowIdx, 4)->text();
+            currentInfo.balance = memTable->item(rowIdx, 6)->text().toDouble();
+
+            RechargeDialog dlg(currentInfo, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                double rechargeAmt = dlg.getRechargeAmount();
+                double newBalance = currentInfo.balance + rechargeAmt;
+                
+                MemberInfo updatedInfo = MemberDataManager::instance()->getMember(currentInfo.id);
+                updatedInfo.balance = newBalance;
+                MemberDataManager::instance()->updateMember(updatedInfo);
+
+                memTable->item(rowIdx, 6)->setText(QString::number(newBalance, 'f', 2));
+                if (m_detailDrawer && m_detailDrawer->isVisible() && currentInfo.id == memTable->item(rowIdx, 0)->text()) {
+                    m_detailDrawer->updateBalance(newBalance);
+                }
+                CustomMessageDialog::showSuccess(this, "充值成功", 
+                    QString("会员 [%1] 充值成功！\n\n充值金额: ¥%2\n当前余额: ¥%3")
+                    .arg(currentInfo.name).arg(rechargeAmt).arg(newBalance));
+            }
+        }
     });
-
-
 
     connect(deleteBtn, &QPushButton::clicked, this, [=](){
-        // 动态定位被点击按钮所在的行
-        int currentRow = -1;
-        for (int i = 0; i < memTable->rowCount(); ++i) {
-            if (memTable->cellWidget(i, 10) == actionWidget) {
-                currentRow = i;
-                break;
-            }
-        }
-
-        if (currentRow >= 0) {
-            QString memberName = memTable->item(currentRow, 1)->text();
-            if(CustomMessageDialog::confirm(this, "业务确认", "确定移除会员 [" + memberName + "] 的档案吗？")) {
-                memTable->removeRow(currentRow);
+        if (info.status == "已注销") {
+            // 彻底删除逻辑 (仅 ADMIN 可见)
+            if (CustomMessageDialog::confirm(this, "彻底删除警示", 
+                QString("确定要彻底抹除会员 [%1] 的所有档案吗？\n此操作不可撤销，且会清理所有关联数据。").arg(info.name))) {
+                MemberDataManager::instance()->hardDeleteMember(info.id);
+                if (m_detailDrawer) m_detailDrawer->hideDrawer();
+                addSampleData();
                 updateStatistics();
+                CustomMessageDialog::showSuccess(this, "清理成功", QString("会员 %1 的数据已被彻底移除").arg(info.name));
+            }
+        } else {
+            // 逻辑删除逻辑
+            if(CustomMessageDialog::confirm(this, "业务确认", 
+                QString("确定注销会员 [%1] 的档案吗？\n注销后将隐藏其资料，但保留历史消费凭证。").arg(info.name))) {
+                MemberDataManager::instance()->removeMember(info.id);
+                refreshTablePreservingSelection(info.id);
+                updateStatistics();
+                CustomMessageDialog::showSuccess(this, "注销成功", QString("会员 %1 已成功注销").arg(info.name));
             }
         }
     });
 
-    memTable->setCellWidget(r, 10, actionWidget);
+    memTable->setCellWidget(r, 11, actionWidget);
     
     updatePagination();
 }
 
 void MemberModule::addSampleData()
 {
-    addRow("M001", "张三", "男", "1990-05-20", "13800138000", "黄金会员", 500.00, 1250.00, 125, "2026-03-10", "团团（波斯猫）");
-    addRow("M002", "李芳", "女", "1995-10-12", "13912345678", "普通会员", 0.00, 100.00, 10, "2026-02-22", "豆豆（柴犬）, 咪咪（银渐层）");
-    addRow("M003", "王五", "男", "1988-03-05", "13777777777", "铂金会员", 1200.00, 3500.00, 350, "2025-12-05", "旺财（金毛犬）");
-    addRow("M004", "赵六", "男", "1992-07-15", "13666666666", "钻石会员", 2500.00, 8800.00, 880, "2026-01-15", "小雪（萨摩耶）, 可可（泰迪）");
-    addRow("M005", "孙七", "女", "1993-11-20", "18189294306", "普通会员", 50.00, 100.00, 10, "2026-03-25", "大黑（拉布拉多）");
-    addRow("M006", "周八", "男", "1991-01-30", "13511112222", "黄金会员", 300.00, 600.00, 60, "2025-08-10", "皮皮（柯基）");
-    addRow("M007", "吴九", "女", "1994-06-18", "13433334444", "普通会员", 20.00, 50.00, 5, "2026-04-01", "球球（英短）, 花花（加菲猫）");
-    addRow("M008", "郑十", "男", "1989-12-25", "13355556666", "铂金会员", 800.00, 2000.00, 200, "2025-11-11", "小白（比熊）");
-    addRow("M009", "钱十一", "男", "1992-03-14", "13277778888", "钻石会员", 1500.00, 5000.00, 500, "2026-04-05", "黑豹（孟加拉豹猫）");
-    addRow("M010", "陈十二", "女", "1996-08-08", "13199990000", "普通会员", 10.00, 20.00, 2, "2026-01-20", "多多（阿拉斯加）");
-    addRow("M011", "林十三", "男", "1990-09-09", "13012123434", "黄金会员", 450.00, 1100.00, 110, "2026-03-15", "发财（柴犬）, 欢欢（巴哥）");
+    memTable->setRowCount(0);
+    auto allOnes = MemberDataManager::instance()->allMembers();
+    // 排序逻辑：注销会员排在最后，其余按工号排序
+    std::sort(allOnes.begin(), allOnes.end(), [](const MemberInfo &a, const MemberInfo &b){
+        if (a.isActive != b.isActive) return a.isActive; // 活跃在前
+        return a.id < b.id;
+    });
+    
+    for (const auto &info : allOnes) {
+        // 使用 info.pets，实际业务中可根据需要从 PetDataManager 动态计算，这里保持 DataManager 同步
+        QString lastVisit = "2026-03-10";
+        addRow(info, lastVisit, info.pets);
+    }
 }
 
 void MemberModule::updateStatistics()
@@ -711,7 +829,7 @@ void MemberModule::updatePagination()
         memTable->setRowHidden(i, true); // 先统统隐藏
     }
 
-    // 2. 计算分页
+    // 2. 计算分页 (不需要再次排序，因为物理行顺序已经是正确的了)
     int totalVisible = visibleRows.size();
     int totalPages = qMax(1, (totalVisible + m_pageSize - 1) / m_pageSize);
 
@@ -754,7 +872,8 @@ void MemberModule::showAddMemberDialog()
         }
 
         // 加入默认最后到店日期
-        addRow(info.id, info.name, info.gender, info.birthday, info.phone, info.level, info.balance, info.consume_amt, info.points, QDate::currentDate().toString("yyyy-MM-dd"), "无");
+        MemberDataManager::instance()->addMember(info);
+        addSampleData();
         updateStatistics();
     }
 }
@@ -779,7 +898,7 @@ void MemberModule::exportData()
     if(file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream ts(&file);
         ts.setGenerateByteOrderMark(true);
-        ts << "会员ID,姓名,性别,手机号,会员等级,储值余额,累计消费金额,可用积分,最后到店,宠物档案\n";
+        ts << "会员ID,姓名,性别,手机号,会员等级,状态,储值余额,累计消费金额,可用积分,最后到店,宠物档案\n";
         
         QString searchText = searchEdit->text();
         QString selectedLevel = levelFilterCombo->currentText();
@@ -797,7 +916,7 @@ void MemberModule::exportData()
 
             if (shouldExport) {
                 QString petsStr = "无";
-                QWidget *wrapper = memTable->cellWidget(r, 9);
+                QWidget *wrapper = memTable->cellWidget(r, 10);
                 if (wrapper) {
                     QComboBox *c = wrapper->findChild<QComboBox*>();
                     if (c) {
@@ -806,16 +925,26 @@ void MemberModule::exportData()
                         petsStr = ps.join("; ");
                     }
                 }
-                ts << QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10\n").arg(
+
+                // 获取状态
+                QString statusText = "";
+                QWidget *sWrapper = memTable->cellWidget(r, 5);
+                if (sWrapper) {
+                    QLabel *sLabel = sWrapper->findChild<QLabel*>();
+                    if (sLabel) statusText = sLabel->text();
+                }
+
+                ts << QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11\n").arg(
                           memTable->item(r,0)->text(), 
                           memTable->item(r,1)->text(), 
                           memTable->item(r,2)->text(), 
                           memTable->item(r,3)->text(), 
                           memTable->item(r,4)->text(), 
-                          memTable->item(r,5)->text(),
+                          statusText,
                           memTable->item(r,6)->text(),
                           memTable->item(r,7)->text(),
                           memTable->item(r,8)->text(),
+                          memTable->item(r,9)->text(),
                           petsStr);
             }
         }
@@ -835,10 +964,10 @@ void MemberModule::onCellClicked(int row, int column)
     auto item2 = memTable->item(row, 2);
     auto item3 = memTable->item(row, 3);
     auto item4 = memTable->item(row, 4);
-    auto item5 = memTable->item(row, 5);
     auto item6 = memTable->item(row, 6);
     auto item7 = memTable->item(row, 7);
     auto item8 = memTable->item(row, 8);
+    auto item9 = memTable->item(row, 9);
 
     if (!item0 || !item1 || !item2 || !item3 || !item4) return;
 
@@ -848,19 +977,26 @@ void MemberModule::onCellClicked(int row, int column)
     info.phone = item3->text();
     info.level = item4->text();
     
-    if (item5) info.balance = item5->text().replace("¥ ", "").toDouble();
-    if (item6) info.consume_amt = item6->text().replace("¥ ", "").toDouble();
-    if (item7) info.points = item7->text().toInt();
+    // 获取状态 (通过 cellWidget 获取，因为 item(row, 5) 只是占位)
+    QWidget *statusWrapper = memTable->cellWidget(row, 5);
+    if (statusWrapper) {
+        QLabel *statusLabel = statusWrapper->findChild<QLabel*>();
+        if (statusLabel) info.status = statusLabel->text();
+    }
+
+    if (item6) info.balance = item6->text().replace("¥ ", "").toDouble();
+    if (item7) info.consume_amt = item7->text().replace("¥ ", "").toDouble();
+    if (item8) info.points = item8->text().toInt();
     
     // 生日通常存储在 UserRole 中
     info.birthday = item1->data(Qt::UserRole).toString();
     if(info.birthday.isEmpty()) info.birthday = "1990-01-01"; // Fallback
 
-    QString lastVisit = item8 ? item8->text() : "";
+    QString lastVisit = item9 ? item9->text() : "";
     
     // 获取宠物档案文字
     QString petsStr = "";
-    QWidget *petWrapper = memTable->cellWidget(row, 9);
+    QWidget *petWrapper = memTable->cellWidget(row, 10);
     if (petWrapper) {
         QComboBox *petCombo = petWrapper->findChild<QComboBox*>();
         if (petCombo) {
@@ -869,7 +1005,7 @@ void MemberModule::onCellClicked(int row, int column)
             }
         }
     }
-    if(petsStr.isEmpty()) petsStr = memTable->item(row, 9) ? memTable->item(row, 9)->text() : "暂无";
+    if(petsStr.isEmpty()) petsStr = memTable->item(row, 10) ? memTable->item(row, 10)->text() : "暂无";
 
     m_detailDrawer->setMember(info, lastVisit, petsStr);
     m_detailDrawer->showDrawer();
@@ -897,6 +1033,47 @@ QString MemberModule::generateNextMemberId()
 }
 
 
+void MemberModule::refreshTablePreservingSelection(const QString &targetId)
+{
+    m_isRefreshing = true;
+    int savedPage = m_currentPage;
+    addSampleData();
+    
+    int targetIdx = -1;
+    for (int i = 0; i < memTable->rowCount(); ++i) {
+        if (memTable->item(i, 0) && memTable->item(i, 0)->text() == targetId) {
+            targetIdx = i;
+            break;
+        }
+    }
+    
+    if (targetIdx != -1) {
+        // 计算页码
+        QList<int> visibleRows;
+        QString searchText = searchEdit->text();
+        QString selectedLevel = levelFilterCombo->currentText();
+        for (int i = 0; i < memTable->rowCount(); ++i) {
+            auto item0 = memTable->item(i, 0);
+            auto item1 = memTable->item(i, 1);
+            bool match = searchText.isEmpty() || ((item0 && item0->text().contains(searchText, Qt::CaseInsensitive)) || (item1 && item1->text().contains(searchText, Qt::CaseInsensitive)));
+            if (selectedLevel != "全部等级" && memTable->item(i, 4)->text() != selectedLevel) match = false;
+            if (match) visibleRows.append(i);
+        }
+        
+        int k = visibleRows.indexOf(targetIdx);
+        if (k != -1) {
+            m_currentPage = (k / m_pageSize) + 1;
+            updatePagination();
+            memTable->selectRow(targetIdx);
+            onCellClicked(targetIdx, 0);
+        }
+    } else {
+        m_currentPage = savedPage;
+        updatePagination();
+    }
+    
+    m_isRefreshing = false;
+}
 void MemberModule::onEditMemberFromDrawer(const MemberInfo &info)
 {
     // Update the member table with edited info
@@ -907,6 +1084,21 @@ void MemberModule::onEditMemberFromDrawer(const MemberInfo &info)
             memTable->item(r, 2)->setText(info.gender);
             memTable->item(r, 3)->setText(info.phone);
             memTable->item(r, 4)->setText(info.level);
+            
+            // 更新状态列 (index 5)
+            QWidget *statusTagContainer = new QWidget();
+            QHBoxLayout *statusTagLayout = new QHBoxLayout(statusTagContainer);
+            statusTagLayout->setContentsMargins(0, 0, 0, 0);
+            statusTagLayout->setAlignment(Qt::AlignCenter);
+            QLabel *statusTag = new QLabel(info.status);
+            QString statusStyle = "padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; ";
+            if (info.status == "正常") statusStyle += "background: #dcfce7; color: #166534; border: 1px solid #dcfce7;";
+            else if (info.status == "已注销") statusStyle += "background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0;";
+            else statusStyle += "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;";
+            statusTag->setStyleSheet(statusStyle);
+            statusTagLayout->addWidget(statusTag);
+            memTable->setCellWidget(r, 5, statusTagContainer);
+
             updateStatistics();
             
             // Refresh drawer

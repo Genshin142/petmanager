@@ -16,7 +16,9 @@ public:
     EmployeeInfo getStaff(const QString &id) const;
     void addStaff(const EmployeeInfo &info);
     void updateStaff(const EmployeeInfo &info);
-    void removeStaff(const QString &id);
+    void removeStaff(const QString &id); // Logical delete: sets status to "离职"
+    void restoreStaff(const QString &id);
+    void hardDeleteStaff(const QString &id);
     
     QStringList activeStaffNames() const;
 

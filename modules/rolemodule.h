@@ -34,7 +34,6 @@ private slots:
     void onAddEmployee();
     void onEditEmployee();
     void onEditEmployeeFromDrawer(const struct EmployeeInfo &info);
-    void onDeleteEmployee();
     void onFilterChanged();
     void onSearchTextChanged(const QString &text);
     void onPrevPage();
@@ -74,6 +73,8 @@ private:
     QLabel *m_previewLabel;
 
     EmployeeDetailDrawer *m_drawer;
+    bool m_isRefreshing = false;
+    void refreshTablePreservingSelection(const QString &targetId);
 };
 
 #endif // ROLEMODULE_H

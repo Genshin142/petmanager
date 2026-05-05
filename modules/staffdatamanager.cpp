@@ -64,8 +64,25 @@ void StaffDataManager::updateStaff(const EmployeeInfo &info)
 
 void StaffDataManager::removeStaff(const QString &id)
 {
-    m_staff.remove(id);
-    emit staffDataChanged();
+    if (m_staff.contains(id)) {
+        m_staff[id].status = "离职";
+        emit staffDataChanged();
+    }
+}
+
+void StaffDataManager::restoreStaff(const QString &id)
+{
+    if (m_staff.contains(id)) {
+        m_staff[id].status = "在岗";
+        emit staffDataChanged();
+    }
+}
+
+void StaffDataManager::hardDeleteStaff(const QString &id)
+{
+    if (m_staff.remove(id) > 0) {
+        emit staffDataChanged();
+    }
 }
 
 QStringList StaffDataManager::activeStaffNames() const

@@ -237,10 +237,21 @@ void HistoryAppointmentDialog::addRow(const AppointmentInfo &info) {
     historyTable->setItem(r, 3, createItem(info.station));
     historyTable->setItem(r, 4, createItem(info.staff));
     
-    // 状态样式
+    // 状态标签
+    QWidget *statusW = new QWidget();
+    QHBoxLayout *statusL = new QHBoxLayout(statusW);
+    statusL->setContentsMargins(0, 0, 0, 0);
+    statusL->setAlignment(Qt::AlignCenter);
+    
     QString statusText = (info.status == "Completed") ? "已完成" : "已取消";
-    QString statusColor = (info.status == "Completed") ? "#67c23a" : "#f56c6c";
-    historyTable->setItem(r, 5, createItem(statusText, statusColor));
+    QLabel *statusTag = new QLabel(statusText);
+    if (info.status == "Completed") {
+        statusTag->setStyleSheet("background: #dcfce7; color: #166534; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: bold;");
+    } else {
+        statusTag->setStyleSheet("background: #f1f5f9; color: #64748b; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: bold;");
+    }
+    statusL->addWidget(statusTag);
+    historyTable->setCellWidget(r, 5, statusW);
     
     historyTable->setItem(r, 6, createItem(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm"))); // 模拟记录时间
 }

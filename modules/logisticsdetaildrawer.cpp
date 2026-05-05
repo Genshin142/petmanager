@@ -57,8 +57,8 @@ void LogisticsDetailDrawer::setupUI()
     m_idLabel->setStyleSheet("font-size: 14px; color: #606266; background: transparent; ");
     
     m_statusTag = new QLabel("待处理");
-    m_statusTag->setStyleSheet("background: #fa8c16; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
-    m_statusTag->setFixedWidth(70);
+    m_statusTag->setStyleSheet("background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
+    m_statusTag->setFixedWidth(80);
     m_statusTag->setAlignment(Qt::AlignCenter);
 
     nameCol->addWidget(m_nameLabel);
@@ -102,7 +102,7 @@ void LogisticsDetailDrawer::setupUI()
         if (m_currentTask.status == "待处理") {
             LogisticsManager::instance()->updateTaskStatus(m_currentTask.taskId, "进行中");
             PetInfo info = PetDataManager::instance()->getPet(m_currentTask.petId);
-            if (!info.id.isEmpty()) { info.status = "接送中 (在途)"; PetDataManager::instance()->updatePet(info); }
+            if (!info.id.isEmpty()) { info.status = "接送中"; PetDataManager::instance()->updatePet(info); }
             emit taskCompleted(m_currentTask.taskId); // triggers refresh
         } else if (m_currentTask.status == "进行中") {
             LogisticsManager::instance()->updateTaskStatus(m_currentTask.taskId, "已完成");
@@ -186,19 +186,19 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
     m_statusTag->setVisible(true);
     
     if (task.status == "待处理") {
-        m_statusTag->setStyleSheet("background: #fa8c16; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
         m_primaryBtn->setText("司机出发");
-        m_primaryBtn->setStyleSheet("QPushButton { background: #fa8c16; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; } "
-                                    "QPushButton:hover { background: #ffd591; }");
+        m_primaryBtn->setStyleSheet("QPushButton { background: #9a3412; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; } "
+                                    "QPushButton:hover { background: #c2410c; }");
         m_footer->setVisible(true);
     } else if (task.status == "进行中") {
-        m_statusTag->setStyleSheet("background: #409eff; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
         m_primaryBtn->setText("确认送达");
-        m_primaryBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; text-align: center; padding: 0px; } "
-                                    "QPushButton:hover { background: #a4da89; }");
+        m_primaryBtn->setStyleSheet("QPushButton { background: #166534; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; text-align: center; padding: 0px; } "
+                                    "QPushButton:hover { background: #15803d; }");
         m_footer->setVisible(true);
     } else {
-        m_statusTag->setStyleSheet("background: #c0c4cc; color: white; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;");
+        m_statusTag->setStyleSheet("background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
         m_footer->setVisible(false);
     }
     
