@@ -41,7 +41,7 @@ void EmployeeDetailDrawer::setupUI()
 
     // --- 1. 顶部：员工名片 ---
     QWidget *header = new QWidget();
-    header->setFixedHeight(220); 
+    header->setFixedHeight(200); 
     header->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: none;");
     QVBoxLayout *headerTop = new QVBoxLayout(header);
     headerTop->setContentsMargins(20, 15, 20, 0);
@@ -85,20 +85,26 @@ void EmployeeDetailDrawer::setupUI()
     infoLayout->addLayout(nameCol);
     infoLayout->addStretch();
     
-    m_editBtn = new QPushButton();
-    m_editBtn->setFixedSize(110, 40);
+    m_editBtn = new QPushButton("修改资料");
+    m_editBtn->setFixedSize(90, 32);
     m_editBtn->setCursor(Qt::PointingHandCursor);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
-        "QPushButton:hover { background: #2563eb; }"
+        "QPushButton { background: white; border: 1px solid #409eff; border-radius: 6px; } "
+        "QPushButton:hover { background: #ecf5ff; }"
     );
     
-    QHBoxLayout *btnLayout = new QHBoxLayout(m_editBtn);
-    btnLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel *btnText = new QLabel("编辑资料");
-    btnText->setAlignment(Qt::AlignCenter);
-    btnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
-    btnLayout->addWidget(btnText);
+    QHBoxLayout *m_editBtnLayout = new QHBoxLayout(m_editBtn);
+    m_editBtnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *m_editBtnText = new QLabel("修改资料");
+    m_editBtnText->setAlignment(Qt::AlignCenter);
+    m_editBtnText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_editBtnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    m_editBtnLayout->addWidget(m_editBtnText);
+    
+    // 采用绝对定位固定位置 (297, 21)
+    m_editBtn->setParent(container);
+    m_editBtn->move(297, 21);
+    m_editBtn->raise();
     
     // 监听按钮的 hover 状态来改变 Label 颜色（可选，但为了更好的体验）
     // 这里简单处理，如果不追求 hover 变色可以不写复杂逻辑
@@ -139,15 +145,16 @@ void EmployeeDetailDrawer::setupUI()
 
     // --- 居中并限制宽度 ---
     QWidget *tabContainer = new QWidget();
+    tabContainer->setFixedHeight(60);
     QHBoxLayout *tabContainerLayout = new QHBoxLayout(tabContainer);
-    tabContainerLayout->setContentsMargins(0, 5, 0, 5); // 增加一点上下间距
+    tabContainerLayout->setContentsMargins(0, 10, 0, 10);
     tabContainerLayout->addStretch();
-    tabWidget->setFixedWidth(240);
+    tabWidget->setFixedWidth(280);
     tabContainerLayout->addWidget(tabWidget);
     tabContainerLayout->addStretch();
 
-    headerTop->addWidget(tabContainer); // 添加到头部的最下方
     mainLayout->addWidget(header);
+    mainLayout->addWidget(tabContainer);
 
     // --- 3. 堆叠内容区 ---
     m_stackedWidget = new QStackedWidget();
@@ -192,15 +199,17 @@ QWidget* EmployeeDetailDrawer::createProfilePage()
 
     auto createGroupCard = [&](const QString &title) {
         QVBoxLayout *groupLayout = new QVBoxLayout();
-        groupLayout->setSpacing(8);
+        groupLayout->setContentsMargins(0, 0, 0, 0);
+        groupLayout->setSpacing(10);
+        
         QLabel *groupTitle = new QLabel(title);
-        groupTitle->setStyleSheet("color: #303133; font-size: 14px; font-weight: bold; margin-bottom: 4px;");
+        groupTitle->setStyleSheet("color: #334155; font-size: 15px; font-weight: bold; margin-left: 4px;");
         groupLayout->addWidget(groupTitle);
         
         QFrame *card = new QFrame();
-        card->setStyleSheet("background: #fcfcfd; border-radius: 8px; border: 1px solid #ebeef5;");
+        card->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; }");
         QVBoxLayout *cardLayout = new QVBoxLayout(card);
-        cardLayout->setContentsMargins(15, 12, 15, 12);
+        cardLayout->setContentsMargins(16, 16, 16, 16);
         cardLayout->setSpacing(12);
         groupLayout->addWidget(card);
         contentLayout->addLayout(groupLayout);
@@ -412,10 +421,11 @@ QWidget* EmployeeDetailDrawer::createSchedulePage()
     scroll->setWidget(content);
     return scroll;
 }
-
 void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
 {
     m_currentEmployee = info;
+    m_editBtn->show();
+    m_editBtn->raise();
     
     m_nameLabel->setText(info.name);
     m_roleLabel->setText(info.role);

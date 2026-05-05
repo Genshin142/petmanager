@@ -43,7 +43,7 @@ void MemberDetailDrawer::setupUI()
 
     // --- 1. 头部 (Avatar & Base Info) ---
     QWidget *header = new QWidget();
-    header->setFixedHeight(160); 
+    header->setFixedHeight(200); 
     // 取消渐变，改为纯白，并保持顶部圆角以匹配大容器
     header->setStyleSheet("QWidget { background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: none; }");
     QVBoxLayout *headerLayout = new QVBoxLayout(header);
@@ -66,20 +66,21 @@ void MemberDetailDrawer::setupUI()
     m_nameLabel = new QLabel("未选择会员");
     m_nameLabel->setStyleSheet("font-size: 24px; color: #303133; font-weight: bold;"); 
     
-    m_editBtn = new QPushButton();
-    m_editBtn->setFixedSize(110, 40);
+    m_editBtn = new QPushButton("修改资料");
+    m_editBtn->setFixedSize(90, 32);
     m_editBtn->setCursor(Qt::PointingHandCursor);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
-        "QPushButton:hover { background: #2563eb; }"
+        "QPushButton { background: white; border: 1px solid #409eff; border-radius: 6px; } "
+        "QPushButton:hover { background: #ecf5ff; }"
     );
     
-    QHBoxLayout *editBtnLayout = new QHBoxLayout(m_editBtn);
-    editBtnLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel *editBtnText = new QLabel("编辑资料");
-    editBtnText->setAlignment(Qt::AlignCenter);
-    editBtnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
-    editBtnLayout->addWidget(editBtnText);
+    QHBoxLayout *m_editBtnLayout = new QHBoxLayout(m_editBtn);
+    m_editBtnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *m_editBtnText = new QLabel("修改资料");
+    m_editBtnText->setAlignment(Qt::AlignCenter);
+    m_editBtnText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_editBtnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    m_editBtnLayout->addWidget(m_editBtnText);
     
     m_editBtn->hide(); 
     
@@ -147,10 +148,11 @@ void MemberDetailDrawer::setupUI()
 
     // --- 3. 居中并限制宽度 ---
     QWidget *tabContainer = new QWidget();
+    tabContainer->setFixedHeight(60); // 固定高度确保位置一致
     QHBoxLayout *tabContainerLayout = new QHBoxLayout(tabContainer);
-    tabContainerLayout->setContentsMargins(0, 0, 0, 0);
+    tabContainerLayout->setContentsMargins(0, 10, 0, 10);
     tabContainerLayout->addStretch();
-    tabWidget->setFixedWidth(240); // 限制宽度为 240px
+    tabWidget->setFixedWidth(280); // 增加宽度以适应更长的文本
     tabContainerLayout->addWidget(tabWidget);
     tabContainerLayout->addStretch();
 
@@ -178,7 +180,7 @@ void MemberDetailDrawer::setupUI()
 
     m_tabGroup->button(0)->setChecked(true);
     
-    // 采用绝对定位固定位置
+    // 采用绝对定位固定位置 (297, 21) 确保全系统对齐
     m_editBtn->setParent(container);
     m_editBtn->move(297, 21);
     m_editBtn->raise();
@@ -200,22 +202,23 @@ QWidget* MemberDetailDrawer::createProfilePage()
     contentLayout->setSpacing(20); // 增加分组间的间距
 
     auto createGroupCard = [&](const QString &title, QVBoxLayout* &cardLayout) {
-        QFrame *card = new QFrame();
-        // 彻底去掉背景、圆角、边框
-        card->setStyleSheet("QFrame { background: white; border: none; border-radius: 0; }");
-        QVBoxLayout *mainV = new QVBoxLayout(card);
-        mainV->setContentsMargins(0, 0, 0, 10); 
-        mainV->setSpacing(12);
-        
+        QWidget *group = new QWidget();
+        QVBoxLayout *groupL = new QVBoxLayout(group);
+        groupL->setContentsMargins(0, 0, 0, 0);
+        groupL->setSpacing(12);
+
         QLabel *tLabel = new QLabel(title);
-        // 强化标题视觉，去掉背景
-        tLabel->setStyleSheet("color: #303133; font-size: 15px; font-weight: bold; border-bottom: 2px solid #f2f6fc; padding-bottom: 8px; margin-bottom: 5px;");
-        mainV->addWidget(tLabel);
-        
-        cardLayout = new QVBoxLayout();
+        tLabel->setStyleSheet("color: #334155; font-size: 15px; font-weight: bold; margin-left: 4px;");
+        groupL->addWidget(tLabel);
+
+        QFrame *card = new QFrame();
+        card->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; }");
+        cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(16, 16, 16, 16);
         cardLayout->setSpacing(12);
-        mainV->addLayout(cardLayout);
-        return card;
+        
+        groupL->addWidget(card);
+        return group;
     };
 
     auto addDetailRow = [&](QVBoxLayout *layout, const QString &label, QLabel* &valLabel) {

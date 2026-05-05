@@ -76,7 +76,7 @@ public:
         font.setPointSize(10);
         painter->setFont(font);
 
-        QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+        QRect textRect = opt.rect.adjusted(4, 0, -4, 0);
         painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
         
         painter->restore();
@@ -198,18 +198,18 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
     m_serviceTable->setHorizontalHeaderLabels({"服务编码", "服务名称", "分类", "标准时长", "服务价格", "累计销量", "状态", "操作"});
     m_serviceTable->setItemDelegate(new ServiceRowDelegate(m_serviceTable));
     
-    // --- 彻底解决挤压问题：除了名称列，其余全部设为极小固定宽度 ---
+    // --- 优化列宽策略：通过增大其他列的固定宽度来平衡名称列的拉伸占比 ---
     m_serviceTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
-    m_serviceTable->setColumnWidth(0, 100); // 编码
-    m_serviceTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); // 只有名称拉伸
-    m_serviceTable->setColumnWidth(2, 90);  // 分类
-    m_serviceTable->setColumnWidth(3, 110); // 时长
-    m_serviceTable->setColumnWidth(4, 100); // 价格
-    m_serviceTable->setColumnWidth(5, 90);  // 销量
-    m_serviceTable->setColumnWidth(6, 85);  // 状态
-    m_serviceTable->setColumnWidth(7, 120); // 操作
+    m_serviceTable->setColumnWidth(0, 140); // 编码 (SVR-XXXX)
+    m_serviceTable->setColumnWidth(2, 140); // 分类
+    m_serviceTable->setColumnWidth(3, 140); // 标准时长
+    m_serviceTable->setColumnWidth(4, 140); // 服务价格
+    m_serviceTable->setColumnWidth(5, 120); // 累计销量
+    m_serviceTable->setColumnWidth(6, 110); // 状态
+    m_serviceTable->setColumnWidth(7, 150); // 操作
     m_serviceTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    m_serviceTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_serviceTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); // 仅名称列保持弹性拉伸
+
 
     m_serviceTable->verticalHeader()->setVisible(false);
     m_serviceTable->verticalHeader()->setDefaultSectionSize(60); // 统一行高 60px，与订单管理对齐
@@ -322,23 +322,24 @@ void ServiceManagementModule::setupDetailPanel()
     m_lblDetailName->setStyleSheet("font-size: 24px; font-weight: bold; color: #0f172a; background: transparent;"); 
     header->addWidget(m_lblDetailName, 1); 
     
-    // 移除之前的 addStretch()，改用对齐方式
-    QPushButton *editBtn = new QPushButton();
-    editBtn->setFixedSize(110, 40);
+    QPushButton *editBtn = new QPushButton("编辑服务");
+    editBtn->setFixedSize(90, 32);
+    editBtn->setCursor(Qt::PointingHandCursor);
     editBtn->setStyleSheet(
-        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
-        "QPushButton:hover { background: #2563eb; }"
+        "QPushButton { background: white; border: 1px solid #409eff; border-radius: 6px; } "
+        "QPushButton:hover { background: #ecf5ff; }"
     );
     
     QHBoxLayout *editBtnLayout = new QHBoxLayout(editBtn);
     editBtnLayout->setContentsMargins(0, 0, 0, 0);
     QLabel *editBtnText = new QLabel("编辑服务");
     editBtnText->setAlignment(Qt::AlignCenter);
-    editBtnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+    editBtnText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    editBtnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
     editBtnLayout->addWidget(editBtnText);
-    editBtn->setCursor(Qt::PointingHandCursor);
+    
     connect(editBtn, &QPushButton::clicked, this, &ServiceManagementModule::onEditService);
-    // header->addWidget(editBtn, 0, Qt::AlignTop | Qt::AlignRight); 
+    
     detailLayout->addLayout(header);
 
     // Stats Grid
@@ -364,20 +365,14 @@ void ServiceManagementModule::setupDetailPanel()
     // Base Info Section
     auto createSectionHeader = [&](const QString &text) {
         QWidget *w = new QWidget();
-        w->setStyleSheet("background: transparent; border: none;"); // 强制透明无背景
+        w->setStyleSheet("background: transparent; border: none;");
         QHBoxLayout *l = new QHBoxLayout(w);
         l->setContentsMargins(0, 5, 0, 2);
-        l->setSpacing(8);
-        
-        // 蓝色视觉锚点条
-        QFrame *bar = new QFrame();
-        bar->setFixedSize(4, 18);
-        bar->setStyleSheet("background: #3b82f6; border-radius: 2px; border: none;");
+        l->setSpacing(0);
         
         QLabel *lbl = new QLabel(text);
-        lbl->setStyleSheet("font-size: 18px; font-weight: bold; color: #0f172a; background: transparent; border: none;");
+        lbl->setStyleSheet("color: #334155; font-size: 15px; font-weight: bold; margin-left: 4px; border: none; background: transparent;");
         
-        l->addWidget(bar);
         l->addWidget(lbl);
         l->addStretch();
         return w;
@@ -386,8 +381,10 @@ void ServiceManagementModule::setupDetailPanel()
     detailLayout->addWidget(createSectionHeader("基础参数"));
 
     QFrame *baseCard = new QFrame();
-    baseCard->setStyleSheet("background: #f8fafc; border-radius: 8px; padding: 8px;");
+    baseCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
     QGridLayout *baseGrid = new QGridLayout(baseCard);
+    baseGrid->setContentsMargins(16, 16, 16, 16);
+    baseGrid->setSpacing(12);
     
     m_editPrice = new QLineEdit(); 
     m_editDuration = new QLineEdit();
@@ -396,12 +393,12 @@ void ServiceManagementModule::setupDetailPanel()
     
     auto addBaseField = [&](const QString &label, QLineEdit* &edit, int r, int c) {
         QVBoxLayout *vl = new QVBoxLayout();
-        vl->setSpacing(4); // 增加垂直间距
+        vl->setSpacing(4);
         QLabel *l = new QLabel(label);
-        l->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; background: transparent;"); 
+        l->setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: bold;"); 
         edit = new QLineEdit();
         edit->setReadOnly(true);
-        edit->setStyleSheet("background: transparent; border: none; color: #0f172a; font-weight: bold; font-size: 14px;"); // 16px -> 14px
+        edit->setStyleSheet("background: transparent; border: none; color: #1e293b; font-weight: bold; font-size: 15px;");
         vl->addWidget(l);
         vl->addWidget(edit);
         baseGrid->addLayout(vl, r, c);
@@ -417,23 +414,18 @@ void ServiceManagementModule::setupDetailPanel()
     detailLayout->addWidget(createSectionHeader("提成配置"));
 
     QFrame *commCard = new QFrame();
-    commCard->setStyleSheet("background: white; border: none;"); // 去掉边框
-    QGridLayout *commGrid = new QGridLayout(commCard);
-    commGrid->setContentsMargins(0, 5, 0, 5);
-    commGrid->setSpacing(10);
-    auto addField = [&](const QString &label, QLineEdit* &edit, int r, int c) {
-        QVBoxLayout *l = new QVBoxLayout();
-        QLabel *lbl = new QLabel(label);
-        lbl->setStyleSheet("color: #475569; font-size: 13px; font-weight: bold; border: none; background: transparent;"); // 12px -> 13px
-        edit = new QLineEdit();
-        edit->setReadOnly(true);
-        // 去掉边框，仅保留圆角背景
-        edit->setStyleSheet("background: #f8fafc; border: none; border-radius: 8px; padding: 8px; color: #0f172a; font-weight: bold; font-size: 14px;"); 
-        l->addWidget(lbl);
-        l->addWidget(edit);
-        commGrid->addLayout(l, r, c);
-    };
-    addField("固定提成金额 (元)", m_editCommFixed, 0, 0);
+    commCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; }");
+    QVBoxLayout *commL = new QVBoxLayout(commCard);
+    commL->setContentsMargins(16, 16, 16, 16);
+    commL->setSpacing(6);
+
+    QLabel *commLbl = new QLabel("固定提成金额 (元)");
+    commLbl->setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+    m_editCommFixed = new QLineEdit();
+    m_editCommFixed->setReadOnly(true);
+    m_editCommFixed->setStyleSheet("background: transparent; border: none; color: #1e293b; font-weight: bold; font-size: 15px;");
+    commL->addWidget(commLbl);
+    commL->addWidget(m_editCommFixed);
     detailLayout->addWidget(commCard);
 
     // Description Section
@@ -445,10 +437,16 @@ void ServiceManagementModule::setupDetailPanel()
 
     // History Section
     detailLayout->addWidget(createSectionHeader("最近操作记录"));
+    QFrame *historyCard = new QFrame();
+    historyCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; }");
+    QVBoxLayout *histL = new QVBoxLayout(historyCard);
+    histL->setContentsMargins(16, 16, 16, 16);
+    
     m_lblHistory = new QLabel();
     m_lblHistory->setWordWrap(true);
-    m_lblHistory->setStyleSheet("color: #475569; line-height: 1.4; font-size: 13px; background: transparent;");
-    detailLayout->addWidget(m_lblHistory);
+    m_lblHistory->setStyleSheet("color: #94a3b8; font-size: 13px; border: none; background: transparent;");
+    histL->addWidget(m_lblHistory);
+    detailLayout->addWidget(historyCard);
 
     detailLayout->addStretch();
     
@@ -456,10 +454,11 @@ void ServiceManagementModule::setupDetailPanel()
     mainLayout->addWidget(scroll);
     scroll->setWidget(scrollContent);
 
-    // 采用绝对定位固定位置 (Service 模块内部容器名为 container)
+    // 采用绝对定位固定位置 (297, 21) 确保跨模块视觉一致
     editBtn->setParent(container);
     editBtn->move(297, 21);
     editBtn->raise();
+    editBtn->show();
 }
 
 void ServiceManagementModule::updateTableData()
@@ -501,7 +500,7 @@ void ServiceManagementModule::updateTableData()
         const auto &info = filtered[i];
         int row = m_serviceTable->rowCount();
         m_serviceTable->insertRow(row);
-        m_serviceTable->setRowHeight(row, 50);
+        m_serviceTable->setRowHeight(row, 60);
 
 
         // 1. 服务编码

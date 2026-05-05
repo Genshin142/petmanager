@@ -98,20 +98,24 @@ void PetRecordDrawer::setupUI()
     infoLayout->addStretch();
 
     // 恢复编辑按钮
-    m_editBtn = new QPushButton();
-    m_editBtn->setFixedSize(110, 40);
+    m_editBtn = new QPushButton("修改资料");
+    m_editBtn->setFixedSize(90, 32);
     m_editBtn->setCursor(Qt::PointingHandCursor);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
-        "QPushButton:hover { background: #2563eb; }"
+        "QPushButton { background: white; border: 1px solid #409eff; border-radius: 6px; } "
+        "QPushButton:hover { background: #ecf5ff; }"
     );
     
-    QHBoxLayout *editBtnLayout = new QHBoxLayout(m_editBtn);
-    editBtnLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel *editBtnText = new QLabel("编辑资料");
-    editBtnText->setAlignment(Qt::AlignCenter);
-    editBtnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
-    editBtnLayout->addWidget(editBtnText);
+    QHBoxLayout *m_editBtnLayout = new QHBoxLayout(m_editBtn);
+    m_editBtnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *m_editBtnText = new QLabel("修改资料");
+    m_editBtnText->setAlignment(Qt::AlignCenter);
+    m_editBtnText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_editBtnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    m_editBtnLayout->addWidget(m_editBtnText);
+    
+    m_editBtn->setParent(container);
+    m_editBtn->hide();
 
     connect(m_editBtn, &QPushButton::clicked, this, [this](){ emit editRequested(m_currentPet); });
     // infoLayout->addWidget(m_editBtn, 0, Qt::AlignTop | Qt::AlignRight);
@@ -152,10 +156,11 @@ void PetRecordDrawer::setupUI()
 
     // --- 居中并限制宽度 ---
     QWidget *tabContainer = new QWidget();
+    tabContainer->setFixedHeight(60);
     QHBoxLayout *tabContainerLayout = new QHBoxLayout(tabContainer);
-    tabContainerLayout->setContentsMargins(0, 5, 0, 5);
+    tabContainerLayout->setContentsMargins(0, 10, 0, 10);
     tabContainerLayout->addStretch();
-    tabWidget->setFixedWidth(240);
+    tabWidget->setFixedWidth(280);
     tabContainerLayout->addWidget(tabWidget);
     tabContainerLayout->addStretch();
 
@@ -172,7 +177,7 @@ void PetRecordDrawer::setupUI()
     connect(m_tabGroup, &QButtonGroup::idClicked, m_stackedWidget, &QStackedWidget::setCurrentIndex);
     m_tabGroup->button(0)->setChecked(true);
     
-    // 采用绝对定位固定位置
+    // 采用绝对定位固定位置 (297, 21) 确保全系统对齐
     m_editBtn->setParent(container);
     m_editBtn->move(297, 21);
     m_editBtn->raise();
@@ -184,6 +189,9 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     m_allLogs = logs;
     m_currentMedia = media;
     m_currentBatches = batches;
+    
+    m_editBtn->show(); // 确保绝对定位按钮显示
+    m_editBtn->raise();
     
     // --- 顶部 Header 更新 ---
     m_nameLabel->setText(info.name);
@@ -456,21 +464,24 @@ QWidget* PetRecordDrawer::createArchivePage()
     contentLayout->setSpacing(16);
 
     auto createGroupCard = [&](const QString &title, QVBoxLayout* &cardLayout) {
+        QWidget *group = new QWidget();
+        QVBoxLayout *groupL = new QVBoxLayout(group);
+        groupL->setContentsMargins(0, 0, 0, 0);
+        groupL->setSpacing(10);
+
+        QLabel *tLabel = new QLabel(title);
+        tLabel->setStyleSheet("color: #334155; font-size: 15px; font-weight: bold; margin-left: 4px;");
+        groupL->addWidget(tLabel);
+
         QFrame *card = new QFrame();
         card->setObjectName("ArchiveGroupCard");
-        card->setStyleSheet("QFrame#ArchiveGroupCard { background: #fcfcfd; border-radius: 8px; border: 1px solid #ebeef5; } QLabel { border: none; background: transparent; }");
-        QVBoxLayout *mainV = new QVBoxLayout(card);
-        mainV->setContentsMargins(15, 15, 15, 15);
-        mainV->setSpacing(12);
+        card->setStyleSheet("QFrame#ArchiveGroupCard { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { border: none; background: transparent; }");
+        cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(16, 16, 16, 16);
+        cardLayout->setSpacing(12);
         
-        QLabel *tLabel = new QLabel(title);
-        tLabel->setStyleSheet("color: #303133; font-size: 14px; font-weight: bold; margin-bottom: 5px; background: transparent;");
-        mainV->addWidget(tLabel);
-        
-        cardLayout = new QVBoxLayout();
-        cardLayout->setSpacing(10);
-        mainV->addLayout(cardLayout);
-        return card;
+        groupL->addWidget(card);
+        return group;
     };
 
     auto addDetailRow = [&](QVBoxLayout *layout, const QString &label, QLabel* &valLabel) {
@@ -588,8 +599,8 @@ QWidget* PetRecordDrawer::createBoardingPage()
     };
 
     addRow(QString::fromUtf8("入住体重"), m_weightInVal, QString::fromUtf8("离店体重"), m_weightOutVal);
-    QFrame *line = new QFrame(); line->setFixedHeight(1); line->setStyleSheet("background: #f0f2f5;"); cardLayout->addWidget(line);
     addRow(QString::fromUtf8("入住时间"), m_dateInVal, "", m_dateOutVal, m_dateOutTitle);
+    cardLayout->setSpacing(16);
     QLabel *emptyPlaceholder = new QLabel();
     addRow(QString::fromUtf8("入住天数"), m_durationVal, "", emptyPlaceholder, nullptr);
 

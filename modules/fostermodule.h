@@ -33,8 +33,11 @@ public:
     QString status() const { return m_status; }
     QString roomType() const { return m_roomType; }
     int roomId() const { return m_roomNo; }
+    void setSelected(bool selected);
+    bool isSelected() const { return m_isSelected; }
 
 signals:
+
     void clicked();
 
 protected:
@@ -52,7 +55,9 @@ private:
     QString m_ownerName;
     QGraphicsDropShadowEffect *m_shadow;
     QLabel *m_avatar = nullptr;
+    bool m_isSelected = false;
 };
+
 
 // 巨幕预览：头像放大弹窗
 class AvatarZoomDialog : public QDialog {

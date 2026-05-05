@@ -95,10 +95,8 @@ void LogisticsManager::checkAndAutoUpdateTasks()
 
         QString newStatus = task.status;
         
-        // 三段式自动流转逻辑
-        if (now >= taskEndTime) {
-            newStatus = "已完成";
-        } else if (now >= taskStartTime) {
+        // 自动流转逻辑：仅处理“待处理” -> “进行中”的自动切换
+        if (task.status == "待处理" && now >= taskStartTime) {
             newStatus = "进行中";
         }
 
@@ -140,6 +138,26 @@ void LogisticsManager::addLogisticsTask(const LogisticsTask &task)
     }
     m_tasks.insert(t.taskId, t);
     emit logisticsDataChanged();
+}
+
+void LogisticsManager::cancelTask(const QString &taskId)
+{
+    if (m_tasks.contains(taskId)) {
+        LogisticsTask &task = m_tasks[taskId];
+        if (task.status != "已完成") {
+            task.status = "已取消";
+            
+            // 如果有关联的预约单，尝试将其状态设回 Pending 
+            if (!task.relatedAppointmentId.isEmpty()) {
+                AppointmentInfo appt = PetDataManager::instance()->getAppointment(task.relatedAppointmentId);
+                if (!appt.id.isEmpty()) {
+                    appt.status = "Pending";
+                    PetDataManager::instance()->updateAppointment(appt);
+                }
+            }
+            emit logisticsDataChanged();
+        }
+    }
 }
 
 void LogisticsManager::updateTaskStatus(const QString &taskId, const QString &status)

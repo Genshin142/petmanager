@@ -11,31 +11,35 @@
 
 LogisticsDetailDrawer::LogisticsDetailDrawer(QWidget *parent) : QWidget(parent)
 {
-    setFixedWidth(450); // 统一宽度为 450px
-    setStyleSheet("LogisticsDetailDrawer { background: white; border-left: 1px solid #ebeef5; }");
+    setFixedWidth(480); // 略微增加宽度以补偿边距
+    setStyleSheet("LogisticsDetailDrawer { background: transparent; border: none; }");
     
-    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(20);
-    shadow->setColor(QColor(0, 0, 0, 15));
-    shadow->setOffset(-2, 0);
-    setGraphicsEffect(shadow);
-
     setupUI();
     showEmpty();
 }
 
 void LogisticsDetailDrawer::setupUI()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    QVBoxLayout *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(10, 20, 10, 20); // 左边留出 10px 间距，右、上、下留出 20px 间距
+    outerLayout->setSpacing(0);
+
+    QFrame *mainContainer = new QFrame();
+    mainContainer->setObjectName("mainContainer");
+    mainContainer->setStyleSheet("#mainContainer { background: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
+    
+    outerLayout->addWidget(mainContainer);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(mainContainer);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // Header with gradient-like background
+    // Header with pure white background
     QWidget *header = new QWidget();
-    header->setFixedHeight(220);
-    header->setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f0f7ff, stop:1 #ffffff); border-bottom: 1px solid #f0f2f5;");
+    header->setFixedHeight(180); // 稍微缩小高度，更精致
+    header->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px;");
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(25, 40, 20, 20);
+    headerLayout->setContentsMargins(25, 30, 20, 10);
     headerLayout->setSpacing(20);
     headerLayout->setAlignment(Qt::AlignVCenter);
 
@@ -74,9 +78,12 @@ void LogisticsDetailDrawer::setupUI()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setStyleSheet("background: white;");
+    // 关键：滚动区域也要设置底部圆角，以防 footer 隐藏时底部变尖
+    scroll->setStyleSheet("QScrollArea { background: white; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QWidget#scrollContent { background: white; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     m_contentArea = new QWidget();
+    m_contentArea->setObjectName("scrollContent");
     m_contentArea->setStyleSheet("background: white;");
     m_contentLayout = new QVBoxLayout(m_contentArea);
     m_contentLayout->setContentsMargins(20, 25, 20, 25);
@@ -88,7 +95,7 @@ void LogisticsDetailDrawer::setupUI()
 
     // Footer Actions
     m_footer = new QWidget();
-    m_footer->setStyleSheet("background: white; border-top: 1px solid #ebeef5;");
+    m_footer->setStyleSheet("background: white; border-top: 1px solid #f0f2f5; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QVBoxLayout *footerLayout = new QVBoxLayout(m_footer);
     footerLayout->setContentsMargins(20, 20, 20, 20);
     footerLayout->setSpacing(12);
@@ -99,12 +106,7 @@ void LogisticsDetailDrawer::setupUI()
     m_primaryBtn->setStyleSheet("QPushButton { background: #fa8c16; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; text-align: center; padding: 0px; } "
                                 "QPushButton:hover { background: #ffd591; }");
     connect(m_primaryBtn, &QPushButton::clicked, this, [=](){
-        if (m_currentTask.status == "待处理") {
-            LogisticsManager::instance()->updateTaskStatus(m_currentTask.taskId, "进行中");
-            PetInfo info = PetDataManager::instance()->getPet(m_currentTask.petId);
-            if (!info.id.isEmpty()) { info.status = "接送中"; PetDataManager::instance()->updatePet(info); }
-            emit taskCompleted(m_currentTask.taskId); // triggers refresh
-        } else if (m_currentTask.status == "进行中") {
+        if (m_currentTask.status == "进行中") {
             LogisticsManager::instance()->updateTaskStatus(m_currentTask.taskId, "已完成");
             
             // 核心闭环：生成财务订单
@@ -152,6 +154,14 @@ void LogisticsDetailDrawer::setupUI()
                              "QPushButton:hover { background: #fde2e2; }");
     cancelBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
+    connect(editBtn, &QPushButton::clicked, this, [=](){
+        emit requestEditTask(m_currentTask.taskId);
+    });
+    
+    connect(cancelBtn, &QPushButton::clicked, this, [=](){
+        emit requestCancelTask(m_currentTask.taskId);
+    });
+
     minorBtns->addWidget(editBtn);
     minorBtns->addWidget(cancelBtn);
 
@@ -187,10 +197,8 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
     
     if (task.status == "待处理") {
         m_statusTag->setStyleSheet("background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
-        m_primaryBtn->setText("司机出发");
-        m_primaryBtn->setStyleSheet("QPushButton { background: #9a3412; color: white; border-radius: 8px; font-weight: bold; font-size: 15px; border: none; } "
-                                    "QPushButton:hover { background: #c2410c; }");
-        m_footer->setVisible(true);
+        m_primaryBtn->setVisible(false); // 隐藏主按钮，等待自动出发
+        m_footer->setVisible(true); // 修改/取消按钮仍可见
     } else if (task.status == "进行中") {
         m_statusTag->setStyleSheet("background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
         m_primaryBtn->setText("确认送达");
@@ -213,83 +221,58 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
 
     auto createSectionTitle = [](const QString &text) {
         QLabel *title = new QLabel(text);
-        title->setStyleSheet("font-size: 15px; color: #303133; font-weight: bold; "
-                             "border-left: 4px solid #409eff; padding-left: 8px; margin-bottom: 5px;");
+        title->setStyleSheet("font-size: 15px; color: #334155; font-weight: bold; margin-left: 4px; margin-bottom: 5px; border: none; background: transparent;");
         return title;
     };
 
-    auto createSeparator = []() {
-        QFrame *line = new QFrame();
-        line->setFixedHeight(1);
-        line->setStyleSheet("background-color: #ebeef5; border: none;");
-        return line;
-    };
 
     auto addInfoRow = [](QGridLayout *grid, int row, const QString &label, const QString &value) {
         QLabel *lLbl = new QLabel(label + "：");
-        lLbl->setStyleSheet("color: #606266; font-size: 13px;");
-        lLbl->setFixedWidth(70);
+        lLbl->setStyleSheet("color: #94a3b8; font-size: 13px; background: transparent; border: none;");
+        lLbl->setFixedWidth(80);
         QLabel *vLbl = new QLabel(value);
-        vLbl->setStyleSheet("color: #333333; font-size: 14px;");
+        vLbl->setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; background: transparent; border: none;");
         vLbl->setWordWrap(true);
         grid->addWidget(lLbl, row, 0, Qt::AlignTop);
         grid->addWidget(vLbl, row, 1, Qt::AlignTop);
     };
 
-    // --- Pet Info Section ---
-    QWidget *petBlock = new QWidget();
-    QVBoxLayout *petBL = new QVBoxLayout(petBlock);
-    petBL->setContentsMargins(0, 0, 0, 0);
-    petBL->addWidget(createSectionTitle("宠物档案"));
-    
-    QGridLayout *petGrid = new QGridLayout();
-    petGrid->setVerticalSpacing(10);
-    petGrid->setContentsMargins(12, 5, 0, 5);
-    addInfoRow(petGrid, 0, "品种", pet.breed);
-    addInfoRow(petGrid, 1, "年龄", pet.age);
-    petBL->addLayout(petGrid);
-    m_contentLayout->addWidget(petBlock);
+    auto addSection = [&](const QString &title, std::function<void(QGridLayout*)> filler) {
+        m_contentLayout->addWidget(createSectionTitle(title));
+        QFrame *card = new QFrame();
+        card->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
+        QGridLayout *grid = new QGridLayout(card);
+        grid->setContentsMargins(16, 16, 16, 16);
+        grid->setVerticalSpacing(12);
+        grid->setHorizontalSpacing(10);
+        filler(grid);
+        m_contentLayout->addWidget(card);
+        m_contentLayout->addSpacing(10);
+    };
 
-    m_contentLayout->addWidget(createSeparator());
+    // --- Pet Info Section ---
+    addSection("宠物档案", [&](QGridLayout *g) {
+        addInfoRow(g, 0, "品种", pet.breed);
+        addInfoRow(g, 1, "年龄", pet.age);
+    });
 
     // --- Owner Section ---
-    QWidget *ownerBlock = new QWidget();
-    QVBoxLayout *ownerBL = new QVBoxLayout(ownerBlock);
-    ownerBL->setContentsMargins(0, 0, 0, 0);
-    ownerBL->addWidget(createSectionTitle("主客关系"));
-
-    QGridLayout *ownerGrid = new QGridLayout();
-    ownerGrid->setVerticalSpacing(10);
-    ownerGrid->setContentsMargins(12, 5, 0, 5);
-    addInfoRow(ownerGrid, 0, "姓名", pet.ownerName + " (" + pet.ownerId + ")");
-    addInfoRow(ownerGrid, 1, "电话", pet.ownerPhone);
-    ownerBL->addLayout(ownerGrid);
-    m_contentLayout->addWidget(ownerBlock);
-
-    m_contentLayout->addWidget(createSeparator());
+    addSection("主客关系", [&](QGridLayout *g) {
+        addInfoRow(g, 0, "姓名", pet.ownerName + " (" + pet.ownerId + ")");
+        addInfoRow(g, 1, "电话", pet.ownerPhone);
+    });
 
     // --- Task Details Section ---
-    QWidget *taskBlock = new QWidget();
-    QVBoxLayout *taskBL = new QVBoxLayout(taskBlock);
-    taskBL->setContentsMargins(0, 0, 0, 0);
-    taskBL->addWidget(createSectionTitle("调度详情"));
-    
-    QGridLayout *taskGrid = new QGridLayout();
-    taskGrid->setVerticalSpacing(10);
-    taskGrid->setContentsMargins(12, 5, 0, 5);
+    addSection("调度详情", [&](QGridLayout *g) {
+        QString fullTime = task.appointmentTime;
+        QString datePart = fullTime.left(10);
+        QString slotPart = fullTime.mid(11);
 
-    QString fullTime = task.appointmentTime;
-    QString datePart = fullTime.left(10);
-    QString slotPart = fullTime.mid(11);
-
-    addInfoRow(taskGrid, 0, "业务类型", task.type);
-    addInfoRow(taskGrid, 1, "接送原因", task.relatedModule);
-    addInfoRow(taskGrid, 2, "预约日期", datePart);
-    addInfoRow(taskGrid, 3, "预约时段", slotPart);
-    addInfoRow(taskGrid, 4, "详细地址", task.address);
-
-    taskBL->addLayout(taskGrid);
-    m_contentLayout->addWidget(taskBlock);
+        addInfoRow(g, 0, "业务类型", task.type);
+        addInfoRow(g, 1, "预约日期", datePart);
+        addInfoRow(g, 2, "预约时段", slotPart);
+        addInfoRow(g, 3, "详细地址", task.address);
+    });
 }
 
 void LogisticsDetailDrawer::showEmpty()

@@ -8,6 +8,7 @@
 #include <QWheelEvent>
 #include <QDebug>
 #include "custom_calendar_edit.h"
+#include <QProgressBar>
 #include <QGraphicsDropShadowEffect>
 #include <QStyledItemDelegate>
 #include <QPainter>
@@ -70,7 +71,7 @@ public:
             font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
             font.setPointSize(10);
             painter->setFont(font);
-            QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+            QRect textRect = opt.rect.adjusted(4, 0, -4, 0);
             painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
         }
         
@@ -242,26 +243,45 @@ void InboundModule::setupUI()
     m_recordTable = new QTableWidget();
     m_recordTable->setColumnCount(9); 
     m_recordTable->setHorizontalHeaderLabels({"入库日期", "商品名称", "条形码", "生产日期", "分类", "供应商", "数量", "状态", "操作"});
-    m_recordTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    // --- 强化列宽控制：防止被其他拉伸列挤压 ---
+    QHeaderView *h = m_recordTable->horizontalHeader();
+    h->setDefaultAlignment(Qt::AlignCenter);
+    h->setSectionResizeMode(QHeaderView::Interactive);
     
-    // 均衡列宽分配
-    m_recordTable->setColumnWidth(0, 155); // 入库日期
-    m_recordTable->setColumnWidth(2, 120); // 条形码
-    m_recordTable->setColumnWidth(3, 100); // 生产日期
-    m_recordTable->setColumnWidth(4, 80);  // 分类
-    m_recordTable->setColumnWidth(6, 60);  // 数量
-    m_recordTable->setColumnWidth(7, 90);  // 状态
-    m_recordTable->setColumnWidth(8, 160); // 操作 (加宽以容纳彻底删除按钮)
+    // 0. 入库日期
+    h->setSectionResizeMode(0, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(0, 160);
+    
+    // 1. 商品名称 (弹性拉伸)
+    h->setSectionResizeMode(1, QHeaderView::Stretch);
+    
+    // 2. 条形码 (加宽并锁定)
+    h->setSectionResizeMode(2, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(2, 160);
+    
+    // 3. 生产日期
+    h->setSectionResizeMode(3, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(3, 110);
 
-    m_recordTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-    m_recordTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); // 商品名称
-    m_recordTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    m_recordTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
-    m_recordTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
-    m_recordTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch); // 供应商
-    m_recordTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
-    m_recordTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Fixed);
-    m_recordTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
+    // 4. 分类
+    h->setSectionResizeMode(4, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(4, 90);
+
+    // 5. 供应商 (弹性拉伸)
+    h->setSectionResizeMode(5, QHeaderView::Stretch);
+
+    // 6. 数量
+    h->setSectionResizeMode(6, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(6, 70);
+
+    // 7. 状态
+    h->setSectionResizeMode(7, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(7, 100);
+
+    // 8. 操作
+    h->setSectionResizeMode(8, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(8, 160);
+
     
     m_recordTable->setItemDelegate(new InboundRowDelegate(m_recordTable));
     
@@ -670,23 +690,25 @@ void InboundModule::setupDetailDrawer()
     scroll->setWidget(content);
     l->addWidget(scroll);
 
-    // 初始化编辑按钮 (复刻 PetRecordDrawer 逻辑)
-    m_editBtn = new QPushButton(m_drawerContainer);
-    m_editBtn->setFixedSize(110, 40);
+    // 初始化编辑按钮 (标准化样式与位置)
+    m_editBtn = new QPushButton("修改资料", m_drawerContainer);
+    m_editBtn->setFixedSize(90, 32);
     m_editBtn->setCursor(Qt::PointingHandCursor);
     m_editBtn->setStyleSheet(
-        "QPushButton { background: #3b82f6; border-radius: 8px; border: none; } "
-        "QPushButton:hover { background: #2563eb; }"
+        "QPushButton { background: white; border: 1px solid #409eff; border-radius: 6px; } "
+        "QPushButton:hover { background: #ecf5ff; }"
     );
     
-    QHBoxLayout *editBtnLayout = new QHBoxLayout(m_editBtn);
-    editBtnLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel *editBtnText = new QLabel("编辑资料");
-    editBtnText->setAlignment(Qt::AlignCenter);
-    editBtnText->setStyleSheet("color: white; font-size: 13px; font-weight: bold; background: transparent; border: none;");
-    editBtnLayout->addWidget(editBtnText);
+    QHBoxLayout *m_editBtnLayout = new QHBoxLayout(m_editBtn);
+    m_editBtnLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *m_editBtnText = new QLabel("修改资料");
+    m_editBtnText->setAlignment(Qt::AlignCenter);
+    m_editBtnText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_editBtnText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    m_editBtnLayout->addWidget(m_editBtnText);
     
     m_editBtn->move(297, 21);
+    m_editBtn->raise();
     m_editBtn->hide(); // 初始隐藏，选中记录后显示
     
     connect(m_editBtn, &QPushButton::clicked, this, &InboundModule::onEditProductFromDrawer);
@@ -802,20 +824,23 @@ void InboundModule::onRecordSelected()
 
     // --- 2. Grouped Details Area (Redesigned from 'Boxes' to 'List') ---
     auto createDetailGroup = [&](const QString &title, const QList<QPair<QString, QString>> &items) {
-        QFrame *group = new QFrame();
-        // 缩小卡片背景和边距
-        group->setStyleSheet("QFrame { background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; }");
-        QVBoxLayout *groupL = new QVBoxLayout(group);
-        groupL->setContentsMargins(15, 12, 15, 12);
-        groupL->setSpacing(8); // 缩小行间距
+        QWidget *groupContainer = new QWidget();
+        QVBoxLayout *containerL = new QVBoxLayout(groupContainer);
+        containerL->setContentsMargins(0, 0, 0, 0);
+        containerL->setSpacing(10);
 
         QLabel *titleL = new QLabel(title);
-        titleL->setStyleSheet("font-size: 13px; font-weight: bold; color: #64748b; margin-bottom: 2px; border: none; background: transparent;");
-        groupL->addWidget(titleL);
+        titleL->setStyleSheet("color: #334155; font-size: 15px; font-weight: bold; margin-left: 4px;");
+        containerL->addWidget(titleL);
+
+        QFrame *card = new QFrame();
+        card->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; }");
+        QVBoxLayout *cardL = new QVBoxLayout(card);
+        cardL->setContentsMargins(16, 16, 16, 16);
+        cardL->setSpacing(12);
 
         for (int i = 0; i < items.size(); ++i) {
             QHBoxLayout *row = new QHBoxLayout();
-            row->setContentsMargins(0, 2, 0, 2); // 缩小单行高度
             
             QLabel *label = new QLabel(items[i].first);
             label->setStyleSheet("color: #94a3b8; font-size: 13px; border: none; background: transparent;");
@@ -826,17 +851,11 @@ void InboundModule::onRecordSelected()
             row->addWidget(label);
             row->addStretch();
             row->addWidget(val);
-            groupL->addLayout(row);
-            
-            // 分割线 (更细更淡)
-            if (i < items.size() - 1) {
-                QFrame *line = new QFrame();
-                line->setFixedHeight(1);
-                line->setStyleSheet("background: rgba(241, 245, 249, 0.8);");
-                groupL->addWidget(line);
-            }
+            cardL->addLayout(row);
         }
-        return group;
+        cardL->setSpacing(14); // 增加行间距以补偿分割线的移除
+        containerL->addWidget(card);
+        return groupContainer;
     };
 
     QList<QPair<QString, QString>> inboundInfo;
@@ -848,13 +867,84 @@ void InboundModule::onRecordSelected()
     
     m_detailContentLayout->addWidget(createDetailGroup("物流与库存记录", inboundInfo));
 
-    QList<QPair<QString, QString>> supplierInfo;
-    supplierInfo << qMakePair(QString("供应商"), rec.supplier.isEmpty() ? "未知" : rec.supplier);
-    supplierInfo << qMakePair(QString("生产日期"), rec.productionDate);
-    supplierInfo << qMakePair(QString("保质期"), QString::number(pInfo.shelfLifeDays) + " 天");
-    supplierInfo << qMakePair(QString("到期日期"), expiryDate.isValid() ? expiryDate.toString("yyyy-MM-dd") : "未设定");
+    // --- 3. 供应链与生产信息 (带保质期进度条) ---
+    QWidget *supGroup = new QWidget();
+    QVBoxLayout *supL = new QVBoxLayout(supGroup);
+    supL->setContentsMargins(0, 0, 0, 0);
+    supL->setSpacing(10);
 
-    m_detailContentLayout->addWidget(createDetailGroup("供应链与生产信息", supplierInfo));
+    QLabel *supTitle = new QLabel("供应链与生产信息");
+    supTitle->setStyleSheet("color: #334155; font-size: 15px; font-weight: bold; margin-left: 4px;");
+    supL->addWidget(supTitle);
+
+    QFrame *supCard = new QFrame();
+    supCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; }");
+    QVBoxLayout *supCardL = new QVBoxLayout(supCard);
+    supCardL->setContentsMargins(16, 16, 16, 16);
+    supCardL->setSpacing(14);
+
+    auto addSupRow = [&](const QString &l, const QString &v) {
+        QHBoxLayout *row = new QHBoxLayout();
+        QLabel *lbl = new QLabel(l);
+        lbl->setStyleSheet("color: #94a3b8; font-size: 13px; border: none; background: transparent;");
+        QLabel *val = new QLabel(v.isEmpty() ? "-" : v);
+        val->setStyleSheet("color: #1e293b; font-size: 13px; font-weight: 600; border: none; background: transparent;");
+        row->addWidget(lbl);
+        row->addStretch();
+        row->addWidget(val);
+        supCardL->addLayout(row);
+    };
+
+    addSupRow("供应商", rec.supplier.isEmpty() ? "未知" : rec.supplier);
+    addSupRow("生产日期", rec.productionDate);
+    addSupRow("保质期", QString::number(pInfo.shelfLifeDays) + " 天");
+    addSupRow("到期日期", expiryDate.isValid() ? expiryDate.toString("yyyy-MM-dd") : "未设定");
+
+    // 进度条逻辑
+    if (expiryDate.isValid()) {
+        QDate prodDate = QDate::fromString(rec.productionDate, "yyyy-MM-dd");
+        if (prodDate.isValid()) {
+            qint64 total = prodDate.daysTo(expiryDate);
+            qint64 passed = prodDate.daysTo(QDate::currentDate());
+            double percent = 0;
+            if (total > 0) percent = qBound(0.0, (double)passed / total * 100.0, 100.0);
+
+            QVBoxLayout *progLayout = new QVBoxLayout();
+            progLayout->setSpacing(6);
+            progLayout->setContentsMargins(0, 5, 0, 0);
+
+            QHBoxLayout *progHeader = new QHBoxLayout();
+            QLabel *progTitle = new QLabel("保质期消耗进度");
+            progTitle->setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+            QLabel *progVal = new QLabel(QString("%1%").arg(percent, 0, 'f', 1));
+            progVal->setStyleSheet(QString("color: %1; font-size: 12px; font-weight: bold; border: none; background: transparent;").arg(percent > 90 ? "#ef4444" : (percent > 70 ? "#f59e0b" : "#3b82f6")));
+            progHeader->addWidget(progTitle);
+            progHeader->addStretch();
+            progHeader->addWidget(progVal);
+
+            QProgressBar *bar = new QProgressBar();
+            bar->setFixedHeight(8);
+            bar->setRange(0, 100);
+            bar->setValue((int)percent);
+            bar->setTextVisible(false);
+            
+            QString barColor = "#3b82f6";
+            if (percent >= 100) barColor = "#ef4444";
+            else if (percent > 80) barColor = "#f59e0b";
+
+            bar->setStyleSheet(QString(
+                "QProgressBar { background: #e2e8f0; border-radius: 4px; border: none; } "
+                "QProgressBar::chunk { background: %1; border-radius: 4px; }"
+            ).arg(barColor));
+
+            progLayout->addLayout(progHeader);
+            progLayout->addWidget(bar);
+            supCardL->addLayout(progLayout);
+        }
+    }
+
+    supL->addWidget(supCard);
+    m_detailContentLayout->addWidget(supGroup);
     m_detailContentLayout->addStretch();
 }
 

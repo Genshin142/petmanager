@@ -23,6 +23,8 @@ protected:
 
 signals:
     void taskCompleted(const QString &taskId);
+    void requestEditTask(const QString &taskId);   // 新增：请求修改信息
+    void requestCancelTask(const QString &taskId); // 新增：请求取消派单
     void taskModified(const QString &taskId);
 
 private:

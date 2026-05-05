@@ -43,7 +43,6 @@ protected:
 private:
     void setupUI();
     QWidget* createSectionTitle(const QString &text);
-    QFrame* createSeparator();
     void addInfoRow(QGridLayout *grid, int row, const QString &label, const QString &value);
     
     bool m_isOpened = false;

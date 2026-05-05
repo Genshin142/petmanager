@@ -41,6 +41,7 @@ AppointmentModule::AppointmentModule(QWidget *parent)
 
 void AppointmentModule::setupUI()
 {
+    // 1. 基础布局
     QHBoxLayout *rootLayout = new QHBoxLayout(this);
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
@@ -51,124 +52,111 @@ void AppointmentModule::setupUI()
     leftLayout->setContentsMargins(25, 20, 25, 20);
     leftLayout->setSpacing(20);
 
-    // 1. 顶栏：标题 + 搜索 + 新增
-    QHBoxLayout *topBar = new QHBoxLayout();
-    QLabel *title = new QLabel("预约管理中心");
-    title->setStyleSheet("font-size: 24px; font-weight: 800; color: #1a1a1a;");
-    
+    // -- 初始化通用搜索框 --
     m_searchEdit = new QLineEdit();
     m_searchEdit->setPlaceholderText("搜索宠物、会员、手机号...");
     m_searchEdit->setFixedSize(300, 38);
     m_searchEdit->setStyleSheet("QLineEdit { border: 1px solid #dcdfe6; border-radius: 19px; padding: 0 15px; background: white; font-size: 13px; } QLineEdit:focus { border-color: #409eff; }");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &AppointmentModule::onFilter);
 
+    // -- 初始化通用新增按钮 --
     QPushButton *addBtn = new QPushButton("新增预约");
     addBtn->setFixedSize(130, 42);
     addBtn->setCursor(Qt::PointingHandCursor);
     addBtn->setStyleSheet(
-        "QPushButton { "
-        "  background: #409eff; "
-        "  color: white; "
-        "  border-radius: 21px; "
-        "  font-weight: bold; "
-        "  font-size: 14px; "
-        "  border: none; "
-        "  padding: 0; "
-        "  text-align: center; "
-        "} "
+        "QPushButton { background: #409eff; color: white; border-radius: 21px; font-weight: bold; font-size: 14px; border: none; padding: 0; text-align: center; } "
         "QPushButton:hover { background: #66b1ff; }"
     );
     connect(addBtn, &QPushButton::clicked, this, &AppointmentModule::onAddAppointment);
 
-    topBar->addWidget(title);
-    topBar->addStretch();
-    leftLayout->addLayout(topBar);
+    // 2. 驾驶舱 (Stats) - 整合标题与统计卡片
+    QFrame *dashContainer = new QFrame();
+    dashContainer->setObjectName("dashContainer");
+    dashContainer->setStyleSheet("#dashContainer { background: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
+    
+    QVBoxLayout *dashMainLayout = new QVBoxLayout(dashContainer);
+    dashMainLayout->setContentsMargins(20, 15, 20, 15);
+    dashMainLayout->setSpacing(15);
 
-    // 2. 驾驶舱 (Stats)
-    QHBoxLayout *dashLayout = new QHBoxLayout();
-    dashLayout->setSpacing(20);
+    QLabel *titleLabel = new QLabel("预约管理中心");
+    titleLabel->setStyleSheet("font-size: 20px; color: #1e293b; font-weight: bold; border: none; background: transparent;");
+    dashMainLayout->addWidget(titleLabel);
+
+    QHBoxLayout *statLayout = new QHBoxLayout();
+    statLayout->setSpacing(20);
+    dashMainLayout->addLayout(statLayout);
 
     auto createCard = [&](const QString &title, QLabel* &valLabel) {
         QFrame *card = new QFrame();
         card->setFixedHeight(90);
-        card->setStyleSheet("background: white; border-radius: 12px; border: none;");
+        card->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } "
+                           "QLabel { border: none; background: transparent; }");
         QVBoxLayout *l = new QVBoxLayout(card);
-        QLabel *t = new QLabel(title); t->setStyleSheet("color: #909399; font-size: 13px;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("font-size: 22px; font-weight: bold; color: #303133;");
+        QLabel *t = new QLabel(title); t->setStyleSheet("color: #94a3b8; font-size: 13px; background: transparent;"); 
+        valLabel = new QLabel("0"); valLabel->setStyleSheet("font-size: 22px; font-weight: bold; color: #1e293b; background: transparent;");
         l->addWidget(t); l->addWidget(valLabel);
         return card;
     };
 
-    dashLayout->addWidget(createCard("今日预约总量", m_statTotal));
-    dashLayout->addWidget(createCard("洗护/美容队列", m_statGrooming));
-    dashLayout->addWidget(createCard("物流接送任务", m_statLogistics));
-    dashLayout->addWidget(createCard("寄养实时负载", m_statBoarding));
-    leftLayout->addLayout(dashLayout);
-
-    // 新建统一的操作栏 (Action Row)
-    QHBoxLayout *actionRow = new QHBoxLayout();
-    actionRow->setSpacing(15); // 设置统一的子元素间距
+    statLayout->addWidget(createCard("今日预约总量", m_statTotal));
+    statLayout->addWidget(createCard("洗护/美容队列", m_statGrooming));
+    statLayout->addWidget(createCard("物流接送任务", m_statLogistics));
+    statLayout->addWidget(createCard("寄养实时负载", m_statBoarding));
     
-    // 1. 新增按钮和搜索框
-    actionRow->addWidget(addBtn);
+    leftLayout->addWidget(dashContainer);
+
+    // 3. 操作栏容器化 (Action Card)
+    QFrame *actionCard = new QFrame();
+    actionCard->setObjectName("ActionCard");
+    actionCard->setStyleSheet("#ActionCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    
+    QHBoxLayout *actionRow = new QHBoxLayout(actionCard);
+    actionRow->setContentsMargins(20, 10, 20, 10);
+    actionRow->setSpacing(12);
+    
+    // -- 左侧：搜索与筛选 --
     actionRow->addWidget(m_searchEdit);
     
-    // 加一个弹簧或者更大的固定间距，把筛选组稍微隔开
-    actionRow->addSpacing(15);
-    
-    // 2. 状态筛选下拉框
     m_statusCombo = new QComboBox();
     m_statusCombo->addItems({"全部", "待处理", "服务中", "已完成", "已取消", "已过期"});
     m_statusCombo->setFixedWidth(120);
     m_statusCombo->setFixedHeight(38);
     m_statusCombo->setStyleSheet(
-        "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; color: #606266; font-weight: bold; } "
+        "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; color: #606266; font-weight: bold; font-size: 13px; } "
         "QComboBox:hover { border-color: #409eff; } "
-        "QComboBox::drop-down { border: none; } "
-        "QComboBox::down-arrow { image: url(:/icons/down_arrow.png); width: 12px; height: 12px; }"
+        "QComboBox::drop-down { border: none; width: 24px; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }"
     );
     connect(m_statusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AppointmentModule::onStatusFilterChanged);
     actionRow->addWidget(m_statusCombo);
     
-    // 重置按钮
-    QPushButton *resetBtn = new QPushButton("重置");
-    resetBtn->setFixedHeight(38);
-    resetBtn->setCursor(Qt::PointingHandCursor);
-    resetBtn->setStyleSheet(
-        "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 16px; color: #606266; font-weight: bold; } "
-        "QPushButton:hover { color: #409eff; border-color: #409eff; }"
-    );
-    connect(resetBtn, &QPushButton::clicked, this, [this](){
-        m_searchEdit->clear();
-        m_statusCombo->setCurrentIndex(0);
-        m_currentPage = 1;
-        m_currentDate = QDate::currentDate();
-        updateDateBtnText();
-        refreshView();
-    });
-    actionRow->addWidget(resetBtn);
-    
     actionRow->addStretch();
     
-    // 3. 日期导航栏
+    // -- 中间：日期导航 --
     QPushButton *prevBtn = new QPushButton("< 上一天");
     m_dateBtn = new QPushButton("今天");
     QPushButton *nextBtn = new QPushButton("下一天 >");
 
-    QString navStyle = "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 6px 12px; color: #606266; font-weight: bold; } QPushButton:hover { color: #409eff; border-color: #409eff; }";
+    QString navStyle = "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 6px 12px; color: #606266; font-weight: bold; height: 38px; } QPushButton:hover { color: #409eff; border-color: #409eff; background: #f0f9ff; }";
     prevBtn->setStyleSheet(navStyle); nextBtn->setStyleSheet(navStyle);
-    m_dateBtn->setStyleSheet("QPushButton { background: #e1f0ff; border: 1px solid #b3d8ff; border-radius: 6px; padding: 6px 15px; color: #409eff; font-weight: bold; }");
+    m_dateBtn->setStyleSheet("QPushButton { background: #e1f0ff; border: 1px solid #b3d8ff; border-radius: 6px; padding: 6px 15px; color: #409eff; font-weight: bold; height: 38px; }");
 
     connect(prevBtn, &QPushButton::clicked, this, &AppointmentModule::onPrevDay);
     connect(nextBtn, &QPushButton::clicked, this, &AppointmentModule::onNextDay);
-
     m_dateBtn->setText(QString("今天 (%1)").arg(m_currentDate.toString("MM/dd")));
 
     actionRow->addWidget(prevBtn);
     actionRow->addWidget(m_dateBtn);
     actionRow->addWidget(nextBtn);
     
-    leftLayout->addLayout(actionRow);
+    actionRow->addSpacing(20);
+    
+    // -- 右侧：新增按钮 (主要操作) --
+    actionRow->addWidget(addBtn);
+    
+    leftLayout->addWidget(actionCard);
+    leftLayout->addSpacing(10);
     leftLayout->addSpacing(10);
 
     // 3. 核心切换区域 (StackedWidget)
@@ -178,7 +166,13 @@ void AppointmentModule::setupUI()
     m_gridPage = new QWidget();
     QVBoxLayout *gridPageLayout = new QVBoxLayout(m_gridPage);
     gridPageLayout->setContentsMargins(0, 0, 0, 0);
-    gridPageLayout->setSpacing(15);
+    gridPageLayout->setSpacing(0);
+
+    QFrame *gridCard = new QFrame();
+    gridCard->setObjectName("GridCard");
+    gridCard->setStyleSheet("#GridCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *gridCardLayout = new QVBoxLayout(gridCard);
+    gridCardLayout->setContentsMargins(20, 20, 20, 20);
 
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
@@ -186,6 +180,7 @@ void AppointmentModule::setupUI()
     scroll->setStyleSheet("background: transparent;");
     
     QWidget *scrollContent = new QWidget();
+    scrollContent->setStyleSheet("background: transparent;"); // 确保内容层也透明
     QHBoxLayout *kanban = new QHBoxLayout(scrollContent);
     kanban->setContentsMargins(0, 0, 10, 0);
     kanban->setSpacing(25);
@@ -195,7 +190,7 @@ void AppointmentModule::setupUI()
     QVBoxLayout *col1L = new QVBoxLayout(col1);
     col1L->setContentsMargins(0, 0, 0, 0);
     m_todayTitle = new QLabel("今日日程安排");
-    m_todayTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #2563eb; margin-bottom: 5px;");
+    m_todayTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #2563eb; margin-bottom: 5px; background: transparent;");
     col1L->addWidget(m_todayTitle);
     m_todayGrid = new QVBoxLayout();
     m_todayGrid->setSpacing(12);
@@ -204,7 +199,7 @@ void AppointmentModule::setupUI()
     kanban->addWidget(col1);
 
     // 垂直分割线
-    QFrame *line = new QFrame(); line->setFrameShape(QFrame::VLine); line->setStyleSheet("color: #ebeef5;");
+    QFrame *line = new QFrame(); line->setFrameShape(QFrame::VLine); line->setStyleSheet("color: #ebeef5; background: transparent;");
     kanban->addWidget(line);
 
     // 明日列
@@ -212,7 +207,7 @@ void AppointmentModule::setupUI()
     QVBoxLayout *col2L = new QVBoxLayout(col2);
     col2L->setContentsMargins(0, 0, 0, 0);
     m_tomorrowTitle = new QLabel("明日预约预告");
-    m_tomorrowTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #606266; margin-bottom: 5px;");
+    m_tomorrowTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #606266; margin-bottom: 5px; background: transparent;");
     col2L->addWidget(m_tomorrowTitle);
     m_tomorrowGrid = new QVBoxLayout();
     m_tomorrowGrid->setSpacing(12);
@@ -221,7 +216,9 @@ void AppointmentModule::setupUI()
     kanban->addWidget(col2);
 
     scroll->setWidget(scrollContent);
-    gridPageLayout->addWidget(scroll);
+    gridCardLayout->addWidget(scroll);
+    gridPageLayout->addWidget(gridCard);
+    
     m_stack->addWidget(m_gridPage);
 
     // --- B. 列表页面 ---

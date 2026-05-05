@@ -91,7 +91,7 @@ public:
             font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
             font.setPointSize(10);
             painter->setFont(font);
-            QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+            QRect textRect = opt.rect.adjusted(4, 0, -4, 0);
             painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
         }
         
@@ -155,41 +155,75 @@ bool ProductModule::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void ProductModule::setupUI() {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(15, 15, 15, 15);
-    mainLayout->setSpacing(0);
+    // --- 全局水平布局 (左侧内容 + 右侧全高抽屉) ---
+    QHBoxLayout *rootLayout = new QHBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(0);
 
-    // 全局左右 Master-Detail 布局
-    QHBoxLayout *globalMasterDetail = new QHBoxLayout();
-    globalMasterDetail->setContentsMargins(0, 0, 0, 0);
-    globalMasterDetail->setSpacing(0);
+    // 左侧容器
+    QWidget *leftContainer = new QWidget();
+    QVBoxLayout *mainLayout = new QVBoxLayout(leftContainer);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(20);
 
-    m_mainTabs = new QTabWidget();
-    m_mainTabs->setStyleSheet(
-        "QTabWidget::pane { border: none; background: white; } " // 移除边框，让整体感更强
-        "QTabBar::tab { background: #f5f7fa; color: #909399; padding: 12px 25px; border: 1px solid #e4e7ed; border-bottom: none; border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px; } "
-        "QTabBar::tab:selected { background: white; color: #409eff; border-bottom-color: white; } "
-        "QTabBar::tab:hover:!selected { background: #fafafa; }"
-    );
+    // 1. 顶部统计与标题容器 (复刻会员模块风格)
+    QFrame *topContainer = new QFrame();
+    topContainer->setObjectName("TopStatisticsContainer");
+    topContainer->setFixedHeight(160);
+    topContainer->setStyleSheet("#TopStatisticsContainer { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *topLayout = new QVBoxLayout(topContainer);
+    topLayout->setContentsMargins(25, 15, 25, 15);
+    topLayout->setSpacing(12);
 
-    // Tab 1: 档案看板
-    QWidget *inventoryTab = new QWidget();
-    QVBoxLayout *invLayout = new QVBoxLayout(inventoryTab);
-    invLayout->setContentsMargins(15, 20, 15, 20);
-    invLayout->setSpacing(20);
-
-    // --- 原有的库存看板代码迁移过来 ---
-    // 1. 顶部标题与快速搜索
-    QHBoxLayout *headerLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel("商品档案管理中心");
-    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold;");
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold; border: none; background: transparent;");
+    topLayout->addWidget(titleLabel);
+
+    QHBoxLayout *statLayout = new QHBoxLayout();
+    statLayout->setSpacing(15);
+    topLayout->addLayout(statLayout);
+
+    auto createStatCard = [&](const QString &icon, const QString &label, QLabel* &outValueLabel, const QColor &color) {
+        QFrame *card = new QFrame();
+        card->setFixedHeight(80);
+        card->setStyleSheet("QFrame { background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; } ");
+        
+        QHBoxLayout *l = new QHBoxLayout(card);
+        l->setContentsMargins(20, 10, 20, 10);
+
+        QLabel *iconLabel = new QLabel(icon);
+        iconLabel->hide(); // 暂时隐藏图标以匹配会员简约风格
+        
+        QVBoxLayout *textLayout = new QVBoxLayout();
+        textLayout->setSpacing(2);
+        
+        QLabel *labelTitle = new QLabel(label);
+        labelTitle->setStyleSheet("color: #94a3b8; font-size: 12px; border: none; background: transparent;");
+        
+        outValueLabel = new QLabel("0");
+        outValueLabel->setStyleSheet(QString("font-size: 20px; color: %1; border: none; background: transparent; font-weight: bold;").arg(color.name()));
+        
+        textLayout->addWidget(labelTitle);
+        textLayout->addWidget(outValueLabel);
+        textLayout->addStretch();
+
+        l->addLayout(textLayout);
+        l->addStretch();
+        return card;
+    };
+
+    statLayout->addWidget(createStatCard("", "商品品种", varietyLabel, QColor("#3b82f6")));
+    statLayout->addWidget(createStatCard("", "库存预警", lowStockLabel, QColor("#f56c6c")));
+    statLayout->addWidget(createStatCard("", "总货值估算", totalValueLabel, QColor("#67c23a")));
     
-    // --- 操作中控台 (Operation Console) ---
+    mainLayout->addWidget(topContainer);
+    
+    // 2. 操作栏 (复刻会员模块风格)
     QFrame *operationCard = new QFrame();
-    operationCard->setFixedHeight(64);
-    operationCard->setStyleSheet("QFrame { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    operationCard->setObjectName("OperationCard");
+    operationCard->setStyleSheet("#OperationCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
     QHBoxLayout *filterLayout = new QHBoxLayout(operationCard);
-    filterLayout->setContentsMargins(15, 0, 15, 0);
+    filterLayout->setContentsMargins(25, 12, 25, 12);
     filterLayout->setSpacing(10);
     
     // -- 1. 搜索栏 (左侧) --
@@ -245,51 +279,14 @@ void ProductModule::setupUI() {
 
 
 
-    headerLayout->addWidget(titleLabel);
-    headerLayout->addStretch();
-    // 移除了此处对 filterLayout 的添加，稍后将其移至卡片下方
-
-    // 2. 统计概览
-    QHBoxLayout *statLayout = new QHBoxLayout();
-    auto createStatCard = [&](const QString &icon, const QString &title, QLabel* &valLabel, const QString &color) {
-        QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; }");
-        
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15);
-        shadow->setColor(QColor(0, 0, 0, 25));
-        shadow->setOffset(0, 2);
-        card->setGraphicsEffect(shadow);
-
-        QHBoxLayout *cl = new QHBoxLayout(card);
-        cl->setContentsMargins(20, 15, 20, 15);
-        QLabel *iconLabel = new QLabel(icon);
-        iconLabel->setFixedSize(50, 50); // 稍微小一点，适合 90 高度
-        iconLabel->setAlignment(Qt::AlignCenter);
-        iconLabel->setStyleSheet(QString("font-size: 24px; color: %1; background: #f5f7fa; border-radius: 10px; border: none;").arg(color));
-        
-        QVBoxLayout *vl = new QVBoxLayout();
-        vl->setSpacing(2);
-        QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("0"); valLabel->setStyleSheet("color: #303133; font-size: 22px; border: none; background: transparent;");
-        vl->addWidget(tl); vl->addWidget(valLabel);
-        vl->addStretch();
-
-        if (!icon.isEmpty()) {
-            cl->addWidget(iconLabel);
-            cl->addSpacing(15);
-        }
-        cl->addLayout(vl);
-        cl->addStretch();
-        return card;
-    };
-
-    statLayout->addWidget(createStatCard("", "商品品种", varietyLabel, "#409eff"));
-    statLayout->addWidget(createStatCard("", "库存预警", lowStockLabel, "#f56c6c"));
-    statLayout->addWidget(createStatCard("", "总货值估算", totalValueLabel, "#67c23a"));
+    mainLayout->addWidget(operationCard);
     
-    // 3. 商品列表
+    // 3. 表格卡片容器 (12px 圆角)
+    QFrame *tableCard = new QFrame();
+    tableCard->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #ebeef5; }");
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableCard);
+    tableLayout->setContentsMargins(0, 5, 0, 0);
+
     prodTable = new QTableWidget();
     prodTable->setColumnCount(9);
     prodTable->setHorizontalHeaderLabels({"图片", "条形码", "商品名称", "规格单位", "成本价", "销售价", "当前库存", "状态", "操作"});
@@ -301,36 +298,64 @@ void ProductModule::setupUI() {
     prodTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     prodTable->setFocusPolicy(Qt::NoFocus);
     prodTable->verticalHeader()->setVisible(false);
-    prodTable->verticalHeader()->setDefaultSectionSize(60); // 统一行高 60px，与订单管理对齐
+    prodTable->verticalHeader()->setDefaultSectionSize(60);
 
     prodTable->setStyleSheet(
-        "QTableWidget { border: none; background: white; outline: none; } "
-        
+        "QTableWidget { border: none; background: white; outline: none; border-radius: 6px; } "
+        "QHeaderView { border: none; background: transparent; border-radius: 12px 12px 0 0; }"
     );
     connect(prodTable, &QTableWidget::cellDoubleClicked, this, &ProductModule::onShowBatchDetails);
 
-    prodTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
-    prodTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-      // 选择
-    prodTable->setColumnWidth(0, 80);  // 图片
-    prodTable->setColumnWidth(1, 120); // 条形码
-    prodTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch); // 商品名称拉伸
-    prodTable->setColumnWidth(8, 100); // 操作按钮
+    // --- 强制控制列宽：先设模式再设宽度，防止被 Stretch 覆盖 ---
+    QHeaderView *m_header = prodTable->horizontalHeader();
+    m_header->setDefaultAlignment(Qt::AlignCenter);
+    m_header->setSectionResizeMode(QHeaderView::Interactive); // 设为交互模式，以便手动控制宽度
     
+    // 0. 图片
+    m_header->setSectionResizeMode(0, QHeaderView::Fixed);
+    prodTable->setColumnWidth(0, 80);
     
-    prodTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-    prodTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
-    prodTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
+    // 1. 条形码 (重点加宽并锁定)
+    m_header->setSectionResizeMode(1, QHeaderView::Fixed);
+    prodTable->setColumnWidth(1, 160); // 增加到 160px
     
-    // 隐藏/显示成本列
+    // 2. 商品名称 (保持弹性拉伸)
+    m_header->setSectionResizeMode(2, QHeaderView::Stretch);
+    
+    // 3. 规格
+    m_header->setSectionResizeMode(3, QHeaderView::Fixed);
+    prodTable->setColumnWidth(3, 100);
+
+    // 4. 成本 (管理员可见)
+    m_header->setSectionResizeMode(4, QHeaderView::Fixed);
+    prodTable->setColumnWidth(4, 100);
+
+    // 5. 售价
+    m_header->setSectionResizeMode(5, QHeaderView::Fixed);
+    prodTable->setColumnWidth(5, 100);
+
+    // 6. 库存
+    m_header->setSectionResizeMode(6, QHeaderView::Fixed);
+    prodTable->setColumnWidth(6, 100);
+
+    // 7. 状态
+    m_header->setSectionResizeMode(7, QHeaderView::Fixed);
+    prodTable->setColumnWidth(7, 100);
+
+    // 8. 操作
+    m_header->setSectionResizeMode(8, QHeaderView::Fixed);
+    prodTable->setColumnWidth(8, 120);
+
+    
     if (m_role != UserRole::ADMIN) {
         prodTable->hideColumn(4);
     }
 
+    tableLayout->addWidget(prodTable);
+
     // 4. 底部统计与分页
     QFrame *statFrame = new QFrame();
     statFrame->setFixedHeight(50);
-    // 背景改为白色，移除 border
     statFrame->setStyleSheet("QFrame { background: white; border: none; padding: 0 12px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     QHBoxLayout *footerLayout = new QHBoxLayout(statFrame);
 
@@ -356,44 +381,27 @@ void ProductModule::setupUI() {
     pageLayout->addWidget(pageLabel);
     pageLayout->addWidget(nextBtn);
 
-    footerLayout->addStretch(); // 关键：左侧弹簧推向右侧
+    footerLayout->addStretch();
     footerLayout->addWidget(pageGroup);
-    footerLayout->addSpacing(15); 
-
-    // 绑定分页逻辑
-    connect(prevBtn, &QPushButton::clicked, this, &ProductModule::onPrevPage);
-    connect(nextBtn, &QPushButton::clicked, this, &ProductModule::onNextPage);
-
-    // 左侧：组装表格与分页
-    QWidget *tableContainer = new QWidget();
-    QVBoxLayout *tableLayout = new QVBoxLayout(tableContainer);
-    tableLayout->setContentsMargins(0, 0, 0, 0);
-    tableLayout->setSpacing(10);
-    tableLayout->addWidget(prodTable);
+    
     tableLayout->addWidget(statFrame);
-
-    invLayout->addLayout(headerLayout);
-    invLayout->addLayout(statLayout);
-    invLayout->addWidget(operationCard);
-    invLayout->addWidget(tableContainer);
-
-    m_mainTabs->addTab(inventoryTab, "库存看板");
+    mainLayout->addWidget(tableCard);
 
     // 设置全局详情抽屉
     setupDetailDrawer();
-    m_detailDrawer->setFixedWidth(450); // 统一宽度为 450px
+    m_detailDrawer->setFixedWidth(450);
 
-    globalMasterDetail->addWidget(m_mainTabs, 1);
-    globalMasterDetail->addWidget(m_detailDrawer, 0);
+    rootLayout->addWidget(leftContainer, 1);
+    
+    // 为详情页增加一个容器以设置外边距，使其看起来像独立的圆角卡片
+    QWidget *drawerContainer = new QWidget();
+    QVBoxLayout *drawerContainerLayout = new QVBoxLayout(drawerContainer);
+    drawerContainerLayout->setContentsMargins(0, 0, 0, 0); // 移除外部边距，由内部布局控制一致性
+    drawerContainerLayout->addWidget(m_detailDrawer);
+    
+    rootLayout->addWidget(drawerContainer, 0);
 
-    mainLayout->addLayout(globalMasterDetail);
-
-    // 联动详情面板
-    connect(m_mainTabs, &QTabWidget::currentChanged, this, [=](int index){
-        Q_UNUSED(index);
-        m_btnModifyInfo->setVisible(true);
-        m_lblDrawerHeaderTitle->setText("商品详情");
-    });
+    // 移除了对 m_mainTabs 的信号绑定逻辑
 
     // 绑定信号：行选中时刷新并滑出抽屉
     connect(prodTable, &QTableWidget::itemSelectionChanged, this, [=](){
@@ -1133,6 +1141,7 @@ void ProductModule::updateStats() {
         }
     }
 
+    // 恢复看板统计更新
     varietyLabel->setText(QStringLiteral("%1种").arg(varieties));
     lowStockLabel->setText(QStringLiteral("%1项").arg(lowStock));
     totalValueLabel->setText(QStringLiteral("￥%1").arg(totalValue, 0, 'f', 2));
@@ -1287,36 +1296,58 @@ int ProductModule::getLowStockCount() const
 void ProductModule::setupDetailDrawer() {
     // ===== 抽屉面板（侧边布局） =====
     m_detailDrawer = new QWidget(this);
-    m_detailDrawer->setStyleSheet(
-        "QWidget#drawerPanel {"
-        "  background: white;"
-        "  border-left: 1px solid #e4e7ed;"
-        "}"
-    );
-    m_detailDrawer->setObjectName("drawerPanel");
+    m_detailDrawer->setFixedWidth(450);
     m_detailDrawer->hide();
     
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_detailDrawer);
-    mainLayout->setContentsMargins(0, 20, 20, 20); // 顶部保持 20px 对齐
+    m_drawerContainer = new QFrame();
+    m_drawerContainer->setObjectName("ProductDetailContainer");
+    m_drawerContainer->setStyleSheet("QFrame#ProductDetailContainer { background: white; border-radius: 12px; border: 1px solid #ebeef5; }");
+    m_drawerContainer->setAttribute(Qt::WA_StyledBackground); // 开启背景绘制支持
+    
+    QVBoxLayout *outerLayout = new QVBoxLayout(m_detailDrawer);
+    outerLayout->setContentsMargins(20, 20, 20, 20); // 恢复内部 20px 边距，确保卡片宽度为 410px
+    outerLayout->addWidget(m_drawerContainer);
+    
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_drawerContainer);
+    mainLayout->setContentsMargins(0, 0, 0, 10); // 底部留出 10px 间距，确保圆角边框可见
     mainLayout->setSpacing(0);
 
     // ===== 抽屉头部（关闭按钮 + 标题 + 编辑按钮） =====
     QWidget *drawerHeader = new QWidget();
-    drawerHeader->setFixedHeight(52);
-    drawerHeader->setStyleSheet("background: #fafbfc; border-bottom: 1px solid #ebeef5;");
+    drawerHeader->setFixedHeight(80); // 增加高度以容纳 (325, 25) 的对齐位置
+    drawerHeader->setStyleSheet("background: white; border-bottom: 1px solid #ebeef5; border-top-left-radius: 12px; border-top-right-radius: 12px;");
     QHBoxLayout *headerLayout = new QHBoxLayout(drawerHeader);
     headerLayout->setContentsMargins(20, 0, 12, 0);
     
     m_lblDrawerHeaderTitle = new QLabel("商品详情");
     m_lblDrawerHeaderTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #303133; background: transparent;");
     
-    m_btnModifyInfo = new QPushButton("✎ 修改资料");
+    m_btnModifyInfo = new QPushButton("修改资料");
+    m_btnModifyInfo->setFixedSize(90, 32);
     m_btnModifyInfo->setCursor(Qt::PointingHandCursor);
     m_btnModifyInfo->setStyleSheet(
-        "QPushButton { background: transparent; color: #409eff; border: none; font-size: 13px; font-weight: bold; padding: 4px 8px; border-radius: 4px; }"
+        "QPushButton { background: white; border: 1px solid #409eff; border-radius: 6px; }"
         "QPushButton:hover { background: #ecf5ff; }"
     );
+    
+    QHBoxLayout *m_btnModifyLayout = new QHBoxLayout(m_btnModifyInfo);
+    m_btnModifyLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *m_btnModifyText = new QLabel("修改资料");
+    m_btnModifyText->setAlignment(Qt::AlignCenter);
+    m_btnModifyText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_btnModifyText->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
+    m_btnModifyLayout->addWidget(m_btnModifyText);
+    
     connect(m_btnModifyInfo, &QPushButton::clicked, this, &ProductModule::onEditProduct);
+    
+    // 采用绝对定位 (297, 21) 确保全系统对齐
+    m_btnModifyInfo->setParent(drawerHeader);
+    m_btnModifyInfo->move(297, 21);
+    m_btnModifyInfo->raise();
+    m_btnModifyInfo->show();
+    
+    headerLayout->addWidget(m_lblDrawerHeaderTitle);
+    headerLayout->addStretch();
     
     QPushButton *closeBtn = new QPushButton("✕");
     closeBtn->setFixedSize(32, 32);
@@ -1326,44 +1357,6 @@ void ProductModule::setupDetailDrawer() {
         "QPushButton:hover { background: #f56c6c; color: white; }"
     );
     connect(closeBtn, &QPushButton::clicked, this, &ProductModule::closeDrawer);
-    
-    headerLayout->addWidget(m_lblDrawerHeaderTitle);
-    headerLayout->addStretch();
-    
-    QPushButton *prevBtn = new QPushButton("上一个");
-    prevBtn->setCursor(Qt::PointingHandCursor);
-    prevBtn->setStyleSheet("QPushButton { background: transparent; color: #606266; border: 1px solid #dcdfe6; font-size: 12px; padding: 4px 10px; border-radius: 4px; }"
-                           "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #c0c4cc; }");
-    connect(prevBtn, &QPushButton::clicked, this, [=]() {
-        int row = prodTable->currentRow();
-        while (row > 0) {
-            row--;
-            if (!prodTable->isRowHidden(row)) {
-                prodTable->selectRow(row);
-                break;
-            }
-        }
-    });
-
-    QPushButton *nextBtn = new QPushButton("下一个");
-    nextBtn->setCursor(Qt::PointingHandCursor);
-    nextBtn->setStyleSheet("QPushButton { background: transparent; color: #606266; border: 1px solid #dcdfe6; font-size: 12px; padding: 4px 10px; border-radius: 4px; }"
-                           "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #c0c4cc; }");
-    connect(nextBtn, &QPushButton::clicked, this, [=]() {
-        int row = prodTable->currentRow();
-        while (row >= 0 && row < prodTable->rowCount() - 1) {
-            row++;
-            if (!prodTable->isRowHidden(row)) {
-                prodTable->selectRow(row);
-                break;
-            }
-        }
-    });
-
-    headerLayout->addWidget(prevBtn);
-    headerLayout->addWidget(nextBtn);
-    headerLayout->addSpacing(10);
-    headerLayout->addWidget(m_btnModifyInfo);
     headerLayout->addWidget(closeBtn);
     mainLayout->addWidget(drawerHeader);
 
@@ -1372,7 +1365,7 @@ void ProductModule::setupDetailDrawer() {
     topHeader->setFixedHeight(280);
     topHeader->setStyleSheet("background: white;");
     QVBoxLayout *topLayout = new QVBoxLayout(topHeader);
-    topLayout->setContentsMargins(24, 16, 24, 10);
+    topLayout->setContentsMargins(16, 16, 16, 10);
     
     m_mainPreview = new QLabel();
     m_mainPreview->setMinimumHeight(200);
@@ -1396,12 +1389,13 @@ void ProductModule::setupDetailDrawer() {
     m_detailScroll = new QScrollArea();
     m_detailScroll->setWidgetResizable(true);
     m_detailScroll->setFrameShape(QFrame::NoFrame);
-    m_detailScroll->setStyleSheet("QScrollArea { border: none; background: #fafbfc; }"); // 稍微带点底色区分内容
+    m_detailScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_detailScroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
     
     QWidget *scrollContent = new QWidget();
-    scrollContent->setStyleSheet("background: #fafbfc;");
+    scrollContent->setStyleSheet("background: transparent;");
     QVBoxLayout *scrollLayout = new QVBoxLayout(scrollContent);
-    scrollLayout->setContentsMargins(24, 16, 24, 40);
+    scrollLayout->setContentsMargins(16, 16, 16, 20);
     scrollLayout->setSpacing(20);
 
     // 1. 标题与品牌
@@ -1430,96 +1424,97 @@ void ProductModule::setupDetailDrawer() {
     scrollLayout->addWidget(m_tagContainer);
 
     // ================= 垂直卡片流 =================
-    // 2. 核心交易区 (The Buy Box)
-    QWidget *financeCard = new QWidget();
-    financeCard->setStyleSheet("background: white; border-radius: 8px; border: 1px solid #f0f2f5; padding: 12px;");
+    auto createGroup = [&](const QString &title, QWidget *card) {
+        QWidget *group = new QWidget();
+        QVBoxLayout *groupL = new QVBoxLayout(group);
+        groupL->setContentsMargins(0, 0, 0, 0);
+        groupL->setSpacing(10);
+        QLabel *titleL = new QLabel(title);
+        titleL->setStyleSheet("color: #334155; font-size: 15px; font-weight: bold; margin-left: 4px; border: none; background: transparent;");
+        groupL->addWidget(titleL);
+        groupL->addWidget(card);
+        return group;
+    };
+
+    // 2. 经营与财务
+    QFrame *financeCard = new QFrame();
+    financeCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
     QVBoxLayout *financeLayout = new QVBoxLayout(financeCard);
-    financeLayout->setSpacing(10);
-    financeLayout->setContentsMargins(0, 0, 0, 0);
-    
-    QLabel *financeTitle = new QLabel("经营与财务");
-    financeTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #303133; border: none; background: transparent;");
-    financeLayout->addWidget(financeTitle);
+    financeLayout->setContentsMargins(16, 16, 16, 16);
+    financeLayout->setSpacing(14);
     
     auto addFinanceRow = [&](const QString &label, QLabel* &valLabel, const QString &color = "#303133", bool isBold = false) {
         QHBoxLayout *row = new QHBoxLayout();
-        QLabel *l = new QLabel(label); l->setStyleSheet("color: #909399; font-size: 13px; background: transparent; border: none;");
+        QLabel *l = new QLabel(label); l->setStyleSheet("color: #94a3b8; font-size: 13px; background: transparent; border: none;");
         valLabel = new QLabel("-"); 
         valLabel->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent; border: none; %2").arg(color).arg(isBold ? "font-weight: bold;" : ""));
         row->addWidget(l); row->addStretch(); row->addWidget(valLabel);
         financeLayout->addLayout(row);
     };
     
-    addFinanceRow("零售指导价", m_lblSalePrice, "#f56c6c", true);
+    addFinanceRow("零售指导价", m_lblSalePrice, "#ef4444", true);
     if (m_role == ADMIN) {
-        addFinanceRow("进货成本价", m_lblCostPrice);
-        addFinanceRow("预估毛利率", m_lblGrossMargin, "#67c23a", true);
+        addFinanceRow("进货成本价", m_lblCostPrice, "#1e293b");
+        addFinanceRow("预估毛利率", m_lblGrossMargin, "#10b981", true);
     }
     
-    QFrame *line = new QFrame(); line->setFrameShape(QFrame::HLine); line->setStyleSheet("background: #f0f2f5;");
-    financeLayout->addWidget(line);
+    addFinanceRow("当前可用库存", m_lblCurrentStock, "#3b82f6", true);
+    addFinanceRow("预警阈值", m_lblMinStock, "#64748b");
     
-    addFinanceRow("当前可用库存", m_lblCurrentStock, "#409eff", true);
-    addFinanceRow("预警阈值", m_lblMinStock);
-    
-    // 补货警告横幅 (内嵌于卡片，紧贴库存下方)
     m_restockBanner = new QWidget();
-    m_restockBanner->setStyleSheet("background: #fef0f0; border: 1px solid #fde2e2; border-radius: 6px; padding: 8px 12px; margin-top: 5px;");
+    m_restockBanner->setStyleSheet("background: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 10px 14px; margin-top: 4px;");
     QHBoxLayout *bannerLayout = new QHBoxLayout(m_restockBanner);
     bannerLayout->setContentsMargins(0, 0, 0, 0);
     QLabel *bannerText = new QLabel("该商品可用库存已低于预警线，系统已自动加入今日补货待办！");
-    bannerText->setStyleSheet("color: #f56c6c; font-weight: bold; font-size: 12px; border: none; background: transparent;");
+    bannerText->setWordWrap(true);
+    bannerText->setStyleSheet("color: #ef4444; font-weight: bold; font-size: 12px; border: none; background: transparent;");
     bannerLayout->addWidget(bannerText);
     bannerLayout->addStretch();
     m_restockBanner->hide();
     financeLayout->addWidget(m_restockBanner);
     
-    scrollLayout->addWidget(financeCard);
+    scrollLayout->addWidget(createGroup("经营与财务", financeCard));
 
-    // 3. 销售兵器库 (The Hook)
-    QWidget *salesCard = new QWidget();
-    salesCard->setStyleSheet("background: white; border-radius: 8px; border: 1px solid #f0f2f5; padding: 12px;");
+    // 3. 销售话术辅助
+    QFrame *salesCard = new QFrame();
+    salesCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
+    QVBoxLayout *salesLayout = new QVBoxLayout(salesCard);
+    salesLayout->setContentsMargins(16, 16, 16, 16);
+    salesLayout->setSpacing(12);
+
     auto addSalesRow = [&](QVBoxLayout *layout, QLabel* &valLabel, const QString &label) {
         QHBoxLayout *row = new QHBoxLayout();
         row->setSpacing(8);
         QLabel *l = new QLabel(label + "："); 
-        l->setStyleSheet("color: #909399; font-size: 12px; background: transparent; border: none; min-width: 65px;");
+        l->setStyleSheet("color: #94a3b8; font-size: 13px; background: transparent; border: none; min-width: 65px;");
         valLabel = new QLabel("-");
         valLabel->setWordWrap(true);
-        valLabel->setStyleSheet("color: #606266; font-size: 13px; background: transparent; border: none;");
+        valLabel->setStyleSheet("color: #1e293b; font-size: 13px; background: transparent; border: none;");
         row->addWidget(l, 0, Qt::AlignTop);
         row->addWidget(valLabel, 1, Qt::AlignTop);
         layout->addLayout(row);
     };
     
-    QVBoxLayout *salesLayout = new QVBoxLayout(salesCard);
-    salesLayout->setSpacing(8);
-    salesLayout->setContentsMargins(0, 0, 0, 0);
-    
-    QLabel *salesTitle = new QLabel("销售话术辅助");
-    salesTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #303133; margin-bottom: 5px; border: none; background: transparent;");
-    salesLayout->addWidget(salesTitle);
-    
     addSalesRow(salesLayout, m_lblSuitablePets, "适用对象");
     addSalesRow(salesLayout, m_lblPairingSuggestion, "推荐搭配");
     
-    scrollLayout->addWidget(salesCard);
+    scrollLayout->addWidget(createGroup("销售话术辅助", salesCard));
 
-    // 4. 数字化质控 (The Reassurance)
-    QWidget *qcCard = new QWidget();
-    qcCard->setStyleSheet("background: white; border-radius: 8px; border: 1px solid #f0f2f5; padding: 12px;");
+    // 4. 数字化质控
+    QFrame *qcCard = new QFrame();
+    qcCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
     QVBoxLayout *qcLayout = new QVBoxLayout(qcCard);
-    qcLayout->setSpacing(10);
-    qcLayout->setContentsMargins(0, 0, 0, 0);
+    qcLayout->setContentsMargins(16, 16, 16, 16);
+    qcLayout->setSpacing(12);
     
     QHBoxLayout *qcHeaderLayout = new QHBoxLayout();
-    QLabel *qcTitle = new QLabel("数字化质控");
-    qcTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #303133; border: none; background: transparent;");
+    QLabel *qcTitleLbl = new QLabel("健康评分");
+    qcTitleLbl->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: bold;");
     m_lblHealthScore = new QLabel("A");
     m_lblHealthScore->setFixedSize(24, 24);
     m_lblHealthScore->setAlignment(Qt::AlignCenter);
-    m_lblHealthScore->setStyleSheet("background: #67c23a; color: white; border-radius: 12px; font-weight: bold; font-size: 13px;");
-    qcHeaderLayout->addWidget(qcTitle);
+    m_lblHealthScore->setStyleSheet("background: #10b981; color: white; border-radius: 12px; font-weight: bold; font-size: 13px; border: none;");
+    qcHeaderLayout->addWidget(qcTitleLbl);
     qcHeaderLayout->addStretch();
     qcHeaderLayout->addWidget(m_lblHealthScore);
     qcLayout->addLayout(qcHeaderLayout);
@@ -1527,81 +1522,77 @@ void ProductModule::setupDetailDrawer() {
     m_expiryBar = new QProgressBar();
     m_expiryBar->setFixedHeight(8);
     m_expiryBar->setTextVisible(false);
-    m_expiryBar->setStyleSheet("QProgressBar { background: #f0f2f5; border-radius: 4px; border: none; } QProgressBar::chunk { border-radius: 4px; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #a8edea, stop:1 #fed6e3); }");
+    m_expiryBar->setStyleSheet("QProgressBar { background: #e2e8f0; border-radius: 4px; border: none; } QProgressBar::chunk { border-radius: 4px; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #a8edea, stop:1 #fed6e3); }");
     qcLayout->addWidget(m_expiryBar);
 
     QHBoxLayout *ed = new QHBoxLayout();
-    m_lblDetailDate = new QLabel("生产：-"); m_lblDetailDate->setStyleSheet("color: #909399; font-size: 11px; border: none; background: transparent;");
-    m_lblDetailExpiry = new QLabel("剩余：-"); m_lblDetailExpiry->setStyleSheet("font-weight: bold; font-size: 11px; border: none; background: transparent;");
+    m_lblDetailDate = new QLabel("生产：-"); m_lblDetailDate->setStyleSheet("color: #94a3b8; font-size: 11px; border: none; background: transparent;");
+    m_lblDetailExpiry = new QLabel("剩余：-"); m_lblDetailExpiry->setStyleSheet("color: #1e293b; font-weight: bold; font-size: 11px; border: none; background: transparent;");
     ed->addWidget(m_lblDetailDate); ed->addStretch(); ed->addWidget(m_lblDetailExpiry);
     qcLayout->addLayout(ed);
     
     m_lblDetailStorage = new QLabel("-");
     m_lblDetailStorage->setWordWrap(true);
-    m_lblDetailStorage->setStyleSheet("color: #e6a23c; font-size: 12px; font-weight: bold; padding: 8px; background: #fdf6ec; border-radius: 6px; border: none;");
+    m_lblDetailStorage->setStyleSheet("color: #d97706; font-size: 12px; font-weight: bold; padding: 10px; background: #fffbeb; border-radius: 8px; border: 1px solid #fef3c7;");
     qcLayout->addWidget(m_lblDetailStorage);
-    scrollLayout->addWidget(qcCard);
+    scrollLayout->addWidget(createGroup("数字化质控", qcCard));
 
-    // 5. 基础规格参数 (The Details)
-    QWidget *baseCard = new QWidget();
-    baseCard->setStyleSheet("background: white; border-radius: 8px; border: 1px solid #f0f2f5; padding: 12px;");
+    // 5. 详细参数
+    QFrame *baseCard = new QFrame();
+    baseCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
     QVBoxLayout *baseInfoLayout = new QVBoxLayout(baseCard);
-    baseInfoLayout->setSpacing(8);
-    baseInfoLayout->setContentsMargins(0, 0, 0, 0);
-    
-    QLabel *baseTitle = new QLabel("详细参数");
-    baseTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #303133; margin-bottom: 5px; border: none; background: transparent;");
-    baseInfoLayout->addWidget(baseTitle);
+    baseInfoLayout->setContentsMargins(16, 16, 16, 16);
+    baseInfoLayout->setSpacing(12);
     
     auto addRow = [&](const QString &label, QLabel* &valLabel) {
         QHBoxLayout *row = new QHBoxLayout();
-        QLabel *l = new QLabel(label + "："); l->setStyleSheet("color: #909399; min-width: 60px; font-size: 12px; background: transparent; border: none;");
-        valLabel = new QLabel("-"); valLabel->setStyleSheet("color: #606266; font-size: 12px; background: transparent; border: none;");
+        QLabel *l = new QLabel(label + "："); 
+        l->setStyleSheet("color: #94a3b8; font-size: 13px; background: transparent; border: none; min-width: 65px;");
+        valLabel = new QLabel("-");
+        valLabel->setStyleSheet("color: #1e293b; font-size: 13px; background: transparent; border: none;");
         valLabel->setWordWrap(true);
-        row->addWidget(l); row->addWidget(valLabel, 1);
+        row->addWidget(l, 0, Qt::AlignTop);
+        row->addWidget(valLabel, 1, Qt::AlignTop);
         baseInfoLayout->addLayout(row);
     };
+    
     addRow("商品条码", m_lblDetailBarcode);
     addRow("产地信息", m_lblDetailOrigin);
     addRow("规格单位", m_lblDetailSpec);
     addRow("供货厂商", m_lblDetailSupplier);
     addRow("联系方式", m_lblDetailSupplierContact);
-    scrollLayout->addWidget(baseCard);
-
-    // 6. 原料组成与配方 (智能截断)
-    m_nutritionContainer = new QWidget();
-    m_nutritionContainer->setStyleSheet("background: white; border-radius: 8px; border: 1px solid #f0f2f5; padding: 12px;");
-    QVBoxLayout *nutriLayout = new QVBoxLayout(m_nutritionContainer);
-    nutriLayout->setContentsMargins(0, 0, 0, 0);
     
-    QLabel *nutriTitle = new QLabel("原料组成与配方");
-    nutriTitle->setStyleSheet("font-size: 14px; font-weight: bold; color: #303133; margin-bottom: 5px; border: none; background: transparent;");
-    nutriLayout->addWidget(nutriTitle);
+    scrollLayout->addWidget(createGroup("详细参数", baseCard));
+
+    // 6. 原料组成与配方
+    QFrame *nutriCard = new QFrame();
+    nutriCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
+    m_nutritionContainer = nutriCard; // 保持变量引用
+    QVBoxLayout *nutriLayout = new QVBoxLayout(m_nutritionContainer);
+    nutriLayout->setContentsMargins(16, 16, 16, 16);
+    nutriLayout->setSpacing(8);
     
     m_lblDetailIngredients = new QLabel("-");
     m_lblDetailIngredients->setWordWrap(true);
-    m_lblDetailIngredients->setStyleSheet("color: #606266; font-size: 13px; line-height: 1.6; background: transparent; padding-top: 8px; border: none;");
+    m_lblDetailIngredients->setStyleSheet("color: #475569; line-height: 1.5; font-size: 13px;");
     nutriLayout->addWidget(m_lblDetailIngredients);
     
-    scrollLayout->addWidget(m_nutritionContainer);
+    scrollLayout->addWidget(createGroup("原料组成与配方", m_nutritionContainer));
 
     // ================= 底部：动态流转记录 =================
     // 流转记录卡片
-    QWidget *flowCard = new QWidget();
-    flowCard->setStyleSheet("background: white; border-radius: 8px; border: 1px solid #ebeef5; padding: 16px;");
+    // 7. 近期流转动态
+    QFrame *flowCard = new QFrame();
+    flowCard->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; }");
     QVBoxLayout *flowLayout = new QVBoxLayout(flowCard);
-    flowLayout->setContentsMargins(0, 0, 0, 0);
+    flowLayout->setContentsMargins(16, 16, 16, 16);
     flowLayout->setSpacing(10);
     
-    QLabel *flowTitle = new QLabel("近期流转动态");
-    flowTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #303133; border: none; background: transparent;");
-    flowLayout->addWidget(flowTitle);
-    
     m_flowRecordsLayout = new QVBoxLayout();
-    m_flowRecordsLayout->setSpacing(8);
+    m_flowRecordsLayout->setSpacing(12);
     flowLayout->addLayout(m_flowRecordsLayout);
     
-    scrollLayout->addWidget(flowCard);
+    scrollLayout->addWidget(createGroup("近期流转动态", flowCard));
 
     m_detailScroll->setWidget(scrollContent);
     mainLayout->addWidget(m_detailScroll);
@@ -1731,18 +1722,18 @@ void ProductModule::updateDetailDrawer(const ProductInfo &info) {
     for (int i = 0; i < allRecs.size() && count < 3; ++i) {
         if (allRecs[i].barcode == info.barcode) {
             QWidget *recWidget = new QWidget();
-            recWidget->setStyleSheet("background: #fafbfc; border-radius: 6px; padding: 8px;");
+            recWidget->setStyleSheet("background: #f1f5f9; border-radius: 10px; border: 1px solid #e2e8f0;");
             QHBoxLayout *rl = new QHBoxLayout(recWidget);
-            rl->setContentsMargins(5, 5, 5, 5);
+            rl->setContentsMargins(12, 10, 12, 10);
             
             QLabel *lblType = new QLabel("入库");
-            lblType->setStyleSheet("color: #409eff; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+            lblType->setStyleSheet("color: #3b82f6; font-size: 13px; font-weight: bold; border: none; background: transparent;");
             
             QLabel *lblDate = new QLabel(allRecs[i].dateTime);
-            lblDate->setStyleSheet("color: #909399; font-size: 12px; border: none; background: transparent;");
+            lblDate->setStyleSheet("color: #94a3b8; font-size: 12px; border: none; background: transparent;");
             
             QLabel *lblQty = new QLabel(QString("+%1 %2").arg(allRecs[i].quantity).arg(info.spec));
-            lblQty->setStyleSheet("color: #67c23a; font-size: 13px; font-weight: bold; border: none; background: transparent;");
+            lblQty->setStyleSheet("color: #10b981; font-size: 13px; font-weight: bold; border: none; background: transparent;");
             
             rl->addWidget(lblType);
             rl->addWidget(lblDate);

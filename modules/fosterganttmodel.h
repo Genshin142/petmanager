@@ -4,7 +4,9 @@
 #include <QAbstractTableModel>
 #include <QDate>
 #include <QColor>
+#include <QPixmap>
 #include "petdatamanager.h"
+
 
 class FosterGanttModel : public QAbstractTableModel
 {
@@ -44,17 +46,46 @@ public:
     }
 
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override {
-        if (role == Qt::DisplayRole) {
-            if (orientation == Qt::Horizontal) {
+        if (orientation == Qt::Horizontal) {
+            if (role == Qt::DisplayRole) {
                 QDate d = m_startDate.addDays(section);
                 static const QStringList weekDays = {"", "周一", "周二", "周三", "周四", "周五", "周六", "周日"};
                 return QString("%1\n%2").arg(d.toString("MM-dd"), weekDays[d.dayOfWeek()]);
-            } else {
-                return QString("Room %1").arg(101 + section);
             }
+        } else {
+            int roomId = 101 + section;
+            QString type = "标准房";
+            if (roomId >= 111 && roomId <= 115) type = "豪华房";
+            else if (roomId >= 116 && roomId <= 120) type = "多宠房";
+
+            if (role == Qt::DisplayRole) {
+                return QString("%1 | %2").arg(roomId).arg(type);
+            }
+            if (role == Qt::TextAlignmentRole) {
+                return Qt::AlignCenter;
+            }
+            if (role == Qt::ForegroundRole) {
+                if (type == "豪华房") return QColor("#722ed1");
+                if (type == "多宠房") return QColor("#fa8c16");
+                return QColor("#27ae60"); // 标准房用深绿色
+            }
+            if (role == Qt::BackgroundRole) {
+                if (type == "豪华房") return QColor("#f9f0ff");
+                if (type == "多宠房") return QColor("#fff7e6");
+                return QColor("#f6ffed"); // 标准房用浅绿色
+            }
+            if (role == Qt::DecorationRole) {
+                // 返回一个小色块作为装饰
+                QPixmap pix(12, 12);
+                pix.fill(type == "豪华房" ? QColor("#722ed1") : (type == "多宠房" ? QColor("#fa8c16") : QColor("#27ae60")));
+                return pix;
+            }
+
         }
+
         return QVariant();
     }
+
 
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override {
         if (!index.isValid()) return QVariant();

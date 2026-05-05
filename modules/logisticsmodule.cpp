@@ -17,7 +17,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include "compactcalendar.h"
-#include <QEvent>
+#include <QUuid>
+#include <QMenu>
 #include <QTimer>
 #include <QMouseEvent>
 #include <QTableWidget>
@@ -121,76 +122,98 @@ void LogisticsModule::setupUI()
     m_mainLayout->setContentsMargins(20, 20, 20, 20);
     m_mainLayout->setSpacing(10);
 
-    // Header Area
+    // --- 1. 顶部看板看板容器 (与会员模块保持一致) ---
+    QFrame *dashboardCard = new QFrame();
+    dashboardCard->setObjectName("DashboardCard");
+    dashboardCard->setFixedHeight(160);
+    dashboardCard->setStyleSheet("#DashboardCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *dashboardLayout = new QVBoxLayout(dashboardCard);
+    dashboardLayout->setContentsMargins(25, 15, 25, 15);
+    dashboardLayout->setSpacing(12);
+
+    // 1.1 标题层
     QHBoxLayout *headerLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel("接送调度中心");
-    titleLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #1a1a1a;");
-    
-    QPushButton *newBtn = new QPushButton("新建派车单");
-    newBtn->setMinimumHeight(36);
-    newBtn->setCursor(Qt::PointingHandCursor);
-    newBtn->setStyleSheet("QPushButton { padding: 4px 16px; background: #409eff; color: white; border-radius: 8px; font-weight: bold; font-size: 13px; border: none; box-shadow: 0 4px 12px rgba(64,158,255,0.3); } "
-                          "QPushButton:hover { background: #66b1ff; }");
-    connect(newBtn, &QPushButton::clicked, this, &LogisticsModule::showCreateTaskDialog);
-
+    titleLabel->setStyleSheet("font-size: 20px; color: #303133; font-weight: bold; border: none; background: transparent;");
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
-    headerLayout->addWidget(newBtn);
-    m_mainLayout->addLayout(headerLayout);
+    dashboardLayout->addLayout(headerLayout);
 
-    // Statistics Area
+    // 1.2 统计卡片行
     QHBoxLayout *statLayout = new QHBoxLayout();
-    statLayout->setSpacing(20);
+    statLayout->setSpacing(15);
     statLayout->addWidget(createStatCard("今日总任务", "0", "#409eff", &m_statTotalLabel), 1);
     statLayout->addWidget(createStatCard("待处理", "0", "#f56c6c", &m_statPendingLabel), 1);
     statLayout->addWidget(createStatCard("派送中", "0", "#e6a23c", &m_statOngoingLabel), 1);
     statLayout->addWidget(createStatCard("已完成", "0", "#67c23a", &m_statCompletedLabel), 1);
-    m_mainLayout->addLayout(statLayout);
+    dashboardLayout->addLayout(statLayout);
 
-    // Date Picker Controls
-    QHBoxLayout *datePickerLayout = new QHBoxLayout();
-    datePickerLayout->setAlignment(Qt::AlignLeft);
-    datePickerLayout->setSpacing(15);
-    datePickerLayout->setContentsMargins(0, 5, 0, 10);
+    m_mainLayout->addWidget(dashboardCard);
+
+
+    // --- 2. 操作卡片 (日期导航 + 新建按钮，与会员模块一致) ---
+    QFrame *operationCard = new QFrame();
+    operationCard->setObjectName("OperationCard");
+    operationCard->setFixedHeight(66);
+    operationCard->setStyleSheet("#OperationCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QHBoxLayout *operationLayout = new QHBoxLayout(operationCard);
+    operationLayout->setContentsMargins(20, 0, 20, 0);
+    operationLayout->setSpacing(12);
 
     m_prevDayBtn = new QPushButton("< 上一天");
-    m_prevDayBtn->setFixedSize(90, 40);
+    m_prevDayBtn->setFixedSize(90, 38);
     m_prevDayBtn->setCursor(Qt::PointingHandCursor);
-    m_prevDayBtn->setStyleSheet("QPushButton { text-align: center; padding: 5px 10px; background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-weight: bold; } "
+    m_prevDayBtn->setStyleSheet("QPushButton { text-align: center; padding: 0; background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-weight: bold; } "
                                  "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #409eff; }");
 
     m_datePickerBtn = new QPushButton("今天");
-    m_datePickerBtn->setFixedSize(120, 40);
+    m_datePickerBtn->setFixedSize(130, 38);
     m_datePickerBtn->setCursor(Qt::PointingHandCursor);
-    m_datePickerBtn->setStyleSheet("QPushButton { text-align: center; padding: 5px 10px; background: #e1f0ff; border: 1px solid #b3d8ff; border-radius: 8px; color: #409eff; font-weight: bold; font-size: 14px; } "
+    m_datePickerBtn->setStyleSheet("QPushButton { text-align: center; padding: 0; background: #e1f0ff; border: 1px solid #b3d8ff; border-radius: 8px; color: #409eff; font-weight: bold; font-size: 13px; } "
                                     "QPushButton:hover { background: #c6e2ff; }");
 
     m_nextDayBtn = new QPushButton("下一天 >");
-    m_nextDayBtn->setFixedSize(90, 40);
+    m_nextDayBtn->setFixedSize(90, 38);
     m_nextDayBtn->setCursor(Qt::PointingHandCursor);
-    m_nextDayBtn->setStyleSheet("QPushButton { text-align: center; padding: 5px 10px; background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-weight: bold; } "
+    m_nextDayBtn->setStyleSheet("QPushButton { text-align: center; padding: 0; background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-weight: bold; } "
                                  "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #409eff; }");
+
+    m_todayBtn = new QPushButton("回到今天");
+    m_todayBtn->setFixedSize(90, 38);
+    m_todayBtn->setCursor(Qt::PointingHandCursor);
+    m_todayBtn->setStyleSheet("QPushButton { text-align: center; padding: 0; background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-weight: bold; } "
+                               "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #409eff; }");
 
     connect(m_prevDayBtn, &QPushButton::clicked, this, &LogisticsModule::onPrevDayClicked);
     connect(m_datePickerBtn, &QPushButton::clicked, this, &LogisticsModule::onDatePickerClicked);
     connect(m_nextDayBtn, &QPushButton::clicked, this, &LogisticsModule::onNextDayClicked);
+    connect(m_todayBtn, &QPushButton::clicked, this, [this]() { onDateChanged(QDate::currentDate()); });
 
-    m_todayBtn = new QPushButton("回到今天");
-    m_todayBtn->setFixedSize(100, 40);
-    m_todayBtn->setCursor(Qt::PointingHandCursor);
-    m_todayBtn->setStyleSheet("QPushButton { text-align: center; padding: 5px 10px; background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-weight: bold; } "
-                               "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #409eff; }");
-    connect(m_todayBtn, &QPushButton::clicked, this, [this]() {
-        onDateChanged(QDate::currentDate());
-    });
+    operationLayout->addWidget(m_prevDayBtn);
+    operationLayout->addWidget(m_datePickerBtn);
+    operationLayout->addWidget(m_nextDayBtn);
+    operationLayout->addWidget(m_todayBtn);
+    
+    operationLayout->addStretch();
 
-    datePickerLayout->addWidget(m_prevDayBtn);
-    datePickerLayout->addWidget(m_datePickerBtn);
-    datePickerLayout->addWidget(m_nextDayBtn);
-    datePickerLayout->addSpacing(10);
-    datePickerLayout->addWidget(m_todayBtn);
-    datePickerLayout->addStretch();
-    m_mainLayout->addLayout(datePickerLayout);
+    QPushButton *newBtn = new QPushButton("新建派车单");
+    newBtn->setFixedSize(140, 42);
+    newBtn->setCursor(Qt::PointingHandCursor);
+    newBtn->setStyleSheet("QPushButton { background: #409eff; color: white; border-radius: 8px; font-weight: bold; font-size: 14px; border: none; } "
+                          "QPushButton:hover { background: #66b1ff; }");
+    connect(newBtn, &QPushButton::clicked, this, [this](){ showCreateTaskDialog(); });
+    operationLayout->addWidget(newBtn);
+
+    m_mainLayout->addWidget(operationCard);
+
+
+    // --- 3. 任务看板容器 (圆角边框包裹，对齐会员/寄养模块) ---
+    QFrame *contentCard = new QFrame();
+    contentCard->setObjectName("ContentCard");
+    contentCard->setStyleSheet("#ContentCard { background: white; border: 1px solid #ebeef5; border-radius: 12px; }");
+    QVBoxLayout *contentLayout = new QVBoxLayout(contentCard);
+    contentLayout->setContentsMargins(25, 20, 15, 20);
+    contentLayout->setSpacing(0);
 
     // Kanban Area
     m_scrollArea = new QScrollArea();
@@ -205,17 +228,19 @@ void LogisticsModule::setupUI()
         "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
     );
     m_kanbanArea = new QWidget();
+    m_kanbanArea->setStyleSheet("background: transparent;"); // 确保透明，透出外层卡片的白色
     QHBoxLayout *kanbanCols = new QHBoxLayout(m_kanbanArea);
-    kanbanCols->setContentsMargins(0, 0, 15, 0);
+    kanbanCols->setContentsMargins(0, 0, 10, 0); // 留出滚动条空位
     kanbanCols->setSpacing(0);
-    kanbanCols->setAlignment(Qt::AlignTop); // FIX: Prevents vertical centering when empty
+    kanbanCols->setAlignment(Qt::AlignTop);
 
     // Column 1
     QWidget *col1 = new QWidget();
+    col1->setStyleSheet("background: transparent;");
     QVBoxLayout *col1L = new QVBoxLayout(col1);
-    col1L->setContentsMargins(0, 0, 30, 0);
+    col1L->setContentsMargins(0, 0, 25, 0);
     col1L->setAlignment(Qt::AlignTop);
-    m_todayTitle = new QLabel("今日任务 (Today)");
+    m_todayTitle = new QLabel("今日任务安排");
     m_todayTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #2563eb; margin-bottom: 8px;");
     col1L->addWidget(m_todayTitle);
     m_todayListLayout = new QVBoxLayout();
@@ -228,15 +253,16 @@ void LogisticsModule::setupUI()
     QFrame *vLine = new QFrame();
     vLine->setFrameShape(QFrame::VLine);
     vLine->setFrameShadow(QFrame::Plain);
-    vLine->setStyleSheet("color: #ebeef5; margin-top: 10px; margin-bottom: 10px;");
+    vLine->setStyleSheet("color: #f0f2f5; margin-top: 10px; margin-bottom: 10px;");
     kanbanCols->addWidget(vLine, 0);
 
     // Column 2
     QWidget *col2 = new QWidget();
+    col2->setStyleSheet("background: transparent;");
     QVBoxLayout *col2L = new QVBoxLayout(col2);
-    col2L->setContentsMargins(30, 0, 0, 0);
+    col2L->setContentsMargins(25, 0, 0, 0);
     col2L->setAlignment(Qt::AlignTop);
-    m_tomorrowTitle = new QLabel("明日预告 (Tomorrow)");
+    m_tomorrowTitle = new QLabel("明天 预告");
     m_tomorrowTitle->setStyleSheet("font-size: 15px; font-weight: bold; color: #606266; margin-bottom: 8px;");
     col2L->addWidget(m_tomorrowTitle);
     m_tomorrowListLayout = new QVBoxLayout();
@@ -246,12 +272,25 @@ void LogisticsModule::setupUI()
     kanbanCols->addWidget(col2, 45);
 
     m_scrollArea->setWidget(m_kanbanArea);
-    m_mainLayout->addWidget(m_scrollArea, 1);
+    m_scrollArea->viewport()->setStyleSheet("background: transparent;"); // 强制 viewport 透明
+    contentLayout->addWidget(m_scrollArea);
+
+    
+    m_mainLayout->addWidget(contentCard, 1);
+
 
     outerLayout->addWidget(mainColumn, 1);
 
     m_detailDrawer = new LogisticsDetailDrawer(this);
     outerLayout->addWidget(m_detailDrawer, 0);
+
+    // 连接详情面板信号
+    connect(m_detailDrawer, &LogisticsDetailDrawer::requestEditTask, this, &LogisticsModule::showCreateTaskDialog);
+    connect(m_detailDrawer, &LogisticsDetailDrawer::requestCancelTask, this, [=](const QString &taskId){
+        if (CustomMessageDialog::confirm(this, "取消派单", "确定要取消这张派车单吗？取消后预约单将恢复为待处理状态。")) {
+            LogisticsManager::instance()->cancelTask(taskId);
+        }
+    });
 }
 
 
@@ -371,7 +410,7 @@ void LogisticsModule::onDateChanged(const QDate &date)
 
             QFrame *header = new QFrame();
             header->setObjectName("masterHeader");
-            header->setStyleSheet("#masterHeader { background: #fdfdfd; border-top-left-radius: 8px; border-top-right-radius: 8px; border-left: 4px solid #409eff; border-bottom: 1px solid #ebeef5; }");
+            header->setStyleSheet("#masterHeader { background: white; border-radius: 8px 8px 0 0; border-bottom: 1px solid #ebeef5; }");
             QHBoxLayout *hl = new QHBoxLayout(header);
             hl->setContentsMargins(15, 10, 15, 10);
             
@@ -426,9 +465,10 @@ void LogisticsModule::onDateChanged(const QDate &date)
                     
                     bool isSelected = (task.taskId == m_selectedTaskId);
                     QString rowStyle = isSelected 
-                        ? "#microRow { background: #f0f7ff; border: 1px solid transparent; }"
-                        : "#microRow { background: transparent; border: 1px solid transparent; } #microRow:hover { background: #f5f7fa; }";
+                        ? "#microRow { background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px; }"
+                        : "#microRow { background: transparent; border: 2px solid transparent; border-radius: 8px; } #microRow:hover { background: #f8fafc; }";
                     microRow->setStyleSheet(rowStyle);
+
 
                     QHBoxLayout *rl = new QHBoxLayout(microRow);
                     rl->setContentsMargins(12, 8, 12, 8);
@@ -697,15 +737,23 @@ void LogisticsModule::timerEvent(QTimerEvent *event)
     }
 }
 
-void LogisticsModule::showCreateTaskDialog()
+void LogisticsModule::showCreateTaskDialog(const QString &editTaskId)
 {
+    bool isEdit = !editTaskId.isEmpty();
+    LogisticsTask editTask;
+    if (isEdit) {
+        auto all = LogisticsManager::instance()->getAllTasks();
+        for (const auto &t : all) { if (t.taskId == editTaskId) { editTask = t; break; } }
+    }
+
     QDialog dialog(this);
-    dialog.setWindowTitle("新建派车调度单");
+    dialog.setWindowTitle(isEdit ? "修改派车调度单" : "新建派车调度单");
     dialog.setFixedSize(520, 680);
     dialog.setStyleSheet("QDialog { background: #f8f9fb; } QLabel { color: #606266; font-weight: bold; } "
                          "QLineEdit { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding-left: 12px; color: #606266; } "
                          "QLineEdit[readOnly=\"true\"] { background: #f5f7fa; color: #909399; border: 1px solid #e4e7ed; } "
                          "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
+                         "QComboBox:disabled { background: #f5f7fa; color: #909399; border: 1px solid #e4e7ed; } "
                          "QComboBox:hover { border-color: #409eff; } "
                          "QComboBox::drop-down { border: none; width: 24px; } "
                          "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
@@ -744,6 +792,21 @@ void LogisticsModule::showCreateTaskDialog()
     for (const auto &pet : pets) {
         petCombo->addItem(QString("%1 (%2)").arg(pet.name, pet.id), pet.id);
     }
+    
+    if (isEdit) {
+        int idx = petCombo->findData(editTask.petId);
+        if (idx != -1) petCombo->setCurrentIndex(idx);
+        petCombo->setEnabled(false); // 修改模式下不允许更换宠物
+    } else if (!m_selectedTaskId.isEmpty()) {
+        auto all = LogisticsManager::instance()->getAllTasks();
+        for (const auto &t : all) {
+            if (t.taskId == m_selectedTaskId) {
+                int idx = petCombo->findData(t.petId);
+                if (idx != -1) petCombo->setCurrentIndex(idx);
+                break;
+            }
+        }
+    }
 
     // Type Selection
     QComboBox *typeCombo = new QComboBox();
@@ -751,9 +814,6 @@ void LogisticsModule::showCreateTaskDialog()
     typeCombo->setFixedHeight(36);
 
     // Reason Selection
-    QComboBox *reasonCombo = new QComboBox();
-    reasonCombo->addItems({"单纯洗护", "寄养入住", "寄养送回", "就医体检", "其他"});
-    reasonCombo->setFixedHeight(36);
 
     // Address
     QLineEdit *addrEdit = new QLineEdit();
@@ -842,26 +902,24 @@ void LogisticsModule::showCreateTaskDialog()
 
     form->addWidget(new QLabel("业务类型:"), 4, 0);
     form->addWidget(typeCombo, 4, 1);
-    form->addWidget(new QLabel("接送原因:"), 5, 0);
-    form->addWidget(reasonCombo, 5, 1);
     QLabel *addrLbl = new QLabel("接送地址:");
-    form->addWidget(addrLbl, 6, 0);
-    form->addWidget(addrEdit, 6, 1);
+    form->addWidget(addrLbl, 5, 0);
+    form->addWidget(addrEdit, 5, 1);
     
     QLabel *returnAddrLbl = new QLabel("送回地址:");
     QLineEdit *returnAddrEdit = new QLineEdit();
     returnAddrEdit->setPlaceholderText("请输入详细送回地址 (如不填则默认同上)...");
     returnAddrEdit->setFixedHeight(36);
-    form->addWidget(returnAddrLbl, 7, 0);
-    form->addWidget(returnAddrEdit, 7, 1);
+    form->addWidget(returnAddrLbl, 6, 0);
+    form->addWidget(returnAddrEdit, 6, 1);
     
     QLabel *goTimeLbl = new QLabel("去程时间:");
-    form->addWidget(goTimeLbl, 8, 0);
-    form->addLayout(goTimeLayout, 8, 1);
+    form->addWidget(goTimeLbl, 7, 0);
+    form->addLayout(goTimeLayout, 7, 1);
 
     QLabel *returnTimeLbl = new QLabel("回程时间:");
-    form->addWidget(returnTimeLbl, 9, 0);
-    form->addLayout(returnTimeLayout, 9, 1);
+    form->addWidget(returnTimeLbl, 8, 0);
+    form->addLayout(returnTimeLayout, 8, 1);
 
     // Dynamic UI logic for Round-trip
     auto toggleReturnTime = [=]() {
@@ -926,6 +984,32 @@ void LogisticsModule::showCreateTaskDialog()
     // Initial fill
     if (petCombo->count() > 0) updatePetInfo(petCombo->currentData().toString());
 
+    // --- Edit Mode Data Pre-fill ---
+    if (isEdit) {
+        typeCombo->setCurrentText(editTask.type.contains("往返") ? "往返接送" : (editTask.type.contains("送") ? "单程送宠" : "单程接宠"));
+        addrEdit->setText(editTask.address);
+        
+        QString fullTime = editTask.appointmentTime;
+        dateCombo->setDate(QDate::fromString(fullTime.left(10), "yyyy-MM-dd"));
+        QString slotStr = fullTime.mid(11);
+        int sIdx = timeSlotCombo->findText(slotStr);
+        if (sIdx != -1) timeSlotCombo->setCurrentIndex(sIdx);
+
+        if (editTask.type == "往返接送") {
+            // Find the return trip companion task
+            auto all = LogisticsManager::instance()->getAllTasks();
+            for (const auto &rt : all) {
+                if (rt.petId == editTask.petId && rt.appointmentTime > editTask.appointmentTime && rt.type.contains("送宠")) {
+                    returnAddrEdit->setText(rt.address);
+                    returnDateCombo->setDate(QDate::fromString(rt.appointmentTime.left(10), "yyyy-MM-dd"));
+                    int rsIdx = returnTimeSlotCombo->findText(rt.appointmentTime.mid(11));
+                    if (rsIdx != -1) returnTimeSlotCombo->setCurrentIndex(rsIdx);
+                    break;
+                }
+            }
+        }
+    }
+
     layout->addLayout(form);
     layout->addStretch();
 
@@ -937,7 +1021,7 @@ void LogisticsModule::showCreateTaskDialog()
     cancelBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 8px; color: #606266; font-size: 15px; } "
                              "QPushButton:hover { background: #f5f7fa; border-color: #c0c4cc; }");
     
-    QPushButton *submitBtn = new QPushButton("立即派单");
+    QPushButton *submitBtn = new QPushButton(isEdit ? "保存修改" : "立即派单");
     submitBtn->setFixedHeight(46);
     submitBtn->setCursor(Qt::PointingHandCursor);
     submitBtn->setStyleSheet("QPushButton { background: #409eff; border: none; border-radius: 8px; color: white; font-weight: bold; font-size: 15px; } "
@@ -957,29 +1041,36 @@ void LogisticsModule::showCreateTaskDialog()
             CustomMessageDialog::showWarning(&dialog, "时段不可用", "该日期已无可用预约时段，请重新选择日期。");
             return;
         }
-        if (typeCombo->currentText() == "往返接送" && returnTimeSlotCombo->currentText().isEmpty()) {
-            CustomMessageDialog::showWarning(&dialog, "时段不可用", "该回程日期已无可用时段，请重新选择日期。");
-            return;
-        }
 
         QString petId = petCombo->currentData().toString();
         QString type = typeCombo->currentText();
-        QString reason = reasonCombo->currentText();
         QString addr = addrEdit->text();
-        
         QString goDate = dateCombo->date().toString("yyyy-MM-dd");
         QString goTime = goDate + " " + timeSlotCombo->currentText();
+
+        if (isEdit) {
+            LogisticsTask task = editTask;
+            task.type = type;
+            task.address = addr;
+            task.appointmentTime = goTime;
+            LogisticsManager::instance()->addLogisticsTask(task);
+            dialog.accept();
+            return;
+        }
 
         if (type == "往返接送") {
             // Task 1: Go Trip (接宠)
             LogisticsTask taskGo;
+            taskGo.taskId = "T" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
             taskGo.petId = petId;
             taskGo.type = "单程接宠";
             taskGo.address = addr;
             taskGo.appointmentTime = goTime;
             taskGo.status = "待处理";
-            taskGo.relatedModule = reason + " (去程)";
+            taskGo.relatedModule = "(去程)";
             LogisticsManager::instance()->addLogisticsTask(taskGo);
+            
+            m_selectedTaskId = taskGo.taskId; // 自动选中去程
 
             // Task 2: Return Trip (送宠)
             QString retDate = returnDateCombo->date().toString("yyyy-MM-dd");
@@ -988,12 +1079,13 @@ void LogisticsModule::showCreateTaskDialog()
             if (retAddr.isEmpty()) retAddr = addr;
 
             LogisticsTask taskRet;
+            taskRet.taskId = "T" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
             taskRet.petId = petId;
             taskRet.type = "单程送宠";
             taskRet.address = retAddr;
             taskRet.appointmentTime = retTime;
             taskRet.status = "待处理";
-            taskRet.relatedModule = reason + " (回程)";
+            taskRet.relatedModule = "(回程)";
             LogisticsManager::instance()->addLogisticsTask(taskRet);
 
             PetActivityLog log;
@@ -1006,14 +1098,17 @@ void LogisticsModule::showCreateTaskDialog()
         } else {
             // Single Trip
             LogisticsTask task;
+            task.taskId = "T" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
             task.petId = petId;
             task.type = type;
             task.address = addr;
             task.appointmentTime = goTime;
             task.status = "待处理";
-            task.relatedModule = reason;
+            task.relatedModule = "";
             LogisticsManager::instance()->addLogisticsTask(task);
             
+            m_selectedTaskId = task.taskId; // 自动选中该单
+
             PetActivityLog log;
             log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
             log.type = "备注"; log.icon = "";
@@ -1022,6 +1117,9 @@ void LogisticsModule::showCreateTaskDialog()
             PetDataManager::instance()->addActivityLog(petId, log);
         }
 
+        if (!m_selectedTaskId.isEmpty()) {
+            onTaskSelected(m_selectedTaskId);
+        }
         dialog.accept();
     });
 
@@ -1122,6 +1220,7 @@ void LogisticsModule::showHistoryDialog()
     dialog.exec();
 }
 
+
 void LogisticsModule::updateStatistics()
 {
     auto tasks = LogisticsManager::instance()->getTasksByDate(m_currentDate);
@@ -1146,21 +1245,21 @@ QWidget* LogisticsModule::createStatCard(const QString &title, const QString &va
 {
     QFrame *card = new QFrame();
     card->setFixedHeight(80);
-    card->setStyleSheet(QString("QFrame { background: white; border: 1px solid #f0f2f5; border-radius: 12px; } "
-                                "QFrame:hover { border-color: %1; background: #fafafa; }").arg(color));
+    card->setStyleSheet("QFrame { background: white; border: 1px solid #f1f5f9; border-radius: 8px; } ");
     
     QVBoxLayout *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(20, 12, 20, 12);
-    layout->setSpacing(4);
+    layout->setContentsMargins(20, 10, 20, 10);
+    layout->setSpacing(2);
     
     QLabel *titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
+    titleLabel->setStyleSheet("color: #94a3b8; font-size: 12px; border: none; background: transparent;");
     
     *outValueLabel = new QLabel(value);
-    (*outValueLabel)->setStyleSheet(QString("color: %1; font-size: 24px; font-weight: bold; border: none; background: transparent; ").arg(color));
+    (*outValueLabel)->setStyleSheet(QString("color: %1; font-size: 20px; font-weight: bold; border: none; background: transparent; ").arg(color));
     
     layout->addWidget(titleLabel);
     layout->addWidget(*outValueLabel);
+    layout->addStretch();
     
     return card;
 }

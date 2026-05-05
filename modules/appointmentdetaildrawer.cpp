@@ -32,9 +32,18 @@ AppointmentDetailDrawer::AppointmentDetailDrawer(QWidget *parent)
 void AppointmentDetailDrawer::setupUI()
 {
     setObjectName("AppointmentDetailDrawer");
-    setStyleSheet("#AppointmentDetailDrawer { background-color: white; border-left: 1px solid #ebeef5; }");
+    setStyleSheet("#AppointmentDetailDrawer { background: transparent; border: none; }");
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    QVBoxLayout *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(10, 20, 10, 20);
+    outerLayout->setSpacing(0);
+
+    QFrame *mainContainer = new QFrame();
+    mainContainer->setObjectName("mainContainer");
+    mainContainer->setStyleSheet("#mainContainer { background: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
+    outerLayout->addWidget(mainContainer);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(mainContainer);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
@@ -50,7 +59,7 @@ void AppointmentDetailDrawer::setupUI()
     // 1. Header (紧凑型设计)
     QWidget *header = new QWidget();
     header->setFixedHeight(160); // 从 220 减小到 160
-    header->setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f0f7ff, stop:1 #ffffff); border-bottom: 1px solid #f0f2f5;");
+    header->setStyleSheet("background: white; border: none; border-top-left-radius: 12px; border-top-right-radius: 12px;");
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(20, 25, 20, 15); // 减小上边距
     headerLayout->setSpacing(15);
@@ -71,7 +80,7 @@ void AppointmentDetailDrawer::setupUI()
     nameRow->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
     m_petNameLabel = new QLabel("宠物名称");
-    m_petNameLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #303133; background: transparent;"); // 字号从 24 减到 20
+    m_petNameLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #303133; background: transparent; border: none;");
     
     m_genderLabel = new QLabel();
     m_genderLabel->setFixedSize(18, 18);
@@ -82,7 +91,7 @@ void AppointmentDetailDrawer::setupUI()
     nameRow->addStretch();
     
     m_idLabel = new QLabel("ID: --");
-    m_idLabel->setStyleSheet("font-size: 13px; color: #606266; background: transparent;");
+    m_idLabel->setStyleSheet("font-size: 13px; color: #606266; background: transparent; border: none;");
     
     m_statusTag = new QLabel("待处理");
     m_statusTag->setStyleSheet("background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
@@ -100,10 +109,12 @@ void AppointmentDetailDrawer::setupUI()
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 隐藏滚动条
-    scroll->setStyleSheet("background: white;");
+    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; } "
+                          "QWidget#scrollContent { background: white; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     
     QWidget *content = new QWidget();
+    content->setObjectName("scrollContent");
     content->setStyleSheet("background: white;");
     QVBoxLayout *scrollContentLayout = new QVBoxLayout(content);
     scrollContentLayout->setContentsMargins(20, 15, 20, 15);
@@ -185,7 +196,7 @@ void AppointmentDetailDrawer::setupUI()
     // 3. 底部操作栏
     QFrame *bottomBar = new QFrame();
     bottomBar->setFixedHeight(80);
-    bottomBar->setStyleSheet("background: white; border-top: 1px solid #ebeef5;");
+    bottomBar->setStyleSheet("background: white; border-top: 1px solid #f0f2f5; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
     QHBoxLayout *btnLayout = new QHBoxLayout(bottomBar);
     btnLayout->setContentsMargins(20, 0, 20, 0);
     btnLayout->setSpacing(10);
@@ -256,26 +267,19 @@ void AppointmentDetailDrawer::setupUI()
 QWidget* AppointmentDetailDrawer::createSectionTitle(const QString &text)
 {
     QLabel *title = new QLabel(text);
-    title->setStyleSheet("font-size: 15px; color: #303133; font-weight: bold; "
-                         "border-left: 4px solid #409eff; padding-left: 8px; margin-bottom: 5px;");
+    title->setStyleSheet("font-size: 15px; color: #334155; font-weight: bold; margin-left: 4px; margin-bottom: 5px; border: none; background: transparent;");
     return title;
 }
 
-QFrame* AppointmentDetailDrawer::createSeparator()
-{
-    QFrame *line = new QFrame();
-    line->setFixedHeight(1);
-    line->setStyleSheet("background-color: #f0f0f0; border: none;");
-    return line;
-}
+// 移除分割线生成器
 
 void AppointmentDetailDrawer::addInfoRow(QGridLayout *grid, int row, const QString &label, const QString &value)
 {
     QLabel *lLbl = new QLabel(label + "：");
-    lLbl->setStyleSheet("color: #606266; font-size: 13px;");
-    lLbl->setFixedWidth(75);
+    lLbl->setStyleSheet("color: #94a3b8; font-size: 13px; background: transparent; border: none;");
+    lLbl->setFixedWidth(80);
     QLabel *vLbl = new QLabel(value.isEmpty() ? "--" : value);
-    vLbl->setStyleSheet("color: #333333; font-size: 14px; ");
+    vLbl->setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; background: transparent; border: none;");
     vLbl->setWordWrap(true);
     grid->addWidget(lLbl, row, 0, Qt::AlignTop);
     grid->addWidget(vLbl, row, 1, Qt::AlignTop);
@@ -376,20 +380,14 @@ void AppointmentDetailDrawer::setAppointment(const QString &id)
         m_statusTag->setStyleSheet("background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;");
     }
 
-    // 2. 清理并重构内容区 (彻底隐藏并延迟清除，避免截图重影)
+    // 2. 清理并重构内容区
     QLayoutItem *item;
     while ((item = m_specLayout->takeAt(0)) != nullptr) {
-        if (item->widget()) {
-            item->widget()->hide(); // 立即隐藏，防止截图抓取到残影
-            item->widget()->deleteLater();
-        }
+        if (item->widget()) { item->widget()->hide(); item->widget()->deleteLater(); }
         if (item->layout()) {
             QLayoutItem *subItem;
             while ((subItem = item->layout()->takeAt(0)) != nullptr) {
-                if (subItem->widget()) {
-                    subItem->widget()->hide();
-                    subItem->widget()->deleteLater();
-                }
+                if (subItem->widget()) { subItem->widget()->hide(); subItem->widget()->deleteLater(); }
                 delete subItem;
             }
             item->layout()->deleteLater();
@@ -397,69 +395,67 @@ void AppointmentDetailDrawer::setAppointment(const QString &id)
         delete item;
     }
     
-    // 强制立即刷新绘图表面
     m_variableWidget->update();
     QCoreApplication::processEvents();
 
+    auto addSection = [&](const QString &title, std::function<void(QGridLayout*)> filler) {
+        m_specLayout->addWidget(createSectionTitle(title));
+        QFrame *card = new QFrame();
+        card->setStyleSheet("QFrame { background: #f8f9fb; border-radius: 12px; border: 1px solid #e2e8f0; } QLabel { background: transparent; border: none; }");
+        QGridLayout *grid = new QGridLayout(card);
+        grid->setContentsMargins(16, 16, 16, 16);
+        grid->setVerticalSpacing(12);
+        grid->setHorizontalSpacing(10);
+        filler(grid);
+        m_specLayout->addWidget(card);
+        m_specLayout->addSpacing(10);
+    };
+
     // --- A. 宠物档案 ---
-    m_specLayout->addWidget(createSectionTitle("宠物档案"));
-    QGridLayout *petGrid = new QGridLayout();
-    petGrid->setContentsMargins(12, 5, 0, 5);
-    petGrid->setVerticalSpacing(10);
-    addInfoRow(petGrid, 0, "品种", pet.breed);
-    addInfoRow(petGrid, 1, "年龄", pet.age);
-    m_specLayout->addLayout(petGrid);
-    m_specLayout->addWidget(createSeparator());
+    addSection("宠物档案", [&](QGridLayout *g) {
+        addInfoRow(g, 0, "品种", pet.breed);
+        addInfoRow(g, 1, "年龄", pet.age);
+    });
 
     // --- B. 主客关系 ---
-    m_specLayout->addWidget(createSectionTitle("主客关系"));
-    QGridLayout *ownerGrid = new QGridLayout();
-    ownerGrid->setContentsMargins(12, 5, 0, 5);
-    ownerGrid->setVerticalSpacing(10);
-    addInfoRow(ownerGrid, 0, "姓名", pet.ownerName + " (" + pet.ownerId + ")");
-    addInfoRow(ownerGrid, 1, "电话", pet.ownerPhone);
-    m_specLayout->addLayout(ownerGrid);
-    m_specLayout->addWidget(createSeparator());
+    addSection("主客关系", [&](QGridLayout *g) {
+        addInfoRow(g, 0, "姓名", pet.ownerName + " (" + pet.ownerId + ")");
+        addInfoRow(g, 1, "电话", pet.ownerPhone);
+    });
 
     // --- C. 预约详情 ---
-    m_specLayout->addWidget(createSectionTitle("预约详情"));
-    QGridLayout *apptGrid = new QGridLayout();
-    apptGrid->setContentsMargins(12, 5, 0, 5);
-    apptGrid->setVerticalSpacing(10);
-    // 解析业务名称和项目明细 (格式: "分类名 (项目1, 项目2)")
-    QString fullService = m_currentInfo.service;
-    QString category = fullService;
-    QString details = "常规项目";
-    
-    if (fullService.contains("(") && fullService.endsWith(")")) {
-        int start = fullService.indexOf("(");
-        category = fullService.left(start).trimmed();
-        details = fullService.mid(start + 1, fullService.length() - start - 2);
-    }
-    
-    addInfoRow(apptGrid, 0, "业务类型", category);
-    addInfoRow(apptGrid, 1, "预约时间", QString("%1 %2").arg(m_currentInfo.date, m_currentInfo.hour));
-    
-    int currentRow = 2;
-    // 只有在服务中才显示人员
-    if (m_currentInfo.status == "In-Service" || m_currentInfo.status == "服务中") {
-        addInfoRow(apptGrid, currentRow++, "服务人员", m_currentInfo.staff.isEmpty() ? "待分配" : m_currentInfo.staff);
-    }
-    
-    addInfoRow(apptGrid, currentRow++, "项目明细", details);
-    if (m_currentInfo.type == "Transport") addInfoRow(apptGrid, currentRow++, "接送地址", m_currentInfo.address);
-    else if (m_currentInfo.type == "Boarding") addInfoRow(apptGrid, currentRow++, "房间号", m_currentInfo.roomNo.isEmpty() ? "待分配" : m_currentInfo.roomNo);
-    m_specLayout->addLayout(apptGrid);
-    m_specLayout->addWidget(createSeparator());
+    addSection("预约详情", [&](QGridLayout *g) {
+        QString fullService = m_currentInfo.service;
+        QString category = fullService;
+        QString details = "常规项目";
+        
+        if (fullService.contains("(") && fullService.endsWith(")")) {
+            int start = fullService.indexOf("(");
+            category = fullService.left(start).trimmed();
+            details = fullService.mid(start + 1, fullService.length() - start - 2);
+        }
+        
+        addInfoRow(g, 0, "业务类型", category);
+        addInfoRow(g, 1, "预约时间", QString("%1 %2").arg(m_currentInfo.date, m_currentInfo.hour));
+        
+        int currentRow = 2;
+        if (m_currentInfo.status == "In-Service" || m_currentInfo.status == "服务中") {
+            addInfoRow(g, currentRow++, "服务人员", m_currentInfo.staff.isEmpty() ? "待分配" : m_currentInfo.staff);
+        }
+        
+        addInfoRow(g, currentRow++, "项目明细", details);
+        if (m_currentInfo.type == "Transport") addInfoRow(g, currentRow++, "接送地址", m_currentInfo.address);
+        else if (m_currentInfo.type == "Boarding") addInfoRow(g, currentRow++, "房间号", m_currentInfo.roomNo.isEmpty() ? "待分配" : m_currentInfo.roomNo);
+    });
 
     // --- D. 备注需求 ---
     if (!m_currentInfo.notes.isEmpty()) {
-        m_specLayout->addWidget(createSectionTitle("备注需求"));
-        QLabel *notesVal = new QLabel(m_currentInfo.notes);
-        notesVal->setStyleSheet("color: #606266; font-size: 13px; padding-left: 12px;");
-        notesVal->setWordWrap(true);
-        m_specLayout->addWidget(notesVal);
-        m_specLayout->addWidget(createSeparator());
+        addSection("备注需求", [&](QGridLayout *g) {
+            QLabel *notesVal = new QLabel(m_currentInfo.notes);
+            notesVal->setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+            notesVal->setWordWrap(true);
+            g->addWidget(notesVal, 0, 0);
+        });
     }
     
     bool isBoarding = (m_currentInfo.type == "Boarding");

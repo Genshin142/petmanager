@@ -14,6 +14,7 @@ public:
     // 核心接口
     void addLogisticsTask(const LogisticsTask &task);
     void updateTaskStatus(const QString &taskId, const QString &status);
+    void cancelTask(const QString &taskId); // 新增：取消派送任务
     QList<LogisticsTask> getAllTasks() const;
     QList<LogisticsTask> getTasksByDate(const QDate &date) const;
     int getTaskCountForDate(const QDate &date) const;

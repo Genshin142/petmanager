@@ -49,11 +49,12 @@ private slots:
     void onShowBatchDetails(int row, int col);
 
 private:
-    QTabWidget *m_mainTabs;
+    // QTabWidget *m_mainTabs; // 已移除
     QTableWidget *prodTable;
     QLineEdit *searchEdit;
     class QButtonGroup *m_categoryGroup;
 
+    // 统计指标
     // 统计指标
     QLabel *totalValueLabel;
     QLabel *lowStockLabel;
@@ -73,6 +74,7 @@ private:
 
     UserRole m_role;
     QWidget *m_detailDrawer;
+    class QFrame *m_drawerContainer;
     QWidget *m_backdrop;        // 半透明遮罩层
     QScrollArea *m_detailScroll;
     QLabel *m_mainPreview;

@@ -369,11 +369,7 @@ void OrderDetailDrawer::updateUI()
 
         rowLayout->addLayout(textLayout, 1);
 
-        QFrame *line = new QFrame();
-        line->setFixedHeight(1);
-        line->setStyleSheet("background-color: transparent; border: none; border-top: 1px dashed #e2e8f0;");
         m_itemsLayout->addWidget(itemW);
-        m_itemsLayout->addWidget(line);
     };
 
     if (isProduct) {

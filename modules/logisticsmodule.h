@@ -22,7 +22,7 @@ public slots:
     void refreshTasks();
     void onDateChanged(const QDate &date);
     void onTaskSelected(const QString &taskId);
-    void showCreateTaskDialog();
+    void showCreateTaskDialog(const QString &editTaskId = ""); // 重构：支持新增和修改
     void showHistoryDialog();
     void showBigImage(const QString &path);
     void onPrevDayClicked();
