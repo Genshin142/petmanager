@@ -8,6 +8,10 @@
 #include <QSpinBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QTextEdit>
+#include <QFrame>
+#include <QVBoxLayout>
+#include <QGridLayout>
 #include "servicedatamanager.h"
 #include "../common_types.h"
 
@@ -23,21 +27,21 @@ public:
 private:
     void setupUi();
     QWidget* createInputWithUnit(QWidget* input, const QString &unit);
+    QWidget* createFormItem(const QString &label, QWidget *widget);
+    QWidget* createGroupTitle(const QString &title);
 
+    QFrame *m_bgFrame;
+    QLabel *m_titleLabel;
     QLineEdit *m_nameEdit;
     QComboBox *m_categoryCombo;
-    QLineEdit *m_durationEdit;
-    QLineEdit *m_priceEdit;
     QLineEdit *m_idEdit;
+    QLineEdit *m_priceEdit;
+    QLineEdit *m_durationEdit;
     QLineEdit *m_commAmountEdit;
-    
-    QLabel *m_priceTitleLabel;
-    QLabel *m_durationTitleLabel;
-    QLabel *m_durationUnitLabel;
-    QLabel *m_commTitleLabel;
-    QWidget *m_durationGroup;
+    QTextEdit *m_descriptionEdit;
     
     QString m_currentId;
 };
+
 
 #endif // SERVICEDIALOG_H
