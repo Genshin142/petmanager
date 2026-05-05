@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快速开单 - 预览</title>
+    <style>
+        :root {
+            --primary: #409eff;
+            --primary-hover: #66b1ff;
+            --bg: #f8fafc;
+            --border: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --white: #ffffff;
+            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Layout */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar {
+            width: 400px;
+            background: var(--white);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            gap: 24px;
+        }
+
+        /* Top: Categories */
+        .category-bar {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .category-btn {
+            padding: 10px 24px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: var(--white);
+            color: var(--text-muted);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .category-btn.active {
+            background: var(--primary);
+            color: var(--white);
+            border-color: var(--primary);
+        }
+
+        /* Middle: Grid */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 16px;
+        }
+
+        .item-card {
+            background: var(--white);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .item-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--card-shadow);
+            border-color: var(--primary);
+        }
+
+        .item-image {
+            width: 80px;
+            height: 80px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .item-name {
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .item-price {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* Bottom: List */
+        .selected-list-container {
+            background: var(--white);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            flex: 1;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .list-header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            font-weight: bold;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .list-items {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .list-row {
+            display: flex;
+            padding: 12px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            align-items: center;
+        }
+
+        .col-name { flex: 2; font-weight: 600; }
+        .col-price { flex: 1; text-align: center; }
+        .col-qty { flex: 1; text-align: center; }
+        .col-action { flex: 0.5; text-align: right; }
+
+        /* Sidebar: Summary & Checkout */
+        .member-section {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .payment-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .payment-btn {
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .payment-btn.active {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #eff6ff;
+        }
+
+        .total-box {
+            margin-top: auto;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .total-label { font-size: 16px; font-weight: bold; }
+        .total-value { font-size: 32px; font-weight: 800; color: var(--text-main); }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+
+        .btn-cancel {
+            background: var(--white);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        .btn-checkout {
+            background: var(--primary);
+            color: var(--white);
+        }
+
+        .btn-checkout:hover {
+            background: var(--primary-hover);
+        }
+
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <!-- 上：分类 -->
+        <div class="category-bar">
+            <div class="category-btn active">全部</div>
+            <div class="category-btn">洗护预约</div>
+            <div class="category-btn">美容美发</div>
+            <div class="category-btn">宠物寄养</div>
+            <div class="category-btn">零食玩具</div>
+            <div class="category-btn">药品保健</div>
+        </div>
+
+        <!-- 中：网格卡片 -->
+        <div class="grid-container">
+            <div class="item-card">
+                <div class="item-image">🧼</div>
+                <div class="item-name">精细洗护SPA (小型犬)</div>
+                <div class="item-price">¥ 128.00</div>
+            </div>
+            <div class="item-card">
+                <div class="item-image">✂️</div>
+                <div class="item-name">夏日清爽造型剪</div>
+                <div class="item-price">¥ 188.00</div>
+            </div>
+            <div class="item-card">
+                <div class="item-image">🍗</div>
+                <div class="item-name">冻干鸡肉粒 (500g)</div>
+                <div class="item-price">¥ 45.00</div>
+            </div>
+            <div class="item-card">
+                <div class="item-image">🪀</div>
+                <div class="item-name">耐咬尖叫鸡</div>
+                <div class="item-price">¥ 15.00</div>
+            </div>
+            <div class="item-card">
+                <div class="item-image">💊</div>
+                <div class="item-name">拜宠清 (体内驱虫)</div>
+                <div class="item-price">¥ 60.00</div>
+            </div>
+        </div>
+
+        <!-- 下：已选列表 -->
+        <div class="selected-list-container">
+            <div class="list-header">
+                <div style="flex: 2">选购项目</div>
+                <div style="flex: 1; text-align: center">单价</div>
+                <div style="flex: 1; text-align: center">数量</div>
+                <div style="flex: 0.5; text-align: right">操作</div>
+            </div>
+            <div class="list-items">
+                <div class="list-row">
+                    <div class="col-name">精细洗护SPA (小型犬)</div>
+                    <div class="col-price">¥ 128.00</div>
+                    <div class="col-qty">1</div>
+                    <div class="col-action">🗑️</div>
+                </div>
+                <div class="list-row">
+                    <div class="col-name">冻干鸡肉粒 (500g)</div>
+                    <div class="col-price">¥ 45.00</div>
+                    <div class="col-qty">2</div>
+                    <div class="col-action">🗑️</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div>
+            <h3 style="margin-bottom: 12px;">客户信息</h3>
+            <div class="member-section">
+                🔍 搜索会员 (姓名/手机号)
+            </div>
+        </div>
+
+        <div>
+            <h3 style="margin-bottom: 12px;">支付方式</h3>
+            <div class="payment-grid">
+                <div class="payment-btn active">微信支付</div>
+                <div class="payment-btn">支付宝</div>
+                <div class="payment-btn">余额扣款</div>
+                <div class="payment-btn">现金</div>
+            </div>
+        </div>
+
+        <div class="total-box">
+            <span class="total-label">合计金额</span>
+            <span class="total-value">¥ 218.00</span>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn btn-cancel">取消开单</button>
+            <button class="btn btn-checkout">结算下单</button>
+        </div>
+    </div>
+</body>
+</html>
