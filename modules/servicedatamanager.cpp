@@ -19,7 +19,7 @@ ServiceDataManager::ServiceDataManager(QObject *parent) : QObject(parent)
 
 void ServiceDataManager::initMockData()
 {
-    auto addMock = [&](const QString &id, const QString &name, const QString &category, double price, int duration, double commFixed) {
+    auto addMock = [&](const QString &id, const QString &name, const QString &category, double price, int duration, double commFixed, const QString &desc = "") {
         ServiceInfo info;
         info.id = id;
         info.name = name;
@@ -30,6 +30,7 @@ void ServiceDataManager::initMockData()
         info.commissionPercent = 0;
         info.salesCount = QRandomGenerator::global()->bounded(100);
         info.isActive = true;
+        info.description = desc;
         m_services.insert(id, info);
     };
 
@@ -37,9 +38,13 @@ void ServiceDataManager::initMockData()
     addMock("SVR-1002", "精油SPA洗浴 (大型犬)", "洗护", 258.0, 90, 40.0);
     addMock("SVR-1003", "全套美容修剪 (猫咪)", "美容", 198.0, 120, 50.0);
     addMock("SVR-1004", "基础驱虫套餐", "保健", 88.0, 15, 10.0);
-    addMock("SVR-1005", "普通房寄养 (单日)", "寄养", 98.0, 1440, 0.0);
-    addMock("SVR-1006", "豪华套房寄养 (单日)", "寄养", 188.0, 1440, 0.0);
     addMock("SVR-1007", "同城宠物专车接送", "接送", 50.0, 30, 0.0);
+
+    // --- 重新定义的寄养类项目 ---
+    addMock("SVR-1401", "普通猫/狗笼寄养", "寄养", 80.0, 1440, 0.0, "适合小型宠物，主打经济实惠。");
+    addMock("SVR-1402", "豪华套房寄养", "寄养", 200.0, 1440, 0.0, "独立的小房间，带有监控摄像头查看权限。");
+    addMock("SVR-1403", "多宠家庭房", "寄养", 350.0, 1440, 0.0, "适合家里养了多只宠物需要住在一起的情况。");
+    addMock("SVR-1404", "日托（Daycare）", "寄养", 60.0, 600, 0.0, "仅白天托管，不留宿。");
 
     // --- 同步预约界面的附加项目 ---
     // 洗护类
