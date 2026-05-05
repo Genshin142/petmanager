@@ -37,6 +37,7 @@ void ServiceDialog::setupUi()
     // 标题栏
     QWidget *header = new QWidget(m_bgFrame);
     header->setFixedHeight(50);
+    header->setStyleSheet("background: transparent;"); // 显式设置透明
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(0, 0, 0, 0);
     
@@ -105,8 +106,10 @@ void ServiceDialog::setupUi()
     saveBtn->setObjectName("saveBtn");
     cancelBtn->setCursor(Qt::PointingHandCursor);
     saveBtn->setCursor(Qt::PointingHandCursor);
-    cancelBtn->setFixedSize(100, 36);
-    saveBtn->setFixedSize(100, 36);
+    cancelBtn->setFixedHeight(40); // 增加高度
+    saveBtn->setFixedHeight(40);
+    cancelBtn->setMinimumWidth(100);
+    saveBtn->setMinimumWidth(100);
 
     btnLayout->addStretch();
     btnLayout->addWidget(cancelBtn);
@@ -116,7 +119,9 @@ void ServiceDialog::setupUi()
     // 样式设置
     this->setStyleSheet(
         "QFrame#bgFrame { background-color: #ffffff; border-radius: 12px; }"
-        "QWidget { background: transparent; }"  // 确保所有中间容器背景透明
+        "QLabel, QCheckBox, QRadioButton { background: transparent; }" // 基础控件透明
+        
+        // 输入框与下拉框基础样式
         "QLineEdit, QComboBox, QTextEdit { "
         "   border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; "
         "   background-color: #f8fafc; color: #1e293b; font-size: 14px; "
@@ -124,20 +129,30 @@ void ServiceDialog::setupUi()
         "QLineEdit:focus, QComboBox:focus, QTextEdit:focus { "
         "   border: 2px solid #3b82f6; background-color: #ffffff; "
         "}"
+        
+        // 下拉框特化样式
         "QComboBox::drop-down { border: none; width: 30px; }"
         "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 14px; }"
+        "QComboBox QAbstractItemView { "
+        "   border: 1px solid #e2e8f0; background-color: white; "
+        "   selection-background-color: #eff6ff; selection-color: #1e40af; "
+        "   outline: none; "
+        "}"
+        
+        // 按钮样式
         "QPushButton#saveBtn { "
         "   background-color: #3b82f6; color: white; border: none; "
-        "   border-radius: 6px; font-weight: bold; "
+        "   border-radius: 6px; font-weight: bold; padding: 0px 20px; "
         "}"
         "QPushButton#saveBtn:hover { background-color: #2563eb; }"
         "QPushButton#cancelBtn { "
         "   background-color: #f1f5f9; color: #64748b; border: none; "
-        "   border-radius: 6px; font-weight: bold; "
+        "   border-radius: 6px; font-weight: bold; padding: 0px 20px; "
         "}"
         "QPushButton#cancelBtn:hover { background-color: #e2e8f0; }"
-        "QLabel { background: transparent; color: #64748b; font-size: 14px; }"
+        "QLabel { color: #64748b; font-size: 14px; }"
     );
+
 
 
     connect(saveBtn, &QPushButton::clicked, this, &ServiceDialog::accept);
@@ -148,12 +163,13 @@ void ServiceDialog::setupUi()
 QWidget* ServiceDialog::createInputWithUnit(QWidget* input, const QString &unit)
 {
     QWidget *w = new QWidget(m_bgFrame);
+    w->setStyleSheet("background: transparent;");
     QHBoxLayout *l = new QHBoxLayout(w);
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(8);
     l->addWidget(input);
     QLabel *unitLabel = new QLabel(unit, w);
-    unitLabel->setStyleSheet("color: #94a3b8; font-size: 13px; width: 30px;");
+    unitLabel->setStyleSheet("color: #94a3b8; font-size: 13px; width: 30px; background: transparent;");
     l->addWidget(unitLabel);
     return w;
 }
@@ -161,15 +177,17 @@ QWidget* ServiceDialog::createInputWithUnit(QWidget* input, const QString &unit)
 QWidget* ServiceDialog::createFormItem(const QString &label, QWidget *widget)
 {
     QWidget *w = new QWidget(m_bgFrame);
+    w->setStyleSheet("background: transparent;");
     QVBoxLayout *l = new QVBoxLayout(w);
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(6);
     QLabel *lbl = new QLabel(label, w);
-    lbl->setStyleSheet("font-weight: 500; color: #64748b; font-size: 13px;");
+    lbl->setStyleSheet("font-weight: 500; color: #64748b; font-size: 13px; background: transparent;");
     l->addWidget(lbl);
     l->addWidget(widget);
     return w;
 }
+
 
 QWidget* ServiceDialog::createGroupTitle(const QString &title)
 {
