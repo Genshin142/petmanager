@@ -886,7 +886,7 @@ void AddAppointmentDialog::onAddServiceRow()
                     connect(tagBtn, &QPushButton::toggled, returnParamWidget, &QWidget::setVisible);
                 }
                 
-                tagsRow->insertWidget(tagsRow->count() - 1, tagBtn);
+                tagsRow->addWidget(tagBtn);
             }
         }
     };
