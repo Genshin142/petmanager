@@ -2,334 +2,271 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>快速开单 - 预览</title>
+    <title>PetManager 快速开单 (v2)</title>
     <style>
         :root {
-            --primary: #409eff;
-            --primary-hover: #66b1ff;
+            --p: #409eff;
             --bg: #f8fafc;
-            --border: #e2e8f0;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --white: #ffffff;
-            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --bd: #e2e8f0;
+            --text: #1e293b;
+            --text-light: #64748b;
         }
-
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-
         body {
-            background-color: var(--bg);
-            color: var(--text-main);
+            background: var(--bg);
+            display: flex;
             height: 100vh;
-            display: flex;
             overflow: hidden;
+            color: var(--text);
         }
-
-        /* Layout */
-        .main-content {
+        .main {
             flex: 1;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            padding: 24px;
-            gap: 20px;
-            overflow-y: auto;
-        }
-
-        .sidebar {
-            width: 400px;
-            background: var(--white);
-            border-left: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            padding: 24px;
-            gap: 24px;
-        }
-
-        /* Top: Categories */
-        .category-bar {
-            display: flex;
             gap: 12px;
-            overflow-x: auto;
-            padding-bottom: 8px;
         }
-
-        .category-btn {
-            padding: 10px 24px;
-            border-radius: 20px;
-            border: 1px solid var(--border);
-            background: var(--white);
-            color: var(--text-muted);
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .category-btn.active {
-            background: var(--primary);
-            color: var(--white);
-            border-color: var(--primary);
-        }
-
-        /* Middle: Grid */
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 16px;
-        }
-
-        .item-card {
-            background: var(--white);
-            border-radius: 12px;
-            border: 1px solid var(--border);
+        .sidebar {
+            width: 320px;
+            background: white;
+            border-left: 1px solid var(--bd);
             padding: 16px;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            gap: 16px;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.02);
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid var(--bd);
+        }
+        .category-bar {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
             gap: 12px;
+            flex: 1;
+            overflow-y: auto;
+            align-content: start;
+        }
+        .p-card {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--bd);
+            padding: 10px;
+            transition: all 0.2s;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
-
-        .item-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--card-shadow);
-            border-color: var(--primary);
+        .p-card:hover {
+            border-color: var(--p);
+            box-shadow: 0 4px 12px rgba(64,158,255,0.1);
+            transform: translateY(-2px);
         }
-
-        .item-image {
-            width: 80px;
-            height: 80px;
+        .p-img {
+            width: 100%;
+            aspect-ratio: 1.2;
             background: #f1f5f9;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            color: #94a3b8;
+            font-size: 22px;
         }
-
-        .item-name {
-            font-weight: bold;
+        .p-name {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .p-price {
             font-size: 14px;
-            text-align: center;
-        }
-
-        .item-price {
-            color: var(--primary);
-            font-weight: 700;
-        }
-
-        /* Bottom: List */
-        .selected-list-container {
-            background: var(--white);
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            flex: 1;
-            min-height: 200px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .list-header {
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--border);
             font-weight: bold;
-            color: var(--text-muted);
-            display: flex;
-            justify-content: space-between;
+            color: var(--p);
         }
-
-        .list-items {
-            flex: 1;
-            overflow-y: auto;
-        }
-
-        .list-row {
-            display: flex;
-            padding: 12px 20px;
-            border-bottom: 1px solid #f1f5f9;
-            align-items: center;
-        }
-
-        .col-name { flex: 2; font-weight: 600; }
-        .col-price { flex: 1; text-align: center; }
-        .col-qty { flex: 1; text-align: center; }
-        .col-action { flex: 0.5; text-align: right; }
-
-        /* Sidebar: Summary & Checkout */
-        .member-section {
-            border: 2px dashed var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            color: var(--text-muted);
-            cursor: pointer;
-        }
-
-        .payment-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .payment-btn {
-            padding: 12px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            text-align: center;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .payment-btn.active {
-            border-color: var(--primary);
-            color: var(--primary);
-            background: #eff6ff;
-        }
-
-        .total-box {
-            margin-top: auto;
-            padding: 20px;
-            background: #f8fafc;
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-        }
-
-        .total-label { font-size: 16px; font-weight: bold; }
-        .total-value { font-size: 32px; font-weight: 800; color: var(--text-main); }
-
-        .btn-group {
-            display: flex;
-            gap: 12px;
-        }
-
         .btn {
-            flex: 1;
-            padding: 14px;
+            padding: 6px 14px;
             border-radius: 8px;
+            border: 1px solid var(--bd);
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .btn.active {
+            background: var(--p);
+            color: white;
+            border-color: var(--p);
+        }
+        .btn-main {
+            background: var(--p);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+        .btn-main:hover {
+            background: #3388ff;
+        }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: var(--text-light);
             border: none;
-            font-size: 16px;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 15px;
+            transition: all 0.2s;
         }
-
-        .btn-cancel {
-            background: var(--white);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
+        .btn-secondary:hover {
+            background: #e2e8f0;
         }
-
-        .btn-checkout {
-            background: var(--primary);
-            color: var(--white);
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text);
         }
-
-        .btn-checkout:hover {
-            background: var(--primary-hover);
+        .select-container {
+            display: flex;
+            gap: 8px;
         }
-
+        .select-box {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--bd);
+            background: #f8fafc;
+            font-size: 13px;
+            color: var(--text-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            border-bottom: 1px dashed var(--bd);
+        }
+        .order-item:last-child {
+            border-bottom: none;
+        }
+        .total-area {
+            margin-top: auto;
+            border-top: 1px solid var(--bd);
+            padding-top: 16px;
+        }
     </style>
 </head>
 <body>
-    <div class="main-content">
-        <!-- 上：分类 -->
-        <div class="category-bar">
-            <div class="category-btn active">全部</div>
-            <div class="category-btn">洗护预约</div>
-            <div class="category-btn">美容美发</div>
-            <div class="category-btn">宠物寄养</div>
-            <div class="category-btn">零食玩具</div>
-            <div class="category-btn">药品保健</div>
+    <div class="main">
+        <!-- 分类栏 -->
+        <div class="card category-bar">
+            <button class="btn active">全部商品</button>
+            <button class="btn">洗护</button>
+            <button class="btn">美容</button>
+            <button class="btn">寄养</button>
+            <button class="btn">零售</button>
+            <button class="btn">会员服务</button>
         </div>
-
-        <!-- 中：网格卡片 -->
-        <div class="grid-container">
-            <div class="item-card">
-                <div class="item-image">🧼</div>
-                <div class="item-name">精细洗护SPA (小型犬)</div>
-                <div class="item-price">¥ 128.00</div>
+        <!-- 商品网格 -->
+        <div class="grid">
+            <div class="p-card">
+                <div class="p-img">🛁</div>
+                <div class="p-name">精油洗护 (大犬)</div>
+                <div class="p-price">¥ 128.00</div>
             </div>
-            <div class="item-card">
-                <div class="item-image">✂️</div>
-                <div class="item-name">夏日清爽造型剪</div>
-                <div class="item-price">¥ 188.00</div>
+            <div class="p-card">
+                <div class="p-img">✂️</div>
+                <div class="p-name">全效美容 (中型)</div>
+                <div class="p-price">¥ 198.00</div>
             </div>
-            <div class="item-card">
-                <div class="item-image">🍗</div>
-                <div class="item-name">冻干鸡肉粒 (500g)</div>
-                <div class="item-price">¥ 45.00</div>
+            <div class="p-card">
+                <div class="p-img">🦴</div>
+                <div class="p-name">皇家成犬粮 2kg</div>
+                <div class="p-price">¥ 156.00</div>
             </div>
-            <div class="item-card">
-                <div class="item-image">🪀</div>
-                <div class="item-name">耐咬尖叫鸡</div>
-                <div class="item-price">¥ 15.00</div>
+            <div class="p-card">
+                <div class="p-img">🏠</div>
+                <div class="p-name">豪华寄养房/天</div>
+                <div class="p-price">¥ 88.00</div>
             </div>
-            <div class="item-card">
-                <div class="item-image">💊</div>
-                <div class="item-name">拜宠清 (体内驱虫)</div>
-                <div class="item-price">¥ 60.00</div>
+            <div class="p-card">
+                <div class="p-img">🧼</div>
+                <div class="p-name">药浴除螨</div>
+                <div class="p-price">¥ 45.00</div>
+            </div>
+            <div class="p-card">
+                <div class="p-img">🦷</div>
+                <div class="p-name">洁牙护理</div>
+                <div class="p-price">¥ 35.00</div>
             </div>
         </div>
-
-        <!-- 下：已选列表 -->
-        <div class="selected-list-container">
-            <div class="list-header">
-                <div style="flex: 2">选购项目</div>
-                <div style="flex: 1; text-align: center">单价</div>
-                <div style="flex: 1; text-align: center">数量</div>
-                <div style="flex: 0.5; text-align: right">操作</div>
-            </div>
-            <div class="list-items">
-                <div class="list-row">
-                    <div class="col-name">精细洗护SPA (小型犬)</div>
-                    <div class="col-price">¥ 128.00</div>
-                    <div class="col-qty">1</div>
-                    <div class="col-action">🗑️</div>
+        <!-- 已选列表 -->
+        <div class="card">
+            <div class="section-title">已选列表 (2)</div>
+            <div class="order-list">
+                <div class="order-item">
+                    <span>精油洗护 (大犬) x1</span>
+                    <span style="font-weight:500">¥128.00</span>
                 </div>
-                <div class="list-row">
-                    <div class="col-name">冻干鸡肉粒 (500g)</div>
-                    <div class="col-price">¥ 45.00</div>
-                    <div class="col-qty">2</div>
-                    <div class="col-action">🗑️</div>
+                <div class="order-item">
+                    <span>药浴除螨 x1</span>
+                    <span style="font-weight:500">¥45.00</span>
                 </div>
             </div>
         </div>
     </div>
-
+    <!-- 侧边结算栏 -->
     <div class="sidebar">
         <div>
-            <h3 style="margin-bottom: 12px;">客户信息</h3>
-            <div class="member-section">
-                🔍 搜索会员 (姓名/手机号)
+            <div class="section-title">客户信息</div>
+            <div class="select-container">
+                <div class="select-box">
+                    <span>搜索会员...</span>
+                    <span>▼</span>
+                </div>
+                <div class="select-box">
+                    <span>选择宠物...</span>
+                    <span>▼</span>
+                </div>
             </div>
         </div>
-
-        <div>
-            <h3 style="margin-bottom: 12px;">支付方式</h3>
-            <div class="payment-grid">
-                <div class="payment-btn active">微信支付</div>
-                <div class="payment-btn">支付宝</div>
-                <div class="payment-btn">余额扣款</div>
-                <div class="payment-btn">现金</div>
+        
+        <div class="total-area">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px">
+                <span style="font-size:14px;color:var(--text-light)">合计金额</span>
+                <span style="font-size:24px;font-weight:800;color:var(--p)">¥ 173.00</span>
             </div>
-        </div>
-
-        <div class="total-box">
-            <span class="total-label">合计金额</span>
-            <span class="total-value">¥ 218.00</span>
-        </div>
-
-        <div class="btn-group">
-            <button class="btn btn-cancel">取消开单</button>
-            <button class="btn btn-checkout">结算下单</button>
+            <div style="display:flex;gap:12px">
+                <button class="btn-secondary" style="flex:1">取消</button>
+                <button class="btn-main" style="flex:1">下单</button>
+            </div>
         </div>
     </div>
 </body>
