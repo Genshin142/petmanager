@@ -770,17 +770,13 @@ void AddAppointmentDialog::onAddServiceRow()
             delete child;
         }
 
-        QMap<QString, QStringList> atomicMap;
-        atomicMap["Grooming"] = {"洗澡", "剪指甲", "清理耳道", "肛门腺清理", "脚底毛修剪", "洁牙护理"};
-        atomicMap["Beauty"] = {"整体造型", "局部修剪", "赛级修剪", "香氛喷雾", "丝滑毛发护理"};
-        atomicMap["Medical"] = {"基础健康筛查", "体外驱虫"};
-        atomicMap["Boarding"] = {"自带口粮", "加餐(肉罐头)"};
-        atomicMap["Transport"] = {"含航空箱", "上门接宠", "送回入户", "专车专送"};
-
-        QString key = mainType.split("|").first();
-        if (atomicMap.contains(key)) {
-            for (const QString &tag : atomicMap[key]) {
-                QPushButton *tagBtn = new QPushButton(tag);
+        // 动态加载：从数据管理器获取该分类下的所有服务
+        QString cat = mainType.split("|").last();
+        QList<ServiceInfo> allServices = ServiceDataManager::instance()->allServices();
+        
+        for (const auto &info : allServices) {
+            if (info.category == cat) {
+                QPushButton *tagBtn = new QPushButton(info.name);
                 tagBtn->setCheckable(true);
                 tagBtn->setCursor(Qt::PointingHandCursor);
                 tagBtn->setStyleSheet(
@@ -791,13 +787,16 @@ void AddAppointmentDialog::onAddServiceRow()
                 
                 // 价格联动
                 connect(tagBtn, &QPushButton::toggled, this, updateFinalPrice);
-                if (tag == "送回入户") {
+                
+                // 特殊逻辑：如果是“送回入户”，联动显示返程时间选择器
+                if (info.name == "送回入户") {
                     connect(tagBtn, &QPushButton::toggled, returnParamWidget, &QWidget::setVisible);
                 }
                 
                 tagsRow->insertWidget(tagsRow->count() - 1, tagBtn);
             }
         }
+
         tagsRow->addStretch();
     };
 
