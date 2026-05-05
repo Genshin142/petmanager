@@ -159,7 +159,11 @@ void ServiceDialog::setupUi()
     connect(saveBtn, &QPushButton::clicked, this, &ServiceDialog::accept);
     connect(cancelBtn, &QPushButton::clicked, this, &ServiceDialog::reject);
     connect(closeBtn, &QPushButton::clicked, this, &ServiceDialog::reject);
+
+    // 强行修复下拉框重影：直接对 View 设置样式
+    m_categoryCombo->view()->setStyleSheet("background-color: white; border: 1px solid #e2e8f0;");
 }
+
 
 QWidget* ServiceDialog::createInputWithUnit(QWidget* input, const QString &unit)
 {
