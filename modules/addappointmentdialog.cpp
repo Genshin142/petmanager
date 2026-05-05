@@ -507,11 +507,11 @@ void AddAppointmentDialog::onAddServiceRow()
         "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
         "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 10px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }"
     );
-    combo->addItem("专业洗护", "Grooming|专业洗护");
-    combo->addItem("专业美容", "Beauty|专业美容");
-    combo->addItem("医疗驱虫", "Medical|医疗保健");
-    combo->addItem("常规寄养", "Boarding|标准寄养");
-    combo->addItem("入店接送", "Transport|接送服务");
+    combo->addItem("洗护", "Grooming|洗护");
+    combo->addItem("美容", "Beauty|美容");
+    combo->addItem("保健", "Medical|保健");
+    combo->addItem("寄养", "Boarding|寄养");
+    combo->addItem("接送", "Transport|接送");
 
 
     // 2. 日期选择
