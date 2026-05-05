@@ -116,6 +116,7 @@ void ServiceDialog::setupUi()
     // 样式设置
     this->setStyleSheet(
         "QFrame#bgFrame { background-color: #ffffff; border-radius: 12px; }"
+        "QWidget { background: transparent; }"  // 确保所有中间容器背景透明
         "QLineEdit, QComboBox, QTextEdit { "
         "   border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; "
         "   background-color: #f8fafc; color: #1e293b; font-size: 14px; "
@@ -135,8 +136,9 @@ void ServiceDialog::setupUi()
         "   border-radius: 6px; font-weight: bold; "
         "}"
         "QPushButton#cancelBtn:hover { background-color: #e2e8f0; }"
-        "QLabel { color: #64748b; font-size: 14px; }"
+        "QLabel { background: transparent; color: #64748b; font-size: 14px; }"
     );
+
 
     connect(saveBtn, &QPushButton::clicked, this, &ServiceDialog::accept);
     connect(cancelBtn, &QPushButton::clicked, this, &ServiceDialog::reject);
