@@ -46,7 +46,7 @@ private:
     QPushButton *nextBtn;
     QLabel *pageLabel;
     int m_currentPage = 1;
-    int m_pageSize = 10;
+    int m_pageSize = 15;
 
     // 详情面板组件 (右侧高级看板)
     QWidget *m_detailPanel;
