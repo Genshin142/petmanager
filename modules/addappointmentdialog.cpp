@@ -1,6 +1,7 @@
 #include "addappointmentdialog.h"
 #include "petdatamanager.h"
 #include "pricemanager.h"
+#include "servicedatamanager.h"
 #include "fostermodule.h" // 包含 FullImagePreviewDialog 定义
 #include <QDate>
 #include <QDateTime>
