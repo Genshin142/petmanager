@@ -21,49 +21,38 @@ signals:
 
 private slots:
     void onCategoryChanged(int id);
-    void onTileClicked(); // 点击磁贴时触发
     void onSearchItems(const QString &text);
+    void onTileClicked(const QString &id, bool isService);
     void onRemoveCartItem(int row);
     void onCreateOrder();
-    void onMemberSearch(const QString &text);
     void onMemberChanged(int index);
 
 private:
     void setupUI();
+    void initMemberData();
     void updateCartUI();
-    void updateTilePanel(const QString &category = "全部", const QString &searchKw = "");
+    void updateTilePanel(const QString &category, const QString &searchKw = "");
 
-    QLineEdit *m_itemSearch;
-    QListWidget *m_cartList;
-    
-    QLabel *m_totalLabel;
-    
-    // UI 组件：分类与磁贴
-    class QButtonGroup *m_categoryGroup;
-    QWidget *m_tileContainer;
-    class QGridLayout *m_tileLayout;
-
-    // 新增：底部会员与宠物选择
-    class QComboBox *m_memberCombo;
-    class QComboBox *m_petCombo;
-    QWidget *m_petWrapper;
-
-    // 当前选中的会员
-    QString m_selectedMemberId;
-    QString m_selectedMemberName;
-    
-    // 购物车数据结构
     struct CartItem {
         QString id;
         QString name;
         double price;
         int qty;
         bool isService;
-        QString startDate;
-        QString endDate;
-        QString roomId;
     };
+
+    // UI 组件
+    class QButtonGroup *m_categoryGroup;
+    QWidget *m_tileContainer;
+    class QGridLayout *m_tileLayout;
+    class QTableWidget *m_cartTable;
+    QLineEdit *m_memberSearch;
+    class QComboBox *m_memberCombo;
+    class QComboBox *m_petCombo;
+    QLabel *m_totalLabel;
+    
     QList<CartItem> m_cart;
+    QString m_currentCategory;
 };
 
 #endif // QUICKORDERDIALOG_H
