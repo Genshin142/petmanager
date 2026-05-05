@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QGraphicsDropShadowEffect>
 #include <QPushButton>
+#include <QAbstractItemView>
 
 ServiceDialog::ServiceDialog(QWidget *parent) : QDialog(parent)
 {
