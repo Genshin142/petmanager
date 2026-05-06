@@ -19,7 +19,7 @@ ServiceDataManager::ServiceDataManager(QObject *parent) : QObject(parent)
 
 void ServiceDataManager::initMockData()
 {
-    auto addMock = [&](const QString &id, const QString &name, const QString &category, double price, int duration, double commFixed, const QString &desc = "") {
+    auto addMock = [&](const QString &id, const QString &name, const QString &category, double price, int duration, double commFixed, const QString &desc = "", int commPercent = 0) {
         ServiceInfo info;
         info.id = id;
         info.name = name;
@@ -27,25 +27,16 @@ void ServiceDataManager::initMockData()
         info.price = price;
         info.durationMinutes = duration;
         info.commissionFixed = commFixed;
-        info.commissionPercent = 0;
+        info.commissionPercent = commPercent;
         info.salesCount = QRandomGenerator::global()->bounded(100);
         info.isActive = true;
         info.description = desc;
         m_services.insert(id, info);
     };
 
-    addMock("SVR-1001", "深度洗护", "洗护", 158.0, 60, 30.0, "采用高品质精油及深度清洁配方，包含精油SPA、毛发深层滋养、指甲修剪及全套基础护理，适用于各类犬型。");
-    // addMock("SVR-1007", "同城宠物专车接送", "接送", 50.0, 30, 0.0, "专车单接单送，空调环境，保证宠物路途舒适安全。");
-
-    // --- 重新定义的寄养类项目 ---
-    addMock("SVR-1401", "普通寄养房间", "寄养", 80.0, 1440, 0.0, "适合小型宠物，主打经济实惠。");
-    addMock("SVR-1402", "豪华套房寄养", "寄养", 200.0, 1440, 0.0, "独立的小房间，带有监控摄像头查看权限。");
-    addMock("SVR-1403", "多宠家庭房寄养", "寄养", 350.0, 1440, 0.0, "适合家里养了多只宠物需要住在一起的情况。");
-    addMock("SVR-1404", "日托寄养", "寄养", 60.0, 600, 0.0, "仅白天托管，不留宿。");
-
-    // --- 同步预约界面的附加项目 ---
-    // 洗护类
+    addMock("SVR-1001", "深度洗护", "洗护", 158.0, 60, 0, "采用高品质精油及深度清洁配方，包含精油SPA、毛发深层滋养、指甲修剪及全套基础护理。", 20);
     addMock("SVR-1101", "基础洗护", "洗护", 50.0, 30, 10.0, "包含基础清洁洗澡、吹干及基础梳毛。");
+    addMock("SVR-1201", "精修造型", "美容", 150.0, 90, 0, "全身毛发设计与修剪，包含造型设计与基础打理。", 30);
     addMock("SVR-1102", "剪指甲", "洗护", 20.0, 10, 5.0);
     addMock("SVR-1103", "清理耳道", "洗护", 15.0, 10, 5.0);
     addMock("SVR-1104", "肛门腺清理", "洗护", 20.0, 10, 5.0);
@@ -66,9 +57,9 @@ void ServiceDataManager::initMockData()
     addMock("SVR-1304", "伤口护理", "保健", 30.0, 15, 10.0, "针对轻微擦伤或剪甲出血的简单消毒与包扎。");
 
     // 接送类
-    addMock("SVR-1501", "单程接送", "接送", 30.0, 30, 5.0, "宠物单向运输服务，价格按距离阶梯计算。");
-    addMock("SVR-1502", "往返接送", "接送", 50.0, 60, 10.0, "接店加送回的全流程服务。");
-    addMock("SVR-1503", "远程附加", "接送", 20.0, 0, 0.0, "超出标准服务半径后的额外里程费。");
+    addMock("SVR-1501", "单程接宠", "接送", 30.0, 30, 5.0, "单程前往客户家中接回宠物。");
+    addMock("SVR-1502", "单程送宠", "接送", 30.0, 30, 5.0, "单程将宠物送回客户家中。");
+    addMock("SVR-1503", "往返接送", "接送", 50.0, 60, 10.0, "包含接店加送回的全流程服务。");
 }
 
 

@@ -222,7 +222,10 @@ void MemberModule::setupUI()
     QPushButton *addBtn = new QPushButton("录入会员");
     addBtn->setCursor(Qt::PointingHandCursor);
     addBtn->setFixedHeight(36);
-    addBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; padding: 0 15px; border-radius: 6px; font-size: 13px; font-weight: bold; } QPushButton:hover { background: #2563eb; }");
+    addBtn->setStyleSheet(
+        "QPushButton { background: white; border: 1px solid #3b82f6; color: #3b82f6; padding: 0 15px; border-radius: 6px; font-size: 13px; font-weight: bold; } "
+        "QPushButton:hover { background: #eff6ff; }"
+    );
     connect(addBtn, &QPushButton::clicked, this, &MemberModule::showAddMemberDialog);
     operationLayout->addWidget(addBtn);
 
@@ -318,7 +321,7 @@ void MemberModule::setupUI()
 
     QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
                         "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
-                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
+                        "QPushButton:disabled { background: white; color: #cbd5e1; border-color: #f1f5f9; }";
     prevBtn->setStyleSheet(pageStyle);
     nextBtn->setStyleSheet(pageStyle);
 
@@ -337,18 +340,12 @@ void MemberModule::setupUI()
     jumpLayout->addWidget(jumpSuffix);
     jumpLayout->addWidget(jumpBtn);
 
-    // 将翻页控制器单独包裹，防止布局将其强行拉伸
-    QWidget *pageGroup = new QWidget();
-    pageGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(2); // 极小缝隙
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
-
     footerLayout->addStretch();
-    footerLayout->addWidget(pageGroup);
+    footerLayout->addWidget(prevBtn);
+    footerLayout->addSpacing(20);
+    footerLayout->addWidget(pageLabel);
+    footerLayout->addSpacing(20);
+    footerLayout->addWidget(nextBtn);
 
     // --- 组装根布局 (左侧主体容器 + 右侧全高详情抽屉) ---
     rootLayout->addWidget(leftContainer, 1);

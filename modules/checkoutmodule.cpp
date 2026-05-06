@@ -313,15 +313,15 @@ void CheckoutModule::setupUI()
     quickOrderBtn->setFixedSize(110, 38);
     quickOrderBtn->setCursor(Qt::PointingHandCursor);
     quickOrderBtn->setStyleSheet(
-        "QPushButton { background: #3b82f6; border-radius: 6px; border: none; } "
-        "QPushButton:hover { background: #2563eb; }"
+        "QPushButton { background: white; border-radius: 6px; border: 1px solid #3b82f6; } "
+        "QPushButton:hover { background: #eff6ff; }"
     );
     
     QHBoxLayout *btnLayout = new QHBoxLayout(quickOrderBtn);
     btnLayout->setContentsMargins(0, 0, 0, 0);
     QLabel *btnTextLabel = new QLabel("快速开单");
     btnTextLabel->setAlignment(Qt::AlignCenter);
-    btnTextLabel->setStyleSheet("color: white; font-weight: bold; font-size: 13px; background: transparent; ");
+    btnTextLabel->setStyleSheet("color: #3b82f6; font-weight: bold; font-size: 13px; background: transparent; ");
     btnLayout->addWidget(btnTextLabel);
     
     filterLayout->addWidget(quickOrderBtn);
@@ -391,7 +391,7 @@ void CheckoutModule::setupUI()
 
     QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
                         "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
-                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
+                        "QPushButton:disabled { background: white; color: #cbd5e1; border-color: #f1f5f9; }";
     prevBtn->setStyleSheet(pageStyle);
     nextBtn->setStyleSheet(pageStyle);
 
@@ -399,17 +399,12 @@ void CheckoutModule::setupUI()
     nextBtn->setCursor(Qt::PointingHandCursor);
     pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
 
-    QWidget *pageGroup = new QWidget();
-    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(5); 
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
-
-    footerLayout->addStretch(); // 关键：左侧弹簧推向右侧
-    footerLayout->addWidget(pageGroup);
-    footerLayout->addSpacing(15); 
+    footerLayout->addStretch();
+    footerLayout->addWidget(prevBtn);
+    footerLayout->addSpacing(20);
+    footerLayout->addWidget(pageLabel);
+    footerLayout->addSpacing(20);
+    footerLayout->addWidget(nextBtn);
 
     mainContentLayout->addWidget(tableCard, 7);
 

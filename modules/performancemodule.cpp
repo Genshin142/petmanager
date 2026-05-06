@@ -1,488 +1,622 @@
 #include "performancemodule.h"
+#include "salarydatamanager.h"
+#include "staffdatamanager.h"
+#include "common_types.h"
+#include "custom_calendar_edit.h"
 #include "custommessagedialog.h"
+#include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
-#include <QScrollBar>
-#include <QDate>
-#include <QGraphicsDropShadowEffect>
-#include <QPushButton>
+#include <QDateTime>
 #include <QFrame>
-#include <QCheckBox>
-#include <QIntValidator>
+#include <QPushButton>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QScrollArea>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QPainterPath>
 
-PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent),
-    m_currentPage(1), m_pageSize(10), pageLabel(nullptr), jumpEdit(nullptr), prevBtn(nullptr), nextBtn(nullptr), jumpValidator(nullptr)
+// --- 复刻：全行圆角选中委托 ---
+class PerformanceRowDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->fillRect(opt.rect, Qt::white);
+
+        if (opt.state & QStyle::State_Selected) {
+            bool isFirst = (index.column() == 0);
+            bool isLast = (index.column() == index.model()->columnCount() - 1);
+            QRect rect = opt.rect.adjusted(1, 4, -1, -4);
+            int radius = 8;
+            QColor borderColor("#3b82f6");
+            QColor bgColor("#eff6ff");
+
+            painter->fillRect(opt.rect, bgColor);
+            painter->setPen(QPen(borderColor, 2));
+            
+            if (isFirst) {
+                QPainterPath path;
+                path.moveTo(opt.rect.right() + 1, rect.top()); 
+                path.lineTo(rect.left() + radius, rect.top());
+                path.arcTo(QRect(rect.left(), rect.top(), radius*2, radius*2), 90, 90);
+                path.lineTo(rect.left(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.left(), rect.bottom() - radius*2, radius*2, radius*2), 180, 90);
+                path.lineTo(opt.rect.right() + 1, rect.bottom());
+                painter->drawPath(path);
+            } else if (isLast) {
+                QPainterPath path;
+                path.moveTo(opt.rect.left() - 1, rect.top());
+                path.lineTo(rect.right() - radius, rect.top());
+                path.arcTo(QRect(rect.right() - radius*2, rect.top(), radius*2, radius*2), 90, -90);
+                path.lineTo(rect.right(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.right() - radius*2, rect.bottom() - radius*2, radius*2, radius*2), 0, -90);
+                path.lineTo(opt.rect.left() - 1, rect.bottom());
+                painter->drawPath(path);
+            } else {
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.top()), QPoint(opt.rect.right() + 1, rect.top()));
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.bottom()), QPoint(opt.rect.right() + 1, rect.bottom()));
+            }
+        } else {
+            painter->setPen(QPen(QColor("#f1f5f9"), 1));
+            painter->drawLine(opt.rect.bottomLeft(), opt.rect.bottomRight());
+        }
+
+        painter->setPen(QColor((opt.state & QStyle::State_Selected) ? "#1e40af" : "#334155"));
+        QFont font("Microsoft YaHei", 9);
+        if (opt.state & QStyle::State_Selected) font.setBold(true);
+        painter->setFont(font);
+        
+        QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+        painter->drawText(textRect, Qt::AlignCenter, opt.text);
+        
+        painter->restore();
+    }
+};
+
+PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent)
 {
     setupUI();
+    setupImagePreview();
+    refreshData();
     
-    // 初始化模拟真实录入数据
-    m_perfData.append({"2026-03-16", "E001", "李四", "宠物洗护", 300, 45, false});
-    m_perfData.append({"2026-03-16", "E004", "赵六", "疫苗注射", 500, 100, false});
-    m_perfData.append({"2026-03-15", "E001", "李四", "全身剪毛", 450, 67.5, true});
-    m_perfData.append({"2026-03-15", "E002", "王五", "商品销售", 1200, 120, false});
-    m_perfData.append({"2026-03-14", "E004", "赵六", "体检套餐", 380, 57, true});
-    m_perfData.append({"2026-03-14", "E001", "李四", "商品销售", 860, 86, true});
-    
-    updatePagination();
-    updateSummary();
+    if (m_perfTable->rowCount() > 0) {
+        m_perfTable->selectRow(0);
+    }
+
+    connect(SalaryDataManager::instance(), &SalaryDataManager::performanceDataChanged, this, &PerformanceModule::refreshData);
 }
 
 void PerformanceModule::setupUI()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(20);
+    setObjectName("PerformanceModule");
+    setStyleSheet("#PerformanceModule { background-color: #f8fafc; font-family: 'Microsoft YaHei'; }");
 
-    // 1. 标题
-    QHBoxLayout *headerLayout = new QHBoxLayout();
-    QLabel *title = new QLabel("业绩核算与提成明细", this);
-    title->setStyleSheet("font-size: 24px; color: #303133;");
-    headerLayout->addWidget(title);
-    headerLayout->addStretch();
-    mainLayout->addLayout(headerLayout);
+    QVBoxLayout *rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(20, 20, 20, 20);
+    rootLayout->setSpacing(15);
 
-    // 2. 统计卡片
-    QHBoxLayout *statLayout = new QHBoxLayout();
-    statLayout->setSpacing(20);
+    // --- 1. 顶部概览卡片 ---
+    QFrame *headerGroup = new QFrame();
+    headerGroup->setObjectName("headerGroup");
+    headerGroup->setFixedHeight(130);
+    headerGroup->setStyleSheet("QFrame#headerGroup { background-color: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
+    QVBoxLayout *headerGroupLayout = new QVBoxLayout(headerGroup);
+    headerGroupLayout->setContentsMargins(20, 15, 20, 15);
+    headerGroupLayout->setSpacing(15);
 
-    auto createStatCard = [&](const QString &icon, const QString &label, QLabel* &valLabel) {
+    QLabel *titleLbl = new QLabel("业绩核销管理看板");
+    titleLbl->setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; border: none; background: transparent;");
+    headerGroupLayout->addWidget(titleLbl);
+
+    QHBoxLayout *statsLayout = new QHBoxLayout();
+    statsLayout->setSpacing(15);
+
+    auto createStatsCard = [&](const QString &title, const QString &val, const QString &color) {
         QFrame *card = new QFrame();
-        card->setFixedHeight(100);
-        card->setStyleSheet("QFrame { background: white; border-radius: 12px; border: 1px solid #f0f2f5; } ");
-        
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect();
-        shadow->setBlurRadius(15);
-        shadow->setColor(QColor(0, 0, 0, 25));
-        shadow->setOffset(0, 4);
-        card->setGraphicsEffect(shadow);
-
-        QHBoxLayout *l = new QHBoxLayout(card);
-        l->setContentsMargins(20, 15, 20, 15);
-
-        QLabel *iconLabel = new QLabel(icon);
-        if (icon.isEmpty()) {
-            iconLabel->hide();
-        } else {
-            iconLabel->setFixedSize(50, 50);
-            iconLabel->setAlignment(Qt::AlignCenter);
-            iconLabel->setStyleSheet(QString("font-size: 24px; background: #f5f7fa; border-radius: 10px; border: none;"));
-        }
-        if (!icon.isEmpty()) {
-            l->addWidget(iconLabel);
-            l->addSpacing(15);
-        }
-
-        QVBoxLayout *textLayout = new QVBoxLayout();
-        textLayout->setSpacing(2);
-        QLabel *labelTitle = new QLabel(label);
-        labelTitle->setStyleSheet("color: #909399; font-size: 13px; border: none; background: transparent;");
-        valLabel = new QLabel("--");
-        valLabel->setStyleSheet("font-size: 22px; color: #303133; border: none; background: transparent;");
-        
-        textLayout->addWidget(labelTitle);
-        textLayout->addWidget(valLabel);
-        textLayout->addStretch();
-        l->addLayout(textLayout);
-        l->addStretch();
+        card->setFixedHeight(60);
+        card->setStyleSheet("QFrame { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }");
+        QVBoxLayout *cl = new QVBoxLayout(card);
+        cl->setContentsMargins(15, 5, 15, 5);
+        cl->setSpacing(0);
+        QLabel *tl = new QLabel(title); tl->setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold; border: none;");
+        QLabel *vl = new QLabel(val); vl->setStyleSheet(QString("color: %1; font-size: 16px; font-weight: 800; border: none;").arg(color));
+        cl->addWidget(tl); cl->addWidget(vl);
         return card;
     };
 
-    statLayout->addWidget(createStatCard("", "大盘总业绩", totalRevenueLabel));
-    statLayout->addWidget(createStatCard("", "洗护/造型选定", serviceRevenueLabel));
-    statLayout->addWidget(createStatCard("", "商品销售", productRevenueLabel));
-    mainLayout->addLayout(statLayout);
+    QFrame *revCard = createStatsCard("服务总营收 (CNY)", "¥ 0.00", "#1e293b");
+    m_totalRevenueVal = static_cast<QLabel*>(revCard->layout()->itemAt(1)->widget());
+    QFrame *commCard = createStatsCard("预计总提成", "¥ 0.00", "#10b981");
+    m_totalCommVal = static_cast<QLabel*>(commCard->layout()->itemAt(1)->widget());
+    QFrame *pendCard = createStatsCard("待核销笔数", "0 笔", "#f59e0b");
+    m_pendingVerifyCountVal = static_cast<QLabel*>(pendCard->layout()->itemAt(1)->widget());
 
-    // 3. 筛选面板
-    QFrame *filterFrame = new QFrame();
-    filterFrame->setStyleSheet("QFrame { background: white; border-radius: 8px; border: 1px solid #ebeef5; }");
-    filterFrame->setFixedHeight(60);
-    QHBoxLayout *filterLayout = new QHBoxLayout(filterFrame);
-    filterLayout->setContentsMargins(15, 0, 15, 0);
+    statsLayout->addWidget(revCard, 1);
+    statsLayout->addWidget(commCard, 1);
+    statsLayout->addWidget(pendCard, 1);
+    headerGroupLayout->addLayout(statsLayout);
+    rootLayout->addWidget(headerGroup);
+
+    // --- 2. 核心内容区域 ---
+    QHBoxLayout *contentLayout = new QHBoxLayout();
+    contentLayout->setSpacing(15);
+
+    // 2.1 左侧列
+    QVBoxLayout *leftColumn = new QVBoxLayout();
+    leftColumn->setSpacing(15);
+
+    QFrame *filterGroup = new QFrame();
+    filterGroup->setObjectName("filterGroup");
+    filterGroup->setFixedHeight(64);
+    filterGroup->setStyleSheet("QFrame#filterGroup { background-color: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
+    QHBoxLayout *filterLayout = new QHBoxLayout(filterGroup);
+    filterLayout->setContentsMargins(20, 0, 20, 0);
     filterLayout->setSpacing(10);
 
-    searchEdit = new QLineEdit();
-    searchEdit->setPlaceholderText(" 搜索员工ID或姓名...");
-    searchEdit->setFixedWidth(200);
-    searchEdit->setFixedHeight(32);
-    searchEdit->setStyleSheet(
-        "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 15px; font-size: 13px; background: white; } "
-        "QLineEdit:focus { border-color: #409eff; outline: none; }"
-    );
-    filterLayout->addWidget(searchEdit);
+    QString lineEditStyle = "QLineEdit { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 12px; font-size: 13px; background: white; height: 32px; } QLineEdit:focus { border-color: #409eff; outline: none; }";
+    QString comboStyle = "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; height: 32px; } QComboBox:hover { border-color: #409eff; } QComboBox::drop-down { border: none; width: 24px; } QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }";
 
-    QLabel *dateSep = new QLabel("日期:");
-    dateSep->setStyleSheet("color: #606266; font-size: 13px; border: none; background: transparent;");
-    filterLayout->addWidget(dateSep);
-
-    startYearCombo = new QComboBox(); startYearCombo->setFixedWidth(115);
-    startMonthCombo = new QComboBox(); startMonthCombo->setFixedWidth(100);
-    startDayCombo = new QComboBox(); startDayCombo->setFixedWidth(100);
+    m_startDateEdit = new CustomCalendarEdit();
+    m_startDateEdit->setFixedWidth(100);
+    m_startDateEdit->setText(QDate::currentDate().addDays(-30).toString("yyyy-MM-dd"));
+    m_startDateEdit->setStyleSheet(lineEditStyle);
     
-    endYearCombo = new QComboBox(); endYearCombo->setFixedWidth(115);
-    endMonthCombo = new QComboBox(); endMonthCombo->setFixedWidth(100);
-    endDayCombo = new QComboBox(); endDayCombo->setFixedWidth(100);
+    m_endDateEdit = new CustomCalendarEdit();
+    m_endDateEdit->setFixedWidth(100);
+    m_endDateEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
+    m_endDateEdit->setStyleSheet(lineEditStyle);
 
-    auto initDateGroup = [&](QComboBox* y, QComboBox* m, QComboBox* d, const QDate &initDate) {
-        QString style = "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
-                        "QComboBox:hover { border-color: #409eff; } "
-                        "QComboBox::drop-down { border: none; width: 24px; } "
-                        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
-                        "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }";
-        
-        QString scrollStyle = "QScrollBar:vertical { width: 0px; background: transparent; margin: 0px; } "
-                             "QScrollBar::handle:vertical { background: #dcdfe6; border-radius: 6px; min-height: 20px; } "
-                             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }";
+    m_employeeCombo = new QComboBox();
+    m_employeeCombo->setFixedWidth(100);
+    m_employeeCombo->addItem("全部员工", "");
+    for (const auto &emp : StaffDataManager::instance()->allStaff()) {
+        if (emp.status != "离职") {
+            m_employeeCombo->addItem(emp.name, emp.id);
+        }
+    }
+    m_employeeCombo->setStyleSheet(comboStyle);
 
-        y->setStyleSheet(style); m->setStyleSheet(style); d->setStyleSheet(style);
-        y->view()->verticalScrollBar()->setStyleSheet(scrollStyle);
-        m->view()->verticalScrollBar()->setStyleSheet(scrollStyle);
-        d->view()->verticalScrollBar()->setStyleSheet(scrollStyle);
-        
-        int currentYear = QDate::currentDate().year();
-        for(int i=2024; i<=currentYear; ++i) y->addItem(QString::number(i) + "年", i);
-        for(int i=1; i<=12; ++i) m->addItem(QString("%1月").arg(i), i);
-        
-        y->setCurrentText(QString::number(initDate.year()) + "年");
-        m->setCurrentIndex(initDate.month()-1);
-        
-        updateDayCombo(y, m, d);
-        d->setCurrentIndex(d->findData(initDate.day()));
+    m_statusCombo = new QComboBox();
+    m_statusCombo->setFixedWidth(110);
+    m_statusCombo->addItems({"全部状态", "待核销", "已核销"});
+    m_statusCombo->setStyleSheet(comboStyle);
 
-        connect(y, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ updateDayCombo(y, m, d); });
-        connect(m, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ updateDayCombo(y, m, d); });
-    };
+    m_searchEdit = new QLineEdit();
+    m_searchEdit->setPlaceholderText("搜索服务...");
+    m_searchEdit->setFixedWidth(130);
+    m_searchEdit->setStyleSheet(lineEditStyle);
 
-    initDateGroup(startYearCombo, startMonthCombo, startDayCombo, QDate(2026, 1, 1)); // 开始时间默认提前一点
-    initDateGroup(endYearCombo, endMonthCombo, endDayCombo, QDate::currentDate());
-
-    filterLayout->addWidget(startYearCombo);
-    filterLayout->addWidget(startMonthCombo);
-    filterLayout->addWidget(startDayCombo);
-    QLabel *toLabel = new QLabel("至");
-    toLabel->setStyleSheet("color: #909399; border: none; background: transparent;");
-    filterLayout->addWidget(toLabel);
-    filterLayout->addWidget(endYearCombo);
-    filterLayout->addWidget(endMonthCombo);
-    filterLayout->addWidget(endDayCombo);
-
-    QPushButton *filterBtn = new QPushButton("统计筛选");
-    filterBtn->setFixedWidth(100); filterBtn->setFixedHeight(34);
-    filterBtn->setCursor(Qt::PointingHandCursor);
-    filterBtn->setStyleSheet("QPushButton { background: #409eff; color: white; border-radius: 17px; border: none; font-size: 13px; text-align: center; } QPushButton:hover { background: #66b1ff; }");
-    connect(filterBtn, &QPushButton::clicked, this, &PerformanceModule::onFilter);
-    filterLayout->addWidget(filterBtn);
-
-    QPushButton *resetBtn = new QPushButton("重置");
-    resetBtn->setFixedWidth(80); resetBtn->setFixedHeight(34);
-    resetBtn->setCursor(Qt::PointingHandCursor);
-    resetBtn->setStyleSheet("QPushButton { background: white; color: #606266; border-radius: 17px; border: 1px solid #dcdfe6; font-size: 13px; text-align: center; } QPushButton:hover { border-color: #409eff; color: #409eff; }");
-    connect(resetBtn, &QPushButton::clicked, this, [this]() {
-        searchEdit->clear();
-        m_currentPage = 1;
-        updatePagination();
-    });
-    filterLayout->addWidget(resetBtn);
-    
+    filterLayout->addWidget(new QLabel("时段:"));
+    filterLayout->addWidget(m_startDateEdit);
+    filterLayout->addWidget(new QLabel("-"));
+    filterLayout->addWidget(m_endDateEdit);
+    filterLayout->addSpacing(5);
+    filterLayout->addWidget(new QLabel("员工:"));
+    filterLayout->addWidget(m_employeeCombo);
+    filterLayout->addWidget(m_statusCombo);
+    filterLayout->addSpacing(5);
+    filterLayout->addWidget(m_searchEdit);
     filterLayout->addStretch();
+    leftColumn->addWidget(filterGroup);
+
+    QFrame *tableCard = new QFrame();
+    tableCard->setObjectName("tableCard");
+    tableCard->setStyleSheet("QFrame#tableCard { background-color: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
+    QVBoxLayout *tableCardLayout = new QVBoxLayout(tableCard);
+    tableCardLayout->setContentsMargins(0, 0, 0, 0);
+    tableCardLayout->setSpacing(0);
+
+    m_perfTable = new QTableWidget();
+    m_perfTable->setColumnCount(8);
+    m_perfTable->setHorizontalHeaderLabels({"日期", "执行人", "工号", "岗位", "项目", "金额", "提成", "状态"});
+    m_perfTable->setItemDelegate(new PerformanceRowDelegate(m_perfTable));
+    m_perfTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_perfTable->verticalHeader()->setVisible(false);
+    m_perfTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_perfTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_perfTable->setShowGrid(false);
+    m_perfTable->setFocusPolicy(Qt::NoFocus);
+    m_perfTable->setStyleSheet(R"(
+        QTableWidget { border: none; background: white; outline: none; border-radius: 12px; }
+        QHeaderView::section { background-color: white; border: none; border-bottom: 1px solid #f1f5f9; padding: 12px; font-weight: bold; color: #64748b; font-size: 13px; }
+        QHeaderView { border: none; border-top-left-radius: 12px; border-top-right-radius: 12px; background-color: white; }
+    )");
+    tableCardLayout->addWidget(m_perfTable, 1);
+
+    // --- 3. 底部页码栏 (严格复刻会员模块右对齐布局) ---
+    QFrame *paginationFrame = new QFrame();
+    paginationFrame->setFixedHeight(50);
+    paginationFrame->setStyleSheet("QFrame { background: white; border-top: 1px solid #f1f5f9; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
+    QHBoxLayout *pageLayout = new QHBoxLayout(paginationFrame);
+    pageLayout->setContentsMargins(20, 0, 20, 0);
     
-    QPushButton *batchVerifyBtn = new QPushButton("批量核销入账");
-    batchVerifyBtn->setFixedWidth(120); batchVerifyBtn->setFixedHeight(34);
-    batchVerifyBtn->setCursor(Qt::PointingHandCursor);
-    batchVerifyBtn->setStyleSheet("QPushButton { background: #67c23a; color: white; border-radius: 17px; border: none; font-size: 13px; } QPushButton:hover { background: #85ce61; }");
-    connect(batchVerifyBtn, &QPushButton::clicked, this, &PerformanceModule::onBatchVerify);
-    filterLayout->addWidget(batchVerifyBtn);
-
-    mainLayout->addWidget(filterFrame);
-
-    // 4. 表格
-    perfTable = new QTableWidget();
-    perfTable->setColumnCount(7);
-    perfTable->setHorizontalHeaderLabels({"成交日期", "员工ID", "员工姓名", "业绩类型", "成交金额", "提成核算", "状态"});
+    m_pageInfoLabel = new QLabel("第 1 页 / 共 1 页");
+    m_pageInfoLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold;");
     
-     // 列宽分配
-    perfTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    perfTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    perfTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    perfTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    perfTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
-    perfTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
-    perfTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
-
-    perfTable->setShowGrid(false);
-    perfTable->setAlternatingRowColors(false);
-    perfTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    perfTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    perfTable->setFocusPolicy(Qt::NoFocus);
-    perfTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    perfTable->verticalHeader()->setVisible(false);
-    perfTable->verticalHeader()->setDefaultSectionSize(45);
-
-    perfTable->setStyleSheet(
-        "QTableWidget { border: 1px solid #ebeef5; background-color: white; color: black; outline: none; } "
-        "QTableWidget::item { border-bottom: 1px solid #f0f2f5; } "
-        "QTableWidget::item:selected { background-color: #b3d8ff; } "
-    );
-
-    mainLayout->addWidget(perfTable);
-
-    // 5. 底部概览与分页
-    QFrame *bottomBar = new QFrame();
-    bottomBar->setFixedHeight(60);
-    bottomBar->setStyleSheet("background: #f8f9fb; border-top: 1px solid #ebeef5;");
-    QHBoxLayout *bottomLayout = new QHBoxLayout(bottomBar);
+    m_prevBtn = new QPushButton("上一页");
+    m_nextBtn = new QPushButton("下一页");
+    QString pageBtnStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; font-weight: bold; } QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } QPushButton:disabled { background: white; color: #cbd5e1; border-color: #f1f5f9; }";
+    m_prevBtn->setStyleSheet(pageBtnStyle);
+    m_nextBtn->setStyleSheet(pageBtnStyle);
     
-    totalCommLabel = new QLabel();
-    totalCommLabel->setStyleSheet("color: #409eff; font-size: 15px; font-weight:bold;");
-    bottomLayout->addWidget(totalCommLabel);
-    bottomLayout->addStretch();
+    // 关键：左侧添加弹簧，将所有组件推向右侧
+    pageLayout->addStretch(); 
+    pageLayout->addWidget(m_prevBtn);
+    pageLayout->addSpacing(20); 
+    pageLayout->addWidget(m_pageInfoLabel);
+    pageLayout->addSpacing(20); 
+    pageLayout->addWidget(m_nextBtn);
     
-    // 分页组件
-    pageLabel = new QLabel("第 1 页 / 共 1 页");
-    pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin: 0 10px;");
+    tableCardLayout->addWidget(paginationFrame);
+    leftColumn->addWidget(tableCard, 1);
+
+    connect(m_prevBtn, &QPushButton::clicked, this, &PerformanceModule::onPrevPage);
+    connect(m_nextBtn, &QPushButton::clicked, this, &PerformanceModule::onNextPage);
+
+    contentLayout->addLayout(leftColumn, 3);
+
+    QFrame *detailCard = new QFrame();
+    detailCard->setObjectName("detailCard");
+    detailCard->setFixedWidth(450); 
+    detailCard->setStyleSheet("QFrame#detailCard { background-color: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
+    QVBoxLayout *detailLayout = new QVBoxLayout(detailCard);
+    detailLayout->setContentsMargins(25, 30, 25, 25);
     
-    prevBtn = new QPushButton("上一页");
-    nextBtn = new QPushButton("下一页");
-    QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
-                        "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
-                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
-    prevBtn->setStyleSheet(pageStyle);
-    nextBtn->setStyleSheet(pageStyle);
-    prevBtn->setCursor(Qt::PointingHandCursor);
-    nextBtn->setCursor(Qt::PointingHandCursor);
+    QLabel *detailTitle = new QLabel("核销详情分析");
+    detailTitle->setStyleSheet("font-weight: bold; font-size: 16px; color: #1e293b; margin-bottom: 20px; border: none; background: transparent;");
+    detailLayout->addWidget(detailTitle);
 
-    QWidget *pageGroup = new QWidget();
-    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(5);
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
+    // --- 员工头部 (复刻薪资模块) ---
+    QWidget *staffHeader = new QWidget();
+    staffHeader->setFixedHeight(80);
+    QHBoxLayout *headerL = new QHBoxLayout(staffHeader);
+    headerL->setContentsMargins(0,0,0,10);
+    
+    m_detailHeaderAvatar = new QLabel();
+    m_detailHeaderAvatar->setFixedSize(60, 60);
+    m_detailHeaderAvatar->setStyleSheet("background-color: #f1f5f9; border-radius: 30px; font-weight: 800; font-size: 20px; color: #3b82f6; border: none;");
+    m_detailHeaderAvatar->setAlignment(Qt::AlignCenter);
+    m_detailHeaderAvatar->setCursor(Qt::PointingHandCursor);
+    m_detailHeaderAvatar->installEventFilter(this);
+    
+    QVBoxLayout *infoL = new QVBoxLayout();
+    infoL->setSpacing(4);
+    
+    QHBoxLayout *nameIdL = new QHBoxLayout();
+    nameIdL->setSpacing(10);
+    m_detailHeaderName = new QLabel("-"); m_detailHeaderName->setStyleSheet("font-weight: bold; font-size: 18px; color: #1e293b; border: none;");
+    m_detailHeaderEmpId = new QLabel("ID: -"); m_detailHeaderEmpId->setStyleSheet("color: #94a3b8; font-size: 13px; border: none;");
+    nameIdL->addWidget(m_detailHeaderName);
+    nameIdL->addWidget(m_detailHeaderEmpId);
+    nameIdL->addStretch();
 
-    bottomLayout->addWidget(pageGroup);
-    mainLayout->addWidget(bottomBar);
+    m_detailHeaderRole = new QLabel("岗位: -"); m_detailHeaderRole->setStyleSheet("color: #64748b; font-size: 13px; border: none; background: transparent;");
+    
+    infoL->addLayout(nameIdL);
+    infoL->addWidget(m_detailHeaderRole);
+    
+    headerL->addWidget(m_detailHeaderAvatar);
+    headerL->addLayout(infoL);
+    headerL->addStretch();
+    
+    detailLayout->addWidget(staffHeader);
 
-    connect(prevBtn, &QPushButton::clicked, this, &PerformanceModule::onPrevPage);
-    connect(nextBtn, &QPushButton::clicked, this, &PerformanceModule::onNextPage);
+    // 分割线
+    QFrame *sep1 = new QFrame(); sep1->setFrameShape(QFrame::HLine);
+    sep1->setStyleSheet("background: #f1f5f9; min-height: 1px; max-height: 1px; margin: 10px 0; border: none;");
+    detailLayout->addWidget(sep1);
+    
+    auto createDetailItem = [&](const QString &label, QLabel* valLabel) {
+        QWidget *w = new QWidget();
+        w->setStyleSheet("background: transparent; border: none;");
+        QHBoxLayout *hl = new QHBoxLayout(w);
+        hl->setContentsMargins(0, 8, 0, 8);
+        QLabel *ll = new QLabel(label); ll->setStyleSheet("color: #64748b; font-size: 14px; border: none;");
+        valLabel->setStyleSheet("font-weight: bold; font-size: 14px; border: none; color: #1e293b;");
+        valLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        hl->addWidget(ll); hl->addStretch(); hl->addWidget(valLabel);
+        return w;
+    };
+    
+    detailLayout->addWidget(createDetailItem("订单编号", m_detailOrderIdVal = new QLabel("-")));
+    detailLayout->addWidget(createDetailItem("客户名称", m_detailCustomerVal = new QLabel("-")));
+    detailLayout->addWidget(createDetailItem("支付方式", m_detailPaymentVal = new QLabel("-")));
+    detailLayout->addWidget(createDetailItem("关联宠物", m_detailPetVal = new QLabel("-")));
+    
+    // 分割线
+    QFrame *line = new QFrame();
+    line->setFrameShape(QFrame::HLine);
+    line->setStyleSheet("background-color: #f1f5f9; min-height: 1px; max-height: 1px; border: none; margin: 10px 0;");
+    detailLayout->addWidget(line);
+
+    detailLayout->addWidget(createDetailItem("订单总额", m_detailOrderTotalVal = new QLabel("-")));
+    detailLayout->addWidget(createDetailItem("实付金额", m_detailActualPaidVal = new QLabel("-")));
+    detailLayout->addWidget(createDetailItem("计算公式", m_detailCommFormulaVal = new QLabel("-")));
+    detailLayout->addStretch();
+    
+    m_confirmVerifyBtn = new QPushButton("确认当前核销");
+    m_confirmVerifyBtn->setFixedHeight(48);
+    m_confirmVerifyBtn->setCursor(Qt::PointingHandCursor);
+    m_confirmVerifyBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 8px; font-weight: bold; font-size: 15px; } QPushButton:hover { background: #eff6ff; }");
+    connect(m_confirmVerifyBtn, &QPushButton::clicked, this, [this](){
+        if (m_currentRecordId.isEmpty()) {
+            CustomMessageDialog::showWarning(this, "未选中", "请先从表格中选择一笔业绩记录。");
+            return;
+        }
+        onVerifySingle(m_currentRecordId);
+    });
+    detailLayout->addWidget(m_confirmVerifyBtn);
+
+    contentLayout->addWidget(detailCard, 1);
+    rootLayout->addLayout(contentLayout, 1);
+
+    // 监听表格选择
+    connect(m_perfTable, &QTableWidget::itemSelectionChanged, this, [this](){
+        int row = m_perfTable->currentRow();
+        if (row < 0) return;
+        QString recordId = m_perfTable->item(row, 0)->data(Qt::UserRole).toString();
+        m_currentRecordId = recordId;
+        
+        auto records = SalaryDataManager::instance()->getPerformanceRecords(m_startDateEdit->text().left(7), m_employeeCombo->currentData().toString());
+        for (const auto &r : records) {
+            if (r.id == recordId) {
+                // 更新员工头部
+                m_detailHeaderAvatar->setText(r.employeeName.left(1));
+                m_detailHeaderName->setText(r.employeeName);
+                m_detailHeaderEmpId->setText("ID: " + r.employeeId);
+                EmployeeInfo emp = StaffDataManager::instance()->getStaff(r.employeeId);
+                m_detailHeaderRole->setText(emp.role.isEmpty() ? "普通员工" : emp.role);
+
+                m_detailOrderIdVal->setText(r.orderId);
+                m_detailCustomerVal->setText(QString("%1 (ID: %2)").arg(r.customerName).arg(r.customerId));
+                m_detailPaymentVal->setText(r.payMethod.isEmpty() ? "现金" : r.payMethod);
+                m_detailPetVal->setText(QString("%1 (ID: %2 / %3)").arg(r.petName).arg(r.petId).arg(r.petBreed));
+                m_detailOrderTotalVal->setText(QString("¥%1").arg(r.orderAmount, 0, 'f', 2));
+                m_detailActualPaidVal->setText(QString("¥%1").arg(r.finalAmount, 0, 'f', 2));
+                
+                if (r.commissionType == "固定提成") {
+                    m_detailCommFormulaVal->setText(QString("固定标准 = ¥%1").arg(r.commission, 0, 'f', 2));
+                } else {
+                    m_detailCommFormulaVal->setText(QString("¥%1 × %2% = ¥%3")
+                                                    .arg(r.finalAmount, 0, 'f', 2)
+                                                    .arg(r.commissionRate * 100, 0, 'f', 0)
+                                                    .arg(r.commission, 0, 'f', 2));
+                }
+                
+                // 状态联动：已核销的记录隐藏核销按钮
+                m_confirmVerifyBtn->setVisible(r.status == "待核销");
+                break;
+            }
+        }
+    });
+
+    // 事件连接
+    connect(m_startDateEdit, &CustomCalendarEdit::textChanged, this, &PerformanceModule::onFilterChanged);
+    connect(m_endDateEdit, &CustomCalendarEdit::textChanged, this, &PerformanceModule::onFilterChanged);
+    connect(m_employeeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PerformanceModule::onFilterChanged);
+    connect(m_statusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PerformanceModule::onFilterChanged);
 }
 
-void PerformanceModule::addPerformanceRow(const QString &date, const QString &empId, const QString &empName, 
-                                          const QString &type, double amount, double commission)
+void PerformanceModule::refreshData()
 {
-    // 这个方法在此次重构留作向下兼容或动态插入单条使用
-    m_perfData.append({date, empId, empName, type, amount, commission, false});
-    updatePagination();
-    updateSummary();
+    updateStats();
+    updateTable();
 }
 
-void PerformanceModule::updatePagination()
+void PerformanceModule::updateStats()
 {
-    perfTable->setRowCount(0);
+    auto records = SalaryDataManager::instance()->getPerformanceRecords(m_startDateEdit->text().left(7));
+    double totalRev = 0, totalComm = 0;
+    int pending = 0;
     
-    // 过滤数据 (实现真分页过滤)
-    QString kw = searchEdit->text().trimmed().toLower();
-    QDate sDate(startYearCombo->currentText().toInt(), startMonthCombo->currentIndex()+1, startDayCombo->currentText().toInt());
-    QDate eDate(endYearCombo->currentText().toInt(), endMonthCombo->currentIndex()+1, endDayCombo->currentText().toInt());
-    
-    QList<PerfRecord> filteredData;
-    for (const auto &record : m_perfData) {
-        bool match = true;
-        if (!kw.isEmpty() && !record.empId.toLower().contains(kw) && !record.empName.toLower().contains(kw)) {
-             match = false;
-        }
-        QDate rowDate = QDate::fromString(record.date, "yyyy-MM-dd");
-        if (rowDate.isValid() && (rowDate < sDate || rowDate > eDate)) {
-             match = false;
-        }
-        if (match) filteredData.append(record);
+    for (const auto &r : records) {
+        totalRev += r.orderAmount;
+        totalComm += r.commission;
+        if (r.status == "待核销") pending++;
     }
     
-    int total = filteredData.size();
-    int totalPages = qMax(1, (total + m_pageSize - 1) / m_pageSize);
+    m_totalRevenueVal->setText(QString("¥ %1").arg(totalRev, 0, 'f', 2));
+    m_totalCommVal->setText(QString("¥ %1").arg(totalComm, 0, 'f', 2));
+    m_pendingVerifyCountVal->setText(QString("%1 笔").arg(pending));
+}
+
+void PerformanceModule::updateTable()
+{
+    m_perfTable->setRowCount(0);
+    QString filterMonth = m_startDateEdit->text().left(7);
+    QString filterEmp = m_employeeCombo->currentData().toString();
+    QString filterStatus = m_statusCombo->currentText();
+
+    auto allRecords = SalaryDataManager::instance()->getPerformanceRecords(filterMonth, filterEmp);
+    QVector<PerformanceRecord> filteredRecords;
+    for (const auto &r : allRecords) {
+        if (filterStatus != "全部状态" && r.status != filterStatus) continue;
+        filteredRecords.append(r);
+    }
+
+    // 默认按日期降序排列
+    std::sort(filteredRecords.begin(), filteredRecords.end(), [](const PerformanceRecord &a, const PerformanceRecord &b){
+        return a.serviceDate > b.serviceDate;
+    });
+
+    int totalRecords = filteredRecords.size();
+    int totalPages = std::max(1, (totalRecords + m_pageSize - 1) / m_pageSize);
     
-    // if (jumpValidator) jumpValidator->setTop(totalPages);
+    // 修正当前页码
     if (m_currentPage > totalPages) m_currentPage = totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
-    int start = (m_currentPage - 1) * m_pageSize;
-    int end = qMin(start + m_pageSize, total);
+    // 更新分页 UI
+    m_pageInfoLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
+    m_prevBtn->setEnabled(m_currentPage > 1);
+    m_nextBtn->setEnabled(m_currentPage < totalPages);
 
-    for (int i = start; i < end; ++i) {
-        const auto &record = filteredData[i];
-        int row = perfTable->rowCount();
-        perfTable->insertRow(row);
-        
-        auto setItem = [&](int col, QString text) {
-            QTableWidgetItem *item = new QTableWidgetItem(text);
-            item->setTextAlignment(Qt::AlignCenter);
-            item->setFont(QFont("Microsoft YaHei", 9));
-            perfTable->setItem(row, col, item);
+    int startIdx = (m_currentPage - 1) * m_pageSize;
+    int endIdx = std::min(startIdx + m_pageSize, totalRecords);
+
+    for (int i = startIdx; i < endIdx; ++i) {
+        const auto &r = filteredRecords[i];
+        int row = m_perfTable->rowCount();
+        m_perfTable->insertRow(row);
+        m_perfTable->setRowHeight(row, 56);
+
+        auto createItem = [](const QString &text) {
+            return new QTableWidgetItem(text);
         };
+
+        // 获取员工岗位信息
+        EmployeeInfo staff = StaffDataManager::instance()->getStaff(r.employeeId);
+
+        QTableWidgetItem *dateItem = createItem(r.serviceDate);
+        dateItem->setData(Qt::UserRole, r.id);
+        m_perfTable->setItem(row, 0, dateItem);
+        m_perfTable->setItem(row, 1, createItem(r.employeeName));
+        m_perfTable->setItem(row, 2, createItem(r.employeeId)); // 工号
+        m_perfTable->setItem(row, 3, createItem(staff.role.isEmpty() ? "普通员工" : staff.role)); // 岗位/角色
+        m_perfTable->setItem(row, 4, createItem(r.serviceName));
+        m_perfTable->setItem(row, 5, createItem(QString("¥%1").arg(r.orderAmount, 0, 'f', 2)));
+        m_perfTable->setItem(row, 6, createItem(QString("¥%1").arg(r.commission, 0, 'f', 2)));
+
+        QLabel *statusLabel = new QLabel(r.status);
+        statusLabel->setAlignment(Qt::AlignCenter);
+        QString statusColor = (r.status == "已核销") ? "#d1fae5" : "#ffedd5";
+        QString textColor = (r.status == "已核销") ? "#065f46" : "#9a3412";
+        statusLabel->setFixedSize(60, 20);
+        statusLabel->setStyleSheet(QString("background-color: %1; color: %2; border-radius: 10px; font-size: 10px; font-weight: bold; border: none;").arg(statusColor, textColor));
         
-        setItem(0, record.date);
-        setItem(1, record.empId);
-        setItem(2, record.empName);
-        setItem(3, record.type);
-        setItem(4, QString("￥%1").arg(record.amount, 0, 'f', 0));
-        
-        QTableWidgetItem *commItem = new QTableWidgetItem(QString("￥%1").arg(record.commission, 0, 'f', 1));
-        commItem->setTextAlignment(Qt::AlignCenter);
-        commItem->setForeground(QColor("#e6a23c"));
-        commItem->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
-        perfTable->setItem(row, 5, commItem);
-        
-        // Col 7: Action / Status
-        QWidget *actionWidget = new QWidget();
-        QHBoxLayout *actionLayout = new QHBoxLayout(actionWidget);
-        actionLayout->setContentsMargins(0, 0, 0, 0);
-        actionLayout->setAlignment(Qt::AlignCenter);
-        
-        if (!record.isVerified) {
-            QPushButton *okBtn = new QPushButton("核销");
-            okBtn->setFixedSize(60, 26);
-            okBtn->setCursor(Qt::PointingHandCursor);
-            okBtn->setStyleSheet("QPushButton { background: #ffedd5; color: #9a3412; border-radius: 12px; font-size: 11px; font-weight: bold; border: none; }"
-                                 "QPushButton:hover { background: #9a3412; color: white; }");
-            connect(okBtn, &QPushButton::clicked, this, &PerformanceModule::onVerifySingle);
-            // 绑定数据到按钮
-            okBtn->setProperty("date", record.date);
-            okBtn->setProperty("empId", record.empId);
-            actionLayout->addWidget(okBtn);
-        } else {
-            QLabel *lbl = new QLabel("已入账");
-            lbl->setStyleSheet("background: #dcfce7; color: #166534; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: bold;");
-            actionLayout->addWidget(lbl);
-        }
-        perfTable->setCellWidget(row, 6, actionWidget);
+        QWidget *statusContainer = new QWidget();
+        QHBoxLayout *sl = new QHBoxLayout(statusContainer);
+        sl->setContentsMargins(0, 0, 0, 0); sl->setAlignment(Qt::AlignCenter);
+        sl->addWidget(statusLabel);
+        m_perfTable->setCellWidget(row, 7, statusContainer);
+        m_perfTable->setItem(row, 7, new QTableWidgetItem()); 
     }
-    
-    pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
-    prevBtn->setEnabled(m_currentPage > 1);
-    nextBtn->setEnabled(m_currentPage < totalPages);
 }
 
-void PerformanceModule::updateSummary()
-{
-    // 全库基于真过滤结果计算，不仅仅是当前页
-    QString kw = searchEdit->text().trimmed().toLower();
-    QDate sDate(startYearCombo->currentText().toInt(), startMonthCombo->currentIndex()+1, startDayCombo->currentText().toInt());
-    QDate eDate(endYearCombo->currentText().toInt(), endMonthCombo->currentIndex()+1, endDayCombo->currentText().toInt());
-    
-    double totalRevenue = 0, serviceRevenue = 0, productRevenue = 0, totalComm = 0;
-
-    for (const auto &record : m_perfData) {
-        bool match = true;
-        if (!kw.isEmpty() && !record.empId.toLower().contains(kw) && !record.empName.toLower().contains(kw)) match = false;
-        QDate rowDate = QDate::fromString(record.date, "yyyy-MM-dd");
-        if (rowDate.isValid() && (rowDate < sDate || rowDate > eDate)) match = false;
-        
-        if (match) {
-            totalRevenue += record.amount;
-            if (record.isVerified) {
-                totalComm += record.commission; // 仅统计已核销入账的提成
-            }
-            if (record.type.contains("商品")) productRevenue += record.amount;
-            else serviceRevenue += record.amount;
-        }
-    }
-
-    totalRevenueLabel->setText(QString("￥%1").arg(totalRevenue, 0, 'f', 0));
-    serviceRevenueLabel->setText(QString("￥%1").arg(serviceRevenue, 0, 'f', 0));
-    productRevenueLabel->setText(QString("￥%1").arg(productRevenue, 0, 'f', 0));
-    // 大屏文字告知
-    totalCommLabel->setText(QString("当前统计期内，已安全核销的有效提成总额：￥%1").arg(totalComm, 0, 'f', 1));
-}
-
-void PerformanceModule::updateDayCombo(QComboBox* y, QComboBox* m, QComboBox* d)
-{
-    if(!y || !m || !d) return;
-    d->blockSignals(true);
-    
-    int year = y->currentText().remove("年").toInt();
-    int month = m->currentIndex() + 1;
-    int oldDay = d->currentData().toInt();
-    if (oldDay <= 0) oldDay = d->currentText().remove("日").toInt();
-    
-    QDate date(year, month, 1);
-    int daysInMonth = date.daysInMonth();
-    
-    d->clear();
-    for(int i=1; i<=daysInMonth; ++i) d->addItem(QString("%1日").arg(i), i);
-    
-    int index = d->findData(oldDay);
-    if(index != -1) d->setCurrentIndex(index);
-    else d->setCurrentIndex(0); // 默认指向 1 日而非最后一天
-    
-    d->blockSignals(false);
-}
-
-void PerformanceModule::onFilter()
-{
-    m_currentPage = 1;
-    updatePagination();
-    updateSummary();
-}
-
-void PerformanceModule::onPrevPage()
-{
+void PerformanceModule::onPrevPage() {
     if (m_currentPage > 1) {
         m_currentPage--;
-        updatePagination();
+        updateTable();
     }
 }
 
-void PerformanceModule::onNextPage()
-{
-    // 因不需要在此计算真实总数，直接+1调用updatePagination会有边界拦截
+void PerformanceModule::onNextPage() {
     m_currentPage++;
-    updatePagination();
+    updateTable();
 }
 
-void PerformanceModule::onJumpPage()
+void PerformanceModule::onVerifySingle(const QString &recordId)
 {
+    if (CustomMessageDialog::confirm(this, "核销确认", "确定核销该笔提成并计入员工本月薪资吗？")) {
+        SalaryDataManager::instance()->verifyPerformance(recordId);
+        CustomMessageDialog::showSuccess(this, "核销成功", "业绩已成功核销。");
+    }
 }
 
-void PerformanceModule::onBatchVerify()
+void PerformanceModule::onFilterChanged()
 {
-    int count = 0;
-    for (int i = 0; i < perfTable->rowCount(); ++i) {
-        QString rowDate = perfTable->item(i, 0)->text();
-        QString rowEmpId = perfTable->item(i, 1)->text();
-        for (auto &r : m_perfData) {
-            if (r.date == rowDate && r.empId == rowEmpId && !r.isVerified) {
-                r.isVerified = true;
-                count++;
-                break;
-            }
+    m_currentPage = 1; // 筛选条件改变时重置到第一页
+    refreshData();
+}
+
+void PerformanceModule::setupImagePreview()
+{
+    // 寻找真正的程序顶级窗口
+    QWidget *topWin = QApplication::activeWindow();
+    if (!topWin) {
+        topWin = this->window();
+        while (topWin && topWin->parentWidget()) {
+            topWin = topWin->parentWidget();
+        }
+    }
+    if (!topWin) return;
+
+    m_imagePreviewOverlay = new QWidget(topWin);
+    m_imagePreviewOverlay->setObjectName("PerfPreviewOverlay");
+    m_imagePreviewOverlay->setStyleSheet("#PerfPreviewOverlay { background-color: rgba(0, 0, 0, 215); }");
+    m_imagePreviewOverlay->hide();
+    m_imagePreviewOverlay->installEventFilter(this);
+    
+    topWin->installEventFilter(this);
+    
+    QVBoxLayout *previewL = new QVBoxLayout(m_imagePreviewOverlay);
+    m_previewLabel = new QLabel();
+    m_previewLabel->setAlignment(Qt::AlignCenter);
+    previewL->addWidget(m_previewLabel);
+}
+
+void PerformanceModule::showBigImage(const QString &path, const QString &text)
+{
+    if (!m_imagePreviewOverlay) setupImagePreview();
+    if (!m_imagePreviewOverlay || !m_previewLabel) return;
+    
+    QPixmap pix;
+    if (!path.isEmpty()) {
+        pix.load(path);
+    } else if (!text.isEmpty()) {
+        pix = QPixmap(400, 400);
+        pix.fill(Qt::transparent);
+        QPainter painter(&pix);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setBrush(QColor("white"));
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(0, 0, 400, 400);
+        
+        painter.setPen(QColor("#3b82f6"));
+        QFont font("Microsoft YaHei", 160, QFont::Bold);
+        painter.setFont(font);
+        painter.drawText(pix.rect(), Qt::AlignCenter, text);
+    }
+    
+    if (!pix.isNull()) {
+        m_previewLabel->setPixmap(pix.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        QWidget *topWin = m_imagePreviewOverlay->parentWidget();
+        if (topWin) {
+            m_imagePreviewOverlay->setGeometry(topWin->rect());
+            m_imagePreviewOverlay->show();
+            m_imagePreviewOverlay->raise();
+        }
+    }
+}
+
+void PerformanceModule::hideBigImage()
+{
+    if (m_imagePreviewOverlay) {
+        m_imagePreviewOverlay->hide();
+    }
+}
+
+bool PerformanceModule::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::MouseButtonPress) {
+        // 1. 点击头像放大
+        if (watched == m_detailHeaderAvatar) {
+            if (m_detailHeaderName->text() == "-") return true;
+            showBigImage("", m_detailHeaderAvatar->text());
+            return true;
+        }
+        
+        // 2. 点击遮罩层关闭
+        if (watched == m_imagePreviewOverlay) {
+            hideBigImage();
+            return true;
         }
     }
     
-    if (count == 0) {
-        CustomMessageDialog::showWarning(this, "批量操作", "当前页没有待核销的记录！");
-        return;
-    }
-    
-    CustomMessageDialog::showSuccess(this, "入账成功", QString("共计 %1 条核销记录已被稳妥入账执行！").arg(count));
-    updatePagination();
-    updateSummary();
-}
-
-void PerformanceModule::onVerifySingle()
-{
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
-    
-    QString rowDate = btn->property("date").toString();
-    QString rowEmpId = btn->property("empId").toString();
-    
-    if (CustomMessageDialog::confirm(this, "操作确定", "您确定这笔交易提成已经可以安全核销入账了吗？")) {
-        for (auto &r : m_perfData) {
-            if (r.date == rowDate && r.empId == rowEmpId && !r.isVerified) {
-                r.isVerified = true;
-                break;
-            }
+    // 同步顶级窗口大小
+    if (event->type() == QEvent::Resize && m_imagePreviewOverlay) {
+        QWidget *topWin = m_imagePreviewOverlay->parentWidget();
+        if (watched == topWin && m_imagePreviewOverlay->isVisible()) {
+            m_imagePreviewOverlay->setGeometry(topWin->rect());
         }
-        updatePagination();
-        updateSummary();
     }
+    
+    return QWidget::eventFilter(watched, event);
 }

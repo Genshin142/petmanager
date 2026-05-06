@@ -2099,8 +2099,8 @@ void MediaUploadDialog::setupUI() {
     QPushButton *saveBtn = new QPushButton("✅ 确认归档并同步");
     saveBtn->setFixedSize(180, 44);
     saveBtn->setCursor(Qt::PointingHandCursor);
-    saveBtn->setStyleSheet("QPushButton { background: #409eff; color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 14px; } "
-                            "QPushButton:hover { background: #66b1ff; }");
+    saveBtn->setStyleSheet("QPushButton { background: white; color: #3b82f6; border: 1px solid #3b82f6; border-radius: 10px; font-weight: bold; font-size: 14px; } "
+                            "QPushButton:hover { background: #eff6ff; }");
     connect(saveBtn, &QPushButton::clicked, this, [this]() {
         QString mediaCategory = m_typeCombo->currentText();
         QString logType = m_logTypeCombo->currentText();
@@ -3009,89 +3009,7 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
 
     layout->addWidget(detailCard);
 
-        // --- 3. 新增：接送服务追踪卡片 (仅当有服务时显示) ---
-        auto tasks = LogisticsManager::instance()->getTasksForPet(petId);
-        for (const auto &task : tasks) {
-            if (task.status != "已完成") {
-                QFrame *logisCard = new QFrame();
-                logisCard->setStyleSheet("QFrame { background: #f0f7ff; border-radius: 16px; border: 1.5px solid #bae7ff; }");
-                QVBoxLayout *ll = new QVBoxLayout(logisCard);
-                ll->setContentsMargins(15, 15, 15, 15);
-                ll->setSpacing(10);
-                
-                QHBoxLayout *lt = new QHBoxLayout();
-                QLabel *lIcon = new QLabel(); lIcon->setStyleSheet("font-size: 22px; border:none; background:transparent;");
-                QLabel *lTitle = new QLabel(task.type);
-                lTitle->setStyleSheet("font-weight: bold; color: #0050b3; font-size: 15px; border:none; background:transparent;");
-                lt->addWidget(lIcon); lt->addWidget(lTitle); lt->addStretch();
-                
-                QLabel *lStatus = new QLabel(task.status);
-                QString statusColor = (task.status == "待处理") ? "#8c8c8c" : (task.status == "进行中" ? "#1890ff" : "#52c41a");
-                lStatus->setStyleSheet(QString("background: %1; color: white; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: bold; border:none;").arg(statusColor));
-                lt->addWidget(lStatus);
-                ll->addLayout(lt);
-                
-                QLabel *lAddr = new QLabel((task.address.isEmpty() ? "地址未填写" : task.address));
-                lAddr->setStyleSheet("color: #434343; font-size: 13px; border:none; background:transparent;");
-                lAddr->setWordWrap(true);
-                ll->addWidget(lAddr);
-                
-                QLabel *lTime = new QLabel("预约时间: " + task.appointmentTime);
-                lTime->setStyleSheet("color: #8c8c8c; font-size: 12px; border:none; background:transparent;");
-                ll->addWidget(lTime);
-                
-                if (task.status != "已完成") {
-                    QHBoxLayout *lb = new QHBoxLayout();
-                    lb->setSpacing(10);
-                    QPushButton *startLogBtn = new QPushButton(task.status == "待处理" ? "司机出发" : "正在途中...");
-                    startLogBtn->setEnabled(task.status == "待处理");
-                    startLogBtn->setFixedHeight(36);
-                    startLogBtn->setCursor(Qt::PointingHandCursor);
-                    startLogBtn->setStyleSheet("QPushButton { background: #1890ff; color: white; border: none; border-radius: 8px; font-weight: bold; } QPushButton:disabled { background: #bae7ff; }");
-                    
-                    QPushButton *finishLogBtn = new QPushButton("确认送达");
-                    finishLogBtn->setFixedHeight(36);
-                    finishLogBtn->setCursor(Qt::PointingHandCursor);
-                    finishLogBtn->setStyleSheet("QPushButton { background: #52c41a; color: white; border: none; border-radius: 8px; font-weight: bold; }");
-                    
-                    lb->addWidget(startLogBtn, 1);
-                    lb->addWidget(finishLogBtn, 1);
-                    ll->addLayout(lb);
-                    
-                    QString tid = task.taskId;
-                    QString ptid = petId;
-                    
-                    connect(startLogBtn, &QPushButton::clicked, this, [=]() {
-                        LogisticsManager::instance()->updateTaskStatus(tid, "进行中");
-                        
-                        PetActivityLog log;
-                        log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-                        log.type = "备注"; log.icon = "";
-                        log.remark = QString("接送司机已出发。");
-                        log.operatorName = "派车系统";
-                        PetDataManager::instance()->addActivityLog(ptid, log);
-                        
-                        showManagementView(roomId, ptid, status);
-                    });
-                    
-                    connect(finishLogBtn, &QPushButton::clicked, this, [=]() {
-                        if (CustomMessageDialog::confirm(this, "接送确认", "确定宠物已安全送达目的地并完成移交吗？")) {
-                            LogisticsManager::instance()->updateTaskStatus(tid, "已完成");
-                            
-                            PetActivityLog log;
-                            log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-                            log.type = "备注"; log.icon = "";
-                            log.remark = QString("接送任务圆满完成。");
-                            log.operatorName = "派车系统";
-                            PetDataManager::instance()->addActivityLog(ptid, log);
-                            
-                            showManagementView(roomId, ptid, status);
-                        }
-                    });
-                }
-                layout->addWidget(logisCard);
-            }
-        }
+        // --- 接送服务追踪卡片已根据需求移除 ---
 
     // 辅助函数：根据批次更新卡片
     auto updateCard = [=](const FosterBatch &b) {
@@ -3393,22 +3311,24 @@ void FosterModule::setupUI() {
     QPushButton *prevBtn = new QPushButton("< 上一天");
     prevBtn->setFixedSize(110, 36);
     prevBtn->setCursor(Qt::PointingHandCursor);
-    prevBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 18px; color: #606266; font-weight: bold; font-size: 12px; text-align: center; padding: 0; } "
-                           "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #409eff; }");
+    prevBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; color: #606266; font-weight: bold; font-size: 12px; text-align: center; padding: 0; } "
+                           "QPushButton:hover { background: #eff6ff; color: #3b82f6; border-color: #3b82f6; } "
+                           "QPushButton:disabled { background: white; color: #cbd5e1; border-color: #f1f5f9; }");
     filterLayout->addWidget(prevBtn);
 
     forecastDateBtn = new QPushButton("今天");
     forecastDateBtn->setFixedSize(140, 36);
     forecastDateBtn->setCursor(Qt::PointingHandCursor);
-    forecastDateBtn->setStyleSheet("QPushButton { background: #eff6ff; border: 1px solid #b3d8ff; border-radius: 18px; color: #409eff; font-weight: bold; font-size: 13px; text-align: center; padding: 0; } "
-                                   "QPushButton:hover { background: #c6e2ff; }");
+    forecastDateBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #3b82f6; border-radius: 6px; color: #3b82f6; font-weight: bold; font-size: 13px; text-align: center; padding: 0; } "
+                                   "QPushButton:hover { background: #eff6ff; }");
     filterLayout->addWidget(forecastDateBtn);
 
     QPushButton *nextBtn = new QPushButton("下一天 >");
     nextBtn->setFixedSize(110, 36);
     nextBtn->setCursor(Qt::PointingHandCursor);
-    nextBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 18px; color: #606266; font-weight: bold; font-size: 12px; text-align: center; padding: 0; } "
-                           "QPushButton:hover { background: #f5f7fa; color: #409eff; border-color: #409eff; }");
+    nextBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; color: #606266; font-weight: bold; font-size: 12px; text-align: center; padding: 0; } "
+                           "QPushButton:hover { background: #eff6ff; color: #3b82f6; border-color: #3b82f6; } "
+                           "QPushButton:disabled { background: white; color: #cbd5e1; border-color: #f1f5f9; }");
     filterLayout->addWidget(nextBtn);
 
     filterLayout->addSpacing(5);

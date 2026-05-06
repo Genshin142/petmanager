@@ -171,9 +171,8 @@ void InboundRegistrationDialog::setupUI()
     // Confirm Button
     m_confirmBtn = new QPushButton("确认入库并同步资料");
     m_confirmBtn->setFixedHeight(44);
-    m_confirmBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; font-size: 15px; font-weight: 800; border-radius: 8px; border: none; } "
-                               "QPushButton:hover { background: #2563eb; } "
-                               "QPushButton:pressed { background: #1d4ed8; }");
+    m_confirmBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #3b82f6; color: #3b82f6; font-size: 15px; font-weight: 800; border-radius: 8px; } "
+                               "QPushButton:hover { background: #eff6ff; } ");
     mainLayout->addWidget(m_confirmBtn);
 
     connect(m_barcodeEdit, &QLineEdit::returnPressed, this, &InboundRegistrationDialog::onBarcodeEntered);

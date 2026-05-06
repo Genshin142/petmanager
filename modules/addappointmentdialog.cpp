@@ -892,7 +892,7 @@ void AddAppointmentDialog::onAddServiceRow()
                         QMap<QString, QStringList> exclusionGroups;
                         exclusionGroups["洗护"] << "基础洗护" << "深度洗护" << "深度护理";
                         exclusionGroups["美容"] << "整体造型" << "局部修剪";
-                        exclusionGroups["寄养"] << "普通寄养房间" << "豪华套房寄养" << "多宠家庭房寄养" << "日托寄养";
+                        exclusionGroups["寄养"] << "普通寄养房间" << "豪华套房寄养" << "多宠家庭房寄养";
 
                         if (exclusionGroups.contains(cat)) {
                             const QStringList &exclList = exclusionGroups[cat];

@@ -199,8 +199,8 @@ void LogisticsModule::setupUI()
     QPushButton *newBtn = new QPushButton("新建派车单");
     newBtn->setFixedSize(140, 42);
     newBtn->setCursor(Qt::PointingHandCursor);
-    newBtn->setStyleSheet("QPushButton { background: #409eff; color: white; border-radius: 8px; font-weight: bold; font-size: 14px; border: none; } "
-                          "QPushButton:hover { background: #66b1ff; }");
+    newBtn->setStyleSheet("QPushButton { background: white; color: #3b82f6; border: 1px solid #3b82f6; border-radius: 8px; font-weight: bold; font-size: 14px; } "
+                          "QPushButton:hover { background: #eff6ff; } ");
     connect(newBtn, &QPushButton::clicked, this, [this](){ showCreateTaskDialog(); });
     operationLayout->addWidget(newBtn);
 

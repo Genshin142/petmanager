@@ -17,6 +17,7 @@ SOURCES += \
     modules/fostermodule.cpp \
     modules/appointmentmodule.cpp \
     modules/checkoutmodule.cpp \
+    modules/financemodule.cpp \
     modules/statsmodule.cpp \
     modules/addmemberdialog.cpp \
     modules/custommessagedialog.cpp \
@@ -52,6 +53,7 @@ SOURCES += \
     modules/servicedialog.cpp \
     modules/boardingdatamanager.cpp \
     modules/rechargedialog.cpp \
+    modules/salarydatamanager.cpp \
     utils/logger.cpp
 
 HEADERS += \
@@ -105,7 +107,9 @@ HEADERS += \
     modules/quickorderdialog.h \
     modules/servicedialog.h \
     modules/boardingdatamanager.h \
-    modules/rechargedialog.h
+    modules/rechargedialog.h \
+    modules/salarydatamanager.h \
+    modules/financemodule.h
 
 FORMS += \
     loginwindow.ui \

@@ -293,9 +293,16 @@ bool PetDataManager::isRoomAvailable(int roomId, const QDate &start, const QDate
     return true;
 }
 
-QList<int> PetDataManager::getAvailableRooms(const QDate &start, const QDate &end) const {
+QString PetDataManager::getRoomType(int roomId) const {
+    if (roomId >= 111 && roomId <= 115) return "豪华房";
+    if (roomId >= 116 && roomId <= 120) return "多宠房";
+    return "标准房";
+}
+
+QList<int> PetDataManager::getAvailableRooms(const QDate &start, const QDate &end, const QString &type) const {
     QList<int> available;
     for (int i = 101; i <= 120; ++i) {
+        if (!type.isEmpty() && getRoomType(i) != type) continue;
         if (isRoomAvailable(i, start, end)) {
             available.append(i);
         }

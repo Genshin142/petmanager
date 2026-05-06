@@ -64,8 +64,8 @@ void AppointmentModule::setupUI()
     addBtn->setFixedSize(130, 42);
     addBtn->setCursor(Qt::PointingHandCursor);
     addBtn->setStyleSheet(
-        "QPushButton { background: #409eff; color: white; border-radius: 21px; font-weight: bold; font-size: 14px; border: none; padding: 0; text-align: center; } "
-        "QPushButton:hover { background: #66b1ff; }"
+        "QPushButton { background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 21px; font-weight: bold; font-size: 14px; padding: 0; text-align: center; } "
+        "QPushButton:hover { background: #eff6ff; }"
     );
     connect(addBtn, &QPushButton::clicked, this, &AppointmentModule::onAddAppointment);
 
@@ -140,7 +140,7 @@ void AppointmentModule::setupUI()
 
     QString navStyle = "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 6px 12px; color: #606266; font-weight: bold; height: 38px; } QPushButton:hover { color: #409eff; border-color: #409eff; background: #f0f9ff; }";
     prevBtn->setStyleSheet(navStyle); nextBtn->setStyleSheet(navStyle);
-    m_dateBtn->setStyleSheet("QPushButton { background: #e1f0ff; border: 1px solid #b3d8ff; border-radius: 6px; padding: 6px 15px; color: #409eff; font-weight: bold; height: 38px; }");
+    m_dateBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #3b82f6; border-radius: 6px; padding: 6px 15px; color: #3b82f6; font-weight: bold; height: 38px; } QPushButton:hover { background: #eff6ff; }");
 
     connect(prevBtn, &QPushButton::clicked, this, &AppointmentModule::onPrevDay);
     connect(nextBtn, &QPushButton::clicked, this, &AppointmentModule::onNextDay);
@@ -241,13 +241,32 @@ void AppointmentModule::setupUI()
     connect(m_listView, &QListView::clicked, this, &AppointmentModule::onAppointmentSelected);
     listPageLayout->addWidget(m_listView);
 
-    // 列表模式下的分页栏
+    // 列表模式下的分页栏 (统一标准右对齐)
     QFrame *pageBar = new QFrame();
     pageBar->setFixedHeight(50);
+    pageBar->setStyleSheet("QFrame { background: white; border-top: 1px solid #f1f5f9; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }");
     QHBoxLayout *pageL = new QHBoxLayout(pageBar);
-    pageL->addStretch();
+    pageL->setContentsMargins(20, 0, 20, 0);
+
+    QPushButton *prevPageBtn = new QPushButton("上一页");
+    QPushButton *nextPageBtn = new QPushButton("下一页");
     m_pageLabel = new QLabel("第 1 页 / 共 1 页");
+    
+    QString pageBtnStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; font-weight: bold; } QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } QPushButton:disabled { background: white; color: #cbd5e1; border-color: #f1f5f9; }";
+    prevPageBtn->setStyleSheet(pageBtnStyle);
+    nextPageBtn->setStyleSheet(pageBtnStyle);
+    m_pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold;");
+
+    pageL->addStretch();
+    pageL->addWidget(prevPageBtn);
+    pageL->addSpacing(20);
     pageL->addWidget(m_pageLabel);
+    pageL->addSpacing(20);
+    pageL->addWidget(nextPageBtn);
+
+    connect(prevPageBtn, &QPushButton::clicked, this, [this](){ if(m_currentPage > 1) { m_currentPage--; refreshView(); } });
+    connect(nextPageBtn, &QPushButton::clicked, this, [this](){ m_currentPage++; refreshView(); }); // 这里逻辑简化，实际 renderList 会处理上限
+
     m_stack->addWidget(m_listPage);
 
     leftLayout->addWidget(m_stack, 1);

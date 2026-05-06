@@ -228,4 +228,46 @@ struct AppointmentStats {
 Q_DECLARE_METATYPE(AppointmentInfo)
 Q_DECLARE_METATYPE(AppointmentStats)
 
+struct PerformanceRecord {
+    QString id;
+    QString employeeId;
+    QString employeeName;
+    QString serviceDate;
+    QString serviceName;
+    double orderAmount = 0.0;
+    double commission = 0.0;
+    QString status; // "待核销", "已核销"
+    QString orderId;
+    QString verifyTime;
+    
+    // 详情补充字段
+    QString customerId;
+    QString customerName;
+    QString payMethod;
+    QString petId;
+    QString petName;
+    QString petBreed;
+    double finalAmount = 0.0;
+    QString commissionType;      // "比例提成" 或 "固定提成"
+    double commissionRate = 0.0; // 提成比例 (0.2) 或 固定金额 (50.0)
+};
+
+struct SalaryInfo {
+    QString id;
+    QString employeeId;
+    QString employeeName;
+    QString month; // yyyy-MM
+    double baseSalary = 0.0;
+    double commission = 0.0;
+    double bonus = 0.0;
+    double deduction = 0.0;
+    double netPay = 0.0;
+    QString status; // "待审核", "已发放"
+    QString payTime;
+    QString remark;
+};
+
+Q_DECLARE_METATYPE(PerformanceRecord)
+Q_DECLARE_METATYPE(SalaryInfo)
+
 #endif // COMMON_TYPES_H

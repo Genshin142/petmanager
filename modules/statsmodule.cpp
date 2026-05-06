@@ -231,7 +231,7 @@ void StatsModule::setupUI() {
     QPushButton *filterBtn = new QPushButton("刷新大盘");
     filterBtn->setFixedSize(90, 32);
     filterBtn->setCursor(Qt::PointingHandCursor);
-    filterBtn->setStyleSheet("QPushButton { background: #409eff; color: white; border-radius: 16px; font-size: 12px; } QPushButton:hover { background: #66b1ff; }");
+    filterBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 16px; font-size: 12px; font-weight: bold; } QPushButton:hover { background: #eff6ff; }");
     connect(filterBtn, &QPushButton::clicked, this, &StatsModule::onFilter);
     controlLayout->addWidget(filterBtn);
 

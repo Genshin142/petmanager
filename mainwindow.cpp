@@ -8,8 +8,7 @@
 #include "modules/appointmentmodule.h"
 #include "modules/checkoutmodule.h"
 #include "modules/statsmodule.h"
-#include "modules/performancemodule.h"
-#include "modules/salarymodule.h"
+#include "modules/financemodule.h"
 #include "modules/logisticsmodule.h"
 #include "modules/inboundmodule.h"
 #include "modules/servicemanagementmodule.h"
@@ -36,8 +35,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     apptMod = nullptr;
     checkoutMod = nullptr;
     statsMod = nullptr;
-    perfMod = nullptr;
-    salaryMod = nullptr;
+    financeMod = nullptr;
     logisticsMod = nullptr;
     inboundMod = nullptr;
     serviceMod = nullptr;
@@ -51,8 +49,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
         // 店员无权访问敏感模块
         ui->navStats->setVisible(false);
         ui->navRole->setVisible(false); 
-        ui->navPerformance->setVisible(false);
-        navSalary->setVisible(false);
+        navFinance->setVisible(false);
     }
 
     // Defer modules initialization to ensure a stable startup sequence
@@ -83,35 +80,35 @@ void MainWindow::initSidebar()
     navGroup->addButton(ui->navFoster, 4);
     navGroup->addButton(ui->navOrder, 5);
     navGroup->addButton(ui->navCheckout, 6);
-    navGroup->addButton(ui->navPerformance, 7);
+    ui->navPerformance->setVisible(false); // 隐藏旧按钮
     navGroup->addButton(ui->navStats, 8);
 
     // 为管理员专属模块添加标识
     ui->navRole->setText("员工与角色 (管理员)");
     ui->navPet->setText("宠物档案中心");
     ui->navFoster->setText("寄养管理中心");
-    ui->navPerformance->setText("业绩核销 (管理员)");
+    // ui->navPerformance->setText("业绩核销 (管理员)"); // 已隐藏
     ui->navStats->setText("数据报表 (管理员)");
 
-    // 动态添加调度中心按钮
+    // 动态添加调度中心按钮 (Index 9)
     navLogistics = new QPushButton("车辆调度中心");
-    navGroup->addButton(navLogistics, 10);
+    navGroup->addButton(navLogistics, 9);
     ui->sidebarLayout->insertWidget(6, navLogistics);
 
-    // 动态添加入库登记按钮
+    // 动态添加入库登记按钮 (Index 10)
     navInbound = new QPushButton("商品入库登记");
-    navGroup->addButton(navInbound, 11);
-    ui->sidebarLayout->insertWidget(4, navInbound); // 插在商品档案管理(index 3)后面
+    navGroup->addButton(navInbound, 10);
+    ui->sidebarLayout->insertWidget(4, navInbound); 
 
-    // 动态添加服务管理按钮
+    // 动态添加服务管理按钮 (Index 11)
     navService = new QPushButton("服务项目管理");
-    navGroup->addButton(navService, 12);
-    ui->sidebarLayout->insertWidget(5, navService); // 插在入库登记(index 4)后面
+    navGroup->addButton(navService, 11);
+    ui->sidebarLayout->insertWidget(5, navService); 
 
-    // 动态添加薪资管理按钮
-    navSalary = new QPushButton("薪资管理中心 (管理员)");
-    navGroup->addButton(navSalary, 9);
-    ui->sidebarLayout->insertWidget(11, navSalary); // 插在后面
+    // 动态添加财务结算中心按钮 (管理员) (Index 7)
+    navFinance = new QPushButton("财务结算中心 (管理员)");
+    navGroup->addButton(navFinance, 7); 
+    ui->sidebarLayout->insertWidget(11, navFinance);
 
     foreach (QAbstractButton *btn, navGroup->buttons()) {
         btn->setCheckable(true);
@@ -145,12 +142,10 @@ void MainWindow::initModules(UserRole role)
     apptMod = new AppointmentModule(this);
     qDebug() << "CheckoutModule...";
     checkoutMod = new CheckoutModule(this);
-    qDebug() << "PerformanceModule...";
-    perfMod = new PerformanceModule(this);
+    qDebug() << "FinanceModule...";
+    financeMod = new FinanceModule(this);
     qDebug() << "StatsModule...";
     statsMod = new StatsModule(this);
-    qDebug() << "SalaryModule...";
-    salaryMod = new SalaryModule(this);
     qDebug() << "LogisticsModule...";
     logisticsMod = new LogisticsModule(this);
     qDebug() << "InboundModule...";
@@ -166,12 +161,11 @@ void MainWindow::initModules(UserRole role)
     ui->stack->addWidget(fosterMod);   // index 4
     ui->stack->addWidget(apptMod);     // index 5
     ui->stack->addWidget(checkoutMod); // index 6
-    ui->stack->addWidget(perfMod);     // index 7
+    ui->stack->addWidget(financeMod);  // index 7
     ui->stack->addWidget(statsMod);    // index 8
-    ui->stack->addWidget(salaryMod);   // index 9
-    ui->stack->addWidget(logisticsMod); // index 10
-    ui->stack->addWidget(inboundMod);   // index 11
-    ui->stack->addWidget(serviceMod);   // index 12
+    ui->stack->addWidget(logisticsMod); // index 9
+    ui->stack->addWidget(inboundMod);   // index 10
+    ui->stack->addWidget(serviceMod);   // index 11
 
     // 跨模块同步逻辑
     connect(memberMod, &MemberModule::sig_petAdded, petMod, &PetModule::addPet);

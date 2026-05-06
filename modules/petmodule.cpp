@@ -314,7 +314,7 @@ void PetModule::setupUI()
 
     QString pageStyle = "QPushButton { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #64748b; font-size: 12px; padding: 0 12px; text-align: center; font-weight: bold; } "
                         "QPushButton:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; } "
-                        "QPushButton:disabled { background: #f8fafc; color: #cbd5e1; border-color: #f1f5f9; }";
+                        "QPushButton:disabled { background: white; color: #cbd5e1; border-color: #f1f5f9; }";
     prevBtn->setStyleSheet(pageStyle);
     nextBtn->setStyleSheet(pageStyle);
 
@@ -322,17 +322,12 @@ void PetModule::setupUI()
     nextBtn->setCursor(Qt::PointingHandCursor);
     pageLabel->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; margin: 0 10px;");
 
-    QWidget *pageGroup = new QWidget();
-    QHBoxLayout *pageLayout = new QHBoxLayout(pageGroup);
-    pageLayout->setContentsMargins(0, 0, 0, 0);
-    pageLayout->setSpacing(5); 
-    pageLayout->addWidget(prevBtn);
-    pageLayout->addWidget(pageLabel);
-    pageLayout->addWidget(nextBtn);
-
-    footerLayout->addStretch(); // 关键：左侧弹簧推向右侧
-    footerLayout->addWidget(pageGroup);
-    footerLayout->addSpacing(15); 
+    footerLayout->addStretch();
+    footerLayout->addWidget(prevBtn);
+    footerLayout->addSpacing(20);
+    footerLayout->addWidget(pageLabel);
+    footerLayout->addSpacing(20);
+    footerLayout->addWidget(nextBtn);
     
     rootLayout->addWidget(mainWidget, 1);
     

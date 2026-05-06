@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PetManager 管理员模块设计预览</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 40px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: #0f172a; margin-bottom: 40px; }
+        .design-card { background: white; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 60px; overflow: hidden; border: 1px solid #e2e8f0; }
+        .design-info { padding: 25px; border-bottom: 1px solid #f1f5f9; }
+        .design-info h2 { margin: 0 0 10px 0; color: #3b82f6; }
+        .design-info p { margin: 0; color: #64748b; line-height: 1.6; }
+        .image-container { padding: 20px; background-color: #f1f5f9; text-align: center; }
+        img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; }
+        .tag-container { margin-top: 15px; }
+        .tag { display: inline-block; background: #eff6ff; color: #3b82f6; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PetManager 管理端模块 UI 设计提案</h1>
+
+        <!-- 薪资管理模块 -->
+        <div class="design-card">
+            <div class="design-info">
+                <h2>1. 薪资管理中心 (管理员)</h2>
+                <p>采用标准化表格布局，支持多维度薪资构成展示（底薪、提成、奖金、扣除）。右侧设有“本月总计”玻璃拟态统计卡片，整体风格简约严谨。</p>
+                <div class="tag-container">
+                    <span class="tag">12px 圆角卡片</span>
+                    <span class="tag">48px 行高</span>
+                    <span class="tag">深蓝色调 (#1e293b)</span>
+                </div>
+            </div>
+            <div class="image-container">
+                <img src="file:///C:/Users/%E4%BB%BB%E5%9D%A4/.gemini/antigravity/brain/98d0c847-5b72-4a9c-8baf-49902f7a9c98/salary_management_admin_mockup_1778043997077.png" alt="薪资管理中心设计预览">
+            </div>
+        </div>
+
+        <!-- 业绩核销模块 -->
+        <div class="design-card">
+            <div class="design-info">
+                <h2>2. 业绩核销与提成统计 (管理员)</h2>
+                <p>强调“核销状态”的视觉反馈，使用胶囊样式标签。支持日期范围与员工筛选，配合一键批量核销操作，极大提升管理效率。</p>
+                <div class="tag-container">
+                    <span class="tag">胶囊状态标签</span>
+                    <span class="tag">扁平化表头</span>
+                    <span class="tag">核心蓝交互 (#3b82f6)</span>
+                </div>
+            </div>
+            <div class="image-container">
+                <img src="file:///C:/Users/%E4%BB%BB%E5%9D%A4/.gemini/antigravity/brain/98d0c847-5b72-4a9c-8baf-49902f7a9c98/performance_verification_admin_mockup_1778044028093.png" alt="业绩核销模块设计预览">
+            </div>
+        </div>
+
+        <div style="text-align: center; color: #94a3b8; font-size: 14px;">
+            &copy; 2026 PetManager Pro - 高级管理端设计系统
+        </div>
+    </div>
+</body>
+</html>

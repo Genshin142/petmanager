@@ -238,7 +238,7 @@ void OrderDetailDrawer::showEmptyState()
 
 void OrderDetailDrawer::updateUI()
 {
-    bool isProduct = (m_order.sourceModule == "Product");
+    bool isProduct = (m_order.sourceModule == "Product" || m_order.sourceModule == "RetailPOS");
     int avatarSize = m_petAvatar->width();
     QPixmap target(avatarSize, avatarSize);
     target.fill(Qt::transparent);
