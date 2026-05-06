@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetManager | 数据报表中心 (最终方案) 预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FFFFFF;
+            color: #000000;
+        }
+        
+        /* 高对比度边框规范 (重心 2) */
+        .brutalist-border {
+            border: 2px solid #000000;
+        }
+        
+        /* 卡片式看板 (重心 1) */
+        .stat-card {
+            background: #FFFFFF;
+            border: 2px solid #000000;
+            padding: 24px;
+            transition: transform 0.1s ease;
+        }
+        .stat-card:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 4px 4px 0px #000000;
+        }
+
+        /* 蓝色分类切换 (QStackedWidget 逻辑) */
+        .tab-btn {
+            border: 2px solid #000000;
+            padding: 8px 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 12px;
+            background: white;
+        }
+        .tab-btn.active {
+            background: #000000;
+            color: #FFFFFF;
+        }
+
+        /* 表格样式 */
+        .brutalist-table thead th {
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 12px;
+            font-weight: 800;
+        }
+        .brutalist-table td {
+            padding: 12px;
+            border-bottom: 2px solid #000000;
+        }
+
+        /* 抽屉面板 (重心 3) */
+        #detailDrawer {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(100%);
+            background: white;
+            border-left: 2px solid #000000;
+        }
+        #detailDrawer.open { transform: translateX(0); }
+    </style>
+</head>
+<body class="p-8 space-y-8 overflow-hidden h-screen flex flex-col">
+
+    <!-- 顶部标题与分类切换 -->
+    <div class="flex justify-between items-center shrink-0">
+        <div class="flex items-center space-x-8">
+            <h1 class="text-3xl font-black italic">DASHBOARD_</h1>
+            <div class="flex space-x-2">
+                <button class="tab-btn active">财务总览</button>
+                <button class="tab-btn">服务分析</button>
+                <button class="tab-btn">商品追踪</button>
+                <button class="tab-btn">会员画像</button>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="brutalist-border px-4 py-2 font-bold bg-slate-50">2026-05-01 - 2026-05-06</div>
+            <button class="bg-blue-600 text-white brutalist-border px-6 py-2 font-black uppercase hover:bg-blue-700">生成报告</button>
+        </div>
+    </div>
+
+    <div class="flex-1 flex overflow-hidden space-x-8">
+        
+        <!-- 主内容区 (Master) -->
+        <div class="flex-1 overflow-y-auto pr-4 space-y-8 no-scrollbar">
+            
+            <!-- 1. KPI 卡片看板 -->
+            <div class="grid grid-cols-4 gap-6">
+                <div class="stat-card">
+                    <div class="text-xs font-black uppercase text-gray-500 mb-1">净利润 (NET PROFIT)</div>
+                    <div class="text-3xl font-black">¥ 8,452.00</div>
+                    <div class="mt-4 text-xs font-bold text-green-600">↑ 21.4% GROWTH</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-xs font-black uppercase text-gray-500 mb-1">服务/商品 占比</div>
+                    <div class="text-3xl font-black">62 / 38 %</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-xs font-black uppercase text-gray-500 mb-1">笼位入住 (MAX)</div>
+                    <div class="text-3xl font-black">92%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-xs font-black uppercase text-gray-500 mb-1">库存预警 (URGENT)</div>
+                    <div class="text-3xl font-black text-red-600">03 SKU</div>
+                </div>
+            </div>
+
+            <!-- 2. 可视化图表区 -->
+            <div class="grid grid-cols-2 gap-8">
+                <div class="brutalist-border p-6 bg-white">
+                    <h3 class="font-black text-sm uppercase mb-6 underline">营收分布分析</h3>
+                    <div class="h-48 flex items-center justify-center">
+                        <div class="w-40 h-40 rounded-full border-4 border-black flex items-center justify-center relative">
+                            <div class="absolute inset-0 border-[30px] border-blue-500 rounded-full clip-path-polygon"></div>
+                            <span class="font-black">62% SVC</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="brutalist-border p-6 bg-white">
+                    <h3 class="font-black text-sm uppercase mb-6 underline">近7日流水趋势</h3>
+                    <div class="h-48 flex items-end justify-between border-b-2 border-black pb-2">
+                        <div class="w-8 bg-black h-24"></div>
+                        <div class="w-8 bg-black h-32"></div>
+                        <div class="w-8 bg-blue-500 h-48"></div>
+                        <div class="w-8 bg-black h-40"></div>
+                        <div class="w-8 bg-black h-36"></div>
+                        <div class="w-8 bg-black h-20"></div>
+                        <div class="w-8 bg-black h-44"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 数据明细表 -->
+            <div class="brutalist-border bg-white">
+                <table class="w-full brutalist-table">
+                    <thead>
+                        <tr>
+                            <th class="text-left">业务明细</th>
+                            <th class="text-left">类型</th>
+                            <th class="text-left">对象</th>
+                            <th class="text-right">实收金额</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr onclick="document.getElementById('detailDrawer').classList.add('open')">
+                            <td class="font-bold">ORD2026050601</td>
+                            <td>洗护美容</td>
+                            <td>张三 (小白)</td>
+                            <td class="text-right font-black">¥ 158.00</td>
+                        </tr>
+                        <tr onclick="document.getElementById('detailDrawer').classList.add('open')">
+                            <td class="font-bold">ORD2026050602</td>
+                            <td>寄养结算</td>
+                            <td>李四 (大黄)</td>
+                            <td class="text-right font-black">¥ 1,240.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 4. 右侧抽屉详情 (Detail) -->
+        <aside id="detailDrawer" class="w-[450px] shrink-0 h-full">
+            <div class="p-8">
+                <div class="flex justify-between items-start mb-12">
+                    <h2 class="text-2xl font-black">DRILL DOWN_</h2>
+                    <button onclick="document.getElementById('detailDrawer').classList.remove('open')" class="brutalist-border w-10 h-10 flex items-center justify-center font-bold hover:bg-black hover:text-white">✕</button>
+                </div>
+                
+                <div class="space-y-8">
+                    <div class="p-4 bg-slate-50 brutalist-border">
+                        <div class="text-xs font-black text-gray-400 uppercase mb-2">订单追踪 ID</div>
+                        <div class="text-xl font-bold">#ORD-2026050601</div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-xs font-black text-gray-400 uppercase mb-1">支付渠道</div>
+                            <div class="font-bold italic underline">微信支付 (WECHAT)</div>
+                        </div>
+                        <div>
+                            <div class="text-xs font-black text-gray-400 uppercase mb-1">结算金额</div>
+                            <div class="text-2xl font-black">¥ 158.00</div>
+                        </div>
+                    </div>
+
+                    <div class="pt-8">
+                        <div class="text-xs font-black uppercase mb-4">底层数据交叉校验 (C++ SHARED_PTR)</div>
+                        <div class="p-4 brutalist-border bg-blue-50 text-xs leading-relaxed font-mono">
+                            // 跨表联查校验成功<br>
+                            MemberID: M001 -> Valid<br>
+                            PetID: P502 -> Verified<br>
+                            Precision: 158.000000 (DECIMAL 18,2)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</body>
+</html>

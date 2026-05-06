@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetManager | 数据报表中心 (对齐版) 预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* 对齐系统背景色 */
+            color: #1e293b;
+        }
+        
+        /* 对齐现有卡片样式 */
+        .glass-card {
+            background: #FFFFFF;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+        
+        .glass-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        /* 对齐现有按钮 */
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+
+        /* 对齐状态标签 */
+        .badge-success { background: #d1fae5; color: #065f46; border-radius: 99px; padding: 2px 10px; font-size: 12px; }
+        .badge-warning { background: #ffedd5; color: #9a3412; border-radius: 99px; padding: 2px 10px; font-size: 12px; }
+
+        /* 对齐抽屉面板 */
+        #detailDrawer {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(100%);
+            background: white;
+            border-left: 1px solid #e2e8f0;
+        }
+        #detailDrawer.open { transform: translateX(0); }
+
+        /* 对齐表格 */
+        th {
+            background-color: #f1f5f9;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 12px 16px;
+        }
+        td { padding: 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        tr:hover { background-color: #f8fafc; cursor: pointer; }
+        tr.selected { background-color: #eff6ff; border-left: 3px solid #3b82f6; }
+
+        /* 详情项标题 */
+        .detail-label { color: #64748b; font-size: 13px; margin-bottom: 4px; }
+        .detail-value { color: #1e293b; font-weight: 600; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- 对齐版顶部工具栏 -->
+    <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
+        <div class="flex items-center">
+            <h1 class="text-lg font-bold text-slate-800">数据报表中心</h1>
+            <div class="ml-8 flex space-x-2 bg-slate-100 p-1 rounded-lg">
+                <button class="px-4 py-1.5 rounded-md text-sm font-medium bg-white shadow-sm text-blue-600">综合业务</button>
+                <button class="px-4 py-1.5 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700">进销存</button>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-sm">
+                <span class="text-slate-400">日期</span>
+                <span class="font-medium text-slate-700">2026-05-01 - 2026-05-06</span>
+            </div>
+            <button class="btn-primary px-5 py-1.5 text-sm">生成报表</button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden relative">
+        
+        <!-- 主视图 -->
+        <div class="flex-1 p-6 overflow-y-auto">
+            <!-- 核心指标卡片 (对齐风格) -->
+            <div class="grid grid-cols-4 gap-6 mb-6">
+                <div class="glass-card p-5">
+                    <div class="text-slate-400 text-xs font-medium mb-1">总营收 (CNY)</div>
+                    <div class="text-2xl font-bold text-slate-800">¥ 124,580.00</div>
+                    <div class="mt-2 flex items-center text-xs">
+                        <span class="text-emerald-500 font-bold">↑ 14.5%</span>
+                        <span class="text-slate-400 ml-1">较上周</span>
+                    </div>
+                </div>
+                <div class="glass-card p-5">
+                    <div class="text-slate-400 text-xs font-medium mb-1">新增会员</div>
+                    <div class="text-2xl font-bold text-slate-800">42 <span class="text-sm font-normal text-slate-400">位</span></div>
+                    <div class="mt-2 text-xs text-slate-400">完成率 105%</div>
+                </div>
+                <div class="glass-card p-5">
+                    <div class="text-slate-400 text-xs font-medium mb-1">笼位入住率</div>
+                    <div class="text-2xl font-bold text-slate-800">85%</div>
+                    <div class="mt-2 flex items-center space-x-1">
+                        <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-blue-500 h-full w-[85%]"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card p-5">
+                    <div class="text-slate-400 text-xs font-medium mb-1">库存预警</div>
+                    <div class="text-2xl font-bold text-rose-500">3 <span class="text-sm font-normal text-rose-400">SKU</span></div>
+                    <div class="mt-2 text-xs text-rose-500 font-medium">需立即补货</div>
+                </div>
+            </div>
+
+            <!-- 数据列表 -->
+            <div class="glass-card flex-1 overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr>
+                            <th>业务单号</th>
+                            <th>时间</th>
+                            <th>项目</th>
+                            <th>客户</th>
+                            <th class="text-right">金额</th>
+                            <th class="text-center">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="selected" onclick="document.getElementById('detailDrawer').classList.add('open')">
+                            <td class="font-medium text-blue-600">ORD2026050601</td>
+                            <td class="text-slate-500 text-sm">14:20</td>
+                            <td class="font-medium">洗护美容</td>
+                            <td class="text-slate-600">张先生 (小白)</td>
+                            <td class="text-right font-semibold">¥ 158.00</td>
+                            <td class="text-center"><span class="badge-success">已结算</span></td>
+                        </tr>
+                        <tr onclick="document.getElementById('detailDrawer').classList.add('open')">
+                            <td class="font-medium text-blue-600">ORD2026050602</td>
+                            <td class="text-slate-500 text-sm">15:10</td>
+                            <td class="font-medium">寄养结算</td>
+                            <td class="text-slate-600">林小姐 (咪咪)</td>
+                            <td class="text-right font-semibold">¥ 1,240.00</td>
+                            <td class="text-center"><span class="badge-success">已结算</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="p-4 bg-white border-t border-slate-100 flex justify-between items-center text-sm text-slate-500">
+                    <div>第 1 页 / 共 4 页</div>
+                    <div class="flex space-x-2">
+                        <button class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50">上一页</button>
+                        <button class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50">下一页</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 对齐版右侧详情抽屉 -->
+        <aside id="detailDrawer" class="absolute top-0 right-0 h-full w-[420px] shadow-2xl">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-lg font-bold text-slate-800">业务详情分析</h2>
+                    <button onclick="document.getElementById('detailDrawer').classList.remove('open')" class="p-2 hover:bg-slate-100 rounded-full text-slate-400">✕</button>
+                </div>
+
+                <!-- 模拟头像与身份 -->
+                <div class="flex items-center mb-8 p-4 bg-slate-50 rounded-xl">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg mr-4">张</div>
+                    <div>
+                        <div class="font-bold text-slate-800">张先生 <span class="text-xs text-slate-400 ml-2">ID: 2096</span></div>
+                        <div class="text-xs text-slate-400">金牌会员 (余额: ¥2,414.00)</div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <div class="detail-label">订单编号</div>
+                            <div class="detail-value text-sm">ORD2024041729</div>
+                        </div>
+                        <div>
+                            <div class="detail-label">支付方式</div>
+                            <div class="detail-value text-sm">会员卡</div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 border-y border-slate-100">
+                        <div class="detail-label">关联宠物</div>
+                        <div class="detail-value">旺财 (ID: 5047 / 布偶猫)</div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-slate-500 text-sm">订单总额</span>
+                            <span class="font-medium">¥ 150.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-500 text-sm">实付金额</span>
+                            <span class="text-xl font-bold text-slate-900">¥ 139.50</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-6">
+                        <button class="w-full bg-slate-900 text-white py-3 rounded-xl font-medium hover:bg-slate-800 transition-colors">补打消费凭证</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </main>
+</body>
+</html>

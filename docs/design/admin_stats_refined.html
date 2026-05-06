@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetManager | 数据报表中心 (基础美化版) 预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        
+        .stat-card {
+            background: #FFFFFF;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .chart-container {
+            background: #FFFFFF;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        /* 标志性蓝色表头 */
+        .blue-header-table thead th {
+            background-color: #2563eb;
+            color: #FFFFFF;
+            font-weight: 600;
+            padding: 12px 16px;
+            font-size: 14px;
+        }
+        
+        .blue-header-table tbody tr {
+            transition: background-color 0.2s;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .blue-header-table tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .filter-bar {
+            background: #FFFFFF;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 12px 20px;
+        }
+    </style>
+</head>
+<body class="p-8 space-y-8 no-scrollbar">
+
+    <!-- 顶部标题 -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-slate-800">数据报表统计分析中心</h1>
+        <button class="bg-amber-500 text-white px-6 py-2 rounded-lg font-bold shadow-sm hover:opacity-90">同步报表数据</button>
+    </div>
+
+    <!-- 1. 顶部核心指标 (4卡片) -->
+    <div class="grid grid-cols-4 gap-6">
+        <div class="stat-card">
+            <div class="text-slate-400 text-sm font-medium">区间总营收</div>
+            <div class="text-3xl font-bold text-blue-700 mt-1">¥ 17995.00</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-slate-400 text-sm font-medium">区间客单价</div>
+            <div class="text-3xl font-bold text-blue-700 mt-1">¥ 101.10</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-slate-400 text-sm font-medium">服务单量汇总</div>
+            <div class="text-3xl font-bold text-slate-800 mt-1">90 <span class="text-lg">单</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="text-slate-400 text-sm font-medium">商品出单量</div>
+            <div class="text-3xl font-bold text-slate-800 mt-1">88 <span class="text-lg">件</span></div>
+        </div>
+    </div>
+
+    <!-- 2. 中部可视化区 (双图表) -->
+    <div class="grid grid-cols-2 gap-8">
+        <div class="chart-container">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-slate-700">营收分布 (服务类)</h3>
+                <span class="text-xs text-slate-400">单位: 占比%</span>
+            </div>
+            <!-- 模拟饼图 -->
+            <div class="flex items-center justify-around h-64">
+                <div class="w-48 h-48 rounded-full border-[20px] border-blue-500 border-r-amber-400 border-b-emerald-400 relative flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="text-xs text-slate-400">主要项</div>
+                        <div class="font-bold text-slate-800">洗护</div>
+                    </div>
+                </div>
+                <div class="space-y-2 text-xs">
+                    <div class="flex items-center"><span class="w-3 h-3 bg-blue-500 rounded-sm mr-2"></span> 宠物 SPA 精油护理</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-amber-400 rounded-sm mr-2"></span> 指甲修剪</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-emerald-400 rounded-sm mr-2"></span> 狗狗日常代喂</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-slate-700">周期趋势观察</h3>
+                <span class="text-xs text-slate-400">单位: 日成交额</span>
+            </div>
+            <!-- 模拟柱状图 -->
+            <div class="flex items-end justify-between h-64 px-4 border-b border-slate-100">
+                <div class="w-8 bg-blue-100 h-24 rounded-t"></div>
+                <div class="w-8 bg-blue-100 h-32 rounded-t"></div>
+                <div class="w-8 bg-blue-100 h-28 rounded-t"></div>
+                <div class="w-8 bg-blue-500 h-48 rounded-t"></div>
+                <div class="w-8 bg-blue-100 h-40 rounded-t"></div>
+                <div class="w-8 bg-blue-100 h-36 rounded-t"></div>
+                <div class="w-8 bg-blue-100 h-32 rounded-t"></div>
+            </div>
+            <div class="flex justify-between mt-2 text-[10px] text-slate-400">
+                <span>01/01</span><span>01/02</span><span>01/03</span><span>01/04</span><span>01/05</span><span>01/06</span><span>01/07</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 底部筛选与明细表 -->
+    <div class="space-y-4">
+        <div class="filter-bar flex items-center space-x-6">
+            <div class="flex bg-slate-100 rounded p-1">
+                <button class="bg-blue-600 text-white px-4 py-1 text-xs rounded">服务分析</button>
+                <button class="px-4 py-1 text-xs text-slate-500">商品分析</button>
+            </div>
+            <input type="text" placeholder="搜索项目关键词..." class="border border-slate-200 rounded px-4 py-1.5 text-sm w-64 focus:outline-blue-500">
+            <div class="flex items-center space-x-2 text-sm text-slate-500">
+                <input type="date" value="2026-05-01" class="border border-slate-200 rounded px-2 py-1">
+                <span>至</span>
+                <input type="date" value="2026-05-31" class="border border-slate-200 rounded px-2 py-1">
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <table class="w-full text-left blue-header-table">
+                <thead>
+                    <tr>
+                        <th class="w-20 text-center">名次</th>
+                        <th>项目名称</th>
+                        <th>周期成交单量</th>
+                        <th class="text-right">累计销售额</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm">
+                    <tr>
+                        <td class="text-center font-bold text-slate-400">1</td>
+                        <td class="font-bold">精品造型</td>
+                        <td>17 单</td>
+                        <td class="text-right font-mono font-bold">¥ 3400.00</td>
+                    </tr>
+                    <tr>
+                        <td class="text-center font-bold text-slate-400">2</td>
+                        <td class="font-bold">寄养套餐</td>
+                        <td>12 单</td>
+                        <td class="text-right font-mono font-bold">¥ 2400.00</td>
+                    </tr>
+                    <tr>
+                        <td class="text-center font-bold text-slate-400">3</td>
+                        <td class="font-bold">猫咪全身洗护</td>
+                        <td>23 单</td>
+                        <td class="text-right font-mono font-bold">¥ 1840.00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+</html>
