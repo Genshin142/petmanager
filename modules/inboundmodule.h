@@ -63,6 +63,7 @@ private:
     QLabel *m_totalCategoriesLabel;
     QLabel *m_todayItemsLabel;
     QLabel *m_pendingShelvesLabel;
+    QLabel *m_totalCostLabel;
 
     // UI Components - Detail Drawer
     QWidget *m_detailDrawer;

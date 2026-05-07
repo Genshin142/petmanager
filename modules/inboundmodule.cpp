@@ -149,6 +149,7 @@ void InboundModule::setupUI()
     statLayout->addWidget(createStatCard("", "总入库品种", m_totalCategoriesLabel, "#409eff"));
     statLayout->addWidget(createStatCard("", "今日入库量", m_todayItemsLabel, "#67c23a"));
     statLayout->addWidget(createStatCard("", "待上架批次", m_pendingShelvesLabel, "#e6a23c"));
+    statLayout->addWidget(createStatCard("", "总入库成本", m_totalCostLabel, "#9333ea"));
     topLayout->addLayout(statLayout);
     
     masterLayout->addWidget(topContainer);
@@ -645,6 +646,14 @@ void InboundModule::updateStats()
 
     auto pending = ProductDataManager::instance()->getUnlistedInboundItems();
     m_pendingShelvesLabel->setText(QString("%1 批").arg(pending.size()));
+
+    double totalCost = 0;
+    for (const auto &rec : allRecords) {
+        if (rec.isActive) {
+            totalCost += (rec.quantity * rec.costPrice);
+        }
+    }
+    m_totalCostLabel->setText(QString("¥ %1").arg(QString::number(totalCost, 'f', 2)));
 }
 
 void InboundModule::setupDetailDrawer()
