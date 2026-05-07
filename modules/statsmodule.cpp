@@ -393,19 +393,12 @@ QWidget* StatsModule::createServiceView() {
     fl->setStyleSheet("font-weight: bold; color: #64748b; font-size: 13px; border: none;");
     fhl->addWidget(fl);
 
-    // 1. 左侧快捷筛选组 (胶囊化)
-    QFrame *timeGroup = new QFrame();
-    timeGroup->setObjectName("GlobalTimeToggle");
-    timeGroup->setAttribute(Qt::WA_StyledBackground);
+    // 1. 左侧快捷筛选组 (复刻员工页独立圆角标签按钮)
+    QWidget *timeGroup = new QWidget();
+    timeGroup->setStyleSheet("border: none; background: transparent;"); // 显式删除容器边框
     QHBoxLayout *tgl = new QHBoxLayout(timeGroup);
-    tgl->setContentsMargins(4, 4, 4, 4);
-    tgl->setSpacing(2);
-    timeGroup->setStyleSheet(
-        "QFrame#GlobalTimeToggle { background-color: #f1f5f9; border-radius: 18px; }"
-        "QPushButton { border: none; border-radius: 14px; padding: 6px 18px; font-size: 12px; color: #64748b; background: transparent; font-weight: 500; } "
-        "QPushButton:checked { background: #3b82f6; color: white; font-weight: bold; }"
-        "QPushButton:hover:!checked { background: #e2e8f0; }"
-    );
+    tgl->setContentsMargins(0, 0, 0, 0);
+    tgl->setSpacing(8);
 
     QStringList periods = {QString::fromUtf8("今日"), QString::fromUtf8("昨日"), 
                           QString::fromUtf8("本月"), QString::fromUtf8("上月"), 
@@ -419,7 +412,14 @@ QWidget* StatsModule::createServiceView() {
     for (int i = 0; i < periods.size(); ++i) {
         QPushButton *btn = new QPushButton(periods[i]);
         btn->setCheckable(true);
+        btn->setFixedHeight(32);
+        btn->setCursor(Qt::PointingHandCursor);
         if (i == 2) btn->setChecked(true);
+        btn->setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; color: #606266; font-size: 13px; } "
+            "QPushButton:hover { background: #ecf5ff; border-color: #409eff; color: #409eff; } "
+            "QPushButton:checked { background: #409eff; border-color: #409eff; color: white; font-weight: bold; } "
+        );
         tg->addButton(btn, i);
         tgl->addWidget(btn);
     }
@@ -440,31 +440,70 @@ QWidget* StatsModule::createServiceView() {
     QHBoxLayout *hgl = new QHBoxLayout(historyGroup);
     hgl->setContentsMargins(12, 4, 4, 4);
     hgl->setSpacing(8);
-    historyGroup->setStyleSheet("QFrame#HistoryGroup { background-color: #f1f5f9; border-radius: 18px; }");
+    historyGroup->setStyleSheet("border: none; background: transparent;"); // 显式删除容器边框
 
-    QLabel *hl = new QLabel(QString::fromUtf8("按月查看"));
+    QLabel *hl = new QLabel(QString::fromUtf8("历史查看"));
     hl->setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; border: none; background: transparent;");
     hgl->addWidget(hl);
 
     QString comboStyle = 
-        "QComboBox { background: white; border: none; border-radius: 14px; padding: 4px 12px; color: #475569; font-size: 12px; font-weight: 600; min-width: 75px; } "
-        "QComboBox:hover { color: #3b82f6; } "
-        "QComboBox::drop-down { border: none; width: 15px; } "
-        "QComboBox::down-arrow { image: none; border-left: 3px solid transparent; border-right: 3px solid transparent; border-top: 4px solid #94a3b8; margin-right: 5px; } "
-        "QAbstractItemView { border: 1px solid #e2e8f0; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; border-radius: 8px; }";
+        "QComboBox { "
+        "  background: white; "
+        "  border: 1px solid #e2e8f0; "
+        "  border-radius: 6px; "
+        "  padding: 4px 10px; "
+        "  color: #1e293b; "
+        "  font-size: 13px; "
+        "  font-weight: bold; "
+        "  min-width: 85px; "
+        "  height: 30px; "
+        "} "
+        "QComboBox:hover { border-color: #3b82f6; } "
+        "QComboBox::drop-down { border: none; width: 24px; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QAbstractItemView { border: 1px solid #e2e8f0; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; border-radius: 6px; }";
 
+    // 年份 ComboBox
     QComboBox *yearCombo = new QComboBox();
     for(int y=2023; y<=2026; ++y) yearCombo->addItem(QString::number(y) + QString::fromUtf8("年"), y);
     yearCombo->setCurrentText(QString::number(QDate::currentDate().year()) + QString::fromUtf8("年"));
     yearCombo->setStyleSheet(comboStyle);
     
+    // 月份 ComboBox (增加"全部月份"选项)
     QComboBox *monthCombo = new QComboBox();
+    monthCombo->addItem(QString::fromUtf8("全部月份"), 0);
     for(int m=1; m<=12; ++m) monthCombo->addItem(QString::number(m) + QString::fromUtf8("月"), m);
-    monthCombo->setCurrentIndex(QDate::currentDate().month() - 1);
+    monthCombo->setCurrentIndex(QDate::currentDate().month()); // 偏移1因为第0项是"全部月份"
     monthCombo->setStyleSheet(comboStyle);
+
+    // 日期 ComboBox (增加"全部日期"选项 + 1~N日)
+    QComboBox *dayCombo = new QComboBox();
+    dayCombo->setStyleSheet(comboStyle);
+
+    // 动态刷新日期 ComboBox 的天数
+    auto refreshDayCombo = [=]() {
+        int selMonth = monthCombo->currentData().toInt();
+        dayCombo->blockSignals(true);
+        dayCombo->clear();
+        if (selMonth == 0) {
+            // 全部月份 -> 隐藏日期选择
+            dayCombo->setVisible(false);
+        } else {
+            dayCombo->setVisible(true);
+            dayCombo->addItem(QString::fromUtf8("全部日期"), 0);
+            int selYear = yearCombo->currentData().toInt();
+            int daysInMonth = QDate(selYear, selMonth, 1).daysInMonth();
+            for (int d = 1; d <= daysInMonth; ++d)
+                dayCombo->addItem(QString::number(d) + QString::fromUtf8("日"), d);
+            dayCombo->setCurrentIndex(0); // 默认"全部日期"
+        }
+        dayCombo->blockSignals(false);
+    };
+    refreshDayCombo(); // 初始化
     
     hgl->addWidget(yearCombo);
     hgl->addWidget(monthCombo);
+    hgl->addWidget(dayCombo);
     fhl->addWidget(historyGroup);
 
     fhl->addStretch();
@@ -477,15 +516,39 @@ QWidget* StatsModule::createServiceView() {
             tg->setExclusive(true);
         }
         
-        m_staffTimeRange = 1; // 始终按月模拟
-        m_serviceTimeRange = 1;
+        // 根据选择粒度调整倍率
+        int selMonth = monthCombo->currentData().toInt();
+        int selDay = dayCombo->isVisible() ? dayCombo->currentData().toInt() : 0;
+        if (selMonth == 0) {
+            // 查看整年
+            m_staffTimeRange = 2;
+            m_serviceTimeRange = 2;
+        } else if (selDay == 0) {
+            // 查看整月
+            m_staffTimeRange = 1;
+            m_serviceTimeRange = 1;
+        } else {
+            // 查看某一天
+            m_staffTimeRange = 0;
+            m_serviceTimeRange = 0;
+        }
         m_staffPage = 0; m_servicePage = 0;
         for(auto &updater : titleUpdaters) updater(-1); // 特殊信号告知使用自定义标题
         updateServiceAnalysis(); 
     };
 
-    connect(yearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, refreshByHistory);
-    connect(monthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, refreshByHistory);
+    // 年份变化 -> 刷新日期天数 -> 刷新数据
+    connect(yearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){
+        refreshDayCombo();
+        refreshByHistory();
+    });
+    // 月份变化 -> 刷新日期天数 -> 刷新数据
+    connect(monthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){
+        refreshDayCombo();
+        refreshByHistory();
+    });
+    // 日期变化 -> 刷新数据
+    connect(dayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshByHistory(); });
 
     // 导出按钮
     QPushButton *exportBtn = new QPushButton(QString::fromUtf8(" 导出报表 "));
@@ -554,7 +617,18 @@ QWidget* StatsModule::createServiceView() {
             else if(id == 1) suffix = QString::fromUtf8(" (昨日)");
             else if(id == 3) suffix = QString::fromUtf8(" (上月)");
             else if(id == 4) suffix = QString::fromUtf8(" (今年)");
-            else if(id == -1) suffix = QString(" (%1-%2)").arg(yearCombo->currentData().toInt()).arg(monthCombo->currentData().toInt(), 2, 10, QChar('0'));
+            else if(id == -1) {
+                int selYear = yearCombo->currentData().toInt();
+                int selMonth = monthCombo->currentData().toInt();
+                int selDay = dayCombo->isVisible() ? dayCombo->currentData().toInt() : 0;
+                if (selMonth == 0) {
+                    suffix = QString(" (%1%2)").arg(selYear).arg(QString::fromUtf8("年"));
+                } else if (selDay == 0) {
+                    suffix = QString(" (%1-%2)").arg(selYear).arg(selMonth, 2, 10, QChar('0'));
+                } else {
+                    suffix = QString(" (%1-%2-%3)").arg(selYear).arg(selMonth, 2, 10, QChar('0')).arg(selDay, 2, 10, QChar('0'));
+                }
+            }
             l->setText(baseTitle + suffix);
         });
 
@@ -635,10 +709,13 @@ QWidget* StatsModule::createServiceView() {
         // 点击快捷按钮时，重置下拉框到当前年月（避免显示冲突）
         yearCombo->blockSignals(true);
         monthCombo->blockSignals(true);
+        dayCombo->blockSignals(true);
         yearCombo->setCurrentText(QString::number(QDate::currentDate().year()) + QString::fromUtf8("年"));
-        monthCombo->setCurrentIndex(QDate::currentDate().month() - 1);
+        monthCombo->setCurrentIndex(QDate::currentDate().month()); // 偏移1因为第0项是"全部月份"
+        refreshDayCombo();
         yearCombo->blockSignals(false);
         monthCombo->blockSignals(false);
+        dayCombo->blockSignals(false);
 
         // 映射 id 到 range (0:今日, 1:昨日, 2:本月, 3:上月, 4:今年)
         int rangeMap[] = {0, 0, 1, 1, 2}; 
