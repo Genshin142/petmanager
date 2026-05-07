@@ -48,6 +48,7 @@ private:
     void updateCards();
     void updateCharts();
     void updateTable();
+    void updateTopCharts();
 
 private:
     // 导航组件
@@ -81,6 +82,7 @@ private:
     QTableWidget *m_staffRankTable;
     QTableWidget *m_serviceRankTable;
     QChartView *m_serviceHeatmapChart;
+    QChartView *m_productCategoryChart; // 商品销售占比图
 
     // 库存分析组件
     QTableWidget *m_invAlertTable;
@@ -98,29 +100,43 @@ private:
 
     // 内部数据计算
     void updateServiceAnalysis();
-    void updateInventoryAnalysis();
+    void updateProductAnalysis();
     
     // 分页处理
     void updateStaffTable();
     void updateServiceTable();
+    void updateProductTable();
+    void updateCategoryTable();
     void goToStaffPage(int delta);
     void goToServicePage(int delta);
+    void goToProductPage(int delta);
+    void goToCategoryPage(int delta);
 
     // 分页状态
     int m_staffPage = 0;
     int m_servicePage = 0;
+    int m_productPage = 0;
+    int m_categoryPage = 0;
     bool m_staffSortByRev = true;
     bool m_serviceSortByRev = true;
+    bool m_productSortByRev = true;
+    bool m_categorySortByRev = true;
     int m_staffTimeRange = 1;   // 0:日, 1:月, 2:年
     int m_serviceTimeRange = 1; 
     QLabel *m_staffPageLabel = nullptr;
     QLabel *m_servicePageLabel = nullptr;
+    QLabel *m_productPageLabel = nullptr;
+    QLabel *m_categoryPageLabel = nullptr;
+    QTableWidget *m_categoryRankTable = nullptr;
     
     // 缓存数据用于分页
     struct StaffRankData { QString name; QString id; QString pos; QString color; int count; double rev; };
     QList<StaffRankData> m_allStaffData;
     struct SvcRankData { QString name; int count; double rev; };
     QList<SvcRankData> m_allServiceData;
+    struct ProductRankData { QString name; int count; double rev; };
+    QList<ProductRankData> m_allProductData;
+    QList<ProductRankData> m_allCategoryData;
 };
 
 #endif // STATSMODULE_H
