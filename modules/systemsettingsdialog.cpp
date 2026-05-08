@@ -20,7 +20,14 @@ SystemSettingsDialog::SystemSettingsDialog(QWidget *parent) : QDialog(parent) {
 }
 
 void SystemSettingsDialog::setupUI() {
-    QHBoxLayout *mainLayout = new QHBoxLayout(this);
+    QVBoxLayout *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+
+    QFrame *bgFrame = new QFrame(this);
+    bgFrame->setObjectName("DialogBg");
+    outerLayout->addWidget(bgFrame);
+
+    QHBoxLayout *mainLayout = new QHBoxLayout(bgFrame);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
@@ -231,9 +238,9 @@ QWidget* SystemSettingsDialog::createPointsRulePage() {
 
 void SystemSettingsDialog::applyStyles() {
     this->setStyleSheet(R"(
-        QDialog {
+        QFrame#DialogBg {
             background-color: #ffffff;
-            border: 2px solid #64748b;
+            border: 1px solid #475569;
             border-radius: 12px;
         }
         QWidget#ContentContainer {
@@ -252,8 +259,8 @@ void SystemSettingsDialog::applyStyles() {
             background-color: #f8fafc;
             border: none;
             border-right: 1px solid #e2e8f0;
-            border-top-left-radius: 12px;
-            border-bottom-left-radius: 12px;
+            border-top-left-radius: 11px;
+            border-bottom-left-radius: 11px;
             outline: none;
             padding-top: 20px;
         }
