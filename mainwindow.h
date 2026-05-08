@@ -24,6 +24,7 @@ class FinanceModule;
 class LogisticsModule;
 class InboundModule;
 class ServiceManagementModule;
+class PersonalModule;
 
 class MainWindow : public QMainWindow
 {
@@ -60,6 +61,8 @@ private:
     QPushButton *navInbound;
     QPushButton *navService;
     ServiceManagementModule *serviceMod;
+    PersonalModule *personalMod;
+    QPushButton *navPersonal;
     
     
     void initSidebar();
@@ -67,5 +70,6 @@ private:
     bool eventFilter(QObject *obj, QEvent *event) override;
 
     UserRole m_role;
+    QString m_userName;
 };
 #endif // MAINWINDOW_H

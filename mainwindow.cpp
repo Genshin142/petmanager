@@ -14,6 +14,7 @@
 #include "modules/servicemanagementmodule.h"
 #include "modules/logisticsmanager.h"
 #include "modules/petdatamanager.h"
+#include "modules/personalmodule.h"
 #include <QPushButton>
 #include <QTimer>
 #include <QDateTime>
@@ -22,6 +23,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_role(role)
+    , m_userName(userName)
 {
     ui->setupUi(this);
     this->setWindowState(Qt::WindowMaximized); // 默认启动最大化铺满全屏
@@ -39,6 +41,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     logisticsMod = nullptr;
     inboundMod = nullptr;
     serviceMod = nullptr;
+    personalMod = nullptr;
 
     initSidebar();
 
@@ -110,6 +113,13 @@ void MainWindow::initSidebar()
     navGroup->addButton(navFinance, 7); 
     ui->sidebarLayout->insertWidget(11, navFinance);
 
+    // 动态添加个人中心按钮 (Index 12) - 置于最底部
+    navPersonal = new QPushButton("个人中心");
+    navGroup->addButton(navPersonal, 12);
+    // 插入到 spacer 之后或之前？Spacer 在 UI 文件中是最后一个 item。
+    // 我们直接 addWidget 到底部
+    ui->sidebarLayout->addWidget(navPersonal);
+
     foreach (QAbstractButton *btn, navGroup->buttons()) {
         btn->setCheckable(true);
     }
@@ -119,7 +129,7 @@ void MainWindow::initSidebar()
 
     // QSS 美化
     this->setStyleSheet("QMainWindow { background-color: #f5f7fa; }"
-                        "QWidget#sidebar { background-color: #304156; min-width: 260px; }"
+                        "QWidget#sidebar { background-color: #304156; min-width: 260px; max-width: 260px; }"
                         "QPushButton { border: none; color: #bfcbd9; text-align: left; padding: 15px 20px; font-size: 14px; }"
                         "QPushButton:hover { background-color: #263445; color: #409eff; }"
                         "QPushButton:checked { background-color: #1f2d3d; color: #409eff; border-left: 5px solid #409eff; }"
@@ -166,6 +176,9 @@ void MainWindow::initModules(UserRole role)
     ui->stack->addWidget(logisticsMod); // index 9
     ui->stack->addWidget(inboundMod);   // index 10
     ui->stack->addWidget(serviceMod);   // index 11
+    
+    personalMod = new PersonalModule(role, m_userName, this);
+    ui->stack->addWidget(personalMod);  // index 12
 
     // 跨模块同步逻辑
     connect(memberMod, &MemberModule::sig_petAdded, petMod, &PetModule::addPet);

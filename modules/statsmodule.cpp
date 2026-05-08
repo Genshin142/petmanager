@@ -160,7 +160,7 @@ void StatsModule::setupUI() {
     topSplitLayout->setSpacing(20);
 
     setupDashboardCards();
-    topSplitLayout->addWidget(m_cardContainer, 3);
+    topSplitLayout->addWidget(m_cardContainer, 3); // 恢复卡片区域权重到 3，确保卡片比例协调
 
     // 扇形图容器组 (并列显示两个占比图)
     auto createTopPie = [&](const QString &title, QChartView* &chart) {
@@ -169,18 +169,46 @@ void StatsModule::setupUI() {
         vl->setContentsMargins(0, 0, 0, 0);
         vl->setSpacing(2);
         QLabel *l = new QLabel(title);
-        l->setStyleSheet("font-size: 12px; font-weight: 700; color: #64748b; margin-left: 5px;");
+        l->setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 8px;"); // 放大标题字体
         vl->addWidget(l);
         chart = new QChartView();
-        chart->setFixedHeight(200);
+        chart->setFixedHeight(240); // 缩小高度
         chart->setRenderHint(QPainter::Antialiasing);
         chart->setStyleSheet("background: transparent; border: none;");
         vl->addWidget(chart);
         return box;
     };
 
-    topSplitLayout->addWidget(createTopPie("服务类目分布", m_serviceHeatmapChart), 1);
-    topSplitLayout->addWidget(createTopPie("商品销售构成", m_productCategoryChart), 1);
+    m_topPieContainer = new QWidget();
+    // 设置占位策略，隐藏时仍然保留布局空间，或者通过比例控制
+    m_topPieContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    QHBoxLayout *tpcl = new QHBoxLayout(m_topPieContainer);
+    tpcl->setContentsMargins(0, 0, 0, 0);
+    tpcl->setSpacing(20);
+
+    // 1. 财务占比组 (营收+支付)
+    m_finPiesContainer = new QWidget();
+    QHBoxLayout *fpl = new QHBoxLayout(m_finPiesContainer);
+    fpl->setContentsMargins(0,0,0,0); fpl->setSpacing(20);
+    fpl->addWidget(createTopPie("营收项目构成", m_finCompChart), 1);
+    fpl->addWidget(createTopPie("支付渠道分布", m_finPayChart), 1);
+    tpcl->addWidget(m_finPiesContainer);
+
+    // 2. 商品占比组
+    m_prodPieContainer = new QWidget();
+    QHBoxLayout *ppl = new QHBoxLayout(m_prodPieContainer);
+    ppl->setContentsMargins(0,0,0,0);
+    ppl->addWidget(createTopPie("商品销售构成", m_productCategoryChart), 1);
+    tpcl->addWidget(m_prodPieContainer);
+
+    // 3. 服务占比组
+    m_svcPieContainer = new QWidget();
+    QHBoxLayout *spl = new QHBoxLayout(m_svcPieContainer);
+    spl->setContentsMargins(0,0,0,0);
+    spl->addWidget(createTopPie("服务类目分布", m_serviceHeatmapChart), 1);
+    tpcl->addWidget(m_svcPieContainer);
+
+    topSplitLayout->addWidget(m_topPieContainer, 4); // 图表区域维持 4，保持总比例 3:4
 
     panelLayout->addLayout(topSplitLayout);
 
@@ -197,6 +225,9 @@ void StatsModule::setupUI() {
     contentLayout->addWidget(m_detailDrawer);
 
     mainLayout->addWidget(contentArea, 1);
+    
+    // 初始化状态 (确保饼图可见性正确)
+    onCategoryChanged(0);
 }
 
 void StatsModule::setupNavigation() {
@@ -205,10 +236,10 @@ void StatsModule::setupNavigation() {
     m_navBar->setStyleSheet("background: #f1f5f9; border-radius: 10px; border: none;");
     
     QHBoxLayout *navLayout = new QHBoxLayout(m_navBar);
-    navLayout->setContentsMargins(10, 0, 10, 0);
+    navLayout->setContentsMargins(10, 0, 10, 5); // 缩小下边距
     navLayout->setSpacing(8);
 
-    QStringList categories = {"财务总览", "服务分析", "商品排行", "会员画像"};
+    QStringList categories = {"财务总览", "店员服务统计", "商品排行", "服务排行"};
     for (int i = 0; i < categories.size(); ++i) {
         QPushButton *btn = new QPushButton(categories[i]);
         btn->setCheckable(true);
@@ -231,35 +262,49 @@ void StatsModule::setupNavigation() {
 void StatsModule::setupDashboardCards() {
     m_cardContainer = new QWidget();
     QHBoxLayout *cardLayout = new QHBoxLayout(m_cardContainer);
-    cardLayout->setContentsMargins(0, 10, 0, 10);
-    cardLayout->setSpacing(15);
+    cardLayout->setContentsMargins(10, 5, 0, 5); // 缩小上下边距
+    cardLayout->setSpacing(20);
+    cardLayout->setAlignment(Qt::AlignLeft);
 
     QStringList titles = {"总营收 (REVENUE)", "毛利润 (PROFIT)", "客单价 (AVG ORDER)"};
     m_cardValues.clear();
+    m_cardTitles.clear(); // 记录标题标签以便动态修改
     m_cardTrends.clear();
 
     for (int i = 0; i < 3; ++i) {
         QWidget *card = new QWidget();
-        card->setStyleSheet("background: #f8fafc; border: none;");
+        card->setFixedSize(180, 180);
+        card->setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;");
+        
         QVBoxLayout *vl = new QVBoxLayout(card);
-        vl->setContentsMargins(15, 10, 15, 10);
-        vl->setSpacing(2);
+        vl->setContentsMargins(20, 20, 20, 20);
+        vl->setSpacing(15);
+        // 不再整体垂直居中，让内容从顶部开始排布
+        vl->setAlignment(Qt::AlignTop);
 
         QLabel *titleLabel = new QLabel(titles[i]);
-        titleLabel->setStyleSheet("color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; border: none;");
+        titleLabel->setStyleSheet("color: #475569; font-size: 14px; font-weight: 800; text-transform: uppercase; border: none;");
+        titleLabel->setAlignment(Qt::AlignLeft);
         vl->addWidget(titleLabel);
+        m_cardTitles.append(titleLabel);
+
+        // 添加一个弹性间距，让数值垂直居中
+        vl->addStretch();
 
         QLabel *valLabel = new QLabel("--");
-        valLabel->setStyleSheet("color: #0f172a; font-size: 20px; font-weight: 800; border: none;");
+        valLabel->setStyleSheet("color: #0f172a; font-size: 28px; font-weight: 900; border: none;");
+        valLabel->setAlignment(Qt::AlignLeft); // 数值也左对齐
         vl->addWidget(valLabel);
         m_cardValues.append(valLabel);
 
         QLabel *trendLabel = new QLabel("--");
-        trendLabel->setStyleSheet("font-size: 12px; font-weight: 600; border: none;");
+        trendLabel->setStyleSheet("font-size: 13px; font-weight: 600; border: none; color: #94a3b8;");
+        trendLabel->setAlignment(Qt::AlignLeft);
         vl->addWidget(trendLabel);
         m_cardTrends.append(trendLabel);
 
-        cardLayout->addWidget(card, 1);
+        vl->addStretch(); // 底部也留白
+        cardLayout->addWidget(card);
     }
 }
 
@@ -270,7 +315,7 @@ void StatsModule::setupMainContent() {
     m_viewStack->addWidget(createFinanceView());
     m_viewStack->addWidget(createServiceView());
     m_viewStack->addWidget(createInventoryView());
-    m_viewStack->addWidget(createMemberView());
+    m_viewStack->addWidget(createServiceRankView());
 }
 
 QWidget* StatsModule::createFinanceView() {
@@ -279,102 +324,142 @@ QWidget* StatsModule::createFinanceView() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(20);
 
-    // 1. 顶部：营收趋势大图 (带切换选择)
-    QWidget *topCard = new QWidget();
-    topCard->setStyleSheet("background: white; border: none;");
-    QVBoxLayout *topVl = new QVBoxLayout(topCard);
-    topVl->setContentsMargins(0, 10, 0, 10);
+    // 1. 核心数据看板 (带图表/表格切换)
+    QWidget *mainCard = new QWidget();
+    mainCard->setStyleSheet("background: white; border: none; border-radius: 12px;");
+    QVBoxLayout *mainVl = new QVBoxLayout(mainCard);
+    mainVl->setContentsMargins(20, 15, 20, 20);
+    mainVl->setSpacing(15);
 
-    QHBoxLayout *chartHeader = new QHBoxLayout();
-    QLabel *tl = new QLabel("门店经营营收趋势");
-    tl->setStyleSheet("font-size: 15px; font-weight: 700; color: #1e293b; border: none;");
-    chartHeader->addWidget(tl);
-    chartHeader->addStretch();
+    // --- 标题栏 (标题 + 筛选器 + 视图切换) ---
+    QHBoxLayout *headerLayout = new QHBoxLayout();
+    QLabel *titleLabel = new QLabel("门店经营营收分析");
+    titleLabel->setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b;");
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
 
+    // 视图切换按钮 (胶囊样式)
+    QWidget *viewToggle = new QWidget();
+    viewToggle->setStyleSheet("background: #f1f5f9; border-radius: 8px; padding: 2px;");
+    QHBoxLayout *vtl = new QHBoxLayout(viewToggle);
+    vtl->setContentsMargins(2, 2, 2, 2); vtl->setSpacing(0);
+    
+    auto createToggleBtn = [&](const QString &text, bool checked) {
+        QPushButton *btn = new QPushButton(text);
+        btn->setCheckable(true);
+        btn->setChecked(checked);
+        btn->setFixedSize(60, 28);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setStyleSheet(
+            "QPushButton { border: none; border-radius: 6px; color: #64748b; font-size: 12px; font-weight: bold; background: transparent; } "
+            "QPushButton:checked { background: white; color: #3b82f6; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }"
+        );
+        return btn;
+    };
+
+    QPushButton *btnChart = createToggleBtn("趋势图", true);
+    QPushButton *btnData = createToggleBtn("明细表", false);
+    QButtonGroup *viewGroup = new QButtonGroup(mainCard);
+    viewGroup->addButton(btnChart, 0);
+    viewGroup->addButton(btnData, 1);
+    viewGroup->setExclusive(true);
+
+    vtl->addWidget(btnChart);
+    vtl->addWidget(btnData);
+    headerLayout->addWidget(viewToggle);
+    headerLayout->addSpacing(20);
+
+    // 筛选器
     m_trendRangeCombo = new QComboBox();
     m_trendRangeCombo->addItems({"历年对比", "年度走势", "本月走势"});
-    m_trendRangeCombo->setFixedWidth(110);
-    
+    m_trendRangeCombo->setFixedWidth(100);
     m_yearPicker = new QComboBox();
     for(int y=2026; y>=2022; --y) m_yearPicker->addItem(QString::number(y) + "年");
-    m_yearPicker->setFixedWidth(90);
-    m_yearPicker->setVisible(false);
-
+    m_yearPicker->setFixedWidth(85);
     m_monthPicker = new QComboBox();
     for(int m=1; m<=12; ++m) m_monthPicker->addItem(QString::number(m) + "月");
-    m_monthPicker->setFixedWidth(75);
-    m_monthPicker->setCurrentIndex(QDate::currentDate().month() - 1);
-    m_monthPicker->setVisible(false);
+    m_monthPicker->setFixedWidth(70);
 
-    QString comboStyle = 
-        "QComboBox { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; color: #475569; font-weight: 600; } "
-        "QComboBox::drop-down { border: none; } "
-        "QComboBox::down-arrow { image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid #64748b; margin-right: 4px; }";
-    
+    QString comboStyle = "QComboBox { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; color: #475569; font-size: 12px; font-weight: 600; } "
+                         "QComboBox::drop-down { border: none; } QComboBox::down-arrow { image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid #64748b; margin-right: 4px; }";
     m_trendRangeCombo->setStyleSheet(comboStyle);
     m_yearPicker->setStyleSheet(comboStyle);
     m_monthPicker->setStyleSheet(comboStyle);
 
+    headerLayout->addWidget(m_trendRangeCombo);
+    headerLayout->addWidget(m_yearPicker);
+    headerLayout->addWidget(m_monthPicker);
+    mainVl->addLayout(headerLayout);
+
+    // --- 内容区 (StackedWidget) ---
+    m_financeMainStack = new QStackedWidget();
+    
+    // Page 0: Chart
+    m_finTrendChart = new QChartView();
+    m_finTrendChart->setMinimumHeight(400); 
+    m_finTrendChart->setRenderHint(QPainter::Antialiasing);
+    m_finTrendChart->setStyleSheet("background: transparent;");
+    m_financeMainStack->addWidget(m_finTrendChart);
+
+    // Page 1: Table Panel
+    QWidget *tablePanel = new QWidget();
+    QVBoxLayout *tpvl = new QVBoxLayout(tablePanel);
+    tpvl->setContentsMargins(0, 0, 0, 0);
+
+    m_dailyRevenueTable = new QTableWidget();
+    m_dailyRevenueTable->setMinimumHeight(500); 
+    m_dailyRevenueTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_dailyRevenueTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_dailyRevenueTable->setColumnCount(7);
+    m_dailyRevenueTable->setHorizontalHeaderLabels({"日期", "总营收", "服务收入", "商品收入", "寄养收入", "订单量", "客单价"});
+    m_dailyRevenueTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_dailyRevenueTable->verticalHeader()->setVisible(false);
+    m_dailyRevenueTable->verticalHeader()->setDefaultSectionSize(48);
+    m_dailyRevenueTable->setShowGrid(false);
+    m_dailyRevenueTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_dailyRevenueTable->setItemDelegate(new StatsRowDelegate(m_dailyRevenueTable));
+    m_dailyRevenueTable->setStyleSheet("QTableWidget { border: none; background: transparent; } "
+                                      "QHeaderView::section { background: white; color: #64748b; font-weight: bold; border: none; height: 40px; }");
+    tpvl->addWidget(m_dailyRevenueTable);
+
+    // 分页器
+    QWidget *pager = new QWidget();
+    QHBoxLayout *phl = new QHBoxLayout(pager);
+    phl->setContentsMargins(0, 10, 0, 0);
+    m_dailyRevPageLabel = new QLabel("第 1 页 / 共 1 页");
+    m_dailyRevPageLabel->setStyleSheet("color: #64748b; font-size: 12px; font-weight: 600; border: none;");
+
+    auto createPageBtn = [&](const QString &t, int delta) {
+        QPushButton *b = new QPushButton();
+        b->setFixedSize(60, 28); b->setCursor(Qt::PointingHandCursor);
+        b->setStyleSheet("QPushButton { background: #f1f5f9; border: none; border-radius: 6px; } QPushButton:hover { background: #e2e8f0; }");
+        QLabel *l = new QLabel(t, b); l->setAlignment(Qt::AlignCenter); l->setAttribute(Qt::WA_TransparentForMouseEvents);
+        l->setStyleSheet("color: #475569; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+        QVBoxLayout *bl = new QVBoxLayout(b); bl->setContentsMargins(0, 0, 0, 0); bl->addWidget(l);
+        connect(b, &QPushButton::clicked, this, [=](){ goToDailyRevPage(delta); });
+        return b;
+    };
+    phl->addStretch(); phl->addWidget(createPageBtn("上一页", -1)); phl->addWidget(m_dailyRevPageLabel); phl->addWidget(createPageBtn("下一页", 1));
+    tpvl->addWidget(pager);
+
+    m_financeMainStack->addWidget(tablePanel);
+    mainVl->addWidget(m_financeMainStack, 1);
+
+    layout->addWidget(mainCard, 1);
+
+    // 逻辑连接
+    connect(viewGroup, QOverload<int>::of(&QButtonGroup::idClicked), m_financeMainStack, &QStackedWidget::setCurrentIndex);
+    
     auto updatePickerVisibility = [this]() {
         int idx = m_trendRangeCombo->currentIndex();
         m_yearPicker->setVisible(idx == 1 || idx == 2);
         m_monthPicker->setVisible(idx == 2);
     };
-
-    connect(m_trendRangeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, updatePickerVisibility](){
-        updatePickerVisibility();
-        refreshData();
-    });
+    connect(m_trendRangeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ updatePickerVisibility(); refreshData(); });
     connect(m_yearPicker, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatsModule::refreshData);
     connect(m_monthPicker, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatsModule::refreshData);
-
-    chartHeader->addWidget(m_trendRangeCombo);
-    chartHeader->addWidget(m_yearPicker);
-    chartHeader->addWidget(m_monthPicker);
-    topVl->addLayout(chartHeader);
-
-    m_finTrendChart = new QChartView();
-    m_finTrendChart->setFixedHeight(280); // 压缩高度以适应一屏
-    m_finTrendChart->setRenderHint(QPainter::Antialiasing);
-    m_finTrendChart->setStyleSheet("background: transparent; border: none;");
     
-    m_customTooltip = new QLabel(m_finTrendChart);
-    m_customTooltip->setWindowFlags(Qt::ToolTip);
-    m_customTooltip->setStyleSheet(
-        "background: white; border: 1px solid #3b82f6; border-radius: 8px; "
-        "padding: 10px; color: #1e293b; font-size: 13px; font-weight: 600; "
-        "box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);"
-    );
-    m_customTooltip->hide();
-
-    topVl->addWidget(m_finTrendChart);
-    layout->addWidget(topCard);
-
-    // 2. 底部：并排分布图
-    QWidget *bottomArea = new QWidget();
-    QHBoxLayout *bottomLayout = new QHBoxLayout(bottomArea);
-    bottomLayout->setContentsMargins(0, 0, 0, 0);
-    bottomLayout->setSpacing(20);
-
-    auto createChartCard = [&](const QString &title, QChartView* &chartView) {
-        QWidget *card = new QWidget();
-        card->setStyleSheet("background: white; border: none;"); // 移除内部边框
-        QVBoxLayout *vl = new QVBoxLayout(card);
-        vl->setContentsMargins(0, 10, 0, 10);
-        QLabel *l = new QLabel(title);
-        l->setStyleSheet("font-size: 14px; font-weight: 700; color: #1e293b; border: none;");
-        vl->addWidget(l);
-        chartView = new QChartView();
-        chartView->setFixedHeight(240); // 压缩高度
-        chartView->setStyleSheet("background: transparent; border: none;");
-        vl->addWidget(chartView);
-        return card;
-    };
-
-    bottomLayout->addWidget(createChartCard("营收项目构成", m_finCompChart), 1);
-    bottomLayout->addWidget(createChartCard("支付渠道分布", m_finPayChart), 1);
-    layout->addWidget(bottomArea);
-
+    updatePickerVisibility();
     return view;
 }
 
@@ -511,7 +596,7 @@ QWidget* StatsModule::createServiceView() {
 
     fhl->addStretch();
 
-    auto refreshByHistory = [=, titleUpdaters](){
+    auto refreshByHistory = [=](){
         // 如果快捷按钮有选中的，先取消它
         if(tg->checkedButton()) {
             tg->setExclusive(false);
@@ -553,11 +638,7 @@ QWidget* StatsModule::createServiceView() {
     // 日期变化 -> 刷新数据
     connect(dayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshByHistory(); });
 
-    // 导出按钮
-    QPushButton *exportBtn = new QPushButton(QString::fromUtf8(" 导出报表 "));
-    exportBtn->setStyleSheet("QPushButton { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; color: #64748b; font-size: 12px; padding: 5px 12px; } QPushButton:hover { background: #f1f5f9; }");
-    fhl->addWidget(exportBtn);
-
+    // 导出按钮已按需移除
     mainVl->addWidget(filterBar);
 
     // 2. 排行榜主布局
@@ -582,22 +663,29 @@ QWidget* StatsModule::createServiceView() {
         auto createSortToggle = [&]() {
             QFrame *toggleGroup = new QFrame();
             toggleGroup->setObjectName("SortToggle");
-            toggleGroup->setAttribute(Qt::WA_StyledBackground); 
-            QHBoxLayout *stgl = new QHBoxLayout(toggleGroup);
-            stgl->setContentsMargins(4, 2, 4, 2);
-            stgl->setSpacing(5);
+            toggleGroup->setFixedSize(130, 28);
             toggleGroup->setStyleSheet(
                 "QFrame#SortToggle { background-color: white; border: 1px solid #e2e8f0; border-radius: 14px; }"
-                "QPushButton { border: none; background: transparent; color: #64748b; font-size: 11px; padding: 4px 10px; outline: none; }"
-                "QPushButton:checked { color: #3b82f6; font-weight: bold; }"
+                "QPushButton { border: none; background: transparent; color: #64748b; font-size: 11px; font-weight: bold; padding: 0px; outline: none; } "
+                "QPushButton:checked { color: #3b82f6; }"
             );
+            QHBoxLayout *stgl = new QHBoxLayout(toggleGroup);
+            stgl->setContentsMargins(8, 0, 8, 0);
+            stgl->setSpacing(8);
+
             auto btnRev = new QPushButton(QString::fromUtf8("按营收"), toggleGroup);
             auto btnCount = new QPushButton(QString::fromUtf8("按单量"), toggleGroup);
             btnRev->setCheckable(true); btnCount->setCheckable(true);
             btnRev->setChecked(true); 
+            btnRev->setCursor(Qt::PointingHandCursor);
+            btnCount->setCursor(Qt::PointingHandCursor);
+
             QButtonGroup *group = new QButtonGroup(toggleGroup);
-            group->addButton(btnRev); group->addButton(btnCount);
-            stgl->addWidget(btnRev); stgl->addWidget(btnCount);
+            group->addButton(btnRev); 
+            group->addButton(btnCount); // group handles exclusive toggle
+            
+            stgl->addWidget(btnRev);
+            stgl->addWidget(btnCount);
 
             connect(btnRev, &QPushButton::clicked, this, [=](){
                 if (isStaff) m_staffSortByRev = true; else m_serviceSortByRev = true;
@@ -704,11 +792,10 @@ QWidget* StatsModule::createServiceView() {
         return mainWrapper;
     };
 
-    rankLayout->addWidget(createRankPanel(QString::fromUtf8("理容师绩效排行"), m_staffRankTable, {"头像", "ID", "姓名", "岗位", "单量", "营收"}, true), 1);
-    rankLayout->addWidget(createRankPanel(QString::fromUtf8("服务项目排行"), m_serviceRankTable, {"项目", "单量", "营收"}, false), 1);
+    rankLayout->addWidget(createRankPanel(QString::fromUtf8("店员绩效排行汇总"), m_staffRankTable, {"头像", "ID", "姓名", "岗位", "单量", "营收"}, true), 1);
 
     // 全局信号连接
-    connect(tg, &QButtonGroup::idClicked, this, [=, titleUpdaters](int id){
+    connect(tg, &QButtonGroup::idClicked, this, [=](int id){
         // 点击快捷按钮时，重置下拉框到当前年月（避免显示冲突）
         yearCombo->blockSignals(true);
         monthCombo->blockSignals(true);
@@ -752,51 +839,232 @@ void StatsModule::goToServicePage(int delta) {
     }
 }
 
-QWidget* StatsModule::createInventoryView() {
+QWidget* StatsModule::createServiceRankView() {
     QWidget *view = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(view);
-    layout->setContentsMargins(0, 20, 0, 0);
-    layout->setSpacing(20);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(15);
+
+    // 1. 全局筛选工具栏 (复刻自商品统计)
+    QWidget *filterBar = new QWidget();
+    filterBar->setFixedHeight(50);
+    filterBar->setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 12px;");
+    QHBoxLayout *fhl = new QHBoxLayout(filterBar);
+    fhl->setContentsMargins(15, 0, 15, 0);
+    fhl->setSpacing(10);
+
+    QLabel *fl = new QLabel(QString::fromUtf8("统计周期："));
+    fl->setStyleSheet("font-weight: bold; color: #64748b; font-size: 13px; border: none;");
+    fhl->addWidget(fl);
+
+    QWidget *timeGroup = new QWidget();
+    timeGroup->setStyleSheet("border: none; background: transparent;");
+    QHBoxLayout *tgl = new QHBoxLayout(timeGroup);
+    tgl->setContentsMargins(0, 0, 0, 0);
+    tgl->setSpacing(8);
+
+    QStringList periods = {QString::fromUtf8("今日"), QString::fromUtf8("昨日"), 
+                          QString::fromUtf8("本月"), QString::fromUtf8("上月"), 
+                          QString::fromUtf8("今年")};
+    QButtonGroup *tg = new QButtonGroup(timeGroup);
+    tg->setExclusive(true);
+
+    auto titleUpdaters = std::make_shared<QList<std::function<void(int)>>>();
+
+    for (int i = 0; i < periods.size(); ++i) {
+        QPushButton *btn = new QPushButton(periods[i]);
+        btn->setCheckable(true);
+        btn->setFixedHeight(32);
+        btn->setCursor(Qt::PointingHandCursor);
+        if (i == 2) btn->setChecked(true);
+        btn->setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; color: #606266; font-size: 13px; } "
+            "QPushButton:hover { background: #ecf5ff; border-color: #409eff; color: #409eff; } "
+            "QPushButton:checked { background: #409eff; border-color: #409eff; color: white; font-weight: bold; } "
+        );
+        tg->addButton(btn, i);
+        tgl->addWidget(btn);
+    }
+    fhl->addWidget(timeGroup);
+
+    fhl->addSpacing(15);
+    QFrame *sep = new QFrame();
+    sep->setFixedSize(1, 20);
+    sep->setStyleSheet("background-color: #e2e8f0;");
+    fhl->addWidget(sep);
+    fhl->addSpacing(15);
+
+    QFrame *historyGroup = new QFrame();
+    historyGroup->setObjectName("HistoryGroup");
+    historyGroup->setAttribute(Qt::WA_StyledBackground);
+    QHBoxLayout *hgl = new QHBoxLayout(historyGroup);
+    hgl->setContentsMargins(12, 4, 4, 4);
+    hgl->setSpacing(8);
+    historyGroup->setStyleSheet("border: none; background: transparent;");
+
+    QLabel *hl = new QLabel(QString::fromUtf8("历史查看"));
+    hl->setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+    hgl->addWidget(hl);
+
+    QString comboStyle = 
+        "QComboBox { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; color: #1e293b; font-size: 13px; font-weight: bold; min-width: 85px; height: 30px; } "
+        "QComboBox:hover { border-color: #3b82f6; } "
+        "QComboBox::drop-down { border: none; width: 24px; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QAbstractItemView { border: 1px solid #e2e8f0; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; border-radius: 6px; }";
+
+    QComboBox *yearCombo = new QComboBox();
+    for(int y=2023; y<=2026; ++y) yearCombo->addItem(QString::number(y) + QString::fromUtf8("年"), y);
+    yearCombo->setCurrentText(QString::number(QDate::currentDate().year()) + QString::fromUtf8("年"));
+    yearCombo->setStyleSheet(comboStyle);
+    
+    QComboBox *monthCombo = new QComboBox();
+    monthCombo->addItem(QString::fromUtf8("全部月份"), 0);
+    for(int m=1; m<=12; ++m) monthCombo->addItem(QString::number(m) + QString::fromUtf8("月"), m);
+    monthCombo->setCurrentIndex(QDate::currentDate().month());
+    monthCombo->setStyleSheet(comboStyle);
+
+    QComboBox *dayCombo = new QComboBox();
+    dayCombo->setStyleSheet(comboStyle);
+
+    auto refreshDayCombo = [=]() {
+        int selMonth = monthCombo->currentData().toInt();
+        dayCombo->blockSignals(true);
+        dayCombo->clear();
+        if (selMonth == 0) {
+            dayCombo->setVisible(false);
+        } else {
+            dayCombo->setVisible(true);
+            dayCombo->addItem(QString::fromUtf8("全部日期"), 0);
+            int selYear = yearCombo->currentData().toInt();
+            int daysInMonth = QDate(selYear, selMonth, 1).daysInMonth();
+            for (int d = 1; d <= daysInMonth; ++d)
+                dayCombo->addItem(QString::number(d) + QString::fromUtf8("日"), d);
+            dayCombo->setCurrentIndex(0);
+        }
+        dayCombo->blockSignals(false);
+    };
+    refreshDayCombo();
+    
+    hgl->addWidget(yearCombo);
+    hgl->addWidget(monthCombo);
+    hgl->addWidget(dayCombo);
+    fhl->addWidget(historyGroup);
+    fhl->addStretch();
+
+    auto refreshByHistory = [=](){
+        if(tg->checkedButton()) {
+            tg->setExclusive(false);
+            tg->checkedButton()->setChecked(false);
+            tg->setExclusive(true);
+        }
+        int selMonth = monthCombo->currentData().toInt();
+        int selDay = dayCombo->isVisible() ? dayCombo->currentData().toInt() : 0;
+        if (selMonth == 0) m_serviceRankTimeRange = 2;
+        else if (selDay == 0) m_serviceRankTimeRange = 1;
+        else m_serviceRankTimeRange = 0;
+        
+        for(auto &updater : *titleUpdaters) updater(-1);
+        updateServiceRankAnalysis(); 
+    };
+
+    connect(yearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshDayCombo(); refreshByHistory(); });
+    connect(monthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshDayCombo(); refreshByHistory(); });
+    connect(dayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshByHistory(); });
+
+    layout->addWidget(filterBar);
+
+    connect(tg, &QButtonGroup::idClicked, this, [=](int id){
+        yearCombo->blockSignals(true);
+        monthCombo->blockSignals(true);
+        dayCombo->blockSignals(true);
+        yearCombo->setCurrentText(QString::number(QDate::currentDate().year()) + QString::fromUtf8("年"));
+        monthCombo->setCurrentIndex(QDate::currentDate().month());
+        refreshDayCombo();
+        yearCombo->blockSignals(false);
+        monthCombo->blockSignals(false);
+        dayCombo->blockSignals(false);
+
+        int rangeMap[] = {0, 0, 1, 1, 2}; 
+        m_serviceRankTimeRange = rangeMap[id];
+        for(auto &updater : *titleUpdaters) updater(id);
+        updateServiceRankAnalysis();
+    });
 
     QHBoxLayout *rankLayout = new QHBoxLayout();
-    rankLayout->setSpacing(20);
+    rankLayout->setSpacing(15);
 
-    auto createRankPanel = [&](const QString &title, QTableWidget* &table, const QStringList &headers, bool isProduct) {
+    auto createRankPanel = [&](const QString &title, QTableWidget* &table, const QStringList &headers, bool isItem) {
         QWidget *mainWrapper = new QWidget();
         QVBoxLayout *ovl = new QVBoxLayout(mainWrapper);
         ovl->setContentsMargins(0,0,0,0);
+
+        QHBoxLayout *hl = new QHBoxLayout();
+        hl->setContentsMargins(5, 0, 5, 5); 
+        QLabel *tl = new QLabel(title + QString::fromUtf8(" (本月)"));
+        tl->setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b; border: none;");
+        hl->addWidget(tl);
+        hl->addStretch();
+
+        titleUpdaters->append([=](int id){
+            QString suffix = QString::fromUtf8(" (本月)");
+            if(id == 0) suffix = QString::fromUtf8(" (今日)");
+            else if(id == 1) suffix = QString::fromUtf8(" (昨日)");
+            else if(id == 3) suffix = QString::fromUtf8(" (上月)");
+            else if(id == 4) suffix = QString::fromUtf8(" (今年)");
+            else if(id == -1) {
+                int selYear = yearCombo->currentData().toInt();
+                int selMonth = monthCombo->currentData().toInt();
+                int selDay = dayCombo->isVisible() ? dayCombo->currentData().toInt() : 0;
+                if (selMonth == 0) suffix = QString(" (%1%2)").arg(selYear).arg(QString::fromUtf8("年"));
+                else if (selDay == 0) suffix = QString(" (%1-%2)").arg(selYear).arg(selMonth, 2, 10, QChar('0'));
+                else suffix = QString(" (%1-%2-%3)").arg(selYear).arg(selMonth, 2, 10, QChar('0')).arg(selDay, 2, 10, QChar('0'));
+            }
+            tl->setText(title + suffix);
+        });
+
+        auto createSortToggle = [&]() {
+            QFrame *toggleGroup = new QFrame();
+            toggleGroup->setObjectName("SortToggle");
+            toggleGroup->setFixedSize(130, 28);
+            toggleGroup->setStyleSheet(
+                "QFrame#SortToggle { background-color: white; border: 1px solid #e2e8f0; border-radius: 14px; }"
+                "QPushButton { border: none; background: transparent; color: #64748b; font-size: 11px; font-weight: bold; padding: 0px; outline: none; } "
+                "QPushButton:checked { color: #3b82f6; }"
+            );
+            QHBoxLayout *stgl = new QHBoxLayout(toggleGroup);
+            stgl->setContentsMargins(8, 0, 8, 0);
+            stgl->setSpacing(8);
+            auto btnRev = new QPushButton(QString::fromUtf8("按营收"), toggleGroup);
+            auto btnCount = new QPushButton(QString::fromUtf8("按单量"), toggleGroup);
+            btnRev->setCheckable(true); btnCount->setCheckable(true);
+            btnRev->setChecked(true); 
+            btnRev->setCursor(Qt::PointingHandCursor);
+            btnCount->setCursor(Qt::PointingHandCursor);
+            QButtonGroup *group = new QButtonGroup(toggleGroup);
+            group->addButton(btnRev); group->addButton(btnCount);
+            stgl->addWidget(btnRev); stgl->addWidget(btnCount);
+            connect(btnRev, &QPushButton::clicked, this, [=](){
+                if (isItem) m_serviceItemSortByRev = true; else m_serviceCategorySortByRev = true;
+                if (isItem) updateServiceItemTable(); else updateServiceCategoryTable();
+            });
+            connect(btnCount, &QPushButton::clicked, this, [=](){
+                if (isItem) m_serviceItemSortByRev = false; else m_serviceCategorySortByRev = false;
+                if (isItem) updateServiceItemTable(); else updateServiceCategoryTable();
+            });
+            return toggleGroup;
+        };
+        hl->addWidget(createSortToggle());
+        ovl->addLayout(hl);
 
         QWidget *contentBox = new QWidget();
         contentBox->setObjectName("RankBox");
         contentBox->setStyleSheet("QWidget#RankBox { background: white; border-radius: 12px; border: 1px solid #e2e8f0; }");
         QVBoxLayout *cvl = new QVBoxLayout(contentBox);
-        cvl->setContentsMargins(15, 15, 15, 15);
-
-        QHBoxLayout *hl = new QHBoxLayout();
-        QLabel *tl = new QLabel(title);
-        tl->setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b; border: none;");
-        hl->addWidget(tl);
-        hl->addStretch();
-
-        QWidget *sortGroup = new QWidget();
-        QHBoxLayout *sgl = new QHBoxLayout(sortGroup);
-        sgl->setContentsMargins(0,0,0,0); sgl->setSpacing(4);
-        auto createSortBtn = [&](const QString &t, bool checked) {
-            QPushButton *b = new QPushButton(t);
-            b->setCheckable(true); b->setChecked(checked); b->setFixedSize(50, 24);
-            b->setStyleSheet("QPushButton { background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: bold; border-radius: 6px; border: none; } "
-                             "QPushButton:checked { background: #3b82f6; color: white; }");
-            return b;
-        };
-        QPushButton *revBtn = createSortBtn("营收", true);
-        QPushButton *countBtn = createSortBtn("销量", false);
-        QButtonGroup *bg = new QButtonGroup(mainWrapper);
-        bg->addButton(revBtn); bg->addButton(countBtn);
-        sgl->addWidget(revBtn); sgl->addWidget(countBtn);
-        hl->addWidget(sortGroup);
-        cvl->addLayout(hl);
-
+        cvl->setContentsMargins(15, 10, 15, 15);
         table = new QTableWidget();
+        table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         table->setColumnCount(headers.size());
         table->setHorizontalHeaderLabels(headers);
         table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -807,7 +1075,297 @@ QWidget* StatsModule::createInventoryView() {
         table->setFocusPolicy(Qt::NoFocus);
         table->setItemDelegate(new StatsRowDelegate(table));
         table->setStyleSheet("QTableWidget { border: none; background: transparent; } "
-                             "QHeaderView::section { background: #f8fafc; color: #64748b; font-weight: bold; border: none; height: 40px; }");
+                             "QHeaderView::section { background: white; color: #64748b; font-weight: bold; border: none; height: 40px; }");
+        cvl->addWidget(table, 1);
+
+        QWidget *pager = new QWidget();
+        QHBoxLayout *phl = new QHBoxLayout(pager);
+        phl->setContentsMargins(0, 10, 0, 0);
+        QLabel *pl = new QLabel("第 1 页 / 共 1 页");
+        pl->setStyleSheet("color: #64748b; font-size: 12px; font-weight: 600; border: none;");
+        if (isItem) m_serviceItemPageLabel = pl; else m_serviceCategoryPageLabel = pl;
+        auto createPageBtn = [&](const QString &t, int delta) {
+            QPushButton *b = new QPushButton();
+            b->setFixedSize(60, 28);
+            b->setCursor(Qt::PointingHandCursor);
+            b->setStyleSheet("QPushButton { background: #f1f5f9; border: none; border-radius: 6px; } "
+                             "QPushButton:hover { background: #e2e8f0; }");
+            QLabel *btnLbl = new QLabel(t, b);
+            btnLbl->setAttribute(Qt::WA_TransparentForMouseEvents);
+            btnLbl->setAlignment(Qt::AlignCenter);
+            btnLbl->setStyleSheet("color: #475569; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+            QVBoxLayout *bl = new QVBoxLayout(b);
+            bl->setContentsMargins(0, 0, 0, 0);
+            bl->addWidget(btnLbl);
+            connect(b, &QPushButton::clicked, this, [=](){ if(isItem) goToServiceItemPage(delta); else goToServiceCategoryPage(delta); });
+            return b;
+        };
+        phl->addStretch();
+        phl->addWidget(createPageBtn("上一页", -1));
+        phl->addWidget(pl);
+        phl->addWidget(createPageBtn("下一页", 1));
+        phl->setSpacing(15);
+        cvl->addWidget(pager);
+        ovl->addWidget(contentBox);
+        return mainWrapper;
+    };
+
+    layout->addLayout(rankLayout);
+    rankLayout->addWidget(createRankPanel("服务项目单项排行", m_serviceRankTable, {"服务项目", "销量", "营收"}, true), 1);
+    rankLayout->addWidget(createRankPanel("服务类目销售排行", m_serviceCategoryRankTable, {"类目", "销量", "营收"}, false), 1);
+    
+    return view;
+}
+
+QWidget* StatsModule::createInventoryView() {
+    QWidget *view = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(view);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(15);
+
+    // 1. 全局筛选工具栏 (复刻自服务统计)
+    QWidget *filterBar = new QWidget();
+    filterBar->setFixedHeight(50);
+    filterBar->setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 12px;");
+    QHBoxLayout *fhl = new QHBoxLayout(filterBar);
+    fhl->setContentsMargins(15, 0, 15, 0);
+    fhl->setSpacing(10);
+
+    QLabel *fl = new QLabel(QString::fromUtf8("统计周期："));
+    fl->setStyleSheet("font-weight: bold; color: #64748b; font-size: 13px; border: none;");
+    fhl->addWidget(fl);
+
+    QWidget *timeGroup = new QWidget();
+    timeGroup->setStyleSheet("border: none; background: transparent;");
+    QHBoxLayout *tgl = new QHBoxLayout(timeGroup);
+    tgl->setContentsMargins(0, 0, 0, 0);
+    tgl->setSpacing(8);
+
+    QStringList periods = {QString::fromUtf8("今日"), QString::fromUtf8("昨日"), 
+                          QString::fromUtf8("本月"), QString::fromUtf8("上月"), 
+                          QString::fromUtf8("今年")};
+    QButtonGroup *tg = new QButtonGroup(timeGroup);
+    tg->setExclusive(true);
+
+    auto titleUpdaters = std::make_shared<QList<std::function<void(int)>>>();
+
+    for (int i = 0; i < periods.size(); ++i) {
+        QPushButton *btn = new QPushButton(periods[i]);
+        btn->setCheckable(true);
+        btn->setFixedHeight(32);
+        btn->setCursor(Qt::PointingHandCursor);
+        if (i == 2) btn->setChecked(true);
+        btn->setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; color: #606266; font-size: 13px; } "
+            "QPushButton:hover { background: #ecf5ff; border-color: #409eff; color: #409eff; } "
+            "QPushButton:checked { background: #409eff; border-color: #409eff; color: white; font-weight: bold; } "
+        );
+        tg->addButton(btn, i);
+        tgl->addWidget(btn);
+    }
+    fhl->addWidget(timeGroup);
+
+    fhl->addSpacing(15);
+    QFrame *sep = new QFrame();
+    sep->setFixedSize(1, 20);
+    sep->setStyleSheet("background-color: #e2e8f0;");
+    fhl->addWidget(sep);
+    fhl->addSpacing(15);
+
+    QFrame *historyGroup = new QFrame();
+    historyGroup->setObjectName("HistoryGroup");
+    historyGroup->setAttribute(Qt::WA_StyledBackground);
+    QHBoxLayout *hgl = new QHBoxLayout(historyGroup);
+    hgl->setContentsMargins(12, 4, 4, 4);
+    hgl->setSpacing(8);
+    historyGroup->setStyleSheet("border: none; background: transparent;");
+
+    QLabel *hl = new QLabel(QString::fromUtf8("历史查看"));
+    hl->setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+    hgl->addWidget(hl);
+
+    QString comboStyle = 
+        "QComboBox { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; color: #1e293b; font-size: 13px; font-weight: bold; min-width: 85px; height: 30px; } "
+        "QComboBox:hover { border-color: #3b82f6; } "
+        "QComboBox::drop-down { border: none; width: 24px; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QAbstractItemView { border: 1px solid #e2e8f0; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; border-radius: 6px; }";
+
+    QComboBox *yearCombo = new QComboBox();
+    for(int y=2023; y<=2026; ++y) yearCombo->addItem(QString::number(y) + QString::fromUtf8("年"), y);
+    yearCombo->setCurrentText(QString::number(QDate::currentDate().year()) + QString::fromUtf8("年"));
+    yearCombo->setStyleSheet(comboStyle);
+    
+    QComboBox *monthCombo = new QComboBox();
+    monthCombo->addItem(QString::fromUtf8("全部月份"), 0);
+    for(int m=1; m<=12; ++m) monthCombo->addItem(QString::number(m) + QString::fromUtf8("月"), m);
+    monthCombo->setCurrentIndex(QDate::currentDate().month());
+    monthCombo->setStyleSheet(comboStyle);
+
+    QComboBox *dayCombo = new QComboBox();
+    dayCombo->setStyleSheet(comboStyle);
+
+    auto refreshDayCombo = [=]() {
+        int selMonth = monthCombo->currentData().toInt();
+        dayCombo->blockSignals(true);
+        dayCombo->clear();
+        if (selMonth == 0) {
+            dayCombo->setVisible(false);
+        } else {
+            dayCombo->setVisible(true);
+            dayCombo->addItem(QString::fromUtf8("全部日期"), 0);
+            int selYear = yearCombo->currentData().toInt();
+            int daysInMonth = QDate(selYear, selMonth, 1).daysInMonth();
+            for (int d = 1; d <= daysInMonth; ++d)
+                dayCombo->addItem(QString::number(d) + QString::fromUtf8("日"), d);
+            dayCombo->setCurrentIndex(0);
+        }
+        dayCombo->blockSignals(false);
+    };
+    refreshDayCombo();
+    
+    hgl->addWidget(yearCombo);
+    hgl->addWidget(monthCombo);
+    hgl->addWidget(dayCombo);
+    fhl->addWidget(historyGroup);
+    fhl->addStretch();
+
+    auto refreshByHistory = [=](){
+        if(tg->checkedButton()) {
+            tg->setExclusive(false);
+            tg->checkedButton()->setChecked(false);
+            tg->setExclusive(true);
+        }
+        int selMonth = monthCombo->currentData().toInt();
+        int selDay = dayCombo->isVisible() ? dayCombo->currentData().toInt() : 0;
+        if (selMonth == 0) m_productTimeRange = 2;
+        else if (selDay == 0) m_productTimeRange = 1;
+        else m_productTimeRange = 0;
+        
+        for(auto &updater : *titleUpdaters) updater(-1);
+        updateProductAnalysis(); 
+    };
+
+    connect(yearCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshDayCombo(); refreshByHistory(); });
+    connect(monthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshDayCombo(); refreshByHistory(); });
+    connect(dayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ refreshByHistory(); });
+
+    layout->addWidget(filterBar);
+
+    connect(tg, &QButtonGroup::idClicked, this, [=](int id){
+        yearCombo->blockSignals(true);
+        monthCombo->blockSignals(true);
+        dayCombo->blockSignals(true);
+        yearCombo->setCurrentText(QString::number(QDate::currentDate().year()) + QString::fromUtf8("年"));
+        monthCombo->setCurrentIndex(QDate::currentDate().month());
+        refreshDayCombo();
+        yearCombo->blockSignals(false);
+        monthCombo->blockSignals(false);
+        dayCombo->blockSignals(false);
+
+        int rangeMap[] = {0, 0, 1, 1, 2}; 
+        m_productTimeRange = rangeMap[id];
+        for(auto &updater : *titleUpdaters) updater(id);
+        updateProductAnalysis();
+    });
+
+    QHBoxLayout *rankLayout = new QHBoxLayout();
+    rankLayout->setSpacing(15);
+
+    auto createRankPanel = [&](const QString &title, QTableWidget* &table, const QStringList &headers, bool isProduct) {
+        QWidget *mainWrapper = new QWidget();
+        QVBoxLayout *ovl = new QVBoxLayout(mainWrapper);
+        ovl->setContentsMargins(0,0,0,0);
+
+        QHBoxLayout *hl = new QHBoxLayout();
+        hl->setContentsMargins(5, 0, 5, 5); // 底部留点间距给下方的盒子
+        QLabel *tl = new QLabel(title + QString::fromUtf8(" (本月)"));
+        tl->setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b; border: none;");
+        hl->addWidget(tl);
+        hl->addStretch();
+
+        // 注册标题更新逻辑
+        titleUpdaters->append([=](int id){
+            QString suffix = QString::fromUtf8(" (本月)");
+            if(id == 0) suffix = QString::fromUtf8(" (今日)");
+            else if(id == 1) suffix = QString::fromUtf8(" (昨日)");
+            else if(id == 3) suffix = QString::fromUtf8(" (上月)");
+            else if(id == 4) suffix = QString::fromUtf8(" (今年)");
+            else if(id == -1) {
+                int selYear = yearCombo->currentData().toInt();
+                int selMonth = monthCombo->currentData().toInt();
+                int selDay = dayCombo->isVisible() ? dayCombo->currentData().toInt() : 0;
+                if (selMonth == 0) {
+                    suffix = QString(" (%1%2)").arg(selYear).arg(QString::fromUtf8("年"));
+                } else if (selDay == 0) {
+                    suffix = QString(" (%1-%2)").arg(selYear).arg(selMonth, 2, 10, QChar('0'));
+                } else {
+                    suffix = QString(" (%1-%2-%3)").arg(selYear).arg(selMonth, 2, 10, QChar('0')).arg(selDay, 2, 10, QChar('0'));
+                }
+            }
+            tl->setText(title + suffix);
+        });
+
+        auto createSortToggle = [&]() {
+            QFrame *toggleGroup = new QFrame();
+            toggleGroup->setObjectName("SortToggle");
+            toggleGroup->setFixedSize(130, 28);
+            toggleGroup->setStyleSheet(
+                "QFrame#SortToggle { background-color: white; border: 1px solid #e2e8f0; border-radius: 14px; }"
+                "QPushButton { border: none; background: transparent; color: #64748b; font-size: 11px; font-weight: bold; padding: 0px; outline: none; } "
+                "QPushButton:checked { color: #3b82f6; }"
+            );
+            QHBoxLayout *stgl = new QHBoxLayout(toggleGroup);
+            stgl->setContentsMargins(8, 0, 8, 0);
+            stgl->setSpacing(8);
+
+            auto btnRev = new QPushButton(QString::fromUtf8("按营收"), toggleGroup);
+            auto btnCount = new QPushButton(QString::fromUtf8("按单量"), toggleGroup);
+            btnRev->setCheckable(true); btnCount->setCheckable(true);
+            btnRev->setChecked(true); 
+            btnRev->setCursor(Qt::PointingHandCursor);
+            btnCount->setCursor(Qt::PointingHandCursor);
+
+            QButtonGroup *group = new QButtonGroup(toggleGroup);
+            group->addButton(btnRev); group->addButton(btnCount);
+            
+            stgl->addWidget(btnRev);
+            stgl->addWidget(btnCount);
+
+            connect(btnRev, &QPushButton::clicked, this, [=](){
+                if (isProduct) m_productSortByRev = true; else m_categorySortByRev = true;
+                if (isProduct) updateProductTable(); else updateCategoryTable();
+            });
+            connect(btnCount, &QPushButton::clicked, this, [=](){
+                if (isProduct) m_productSortByRev = false; else m_categorySortByRev = false;
+                if (isProduct) updateProductTable(); else updateCategoryTable();
+            });
+            return toggleGroup;
+        };
+        hl->addWidget(createSortToggle());
+        
+        ovl->addLayout(hl); // 将标题和按钮加入外部布局，位于盒子上方
+
+        QWidget *contentBox = new QWidget();
+        contentBox->setObjectName("RankBox");
+        contentBox->setStyleSheet("QWidget#RankBox { background: white; border-radius: 12px; border: 1px solid #e2e8f0; }");
+        QVBoxLayout *cvl = new QVBoxLayout(contentBox);
+        cvl->setContentsMargins(15, 10, 15, 15);
+
+        table = new QTableWidget();
+        table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        table->setColumnCount(headers.size());
+        table->setHorizontalHeaderLabels(headers);
+        table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        table->verticalHeader()->setVisible(false);
+        table->verticalHeader()->setDefaultSectionSize(48);
+        table->setShowGrid(false);
+        table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        table->setFocusPolicy(Qt::NoFocus);
+        table->setItemDelegate(new StatsRowDelegate(table));
+        table->setStyleSheet("QTableWidget { border: none; background: transparent; } "
+                             "QHeaderView::section { background: white; color: #64748b; font-weight: bold; border: none; height: 40px; }");
         cvl->addWidget(table, 1);
 
         QWidget *pager = new QWidget();
@@ -818,29 +1376,27 @@ QWidget* StatsModule::createInventoryView() {
         if (isProduct) m_productPageLabel = pl; else m_categoryPageLabel = pl;
 
         auto createPageBtn = [&](const QString &t, int delta) {
-            QPushButton *b = new QPushButton(t);
+            QPushButton *b = new QPushButton();
             b->setFixedSize(60, 28);
-            b->setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; font-size: 12px; font-weight: bold; border-radius: 6px; border: none; } "
+            b->setCursor(Qt::PointingHandCursor);
+            b->setStyleSheet("QPushButton { background: #f1f5f9; border: none; border-radius: 6px; } "
                              "QPushButton:hover { background: #e2e8f0; }");
+            QLabel *btnLbl = new QLabel(t, b);
+            btnLbl->setAttribute(Qt::WA_TransparentForMouseEvents);
+            btnLbl->setAlignment(Qt::AlignCenter);
+            btnLbl->setStyleSheet("color: #475569; font-size: 12px; font-weight: bold; border: none; background: transparent;");
+            QVBoxLayout *bl = new QVBoxLayout(b);
+            bl->setContentsMargins(0, 0, 0, 0);
+            bl->addWidget(btnLbl);
             connect(b, &QPushButton::clicked, this, [=](){ if(isProduct) goToProductPage(delta); else goToCategoryPage(delta); });
             return b;
         };
+        phl->addStretch();
         phl->addWidget(createPageBtn("上一页", -1));
-        phl->addStretch();
         phl->addWidget(pl);
-        phl->addStretch();
         phl->addWidget(createPageBtn("下一页", 1));
+        phl->setSpacing(15);
         cvl->addWidget(pager);
-
-        connect(revBtn, &QPushButton::clicked, this, [=](){ 
-            if(isProduct) m_productSortByRev = true; else m_categorySortByRev = true; 
-            if(isProduct) updateProductTable(); else updateCategoryTable();
-        });
-        connect(countBtn, &QPushButton::clicked, this, [=](){ 
-            if(isProduct) m_productSortByRev = false; else m_categorySortByRev = false; 
-            if(isProduct) updateProductTable(); else updateCategoryTable();
-        });
-
         ovl->addWidget(contentBox);
         return mainWrapper;
     };
@@ -852,23 +1408,17 @@ QWidget* StatsModule::createInventoryView() {
     return view;
 }
 
-QWidget* StatsModule::createMemberView() {
-    QWidget *view = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(view);
-    layout->setContentsMargins(0, 0, 0, 0);
-    QLabel *p = new QLabel("会员增长与画像分析中心 (开发中)");
-    p->setAlignment(Qt::AlignCenter);
-    p->setStyleSheet("color: #94a3b8; font-size: 16px; font-weight: 600;");
-    layout->addWidget(p);
-    return view;
-}
 
 void StatsModule::refreshData() {
-    updateTopCharts(); // 确保顶部全局图表在任何分类下都显示
-    updateCards();
-    updateCharts();
+    updateTopCharts();
     if (m_currentCategory == 1) updateServiceAnalysis();
     else if (m_currentCategory == 2) updateProductAnalysis();
+    else if (m_currentCategory == 3) updateServiceRankAnalysis(); // 先准备服务排行数据
+    
+    updateCards();
+    updateCharts();
+    m_dailyRevPage = 0; 
+    updateDailyRevTable();
 }
 
 void StatsModule::updateCharts() {
@@ -991,7 +1541,8 @@ void StatsModule::updateCharts() {
         compChart->setBackgroundVisible(false);
         // 禁用动画
         QPieSeries *compSeries = new QPieSeries();
-        compSeries->setHoleSize(0.35); // 变成环形图更有现代感
+        compSeries->setHoleSize(0.35); 
+        compSeries->setPieSize(0.7); // 大幅放大尺寸
         
         QPieSlice *s1 = compSeries->append("服务营收", svc);
         QPieSlice *s2 = compSeries->append("商品销售", prod);
@@ -1000,9 +1551,12 @@ void StatsModule::updateCharts() {
         for (auto slice : compSeries->slices()) {
             slice->setLabelVisible(true);
             slice->setLabelPosition(QPieSlice::LabelOutside);
-            slice->setLabel(QString("%1\n%2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
+            slice->setLabelArmLengthFactor(0.02); // 极短引线
+            slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold)); // 增大并加粗
+            slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
         }
         compChart->addSeries(compSeries);
+        compChart->setMargins(QMargins(0, 0, 0, 0));
         compChart->legend()->hide();
         m_finCompChart->setChart(compChart);
 
@@ -1012,6 +1566,7 @@ void StatsModule::updateCharts() {
         // 禁用动画
         QPieSeries *paySeries = new QPieSeries();
         paySeries->setHoleSize(0.35);
+        paySeries->setPieSize(0.7); 
         
         QMap<QString, QColor> payColors = {{"会员卡", QColor("#6366f1")}, {"支付宝", QColor("#06b6d4")}, {"现金", QColor("#94a3b8")}};
         for(auto it = payMap.begin(); it != payMap.end(); ++it) {
@@ -1023,16 +1578,19 @@ void StatsModule::updateCharts() {
         for (auto slice : paySeries->slices()) {
             slice->setLabelVisible(true);
             slice->setLabelPosition(QPieSlice::LabelOutside);
-            slice->setLabel(QString("%1\n%2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
+            slice->setLabelArmLengthFactor(0.02);
+            slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+            slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
         }
         payChart->addSeries(paySeries);
+        payChart->setMargins(QMargins(0, 0, 0, 0));
         payChart->legend()->hide();
         m_finPayChart->setChart(payChart);
     }
 }
 
 void StatsModule::updateServiceAnalysis() {
-    if (!m_staffRankTable || !m_serviceRankTable) return;
+    if (!m_staffRankTable) return;
     
     // 1. 预备全量数据 (理容师)
     m_allStaffData.clear();
@@ -1051,22 +1609,12 @@ void StatsModule::updateServiceAnalysis() {
         double rev = count * QRandomGenerator::global()->bounded(80, 200);
         m_allStaffData.append({s.name, s.id, s.pos, s.color, count, rev});
     }
-    // 2. 预备全量数据 (服务)
-    m_allServiceData.clear();
-    auto allSvc = ServiceDataManager::instance()->activeServices();
-    int vMult = (m_serviceTimeRange == 0) ? 1 : (m_serviceTimeRange == 1 ? 20 : 250);
-
-    for (const auto &svc : allSvc) {
-        bool hasSales = QRandomGenerator::global()->bounded(100) > 20;
-        int count = hasSales ? QRandomGenerator::global()->bounded(2, 15) * vMult : 0;
-        m_allServiceData.append({svc.name, count, count * svc.price});
-    }
+    // 2. 服务排行数据已移除
 
     // 3. 执行首次分页渲染
     m_staffPage = 0;
-    m_servicePage = 0;
+    m_staffPage = 0;
     updateStaffTable();
-    updateServiceTable();
 
     // 4. 顶部图表已在 refreshData 中全局更新
 }
@@ -1149,20 +1697,23 @@ void StatsModule::updateServiceTable() {
 void StatsModule::updateProductAnalysis() {
     if (!m_productRankTable || !m_categoryRankTable) return;
 
+    // 根据时间维度调整倍率
+    int pMult = (m_productTimeRange == 0) ? 1 : (m_productTimeRange == 1 ? 30 : 365);
+
     // 1. 商品数据 (Mock)
     m_allProductData.clear();
     QStringList prodNames = {"皇家猫粮 2kg", "混合猫砂 10L", "体内驱虫药", "皮脂护理喷雾", "磨牙棒 5支装", "猫薄荷球", "冻干鸡肉粒", "自动喂食机", "宠物牵引绳", "洗澡按摩梳"};
     for (const auto &name : prodNames) {
-        int count = QRandomGenerator::global()->bounded(10, 100);
-        m_allProductData.append({name, count, count * QRandomGenerator::global()->bounded(20, 150)});
+        int count = QRandomGenerator::global()->bounded(1, 10) * pMult;
+        m_allProductData.append({name, count, (double)count * QRandomGenerator::global()->bounded(20, 150)});
     }
 
     // 2. 类目数据 (Mock)
     m_allCategoryData.clear();
     QStringList catNames = {"食品零食", "清洁用品", "日常用品", "医疗保健", "智能硬件", "户外出行"};
     for (const auto &name : catNames) {
-        int count = QRandomGenerator::global()->bounded(50, 500);
-        m_allCategoryData.append({name, count, count * QRandomGenerator::global()->bounded(15, 80)});
+        int count = QRandomGenerator::global()->bounded(5, 50) * pMult;
+        m_allCategoryData.append({name, count, (double)count * QRandomGenerator::global()->bounded(15, 80)});
     }
 
     m_productPage = 0;
@@ -1177,8 +1728,8 @@ void StatsModule::updateProductTable() {
     });
 
     m_productRankTable->setRowCount(0);
-    int start = m_productPage * 10;
-    int end = qMin(start + 10, (int)m_allProductData.size());
+    int start = m_productPage * 9;
+    int end = qMin(start + 9, (int)m_allProductData.size());
     for (int i = start; i < end; ++i) {
         const auto &d = m_allProductData[i];
         int r = m_productRankTable->rowCount(); m_productRankTable->insertRow(r);
@@ -1190,7 +1741,7 @@ void StatsModule::updateProductTable() {
         m_productRankTable->setItem(r, 1, item1);
         m_productRankTable->setItem(r, 2, item2);
     }
-    int maxP = (m_allProductData.size() + 9) / 10;
+    int maxP = (m_allProductData.size() + 8) / 9;
     m_productPageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_productPage + 1).arg(qMax(1, maxP)));
 }
 
@@ -1200,8 +1751,8 @@ void StatsModule::updateCategoryTable() {
     });
 
     m_categoryRankTable->setRowCount(0);
-    int start = m_categoryPage * 10;
-    int end = qMin(start + 10, (int)m_allCategoryData.size());
+    int start = m_categoryPage * 9;
+    int end = qMin(start + 9, (int)m_allCategoryData.size());
     for (int i = start; i < end; ++i) {
         const auto &d = m_allCategoryData[i];
         int r = m_categoryRankTable->rowCount(); m_categoryRankTable->insertRow(r);
@@ -1213,42 +1764,134 @@ void StatsModule::updateCategoryTable() {
         m_categoryRankTable->setItem(r, 1, item1);
         m_categoryRankTable->setItem(r, 2, item2);
     }
-    int maxP = (m_allCategoryData.size() + 9) / 10;
+    int maxP = (m_allCategoryData.size() + 8) / 9;
     m_categoryPageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_categoryPage + 1).arg(qMax(1, maxP)));
 }
 
 void StatsModule::goToProductPage(int delta) {
-    int maxP = (m_allProductData.size() + 9) / 10;
+    int maxP = (m_allProductData.size() + 8) / 9;
     int n = m_productPage + delta;
     if (n >= 0 && n < maxP) { m_productPage = n; updateProductTable(); }
 }
 
 void StatsModule::goToCategoryPage(int delta) {
-    int maxP = (m_allCategoryData.size() + 9) / 10;
+    int maxP = (m_allCategoryData.size() + 8) / 9;
     int n = m_categoryPage + delta;
     if (n >= 0 && n < maxP) { m_categoryPage = n; updateCategoryTable(); }
 }
 
 
 
+
+void StatsModule::updateServiceRankAnalysis() {
+    double pMult = 1.0;
+    if (m_serviceRankTimeRange == 0) pMult = 0.05;
+    else if (m_serviceRankTimeRange == 1) pMult = 1.0;
+    else if (m_serviceRankTimeRange == 2) pMult = 12.0;
+
+    m_allServiceData.clear();
+    QStringList svcNames = {"精细洗澡", "全身造型剪毛", "洁耳洁齿", "精修指甲", "SPA水疗", "局部除毛", "精油开结", "驱虫护理"};
+    for (const auto &name : svcNames) {
+        int count = QRandomGenerator::global()->bounded(10, 50) * pMult;
+        m_allServiceData.append({name, count, (double)count * QRandomGenerator::global()->bounded(50, 300)});
+    }
+
+    m_allServiceCategoryData.clear();
+    QStringList catNames = {"基础护理", "洗浴造型", "高级SPA", "专项护理"};
+    for (const auto &name : catNames) {
+        int count = QRandomGenerator::global()->bounded(30, 100) * pMult;
+        m_allServiceCategoryData.append({name, count, (double)count * QRandomGenerator::global()->bounded(80, 500)});
+    }
+
+    m_serviceItemPage = 0;
+    m_serviceCategoryPage = 0;
+    updateServiceItemTable();
+    updateServiceCategoryTable();
+}
+
+void StatsModule::updateServiceItemTable() {
+    if (!m_serviceRankTable) return;
+    std::sort(m_allServiceData.begin(), m_allServiceData.end(), [this](const SvcRankData &a, const SvcRankData &b){
+        return m_serviceItemSortByRev ? (a.rev > b.rev) : (a.count > b.count);
+    });
+
+    m_serviceRankTable->setRowCount(0);
+    int start = m_serviceItemPage * 9;
+    int end = qMin(start + 9, (int)m_allServiceData.size());
+    for (int i = start; i < end; ++i) {
+        const auto &d = m_allServiceData[i];
+        int r = m_serviceRankTable->rowCount(); m_serviceRankTable->insertRow(r);
+        auto *it0 = new QTableWidgetItem(d.name);
+        auto *it1 = new QTableWidgetItem(QString::number(d.count));
+        auto *it2 = new QTableWidgetItem(QString("¥ %1").arg(QString::number(d.rev, 'f', 2)));
+        it1->setTextAlignment(Qt::AlignCenter); it2->setTextAlignment(Qt::AlignCenter);
+        m_serviceRankTable->setItem(r, 0, it0);
+        m_serviceRankTable->setItem(r, 1, it1);
+        m_serviceRankTable->setItem(r, 2, it2);
+    }
+    int maxP = (m_allServiceData.size() + 8) / 9;
+    if (m_serviceItemPageLabel)
+        m_serviceItemPageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_serviceItemPage + 1).arg(qMax(1, maxP)));
+}
+
+void StatsModule::updateServiceCategoryTable() {
+    if (!m_serviceCategoryRankTable) return;
+    std::sort(m_allServiceCategoryData.begin(), m_allServiceCategoryData.end(), [this](const SvcRankData &a, const SvcRankData &b){
+        return m_serviceCategorySortByRev ? (a.rev > b.rev) : (a.count > b.count);
+    });
+
+    m_serviceCategoryRankTable->setRowCount(0);
+    int start = m_serviceCategoryPage * 9;
+    int end = qMin(start + 9, (int)m_allServiceCategoryData.size());
+    for (int i = start; i < end; ++i) {
+        const auto &d = m_allServiceCategoryData[i];
+        int r = m_serviceCategoryRankTable->rowCount(); m_serviceCategoryRankTable->insertRow(r);
+        auto *it0 = new QTableWidgetItem(d.name);
+        auto *it1 = new QTableWidgetItem(QString::number(d.count));
+        auto *it2 = new QTableWidgetItem(QString("¥ %1").arg(QString::number(d.rev, 'f', 2)));
+        it1->setTextAlignment(Qt::AlignCenter); it2->setTextAlignment(Qt::AlignCenter);
+        m_serviceCategoryRankTable->setItem(r, 0, it0);
+        m_serviceCategoryRankTable->setItem(r, 1, it1);
+        m_serviceCategoryRankTable->setItem(r, 2, it2);
+    }
+    int maxP = (m_allServiceCategoryData.size() + 8) / 9;
+    if (m_serviceCategoryPageLabel)
+        m_serviceCategoryPageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_serviceCategoryPage + 1).arg(qMax(1, maxP)));
+}
+
+void StatsModule::goToServiceItemPage(int delta) {
+    int maxP = (m_allServiceData.size() + 8) / 9;
+    int n = m_serviceItemPage + delta;
+    if (n >= 0 && n < maxP) { m_serviceItemPage = n; updateServiceItemTable(); }
+}
+
+void StatsModule::goToServiceCategoryPage(int delta) {
+    int maxP = (m_allServiceCategoryData.size() + 8) / 9;
+    int n = m_serviceCategoryPage + delta;
+    if (n >= 0 && n < maxP) { m_serviceCategoryPage = n; updateServiceCategoryTable(); }
+}
+
 void StatsModule::updateTopCharts() {
     auto updatePie = [&](QChartView* view, const QStringList &names, const QList<double> &vals, const QList<QColor> &colors) {
         QChart *chart = new QChart();
         chart->setBackgroundVisible(false);
         QPieSeries *series = new QPieSeries();
-        series->setHoleSize(0.4); // 增大内孔，视觉更轻盈
-        series->setPieSize(0.85); // 放大扇形图本身在容器内的占比
+        series->setHoleSize(0.4); 
+        series->setPieSize(0.7); 
         for (int i = 0; i < names.size(); ++i) {
             QPieSlice *slice = series->append(names[i], vals[i]);
             slice->setBrush(colors[i]);
             slice->setLabelVisible(true);
             slice->setLabelPosition(QPieSlice::LabelOutside);
-            slice->setLabelFont(QFont("Microsoft YaHei", 8, QFont::Bold));
+            slice->setLabelArmLengthFactor(0.02);
+            slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+            slice->setLabelColor(QColor("#475569")); 
         }
         for (auto slice : series->slices()) {
-            slice->setLabel(QString("%1\n%2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
+            slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
         }
         chart->addSeries(series);
+        chart->setMargins(QMargins(0, 0, 0, 0)); // 移除图表内部边距
         chart->legend()->hide();
         view->setChart(chart);
     };
@@ -1262,6 +1905,16 @@ void StatsModule::updateTopCharts() {
         {"主粮", "零食", "用品", "玩具"}, 
         {45.0, 30.0, 15.0, 10.0}, 
         {QColor("#8b5cf6"), QColor("#ec4899"), QColor("#06b6d4"), QColor("#64748b")});
+
+    updatePie(m_finCompChart,
+        {"洗护营收", "商品营收", "寄养营收", "会员充值", "其他"},
+        {40.0, 30.0, 15.0, 10.0, 5.0},
+        {QColor("#3b82f6"), QColor("#8b5cf6"), QColor("#10b981"), QColor("#f59e0b"), QColor("#94a3b8")});
+
+    updatePie(m_finPayChart,
+        {"微信支付", "支付宝", "会员卡", "现金"},
+        {50.0, 30.0, 15.0, 5.0},
+        {QColor("#22c55e"), QColor("#3b82f6"), QColor("#f59e0b"), QColor("#94a3b8")});
 }
 
 void StatsModule::updateCards() {
@@ -1279,36 +1932,14 @@ void StatsModule::updateCards() {
     } else if (rangeIdx == 2) { // 月度
         curStart = QDate(selYear, selMonth, 1); curEnd = curStart.addMonths(1).addDays(-1);
         prevStart = curStart.addMonths(-1); prevEnd = curStart.addDays(-1);
-    } else { // 历年 (对比近5年 vs 之前5年)
+    } else { // 历年
         curStart = QDate(selYear - 4, 1, 1); curEnd = QDate(selYear, 12, 31);
         prevStart = QDate(selYear - 9, 1, 1); prevEnd = QDate(selYear - 5, 12, 31);
     }
 
-    auto getStats = [&](const QDate &s, const QDate &e) {
-        auto orders = PetDataManager::instance()->getOrders(s, e);
-        double rev = 0, profit = 0;
-        int count = 0;
-        for (const auto &o : orders) {
-            if (o.status != "Paid") continue;
-            rev += o.finalAmount;
-            profit += o.finalAmount * 0.65; // 假设综合毛利 65%
-            count++;
-        }
-        double avg = count > 0 ? rev / count : 0;
-        return QVector<double>{rev, profit, avg, (double)count};
-    };
-
-    QVector<double> cur = getStats(curStart, curEnd);
-    QVector<double> prev = getStats(prevStart, prevEnd);
-
-    auto updateCard = [&](int idx, double current, double previous, bool isCurrency) {
-        // 更新主数值
-        if (isCurrency) m_cardValues[idx]->setText(QString("¥ %1").arg(QString::number(current, 'f', 2)));
-        else m_cardValues[idx]->setText(QString::number((int)current));
-
-        // 更新趋势
-        if (previous > 0) {
-            double diff = ((current - previous) / previous) * 100;
+    auto updateCard = [&](int idx, const QString &val, double diff) {
+        m_cardValues[idx]->setText(val);
+        if (diff != 0) {
             QString sign = diff >= 0 ? "↑" : "↓";
             QString color = diff >= 0 ? "#22c55e" : "#ef4444";
             m_cardTrends[idx]->setText(QString("%1 %2%").arg(sign).arg(QString::number(qAbs(diff), 'f', 1)));
@@ -1319,9 +1950,117 @@ void StatsModule::updateCards() {
         }
     };
 
-    updateCard(0, cur[0], prev[0], true);  // 营收
-    updateCard(1, cur[1], prev[1], true);  // 毛利
-    updateCard(2, cur[2], prev[2], true);  // 客单价
+    if (m_currentCategory == 1) { // 店员统计卡片
+        // 从已准备好的 m_allStaffData 中提取冠军
+        if (m_allStaffData.isEmpty()) {
+            updateCard(0, "无", 0);
+            updateCard(1, "无", 0);
+            updateCard(2, "¥0", 0);
+            return;
+        }
+
+        // 营收冠军 (m_allStaffData 已经按营收或单量排序，但为了保险我们重新找一次)
+        auto topRevIt = std::max_element(m_allStaffData.begin(), m_allStaffData.end(), [](const StaffRankData &a, const StaffRankData &b){
+            return a.rev < b.rev;
+        });
+        
+        // 单量冠军
+        auto topOrderIt = std::max_element(m_allStaffData.begin(), m_allStaffData.end(), [](const StaffRankData &a, const StaffRankData &b){
+            return a.count < b.count;
+        });
+
+        double totalRev = 0;
+        int totalOrders = 0;
+        for(const auto &s : m_allStaffData) {
+            totalRev += s.rev;
+            totalOrders += s.count;
+        }
+        double avgEff = totalOrders > 0 ? totalRev / totalOrders : 0;
+
+        updateCard(0, topRevIt->name.left(6), 0);
+        updateCard(1, topOrderIt->name.left(6), 0);
+        updateCard(2, QString("¥%1").arg(QString::number(avgEff, 'f', 0)), 0);
+        
+        m_cardTrends[0]->setText(QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)));
+        m_cardTrends[1]->setText(QString("%1 单").arg(topOrderIt->count));
+        m_cardTrends[2]->setText("全店客单均值");
+        m_cardTrends[0]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
+        m_cardTrends[1]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
+        m_cardTrends[2]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
+    } else if (m_currentCategory == 2) { // 商品统计卡片
+        if (m_allProductData.isEmpty()) {
+            updateCard(0, "无", 0); updateCard(1, "0", 0); updateCard(2, "¥0", 0);
+            return;
+        }
+        
+        // 销量之王 (m_allProductData 通常已经排好序)
+        auto topQtyIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){
+            return a.count < b.count;
+        });
+        
+        // 营收之王
+        auto topRevIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){
+            return a.rev < b.rev;
+        });
+
+        updateCard(0, topQtyIt->name.left(6), 0); // 热销榜首 (按销量)
+        updateCard(1, QString::number(topQtyIt->count), 0); // 冠军销量
+        updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0); // 冠军营收
+        
+        m_cardTrends[0]->setText("最受宠爱单品");
+        m_cardTrends[1]->setText("本期累计卖出");
+        m_cardTrends[2]->setText(topRevIt->name.left(6) + " 贡献");
+        m_cardTrends[0]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
+        m_cardTrends[1]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
+        m_cardTrends[2]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
+    } else if (m_currentCategory == 3) { // 服务排行卡片
+        if (m_allServiceData.isEmpty()) {
+            updateCard(0, "无", 0); updateCard(1, "0", 0); updateCard(2, "¥0", 0);
+            return;
+        }
+        
+        auto topQtyIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){
+            return a.count < b.count;
+        });
+        auto topRevIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){
+            return a.rev < b.rev;
+        });
+
+        updateCard(0, topQtyIt->name.left(6), 0); // 最受欢迎
+        updateCard(1, QString::number(topQtyIt->count), 0); // 服务单量
+        updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0); // 服务营收
+        
+        m_cardTrends[0]->setText("金牌服务项目");
+        m_cardTrends[1]->setText("本期服务人次");
+        m_cardTrends[2]->setText(topRevIt->name.left(6) + " 贡献");
+        m_cardTrends[0]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
+        m_cardTrends[1]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
+        m_cardTrends[2]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
+    } else {
+        // 财务总览卡片 (原有逻辑)
+        auto getStats = [&](const QDate &s, const QDate &e) {
+            auto orders = PetDataManager::instance()->getOrders(s, e);
+            double rev = 0, profit = 0;
+            int count = 0;
+            for (const auto &o : orders) {
+                if (o.status != "Paid") continue;
+                rev += o.finalAmount;
+                profit += o.finalAmount * 0.65;
+                count++;
+            }
+            double avg = count > 0 ? rev / count : 0;
+            return QVector<double>{rev, profit, avg};
+        };
+
+        QVector<double> cur = getStats(curStart, curEnd);
+        QVector<double> prev = getStats(prevStart, prevEnd);
+
+        auto calcDiff = [](double c, double p) { return p > 0 ? ((c - p) / p) * 100 : 0; };
+
+        updateCard(0, QString("¥%1").arg(QString::number(cur[0], 'f', 0)), calcDiff(cur[0], prev[0]));
+        updateCard(1, QString("¥%1").arg(QString::number(cur[1], 'f', 0)), calcDiff(cur[1], prev[1]));
+        updateCard(2, QString("¥%1").arg(QString::number(cur[2], 'f', 0)), calcDiff(cur[2], prev[2]));
+    }
 }
 
 void StatsModule::onCategoryChanged(int index) {
@@ -1330,6 +2069,38 @@ void StatsModule::onCategoryChanged(int index) {
         m_navButtons[i]->setChecked(i == index);
     }
     m_viewStack->setCurrentIndex(index);
+    
+    // 动态更新卡片标题
+    if (m_cardTitles.size() >= 3) {
+        if (index == 0) {
+            m_cardTitles[0]->setText("总营收 (REVENUE)");
+            m_cardTitles[1]->setText("毛利润 (PROFIT)");
+            m_cardTitles[2]->setText("客单价 (AVG ORDER)");
+        } else if (index == 1) {
+            m_cardTitles[0]->setText("营收冠军 (TOP REVENUE)");
+            m_cardTitles[1]->setText("单量冠军 (TOP ORDERS)");
+            m_cardTitles[2]->setText("人效均值 (EFFICIENCY)");
+        } else if (index == 2) {
+            m_cardTitles[0]->setText("热销榜首 (BEST SELLER)");
+            m_cardTitles[1]->setText("冠军销量 (TOP SALES)");
+            m_cardTitles[2]->setText("冠军营收 (TOP REVENUE)");
+        } else if (index == 3) {
+            m_cardTitles[0]->setText("最受欢迎 (MOST POPULAR)");
+            m_cardTitles[1]->setText("服务单量 (SVC VOLUME)");
+            m_cardTitles[2]->setText("服务营收 (SVC REVENUE)");
+        }
+    }
+
+    // 顶部图表上下文逻辑
+    if (m_topPieContainer) {
+        m_finPiesContainer->setVisible(index == 0);
+        m_prodPieContainer->setVisible(index == 2);
+        m_svcPieContainer->setVisible(index == 3);
+        
+        // 只有财务、商品、服务标签页显示顶部饼图
+        m_topPieContainer->setVisible(index == 0 || index == 2 || index == 3); 
+    }
+    
     refreshData();
 }
 
@@ -1357,4 +2128,101 @@ bool StatsModule::eventFilter(QObject *watched, QEvent *event) {
         return true;
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void StatsModule::updateDailyRevTable() {
+    if (!m_dailyRevenueTable) return;
+
+    m_allDailyRevData.clear();
+    
+    int rangeIdx = m_trendRangeCombo->currentIndex();
+    int selYear = m_yearPicker->currentText().left(4).toInt();
+    int selMonth = m_monthPicker->currentIndex() + 1;
+    
+    // 动态调整表头
+    QString firstColLabel = "日期";
+    if (rangeIdx == 0) firstColLabel = "年份";
+    else if (rangeIdx == 1) firstColLabel = "月份";
+    
+    m_dailyRevenueTable->setHorizontalHeaderLabels({firstColLabel, "总营收", "服务收入", "商品收入", "寄养收入", "订单量", "客单价"});
+
+    // 数据聚合逻辑 (优先获取真实数据，无数据则生成模拟)
+    auto addDataRow = [&](const QString &label, const QDate &start, const QDate &end) {
+        auto orders = PetDataManager::instance()->getOrders(start, end);
+        double total = 0, svc = 0, prod = 0, foster = 0;
+        int count = 0;
+        for(const auto &o : orders) {
+            if(o.status != "Paid") continue;
+            total += o.finalAmount;
+            if(o.sourceModule == "Product") prod += o.finalAmount;
+            else if(o.sourceModule == "Foster") foster += o.finalAmount;
+            else svc += o.finalAmount;
+            count++;
+        }
+        
+        // 补偿模拟数据，确保演示效果
+        if (total < 100) { 
+            svc = QRandomGenerator::global()->bounded(1000, 5000);
+            prod = QRandomGenerator::global()->bounded(500, 3000);
+            foster = QRandomGenerator::global()->bounded(300, 2000);
+            total = svc + prod + foster;
+            count = QRandomGenerator::global()->bounded(10, 50);
+        }
+        double avg = count > 0 ? total / count : 0;
+        m_allDailyRevData.append({label, total, svc, prod, foster, count, avg});
+    };
+
+    if (rangeIdx == 0) { // 历年对比
+        for (int y = selYear; y >= selYear - 4; --y) {
+            addDataRow(QString::number(y) + "年", QDate(y, 1, 1), QDate(y, 12, 31));
+        }
+    } else if (rangeIdx == 1) { // 年度走势
+        for (int m = 12; m >= 1; --m) {
+            QDate start(selYear, m, 1);
+            addDataRow(QString::number(m) + "月", start, start.addMonths(1).addDays(-1));
+        }
+    } else { // 本月走势 (每日明细)
+        int days = QDate(selYear, selMonth, 1).daysInMonth();
+        for (int d = days; d >= 1; --d) {
+            QDate date(selYear, selMonth, d);
+            addDataRow(date.toString("yyyy-MM-dd"), date, date);
+        }
+    }
+
+    m_dailyRevenueTable->setRowCount(0);
+    int start = m_dailyRevPage * 12;
+    int end = qMin(start + 12, (int)m_allDailyRevData.size());
+
+    auto createItem = [](const QString &text, bool center = true) {
+        auto *item = new QTableWidgetItem(text);
+        if (center) item->setTextAlignment(Qt::AlignCenter);
+        return item;
+    };
+
+    for (int i = start; i < end; ++i) {
+        const auto &data = m_allDailyRevData[i];
+        int r = m_dailyRevenueTable->rowCount();
+        m_dailyRevenueTable->insertRow(r);
+
+        m_dailyRevenueTable->setItem(r, 0, createItem(data.date, false));
+        m_dailyRevenueTable->setItem(r, 1, createItem(QString("¥ %1").arg(data.total, 0, 'f', 2)));
+        m_dailyRevenueTable->setItem(r, 2, createItem(QString("¥ %1").arg(data.svc, 0, 'f', 2)));
+        m_dailyRevenueTable->setItem(r, 3, createItem(QString("¥ %1").arg(data.prod, 0, 'f', 2)));
+        m_dailyRevenueTable->setItem(r, 4, createItem(QString("¥ %1").arg(data.foster, 0, 'f', 2)));
+        m_dailyRevenueTable->setItem(r, 5, createItem(QString::number(data.count)));
+        m_dailyRevenueTable->setItem(r, 6, createItem(QString("¥ %1").arg(data.avg, 0, 'f', 2)));
+    }
+
+    int maxP = (m_allDailyRevData.size() + 11) / 12;
+    if (m_dailyRevPageLabel)
+        m_dailyRevPageLabel->setText(QString::fromUtf8("第 %1 页 / 共 %2 页").arg(m_dailyRevPage + 1).arg(qMax(1, maxP)));
+}
+
+void StatsModule::goToDailyRevPage(int delta) {
+    int maxP = (m_allDailyRevData.size() + 11) / 12;
+    int n = m_dailyRevPage + delta;
+    if (n >= 0 && n < maxP) {
+        m_dailyRevPage = n;
+        updateDailyRevTable();
+    }
 }

@@ -54,6 +54,7 @@ SOURCES += \
     modules/boardingdatamanager.cpp \
     modules/rechargedialog.cpp \
     modules/salarydatamanager.cpp \
+    modules/personalmodule.cpp \
     utils/logger.cpp
 
 HEADERS += \
@@ -109,6 +110,7 @@ HEADERS += \
     modules/boardingdatamanager.h \
     modules/rechargedialog.h \
     modules/salarydatamanager.h \
+    modules/personalmodule.h \
     modules/financemodule.h
 
 FORMS += \
