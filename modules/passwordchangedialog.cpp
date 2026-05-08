@@ -65,16 +65,21 @@ void PasswordChangeDialog::setupUI() {
     mainLayout->addStretch();
 
     // 5. Buttons
-    m_saveBtn = new QPushButton("保存修改");
-    m_saveBtn->setFixedHeight(44);
-    m_saveBtn->setObjectName("PrimaryBtn");
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    btnLayout->setSpacing(12);
     
     m_cancelBtn = new QPushButton("取消");
     m_cancelBtn->setFixedHeight(44);
     m_cancelBtn->setObjectName("SecondaryBtn");
 
-    mainLayout->addWidget(m_saveBtn);
-    mainLayout->addWidget(m_cancelBtn);
+    m_saveBtn = new QPushButton("保存修改");
+    m_saveBtn->setFixedHeight(44);
+    m_saveBtn->setObjectName("PrimaryBtn");
+
+    btnLayout->addWidget(m_cancelBtn);
+    btnLayout->addWidget(m_saveBtn);
+    
+    mainLayout->addLayout(btnLayout);
 
     // Connections
     connect(m_newPwdEdit, &QLineEdit::textChanged, this, &PasswordChangeDialog::updateStrength);
@@ -132,7 +137,7 @@ void PasswordChangeDialog::applyStyles() {
             color: #ef4444;
         }
         QPushButton#PrimaryBtn {
-            background-color: #0f172a;
+            background-color: #3b82f6;
             color: #ffffff;
             font-weight: bold;
             font-size: 14px;
@@ -140,19 +145,18 @@ void PasswordChangeDialog::applyStyles() {
             border: none;
         }
         QPushButton#PrimaryBtn:hover {
-            background-color: #1e293b;
+            background-color: #2563eb;
         }
         QPushButton#SecondaryBtn {
-            background-color: transparent;
-            color: #64748b;
+            background-color: #ffffff;
+            color: #334155;
             font-weight: bold;
             font-size: 14px;
             border-radius: 6px;
-            border: 1px solid transparent;
+            border: 1px solid #cbd5e1;
         }
         QPushButton#SecondaryBtn:hover {
-            background-color: #f1f5f9;
-            color: #334155;
+            background-color: #f8fafc;
         }
     )");
 }
