@@ -23,6 +23,9 @@ private:
 
     UserRole m_role;
     QString m_userName;
+
+private slots:
+    void onActionClicked(const QString &actionName);
 };
 
 #endif // PERSONALMODULE_H

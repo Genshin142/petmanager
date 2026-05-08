@@ -36,9 +36,9 @@ void BackupProgressDialog::setupUI() {
     layout->addStretch();
 
     m_closeBtn = new QPushButton("后台运行");
-    m_closeBtn->setFixedHeight(44);
+    m_closeBtn->setFixedHeight(48);
     m_closeBtn->setStyleSheet(R"(
-        QPushButton { background-color: #f8fafc; color: #334155; font-weight: bold; font-size: 14px; border-radius: 6px; border: 1px solid #e2e8f0; padding: 10px 0; }
+        QPushButton { background-color: #f8fafc; color: #334155; font-weight: bold; font-size: 14px; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0px 24px; text-align: left; }
         QPushButton:hover { background-color: #f1f5f9; }
     )");
     connect(m_closeBtn, &QPushButton::clicked, this, &QDialog::accept);
@@ -56,8 +56,8 @@ void BackupProgressDialog::onBackupComplete(const QString &path) {
     m_statusLabel->setText("已加密归档至:\n" + path);
     m_closeBtn->setText("完成并关闭");
     m_closeBtn->setStyleSheet(R"(
-        QPushButton { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 14px; border-radius: 6px; border: none; padding: 10px 0; }
-        QPushButton:hover { background-color: #1e293b; }
+        QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 14px; border-radius: 8px; border: none; padding: 0px 24px; text-align: left; }
+        QPushButton:hover { background-color: #2563eb; }
     )");
 }
 
