@@ -13,6 +13,7 @@
 
 SystemSettingsDialog::SystemSettingsDialog(QWidget *parent) : QDialog(parent) {
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
+    setAttribute(Qt::WA_TranslucentBackground);
     setFixedSize(900, 650);
     setupUI();
     applyStyles();
