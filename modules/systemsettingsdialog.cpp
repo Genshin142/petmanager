@@ -54,12 +54,12 @@ void SystemSettingsDialog::setupUI() {
     
     m_cancelBtn = new QPushButton("取消");
     m_cancelBtn->setObjectName("SecondaryBtn");
-    m_cancelBtn->setFixedSize(100, 40);
+    m_cancelBtn->setFixedSize(100, 44);
     connect(m_cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
 
     m_saveBtn = new QPushButton("保存配置");
     m_saveBtn->setObjectName("PrimaryBtn");
-    m_saveBtn->setFixedSize(120, 40);
+    m_saveBtn->setFixedSize(120, 44);
     connect(m_saveBtn, &QPushButton::clicked, this, &SystemSettingsDialog::onSaveClicked);
 
     actionLayout->addWidget(m_cancelBtn);
@@ -113,8 +113,8 @@ QWidget* SystemSettingsDialog::createStoreInfoPage() {
     logoPreview->setStyleSheet("background-color: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8;");
     
     QPushButton *uploadBtn = new QPushButton("上传/更换 Logo");
-    uploadBtn->setFixedSize(130, 36);
-    uploadBtn->setStyleSheet("QPushButton { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; } QPushButton:hover { background-color: #f8fafc; }");
+    uploadBtn->setFixedSize(140, 40);
+    uploadBtn->setStyleSheet("QPushButton { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; padding: 8px 0; text-align: center; } QPushButton:hover { background-color: #f8fafc; }");
     
     logoLayout->addWidget(logoPreview);
     logoLayout->addWidget(uploadBtn);
@@ -232,7 +232,7 @@ void SystemSettingsDialog::applyStyles() {
     this->setStyleSheet(R"(
         QDialog {
             background-color: #ffffff;
-            border: 1px solid #cbd5e1;
+            border: 2px solid #64748b;
             border-radius: 12px;
         }
         QWidget#ContentContainer {
@@ -301,6 +301,8 @@ void SystemSettingsDialog::applyStyles() {
             font-size: 14px;
             border-radius: 6px;
             border: none;
+            padding: 10px 0;
+            text-align: center;
         }
         QPushButton#PrimaryBtn:hover {
             background-color: #2563eb;
@@ -312,6 +314,8 @@ void SystemSettingsDialog::applyStyles() {
             font-size: 14px;
             border-radius: 6px;
             border: 1px solid #cbd5e1;
+            padding: 10px 0;
+            text-align: center;
         }
         QPushButton#SecondaryBtn:hover {
             background-color: #f8fafc;
