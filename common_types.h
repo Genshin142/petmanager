@@ -270,4 +270,14 @@ struct SalaryInfo {
 Q_DECLARE_METATYPE(PerformanceRecord)
 Q_DECLARE_METATYPE(SalaryInfo)
 
+struct SysOperationLog {
+    QString id;
+    QString timestamp;
+    QString operatorName;
+    QString module;
+    QString action;
+    QString details;
+};
+Q_DECLARE_METATYPE(SysOperationLog)
+
 #endif // COMMON_TYPES_H

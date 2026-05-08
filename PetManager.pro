@@ -59,6 +59,8 @@ SOURCES += \
     modules/backupmanager.cpp \
     modules/backupprogressdialog.cpp \
     modules/systemsettingsdialog.cpp \
+    modules/logdatamanager.cpp \
+    modules/operationlogdialog.cpp \
     utils/logger.cpp
 
 HEADERS += \
@@ -119,6 +121,8 @@ HEADERS += \
     modules/backupmanager.h \
     modules/backupprogressdialog.h \
     modules/systemsettingsdialog.h \
+    modules/logdatamanager.h \
+    modules/operationlogdialog.h \
     modules/financemodule.h
 
 FORMS += \

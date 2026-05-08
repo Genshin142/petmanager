@@ -7,6 +7,7 @@
 #include "backupmanager.h"
 #include "backupprogressdialog.h"
 #include "systemsettingsdialog.h"
+#include "operationlogdialog.h"
 #include <QThread>
 
 PersonalModule::PersonalModule(UserRole role, const QString &userName, QWidget *parent)
@@ -229,8 +230,9 @@ void PersonalModule::onActionClicked(const QString &actionName) {
         dialog.exec();
         return;
     } else if (actionName == "操作日志") {
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setText("日志审计中心已连接。\n\n已成功拉取近 30 天内共 1,284 条员工行为操作流水，即将打开详情列表...");
+        OperationLogDialog dialog(this);
+        dialog.exec();
+        return;
     } else if (actionName == "我的排班") {
         msgBox.setIcon(QMessageBox::Information);
         msgBox.setText("您本周的排班信息如下：\n\n• 周一至周三: 早班 (09:00 - 18:00)\n• 周四至周五: 晚班 (13:00 - 22:00)\n• 周末: 休息");
