@@ -1,4 +1,4 @@
-QT       += core gui network widgets svg charts
+QT       += core gui network widgets svg charts printsupport
 
 CONFIG += c++17
 
@@ -56,6 +56,9 @@ SOURCES += \
     modules/salarydatamanager.cpp \
     modules/personalmodule.cpp \
     modules/passwordchangedialog.cpp \
+    modules/backupmanager.cpp \
+    modules/backupprogressdialog.cpp \
+    modules/systemsettingsdialog.cpp \
     utils/logger.cpp
 
 HEADERS += \
@@ -113,6 +116,9 @@ HEADERS += \
     modules/salarydatamanager.h \
     modules/personalmodule.h \
     modules/passwordchangedialog.h \
+    modules/backupmanager.h \
+    modules/backupprogressdialog.h \
+    modules/systemsettingsdialog.h \
     modules/financemodule.h
 
 FORMS += \

@@ -4,6 +4,10 @@
 #include <QDateTime>
 #include <QMessageBox>
 #include "passwordchangedialog.h"
+#include "backupmanager.h"
+#include "backupprogressdialog.h"
+#include "systemsettingsdialog.h"
+#include <QThread>
 
 PersonalModule::PersonalModule(UserRole role, const QString &userName, QWidget *parent)
     : QWidget(parent), m_role(role), m_userName(userName) {
@@ -201,11 +205,29 @@ void PersonalModule::onActionClicked(const QString &actionName) {
                          "QLabel { color: #334155; font-size: 14px; min-width: 250px; }");
 
     if (actionName == "数据备份") {
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setText("正在执行全量数据库冷备份...\n\n进度：[||||||||||||||||||||] 100%\n备份文件已加密存储至本地 D:/PetManager_Backup/ 目录下。");
+        BackupProgressDialog *dialog = new BackupProgressDialog(this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->show();
+
+        QThread *thread = new QThread();
+        BackupManager *worker = new BackupManager();
+        worker->moveToThread(thread);
+
+        connect(thread, &QThread::started, worker, &BackupManager::performBackup);
+        connect(worker, &BackupManager::progressUpdated, dialog, &BackupProgressDialog::updateProgress);
+        connect(worker, &BackupManager::backupCompleted, dialog, &BackupProgressDialog::onBackupComplete);
+        connect(worker, &BackupManager::backupFailed, dialog, &BackupProgressDialog::onBackupError);
+        
+        connect(worker, &BackupManager::finished, thread, &QThread::quit);
+        connect(worker, &BackupManager::finished, worker, &QObject::deleteLater);
+        connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+        thread->start();
+        return;
     } else if (actionName == "系统设置") {
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setText("即将进入系统高级参数配置页。\n\n警告：修改底层参数可能影响门店营业逻辑，请谨慎操作！");
+        SystemSettingsDialog dialog(this);
+        dialog.exec();
+        return;
     } else if (actionName == "操作日志") {
         msgBox.setIcon(QMessageBox::Information);
         msgBox.setText("日志审计中心已连接。\n\n已成功拉取近 30 天内共 1,284 条员工行为操作流水，即将打开详情列表...");
