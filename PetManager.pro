@@ -55,6 +55,7 @@ SOURCES += \
     modules/rechargedialog.cpp \
     modules/salarydatamanager.cpp \
     modules/personalmodule.cpp \
+    modules/passwordchangedialog.cpp \
     utils/logger.cpp
 
 HEADERS += \
@@ -111,6 +112,7 @@ HEADERS += \
     modules/rechargedialog.h \
     modules/salarydatamanager.h \
     modules/personalmodule.h \
+    modules/passwordchangedialog.h \
     modules/financemodule.h
 
 FORMS += \

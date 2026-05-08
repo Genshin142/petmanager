@@ -2,6 +2,8 @@
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QDateTime>
+#include <QMessageBox>
+#include "passwordchangedialog.h"
 
 PersonalModule::PersonalModule(UserRole role, const QString &userName, QWidget *parent)
     : QWidget(parent), m_role(role), m_userName(userName) {
@@ -171,11 +173,54 @@ QWidget* PersonalModule::createActionRow(const QString &label, const QString &de
     hl->addStretch();
 
     QPushButton *btn = new QPushButton(btnText);
-    btn->setFixedSize(110, 44); // 增大按钮尺寸，增加上下内边距感
+    btn->setFixedSize(120, 44); // 略微增加宽度
     btn->setCursor(Qt::PointingHandCursor);
-    btn->setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; font-weight: 800; font-size: 13px; border-radius: 10px; border: none; padding: 10px 0; } "
+    // 强制覆盖全局 QMainWindow 的 QPushButton 样式（之前全局设置了 text-align: left 和 padding）
+    btn->setStyleSheet("QPushButton { background: #f1f5f9; color: #334155; font-weight: 800; font-size: 14px; border-radius: 8px; border: none; text-align: center; padding: 0px; } "
                        "QPushButton:hover { background: #3b82f6; color: white; }");
     hl->addWidget(btn);
 
+    connect(btn, &QPushButton::clicked, this, [this, label]() {
+        onActionClicked(label);
+    });
+
     return row;
+}
+
+void PersonalModule::onActionClicked(const QString &actionName) {
+    if (actionName == "安全设置" || actionName == "修改密码") {
+        PasswordChangeDialog dialog(this);
+        dialog.exec();
+        return;
+    }
+
+    // 模拟功能实现
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(actionName);
+    msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; }"
+                         "QLabel { color: #334155; font-size: 14px; min-width: 250px; }");
+
+    if (actionName == "数据备份") {
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setText("正在执行全量数据库冷备份...\n\n进度：[||||||||||||||||||||] 100%\n备份文件已加密存储至本地 D:/PetManager_Backup/ 目录下。");
+    } else if (actionName == "系统设置") {
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setText("即将进入系统高级参数配置页。\n\n警告：修改底层参数可能影响门店营业逻辑，请谨慎操作！");
+    } else if (actionName == "操作日志") {
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setText("日志审计中心已连接。\n\n已成功拉取近 30 天内共 1,284 条员工行为操作流水，即将打开详情列表...");
+    } else if (actionName == "我的排班") {
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setText("您本周的排班信息如下：\n\n• 周一至周三: 早班 (09:00 - 18:00)\n• 周四至周五: 晚班 (13:00 - 22:00)\n• 周末: 休息");
+    } else if (actionName == "荣誉勋章") {
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setText("您的荣誉档案库：\n\n🏅 2026年4月 最佳销售冠军\n⭐ 五星级服务口碑奖章\n\n继续保持，下个目标就在眼前！");
+    } else {
+        msgBox.setText(actionName + " 模块正在加紧研发中...");
+    }
+    
+    msgBox.setStandardButtons(QMessageBox::Ok);
+    msgBox.button(QMessageBox::Ok)->setStyleSheet("QPushButton { background-color: #3b82f6; color: white; font-weight: bold; padding: 6px 20px; border-radius: 4px; border: none; }"
+                                                  "QPushButton:hover { background-color: #2563eb; }");
+    msgBox.exec();
 }
