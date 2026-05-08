@@ -333,6 +333,7 @@ void QuickOrderDialog::updateTilePanel(const QString &category, const QString &s
 
 void QuickOrderDialog::onTileClicked(const QString &id, bool isService)
 {
+    Q_UNUSED(isService);
     for (int i = 0; i < m_cart.size(); ++i) { 
         if (m_cart[i].id == id) { 
             m_cart[i].qty++; 

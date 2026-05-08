@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>操作日志界面设计方案</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f172a; font-family: 'Segoe UI', -apple-system, sans-serif; color: #e2e8f0; padding: 30px; }
+
+  .header { text-align: center; margin-bottom: 30px; }
+  .header h1 { font-size: 24px; color: #f8fafc; margin-bottom: 8px; }
+  .header p { color: #94a3b8; font-size: 14px; }
+
+  .mockup-container {
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 960px;
+    margin: 0 auto 30px;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+  }
+
+  /* Title Bar */
+  .title-bar {
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    gap: 8px;
+  }
+  .title-bar .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .title-bar .dot.red { background: #ef4444; }
+  .title-bar .dot.yellow { background: #f59e0b; }
+  .title-bar .dot.green { background: #22c55e; }
+  .title-bar .title-text { flex: 1; text-align: center; color: #475569; font-size: 13px; font-weight: 600; }
+
+  /* Filter Bar */
+  .filter-bar {
+    background: #f8fafc;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+  }
+  .filter-bar label { color: #475569; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .filter-input {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #334155;
+    font-size: 12px;
+    min-width: 100px;
+  }
+  .filter-btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .filter-btn:hover { background: #2563eb; }
+  .filter-btn.secondary {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+  }
+
+  /* Main Split */
+  .main-split {
+    display: flex;
+    min-height: 420px;
+  }
+
+  /* Left Panel */
+  .left-panel {
+    width: 360px;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+  }
+
+  .log-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .log-item {
+    padding: 14px 18px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .log-item:hover { background: #f8fafc; }
+  .log-item.selected {
+    background: #eff6ff;
+    border-left: 3px solid #3b82f6;
+    padding-left: 15px;
+  }
+
+  .log-item .log-time {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 4px;
+  }
+  .log-item .log-title {
+    font-size: 13px;
+    color: #1e293b;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .log-item .log-meta {
+    font-size: 11px;
+    color: #64748b;
+    display: flex;
+    gap: 10px;
+  }
+  .log-item .log-meta .module-badge {
+    background: #eff6ff;
+    color: #3b82f6;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .log-item.selected .log-meta .module-badge {
+    background: #dbeafe;
+  }
+
+  /* Pagination */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid #e2e8f0;
+    background: #fafbfc;
+  }
+  .page-btn {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #475569;
+    cursor: pointer;
+  }
+  .page-btn:hover { background: #e2e8f0; }
+  .page-btn.disabled { opacity: 0.4; cursor: default; }
+  .page-info {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  /* Right Panel - Detail */
+  .right-panel {
+    flex: 1;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .detail-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .detail-header h3 {
+    font-size: 16px;
+    color: #0f172a;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .detail-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .detail-meta-item {
+    display: flex;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .detail-meta-item .meta-label {
+    color: #94a3b8;
+    min-width: 60px;
+  }
+  .detail-meta-item .meta-value {
+    color: #334155;
+    font-weight: 500;
+  }
+
+  /* Diff Table */
+  .diff-section {
+    padding: 20px 24px;
+    flex: 1;
+  }
+  .diff-section h4 {
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .diff-section h4::before {
+    content: '';
+    display: block;
+    width: 3px;
+    height: 16px;
+    background: #3b82f6;
+    border-radius: 2px;
+  }
+
+  .diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .diff-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 2px solid #e2e8f0;
+    font-size: 12px;
+  }
+  .diff-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+  }
+  .diff-table tr:hover td { background: #fafbfc; }
+
+  .val-old {
+    background: #fef2f2;
+    color: #991b1b;
+    text-decoration: line-through;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+  }
+  .val-new {
+    background: #f0fdf4;
+    color: #166534;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+  }
+
+  /* Annotations */
+  .annotations {
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 20px 24px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .annotations h3 {
+    color: #f8fafc;
+    font-size: 15px;
+    margin-bottom: 14px;
+  }
+  .anno-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .anno-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .anno-num {
+    background: #3b82f6;
+    color: white;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .anno-text {
+    color: #cbd5e1;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .anno-text strong { color: #f8fafc; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 日志审计中心 — 界面设计方案</h1>
+  <p>选项 B：分栏视图 Master-Detail 布局 · 结构化 JSON Diff · 分页加载</p>
+</div>
+
+<div class="mockup-container">
+  <!-- Title Bar -->
+  <div class="title-bar">
+    <div class="dot red"></div>
+    <div class="dot yellow"></div>
+    <div class="dot green"></div>
+    <div class="title-text">日志审计中心 — PetManager</div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <label>日期范围：</label>
+    <input class="filter-input" value="2026-04-08" style="width:110px">
+    <span style="color:#94a3b8;font-size:12px;">至</span>
+    <input class="filter-input" value="2026-05-08" style="width:110px">
+    <label style="margin-left:8px;">操作人：</label>
+    <input class="filter-input" placeholder="搜索员工姓名..." style="width:130px">
+    <label style="margin-left:8px;">模块：</label>
+    <select class="filter-input" style="width:110px">
+      <option>全部模块</option>
+      <option>订单管理</option>
+      <option>库存管理</option>
+      <option>会员管理</option>
+      <option>寄养管理</option>
+    </select>
+    <button class="filter-btn">🔍 查询</button>
+    <button class="filter-btn secondary">重置</button>
+  </div>
+
+  <!-- Main Split -->
+  <div class="main-split">
+    <!-- Left: Log List -->
+    <div class="left-panel">
+      <div class="log-list">
+        <div class="log-item selected">
+          <div class="log-time">2026-05-08 14:32:08</div>
+          <div class="log-title">管理员 · 更新订单状态</div>
+          <div class="log-meta">
+            <span class="module-badge">订单管理</span>
+            <span>字段变更 · 1 项</span>
+          </div>
+        </div>
+        <div class="log-item">
+          <div class="log-time">2026-05-08 13:32:08</div>
+          <div class="log-title">张三 · 库存盘点调整</div>
+          <div class="log-meta">
+            <span class="module-badge">库存管理</span>
+            <span>字段变更 · 1 项</span>
+          </div>
+        </div>
+        <div class="log-item">
+          <div class="log-time">2026-05-08 11:15:22</div>
+          <div class="log-title">李四 · 修改寄养订单价格</div>
+          <div class="log-meta">
+            <span class="module-badge">寄养管理</span>
+            <span>字段变更 · 2 项</span>
+          </div>
+        </div>
+        <div class="log-item">
+          <div class="log-time">2026-05-08 09:48:11</div>
+          <div class="log-title">管理员 · 删除过期会员</div>
+          <div class="log-meta">
+            <span class="module-badge">会员管理</span>
+            <span>记录删除</span>
+          </div>
+        </div>
+        <div class="log-item">
+          <div class="log-time">2026-05-07 18:30:45</div>
+          <div class="log-title">王五 · 商品上架</div>
+          <div class="log-meta">
+            <span class="module-badge">库存管理</span>
+            <span>新增记录</span>
+          </div>
+        </div>
+        <div class="log-item">
+          <div class="log-time">2026-05-07 16:12:33</div>
+          <div class="log-title">张三 · 修改服务价格</div>
+          <div class="log-meta">
+            <span class="module-badge">服务管理</span>
+            <span>字段变更 · 1 项</span>
+          </div>
+        </div>
+      </div>
+      <!-- Pagination -->
+      <div class="pagination">
+        <button class="page-btn disabled">‹ 上一页</button>
+        <span class="page-info">第 <strong style="color:#1e293b;">1</strong> / 64 页 · 共 1,284 条</span>
+        <button class="page-btn">下一页 ›</button>
+      </div>
+    </div>
+
+    <!-- Right: Detail Panel -->
+    <div class="right-panel">
+      <div class="detail-header">
+        <h3>操作详情</h3>
+        <div class="detail-meta-grid">
+          <div class="detail-meta-item">
+            <span class="meta-label">操作时间</span>
+            <span class="meta-value">2026-05-08 14:32:08</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="meta-label">操作人</span>
+            <span class="meta-value">管理员</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="meta-label">业务模块</span>
+            <span class="meta-value" style="color:#3b82f6;">订单管理</span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="meta-label">操作类型</span>
+            <span class="meta-value">更新状态</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="diff-section">
+        <h4>数据变更对比</h4>
+        <table class="diff-table">
+          <thead>
+            <tr>
+              <th style="width:30%;">字段名</th>
+              <th style="width:35%;">修改前 (Old)</th>
+              <th style="width:35%;">修改后 (New)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600;">订单状态</td>
+              <td><span class="val-old">待接单</span></td>
+              <td><span class="val-new">已完成</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotations -->
+<div class="annotations">
+  <h3>🔑 设计要点解析</h3>
+  <div class="anno-grid">
+    <div class="anno-item">
+      <div class="anno-num">1</div>
+      <div class="anno-text"><strong>顶部筛选栏</strong>：日期范围 + 操作人 + 模块下拉，顶部固定，不占侧边空间。与 SystemSettingsDialog 的无框窗口风格一致。</div>
+    </div>
+    <div class="anno-item">
+      <div class="anno-num">2</div>
+      <div class="anno-text"><strong>左侧日志列表</strong>：每条日志显示时间、操作人·动作、模块标签。选中态蓝色左边框高亮，与系统设置侧边栏一致。</div>
+    </div>
+    <div class="anno-item">
+      <div class="anno-num">3</div>
+      <div class="anno-text"><strong>底部分页器</strong>：上一页 / 下一页 + 页码/总数。每页20条，共1,284条时显示64页。</div>
+    </div>
+    <div class="anno-item">
+      <div class="anno-num">4</div>
+      <div class="anno-text"><strong>右侧详情面板</strong>：操作元信息 + 结构化 JSON Diff 对照表。红色删除线 = Old，绿色背景 = New，一目了然。</div>
+    </div>
+    <div class="anno-item">
+      <div class="anno-num">5</div>
+      <div class="anno-text"><strong>模块下拉筛选</strong>：新增 QComboBox 模块筛选器，比纯文本搜索更精准，扩展 LogDataManager 查询接口即可。</div>
+    </div>
+    <div class="anno-item">
+      <div class="anno-num">6</div>
+      <div class="anno-text"><strong>无框窗口</strong>：沿用 SystemSettingsDialog 的 FramelessWindowHint + TranslucentBackground 风格，保持一致的对话框体验。</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

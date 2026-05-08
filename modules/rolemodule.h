@@ -33,6 +33,7 @@ private:
 private slots:
     void onAddEmployee();
     void onEditEmployee();
+    void onResetPassword(const QString &id);
     void onEditEmployeeFromDrawer(const struct EmployeeInfo &info);
     void onFilterChanged();
     void onSearchTextChanged(const QString &text);

@@ -32,12 +32,14 @@ CREATE TABLE sys_employees (
     emp_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '员工id',
     username VARCHAR(20) NOT NULL UNIQUE COMMENT '用户名',
     password VARCHAR(255) NOT NULL COMMENT '登录密码(哈希存储)',
-    role ENUM('店长', '收银', '美容师') NOT NULL DEFAULT '美容师' COMMENT '身份角色(管理员/前台/技师)',
+    role ENUM('店长', '收银', '美容师') NOT NULL DEFAULT '美容师' COMMENT '身份角色',
     real_name VARCHAR(10) COMMENT '真实姓名',
+    gender ENUM('男', '女', '未知') DEFAULT '未知' COMMENT '性别',
     phone CHAR(11) COMMENT '手机号',
     salary_base INT UNSIGNED COMMENT '基本底薪',
     commission_rate DECIMAL(3,2) UNSIGNED COMMENT '提成比例',
-    status TINYINT UNSIGNED DEFAULT 1 COMMENT '1:在职 0:离职'
+    status TINYINT UNSIGNED DEFAULT 1 COMMENT '1:在职 0:离职',
+    img_url VARCHAR(255) COMMENT '头像路径'
 ) COMMENT='员工基础信息及权限表';
 
 -- [表 2] 排班与考勤表
@@ -45,11 +47,26 @@ CREATE TABLE sys_schedules (
     schedule_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '排班id',
     emp_id INT NOT NULL COMMENT '员工id',
     work_date DATE NOT NULL COMMENT '工作日期',
-    shift_type ENUM('早班', '中班', '晚班') NOT NULL COMMENT '班次类型',
+    shift_type ENUM('早班', '中班', '晚班', '休息', '自定义') NOT NULL COMMENT '班次类型',
+    plan_start TIME COMMENT '计划上班时间',
+    plan_end TIME COMMENT '计划下班时间',
     clock_in DATETIME COMMENT '实际签到时间',
     clock_out DATETIME COMMENT '实际签退时间',
+    note VARCHAR(100) COMMENT '备注',
     FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id)
 ) COMMENT='考勤排班表';
+
+-- [表 2.1] 排班模板表 (标准周定义)
+CREATE TABLE sys_schedule_templates (
+    template_id INT AUTO_INCREMENT PRIMARY KEY,
+    emp_id INT NOT NULL,
+    day_of_week TINYINT NOT NULL COMMENT '1:周一 ... 7:周日',
+    shift_type ENUM('早班', '中班', '晚班', '休息', '自定义') NOT NULL,
+    plan_start TIME,
+    plan_end TIME,
+    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id),
+    UNIQUE KEY idx_emp_day (emp_id, day_of_week)
+) COMMENT='周排班模板表';
 
 -- [表 3] 系统通用图片附件表
 CREATE TABLE sys_images (
@@ -130,10 +147,14 @@ CREATE TABLE products (
 -- [表 8] 门店服务项目定义表
 CREATE TABLE services (
     service_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(20) NOT NULL COMMENT '服务名称',
+    name VARCHAR(50) NOT NULL COMMENT '服务名称',
+    category ENUM('美容洗护', '医疗保健', '寄养服务', '培训及其他') NOT NULL,
     price DECIMAL(7,2) UNSIGNED NOT NULL COMMENT '价格',
-    category ENUM('美容洗护', '医疗保健', '培训及其他') NOT NULL
-) COMMENT='店内无形服务项目字典';
+    duration_min INT UNSIGNED DEFAULT 30 COMMENT '预计耗时(分钟)',
+    commission_type ENUM('比例', '固定金额') DEFAULT '比例',
+    commission_value DECIMAL(7,2) UNSIGNED DEFAULT 10.00 COMMENT '提成数值(20代表20%或20元)',
+    status TINYINT DEFAULT 1 COMMENT '1:可用 0:停用'
+) COMMENT='店内服务项目字典';
 
 -- [表 9] 寄养房态配置表
 CREATE TABLE foster_rooms (
@@ -217,13 +238,28 @@ CREATE TABLE order_items (
     order_id BIGINT UNSIGNED NOT NULL COMMENT '所属订单id',
     item_type ENUM('product', 'service', 'foster') NOT NULL COMMENT '项目类型',
     target_id INT NOT NULL COMMENT '关联主键ID',
-    snapshot_name VARCHAR(100) NOT NULL COMMENT '交易快照:商品/服务名称',
+    snapshot_name VARCHAR(100) NOT NULL COMMENT '交易快照',
     quantity INT UNSIGNED DEFAULT 1 COMMENT '数量',
     unit_price_origin DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '销售原单价',
     unit_price DECIMAL(8,2) UNSIGNED NOT NULL COMMENT '实际成交单价',
-    subtotal DECIMAL(8,2) UNSIGNED AS (quantity * unit_price) COMMENT '小计(自动计算)',
-    FOREIGN KEY (order_id) REFERENCES orders(order_id)
-) COMMENT='订单交易明细(含交易快照)';
+    subtotal DECIMAL(8,2) UNSIGNED AS (quantity * unit_price) COMMENT '小计',
+    executor_id INT COMMENT '执行员工id(服务项目必填)',
+    FOREIGN KEY (order_id) REFERENCES orders(order_id),
+    FOREIGN KEY (executor_id) REFERENCES sys_employees(emp_id)
+) COMMENT='订单交易明细(含提成归属)';
+
+-- [表 15] 提成结算流水表
+CREATE TABLE commission_logs (
+    log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    item_id BIGINT UNSIGNED NOT NULL COMMENT '关联订单明细',
+    emp_id INT NOT NULL COMMENT '获佣员工',
+    amount DECIMAL(8,2) NOT NULL COMMENT '提成金额',
+    status ENUM('待结算', '已发放') DEFAULT '待结算',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    settled_at DATETIME COMMENT '发放时间',
+    FOREIGN KEY (item_id) REFERENCES order_items(item_id),
+    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id)
+) COMMENT='员工提成明细表';
 
 ```
 

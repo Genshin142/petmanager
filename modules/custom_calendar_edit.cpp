@@ -138,6 +138,16 @@ void CustomCalendarEdit::setMaximumDate(const QDate &date) {
     if (m_calendar) m_calendar->setMaximumDate(date);
 }
 
+void CustomCalendarEdit::setDate(const QDate &date) {
+    if (date.isValid()) {
+        setText(date.toString("yyyy-MM-dd"));
+        if (m_calendar) {
+            m_calendar->setSelectedDate(date);
+            m_calendar->setCurrentPage(date.year(), date.month());
+        }
+    }
+}
+
 QDate CustomCalendarEdit::date() const {
     return QDate::fromString(text(), "yyyy-MM-dd");
 }

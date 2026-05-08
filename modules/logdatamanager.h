@@ -9,12 +9,16 @@ class LogDataManager : public QObject {
     Q_OBJECT
 public:
     explicit LogDataManager(QObject *parent = nullptr);
-    bool initTable();
-    QList<SysOperationLog> fetchLogs(int limit, int offset, const QString &startDate = "", const QString &endDate = "", const QString &operatorName = "");
-    int getTotalCount(const QString &startDate = "", const QString &endDate = "", const QString &operatorName = "");
+    bool initTable(); // Now just returns true
+    QList<SysOperationLog> fetchLogs(int limit, int offset, const QString &startDate = "", const QString &endDate = "", const QString &operatorName = "", const QString &module = "");
+    int getTotalCount(const QString &startDate = "", const QString &endDate = "", const QString &operatorName = "", const QString &module = "");
+    QStringList fetchDistinctModules();
+    QStringList fetchDistinctOperators();
     
-    // For testing
     bool insertMockLog(const SysOperationLog &log);
+
+private:
+    QList<SysOperationLog> m_mockLogs;
 };
 
 #endif // LOGDATAMANAGER_H

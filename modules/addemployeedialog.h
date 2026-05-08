@@ -9,27 +9,7 @@
 #include <QPushButton>
 #include "custom_calendar_edit.h"
 
-struct EmployeeInfo {
-    QString id;
-    QString name;
-    QString role;
-    QString gender;
-    int age;
-    QString phone;
-    QString email;
-    QString idCard;
-    int baseSalary;
-    QString status;
-    QString imgPath; // 员工头像路径
-    
-    // 新增专业管理字段
-    QString joinDate;          // 入职日期
-    QString emergencyContact;  // 紧急联系人
-    QString emergencyPhone;    // 紧急联系人电话
-    QString address;           // 家庭住址
-    QString education;         // 学历
-    QString department;        // 部门
-};
+#include "common_types.h"
 
 class AddEmployeeDialog : public QDialog
 {
@@ -40,6 +20,7 @@ public:
     ~AddEmployeeDialog();
 
     void setEmployeeInfo(const EmployeeInfo &info);
+    void setNextAccount(const QString &account); // 确保这里有声明
     EmployeeInfo employeeInfo() const;
     void updateAvatarPreview(const QString &path);
 
@@ -71,6 +52,8 @@ private:
     QLineEdit *emergencyEdit;
     QLineEdit *emergencyPhoneEdit;
     QLineEdit *addressEdit;
+    QLineEdit *usernameEdit;
+    QLineEdit *passwordEdit;
     CustomCalendarEdit *joinDateEdit;
     
     QLabel *titleLabel;

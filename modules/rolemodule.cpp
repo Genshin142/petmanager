@@ -502,14 +502,15 @@ void RoleModule::setEmployeeRowData(int row, const QString &id, const QString &n
                                     const QString &gender, int age, const QString &phone, const QString &email, const QString &idCard,
                                     double baseSalary, double /*performance*/, double /*commission*/, const QString &imgPath)
 {
-    // 将完整数据封装并绑定到 UserRole
-    EmployeeInfo info;
-    info.id = id; info.name = name; info.role = role; info.status = status;
-    info.gender = gender; info.age = age; info.phone = phone; info.email = email;
-    info.idCard = idCard; info.baseSalary = (int)baseSalary; info.imgPath = imgPath;
-    
-    // 注入一些默认的 HR 字段
-    info.joinDate = "2023-01-01";
+    // 核心：从数据中心获取完整对象，确保包含账号密码等所有字段
+    EmployeeInfo info = StaffDataManager::instance()->getStaff(id);
+    if (info.id.isEmpty()) {
+        // 如果数据中心找不到（比如刚添加还没同步），则手动构建基础信息
+        info.id = id; info.name = name; info.role = role; info.status = status;
+        info.gender = gender; info.age = age; info.phone = phone; info.email = email;
+        info.idCard = idCard; info.baseSalary = (int)baseSalary; info.imgPath = imgPath;
+        info.joinDate = "2023-01-01";
+    }
 
     auto setItem = [&](int col, const QString &text, const QColor &color = QColor()) {
         QTableWidgetItem *item = new QTableWidgetItem(text);
@@ -620,6 +621,20 @@ void RoleModule::setEmployeeRowData(int row, const QString &id, const QString &n
         });
     } else {
         // --- 正常状态下的操作按钮 ---
+        
+        // 重置密码按钮
+        QPushButton *resetBtn = new QPushButton("重置密码");
+        resetBtn->setCursor(Qt::PointingHandCursor);
+        resetBtn->setFixedSize(90, 28);
+        resetBtn->setStyleSheet(
+            "QPushButton { background-color: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; border-radius: 4px; font-size: 12px; padding: 0; text-align: center; } "
+            "QPushButton:hover { background-color: #3b82f6; color: white; }"
+        );
+        btnLayout->addWidget(resetBtn);
+        connect(resetBtn, &QPushButton::clicked, this, [=](){
+            onResetPassword(id); // 执行一键重置逻辑
+        });
+
         QPushButton *delBtn = new QPushButton("删除");
         delBtn->setCursor(Qt::PointingHandCursor);
         delBtn->setFixedSize(70, 28);
@@ -766,27 +781,47 @@ void RoleModule::onNextPage()
 void RoleModule::onAddEmployee()
 {
     AddEmployeeDialog dlg(this);
+    
+    // 自动计算下一个登录账号 (staff + maxId+1)
+    auto allStaff = StaffDataManager::instance()->allStaff();
+    int maxId = 0;
+    for (const auto &s : allStaff) {
+        if (s.id.startsWith("E")) {
+            int cur = s.id.mid(1).toInt();
+            if (cur > maxId) maxId = cur;
+        }
+    }
+    QString nextAccount = QString("staff%1").arg(maxId + 1, 2, 10, QChar('0'));
+    dlg.setNextAccount(nextAccount);
+
     if (dlg.exec() == QDialog::Accepted) {
         EmployeeInfo info = dlg.employeeInfo();
-        // 自动生成新工号
-        int maxId = 0;
-        for (int i = 0; i < empTable->rowCount(); ++i) {
-            QTableWidgetItem *item = empTable->item(i, 0);
-            if (item && item->text().startsWith("E")) {
-                int cur = item->text().mid(1).toInt();
-                if (cur > maxId) maxId = cur;
-            }
-        }
+        // 自动分配工号
         info.id = QString("E%1").arg(maxId + 1, 3, 10, QChar('0'));
         
         // 同时更新 UI 和数据中心
         StaffDataManager::instance()->addStaff(info);
-        addEmployeeRow(info.id, info.name, info.role, info.status, info.gender, info.age, 
-                       info.phone, info.email, info.idCard, info.baseSalary, 0, 0, info.imgPath);
+        
+        // 刷新列表（使用统一的数据加载逻辑）
+        empTable->setRowCount(0);
+        addSampleData();
         
         updateStats();
         updatePagination();
     }
+}
+
+void RoleModule::onResetPassword(const QString &id)
+{
+    EmployeeInfo info = StaffDataManager::instance()->getStaff(id);
+    if (info.id.isEmpty()) return;
+
+    // 一键重置逻辑
+    info.password = "123456";
+    StaffDataManager::instance()->updateStaff(info);
+    
+    CustomMessageDialog::showSuccess(this, "密码重置成功", 
+        QString("已将员工 [%1] 的登录密码重置为：123456").arg(info.name));
 }
 
 void RoleModule::onEditEmployee()

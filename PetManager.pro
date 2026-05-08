@@ -61,6 +61,9 @@ SOURCES += \
     modules/systemsettingsdialog.cpp \
     modules/logdatamanager.cpp \
     modules/operationlogdialog.cpp \
+    modules/scheduledatamanager.cpp \
+    modules/schedulemodule.cpp \
+    modules/scheduletemplatedialog.cpp \
     utils/logger.cpp
 
 HEADERS += \
@@ -123,6 +126,9 @@ HEADERS += \
     modules/systemsettingsdialog.h \
     modules/logdatamanager.h \
     modules/operationlogdialog.h \
+    modules/scheduledatamanager.h \
+    modules/schedulemodule.h \
+    modules/scheduletemplatedialog.h \
     modules/financemodule.h
 
 FORMS += \

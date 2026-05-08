@@ -66,17 +66,17 @@ void LoginWindow::on_loginBtn_clicked()
     QString pwd = ui->passwordEdit->text();
 
     if (user == "admin" && pwd == "123456") {
-        MainWindow *mw = new MainWindow(ADMIN, "系统管理员");
+        MainWindow *mw = new MainWindow(ADMIN, "系统管理员 (管理员)");
         mw->show();
         this->close();
     } 
-    else if (user == "staff" && pwd == "123456") {
-        MainWindow *mw = new MainWindow(STAFF, "营业员小利");
+    else if (user == "staff01" && pwd == "123456") {
+        MainWindow *mw = new MainWindow(STAFF, "店员小张 (staff01)");
         mw->show();
         this->close();
     }
     else {
-        QMessageBox::warning(this, "登录失败", "用户名或密码错误！\n测试账号：admin 或 staff (密码均为 123456)");
+        QMessageBox::warning(this, "登录失败", "用户名或密码错误！\n测试账号：admin 或 staff01 (密码均为 123456)");
     }
 }
 

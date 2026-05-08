@@ -63,8 +63,8 @@ int main(int argc, char *argv[])
         "}"
     );
 
-    MainWindow mw(ADMIN, "系统管理员 (管理员)");
-    mw.show();
+    LoginWindow lw;
+    lw.show();
     
     return a.exec();
 }

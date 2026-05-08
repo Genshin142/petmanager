@@ -8,6 +8,8 @@
 #include "backupprogressdialog.h"
 #include "systemsettingsdialog.h"
 #include "operationlogdialog.h"
+#include "scheduledatamanager.h"
+#include "staffdatamanager.h"
 #include <QThread>
 
 PersonalModule::PersonalModule(UserRole role, const QString &userName, QWidget *parent)
@@ -24,7 +26,12 @@ void PersonalModule::setupUI() {
     QWidget *header = new QWidget();
     header->setFixedHeight(200);
     header->setObjectName("ProfileHeader");
-    header->setStyleSheet("QWidget#ProfileHeader { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3b82f6, stop:1 #2563eb); border-radius: 20px; }");
+    if (m_role == ADMIN) {
+        header->setStyleSheet("QWidget#ProfileHeader { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3b82f6, stop:1 #2563eb); border-radius: 20px; }");
+    } else {
+        // 店员使用代表成长与活力的青绿色系
+        header->setStyleSheet("QWidget#ProfileHeader { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #10b981, stop:1 #059669); border-radius: 20px; }");
+    }
     
     QHBoxLayout *hl = new QHBoxLayout(header);
     hl->setContentsMargins(40, 0, 40, 0);
@@ -112,6 +119,64 @@ QWidget* PersonalModule::createStaffView() {
     cardHl->addWidget(createCard("服务星级", "⭐⭐⭐⭐⭐", "全店排名 2nd", "#f59e0b"));
     layout->addLayout(cardHl);
 
+    // --- 本周排班看板 (新增) ---
+    QLabel *schedTitle = new QLabel("我的本周排班");
+    schedTitle->setStyleSheet("font-size: 18px; font-weight: 800; color: #1e293b; margin-top: 15px; border: none;");
+    layout->addWidget(schedTitle);
+
+    QFrame *schedContainer = new QFrame();
+    schedContainer->setStyleSheet("background: white; border-radius: 15px; border: 1px solid #e2e8f0;");
+    QHBoxLayout *schedLayout = new QHBoxLayout(schedContainer);
+    schedLayout->setContentsMargins(15, 15, 15, 15);
+    schedLayout->setSpacing(10);
+
+    QStringList weekNames = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
+    QDate today = QDate::currentDate();
+    QDate monday = today.addDays(1 - today.dayOfWeek());
+
+    // 查找当前员工ID
+    QString empId = "";
+    auto allStaff = StaffDataManager::instance()->allStaff();
+    for(const auto& s : allStaff) {
+        if(s.name == m_userName) { empId = s.id; break; }
+    }
+
+    for (int i = 0; i < 7; ++i) {
+        QDate d = monday.addDays(i);
+        ScheduleInfo info = ScheduleDataManager::instance()->getSchedule(empId, d);
+        
+        QWidget *dayBox = new QWidget();
+        QVBoxLayout *dv = new QVBoxLayout(dayBox);
+        dv->setContentsMargins(0, 0, 0, 0);
+        dv->setSpacing(8);
+
+        QLabel *dayName = new QLabel(weekNames[i]);
+        dayName->setAlignment(Qt::AlignCenter);
+        dayName->setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; border: none;");
+        
+        QLabel *shiftTag = new QLabel();
+        shiftTag->setFixedSize(75, 45);
+        shiftTag->setAlignment(Qt::AlignCenter);
+        QString shiftStyle = "border-radius: 8px; font-size: 11px; font-weight: bold; ";
+        
+        if (info.type == SHIFT_MORNING) {
+            shiftTag->setText("☀️ 早班");
+            shiftStyle += "background: #fff7ed; color: #f59e0b; border: 1px solid #ffedd5;";
+        } else if (info.type == SHIFT_EVENING) {
+            shiftTag->setText("🌙 晚班");
+            shiftStyle += "background: #f5f3ff; color: #8b5cf6; border: 1px solid #ede9fe;";
+        } else {
+            shiftTag->setText("🌿 休息");
+            shiftStyle += "background: #f8fafc; color: #94a3b8; border: 1px solid #f1f5f9;";
+        }
+        shiftTag->setStyleSheet(shiftStyle);
+
+        dv->addWidget(dayName);
+        dv->addWidget(shiftTag);
+        schedLayout->addWidget(dayBox);
+    }
+    layout->addWidget(schedContainer);
+
     // 快捷入口
     QLabel *sectionTitle = new QLabel("店员自助服务");
     sectionTitle->setStyleSheet("font-size: 18px; font-weight: 800; color: #1e293b; margin-top: 20px; border: none;");
@@ -119,7 +184,9 @@ QWidget* PersonalModule::createStaffView() {
 
     layout->addWidget(createActionRow("修改密码", "为了您的账号安全，建议每3个月更换一次密码", "立即修改"));
     layout->addWidget(createActionRow("我的排班", "查看下周的轮岗计划及请假申请状态", "查看排班"));
-    layout->addWidget(createActionRow("荣誉勋章", "查看您在店铺获得的年度最佳等荣誉奖励", "查看奖牌"));
+    layout->addWidget(createActionRow("我的提成", "实时查看本月各项服务及销售带来的个人收益", "查看明细"));
+    layout->addWidget(createActionRow("我的评价", "查看客户对您最近服务的点评与建议", "查看反馈"));
+    layout->addWidget(createActionRow("荣誉勋章", "查看您在店铺获得的年度最佳等荣誉奖励", "我的荣誉"));
 
     layout->addStretch();
     return view;
@@ -236,6 +303,12 @@ void PersonalModule::onActionClicked(const QString &actionName) {
     } else if (actionName == "我的排班") {
         msgBox.setIcon(QMessageBox::Information);
         msgBox.setText("您本周的排班信息如下：\n\n• 周一至周三: 早班 (09:00 - 18:00)\n• 周四至周五: 晚班 (13:00 - 22:00)\n• 周末: 休息");
+    } else if (actionName == "我的提成") {
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setText("💰 本月提成概览：\n\n• 服务提成: ¥3,120 (完成 45 场服务)\n• 商品销售: ¥840 (销售额 ¥4,200)\n• 奖励金: ¥500 (全勤奖励)\n\n合计: ¥4,460\n*数据实时更新，最终以薪资单为准。");
+    } else if (actionName == "我的评价") {
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setText("🌟 客户评价摘要：\n\n• 综合评分: 4.9 / 5.0\n• 印象标签: '细心负责'、'手法纯熟'\n\n最新留言:\n'张三老师修剪得很细致，我家雪纳瑞非常帅气，下次还会再来！'");
     } else if (actionName == "荣誉勋章") {
         msgBox.setIcon(QMessageBox::Information);
         msgBox.setText("您的荣誉档案库：\n\n🏅 2026年4月 最佳销售冠军\n⭐ 五星级服务口碑奖章\n\n继续保持，下个目标就在眼前！");

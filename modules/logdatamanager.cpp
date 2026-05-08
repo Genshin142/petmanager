@@ -1,120 +1,105 @@
 #include "logdatamanager.h"
-#include <QSqlQuery>
-#include <QSqlError>
 #include <QVariant>
 #include <QDebug>
 #include <QDateTime>
+#include <algorithm>
+#include <QSet>
 
 LogDataManager::LogDataManager(QObject *parent) : QObject(parent) {
     initTable();
 }
 
 bool LogDataManager::initTable() {
-    QSqlQuery query;
-    QString sql = "CREATE TABLE IF NOT EXISTS sys_operation_logs ("
-                  "id TEXT PRIMARY KEY, "
-                  "timestamp TEXT, "
-                  "operatorName TEXT, "
-                  "module TEXT, "
-                  "action TEXT, "
-                  "details TEXT)";
-    if (!query.exec(sql)) {
-        qWarning() << "Failed to create sys_operation_logs table:" << query.lastError().text();
-        return false;
-    }
+    // 内存模式下无需建表
     return true;
 }
 
-QList<SysOperationLog> LogDataManager::fetchLogs(int limit, int offset, const QString &startDate, const QString &endDate, const QString &operatorName) {
-    QList<SysOperationLog> list;
-    QSqlQuery query;
+QList<SysOperationLog> LogDataManager::fetchLogs(int limit, int offset, const QString &startDate, const QString &endDate, const QString &operatorName, const QString &module) {
+    QList<SysOperationLog> filteredList;
     
-    QString sql = "SELECT id, timestamp, operatorName, module, action, details FROM sys_operation_logs WHERE 1=1";
-    if (!startDate.isEmpty() && !endDate.isEmpty()) {
-        sql += " AND timestamp >= :startDate AND timestamp <= :endDate";
-    }
-    if (!operatorName.isEmpty()) {
-        sql += " AND operatorName LIKE :operatorName";
-    }
-    
-    sql += " ORDER BY timestamp DESC LIMIT :limit OFFSET :offset";
-    query.prepare(sql);
-    
-    if (!startDate.isEmpty() && !endDate.isEmpty()) {
-        query.bindValue(":startDate", startDate + " 00:00:00");
-        query.bindValue(":endDate", endDate + " 23:59:59");
-    }
-    if (!operatorName.isEmpty()) {
-        query.bindValue(":operatorName", "%" + operatorName + "%");
-    }
-    
-    query.bindValue(":limit", limit);
-    query.bindValue(":offset", offset);
-    
-    if (!query.exec()) {
-        qWarning() << "Fetch logs failed:" << query.lastError().text();
-        return list;
+    for (const auto &log : m_mockLogs) {
+        bool match = true;
+        
+        // 1. 日期筛选
+        if (!startDate.isEmpty() && !endDate.isEmpty()) {
+            QString logDate = log.timestamp.left(10);
+            if (logDate < startDate || logDate > endDate) match = false;
+        }
+        
+        // 2. 操作人筛选
+        if (match && !operatorName.isEmpty()) {
+            if (!log.operatorName.contains(operatorName, Qt::CaseInsensitive)) match = false;
+        }
+        
+        // 3. 模块筛选
+        if (match && !module.isEmpty()) {
+            if (log.module != module) match = false;
+        }
+        
+        if (match) filteredList.append(log);
     }
     
-    while (query.next()) {
-        SysOperationLog log;
-        log.id = query.value("id").toString();
-        log.timestamp = query.value("timestamp").toString();
-        log.operatorName = query.value("operatorName").toString();
-        log.module = query.value("module").toString();
-        log.action = query.value("action").toString();
-        log.details = query.value("details").toString();
-        list.append(log);
+    // 排序 (按时间降序)
+    std::sort(filteredList.begin(), filteredList.end(), [](const SysOperationLog &a, const SysOperationLog &b) {
+        return a.timestamp > b.timestamp;
+    });
+    
+    // 分页
+    QList<SysOperationLog> result;
+    for (int i = offset; i < filteredList.size() && result.size() < limit; ++i) {
+        result.append(filteredList[i]);
     }
     
+    return result;
+}
+
+int LogDataManager::getTotalCount(const QString &startDate, const QString &endDate, const QString &operatorName, const QString &module) {
+    int count = 0;
+    for (const auto &log : m_mockLogs) {
+        bool match = true;
+        if (!startDate.isEmpty() && !endDate.isEmpty()) {
+            QString logDate = log.timestamp.left(10);
+            if (logDate < startDate || logDate > endDate) match = false;
+        }
+        if (match && !operatorName.isEmpty()) {
+            if (!log.operatorName.contains(operatorName, Qt::CaseInsensitive)) match = false;
+        }
+        if (match && !module.isEmpty()) {
+            if (log.module != module) match = false;
+        }
+        if (match) count++;
+    }
+    return count;
+}
+
+QStringList LogDataManager::fetchDistinctModules() {
+    QSet<QString> moduleSet;
+    for (const auto &log : m_mockLogs) {
+        moduleSet.insert(log.module);
+    }
+    QStringList list = moduleSet.values();
+    std::sort(list.begin(), list.end());
     return list;
 }
 
-int LogDataManager::getTotalCount(const QString &startDate, const QString &endDate, const QString &operatorName) {
-    QSqlQuery query;
-    QString sql = "SELECT COUNT(*) FROM sys_operation_logs WHERE 1=1";
-    if (!startDate.isEmpty() && !endDate.isEmpty()) {
-        sql += " AND timestamp >= :startDate AND timestamp <= :endDate";
+QStringList LogDataManager::fetchDistinctOperators() {
+    QSet<QString> opSet;
+    for (const auto &log : m_mockLogs) {
+        opSet.insert(log.operatorName);
     }
-    if (!operatorName.isEmpty()) {
-        sql += " AND operatorName LIKE :operatorName";
-    }
-    
-    query.prepare(sql);
-    
-    if (!startDate.isEmpty() && !endDate.isEmpty()) {
-        query.bindValue(":startDate", startDate + " 00:00:00");
-        query.bindValue(":endDate", endDate + " 23:59:59");
-    }
-    if (!operatorName.isEmpty()) {
-        query.bindValue(":operatorName", "%" + operatorName + "%");
-    }
-    
-    if (!query.exec()) {
-        qWarning() << "Get total count failed:" << query.lastError().text();
-        return 0;
-    }
-    
-    if (query.next()) {
-        return query.value(0).toInt();
-    }
-    return 0;
+    QStringList list = opSet.values();
+    std::sort(list.begin(), list.end());
+    return list;
 }
 
 bool LogDataManager::insertMockLog(const SysOperationLog &log) {
-    QSqlQuery query;
-    query.prepare("INSERT OR REPLACE INTO sys_operation_logs (id, timestamp, operatorName, module, action, details) "
-                  "VALUES (:id, :timestamp, :operatorName, :module, :action, :details)");
-    query.bindValue(":id", log.id);
-    query.bindValue(":timestamp", log.timestamp);
-    query.bindValue(":operatorName", log.operatorName);
-    query.bindValue(":module", log.module);
-    query.bindValue(":action", log.action);
-    query.bindValue(":details", log.details);
-    
-    if (!query.exec()) {
-        qWarning() << "Insert mock log failed:" << query.lastError().text();
-        return false;
+    // 内存模式：如果是已存在的ID，先删除旧的实现“替换”
+    for (int i = 0; i < m_mockLogs.size(); ++i) {
+        if (m_mockLogs[i].id == log.id) {
+            m_mockLogs.removeAt(i);
+            break;
+        }
     }
+    m_mockLogs.append(log);
     return true;
 }

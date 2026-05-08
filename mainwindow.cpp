@@ -15,6 +15,7 @@
 #include "modules/logisticsmanager.h"
 #include "modules/petdatamanager.h"
 #include "modules/personalmodule.h"
+#include "modules/schedulemodule.h"
 #include <QPushButton>
 #include <QTimer>
 #include <QDateTime>
@@ -42,6 +43,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     inboundMod = nullptr;
     serviceMod = nullptr;
     personalMod = nullptr;
+    scheduleMod = nullptr;
 
     initSidebar();
 
@@ -53,6 +55,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
         ui->navStats->setVisible(false);
         ui->navRole->setVisible(false); 
         navFinance->setVisible(false);
+        navSchedule->setVisible(false); // 店员不可见
     }
 
     // Defer modules initialization to ensure a stable startup sequence
@@ -113,11 +116,14 @@ void MainWindow::initSidebar()
     navGroup->addButton(navFinance, 7); 
     ui->sidebarLayout->insertWidget(11, navFinance);
 
+    // 动态添加排班管理按钮 (管理员) (Index 13)
+    navSchedule = new QPushButton("排班管理 (管理员)");
+    navGroup->addButton(navSchedule, 13);
+    ui->sidebarLayout->insertWidget(13, navSchedule);
+
     // 动态添加个人中心按钮 (Index 12) - 置于最底部
     navPersonal = new QPushButton("个人中心");
     navGroup->addButton(navPersonal, 12);
-    // 插入到 spacer 之后或之前？Spacer 在 UI 文件中是最后一个 item。
-    // 我们直接 addWidget 到底部
     ui->sidebarLayout->addWidget(navPersonal);
 
     foreach (QAbstractButton *btn, navGroup->buttons()) {
@@ -179,6 +185,9 @@ void MainWindow::initModules(UserRole role)
     
     personalMod = new PersonalModule(role, m_userName, this);
     ui->stack->addWidget(personalMod);  // index 12
+
+    scheduleMod = new ScheduleModule(this);
+    ui->stack->addWidget(scheduleMod);  // index 13
 
     // 跨模块同步逻辑
     connect(memberMod, &MemberModule::sig_petAdded, petMod, &PetModule::addPet);

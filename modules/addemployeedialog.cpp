@@ -193,6 +193,20 @@ void AddEmployeeDialog::setupUI()
     addressEdit->setPlaceholderText("请输入员工当前详细住址");
     formLayout->addWidget(addressEdit, 9, 1, 1, 3);
 
+    // 第十一行：账号与密码 (核心新增)
+    addLabel("登录账号:", 10, 0);
+    usernameEdit = new QLineEdit();
+    usernameEdit->setPlaceholderText("系统自动生成");
+    usernameEdit->setReadOnly(true); // 默认设为只读
+    usernameEdit->setStyleSheet("QLineEdit { background-color: #f5f7fa; color: #909399; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px 10px; }");
+    formLayout->addWidget(usernameEdit, 10, 1);
+
+    addLabel("登录密码:", 10, 2);
+    passwordEdit = new QLineEdit();
+    passwordEdit->setPlaceholderText("初始密码");
+    passwordEdit->setText("123456"); // 默认密码
+    formLayout->addWidget(passwordEdit, 10, 3);
+
     mainLayout->addLayout(formLayout);
     mainLayout->addStretch();
 
@@ -264,6 +278,11 @@ void AddEmployeeDialog::setupUI()
     m_imagePreviewOverlay = nullptr; 
 }
 
+void AddEmployeeDialog::setNextAccount(const QString &account)
+{
+    usernameEdit->setText(account);
+}
+
 void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
 {
     titleLabel->setText("修改员工档案信息");
@@ -286,6 +305,10 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
     if (!info.joinDate.isEmpty()) {
         joinDateEdit->setText(info.joinDate);
     }
+    
+    // 账号密码回填
+    usernameEdit->setText(info.username);
+    passwordEdit->setText(info.password);
 
     // 头像同步
     m_selectedImgPath = info.imgPath;
@@ -338,6 +361,8 @@ EmployeeInfo AddEmployeeDialog::employeeInfo() const
     info.emergencyPhone = emergencyPhoneEdit->text();
     info.address = addressEdit->text();
     info.joinDate = joinDateEdit->text();
+    info.username = usernameEdit->text();
+    info.password = passwordEdit->text();
 
     return info;
 }

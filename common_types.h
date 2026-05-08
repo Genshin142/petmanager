@@ -278,6 +278,51 @@ struct SysOperationLog {
     QString action;
     QString details;
 };
+
+// --- 员工管理基础结构 ---
+struct EmployeeInfo {
+    QString id;
+    QString name;
+    QString role;
+    QString gender;
+    int age;
+    QString phone;
+    QString email;
+    QString idCard;
+    int baseSalary;
+    QString status;
+    QString imgPath;
+    
+    QString joinDate;
+    QString emergencyContact;
+    QString emergencyPhone;
+    QString address;
+    QString education;
+    QString department;
+
+    QString username;
+    QString password;
+};
+
+// --- 排班管理结构 (UIUX Pro Max Design) ---
+enum ShiftType {
+    SHIFT_OFF = 0,      // 休息 (Off)
+    SHIFT_MORNING,      // 早班 (Morning: 09:00 - 18:00)
+    SHIFT_EVENING,      // 晚班 (Evening: 13:00 - 22:00)
+    SHIFT_CUSTOM        // 自定义班次
+};
+
+struct ScheduleInfo {
+    QString employeeId;
+    QString date;       // yyyy-MM-dd
+    ShiftType type;
+    QString startTime;  // HH:mm
+    QString endTime;    // HH:mm
+    QString note;
+};
+
+Q_DECLARE_METATYPE(EmployeeInfo)
+Q_DECLARE_METATYPE(ScheduleInfo)
 Q_DECLARE_METATYPE(SysOperationLog)
 
 #endif // COMMON_TYPES_H
