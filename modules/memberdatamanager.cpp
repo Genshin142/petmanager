@@ -1,4 +1,9 @@
 #include "memberdatamanager.h"
+#include "../utils/networkmanager.h"
+#include "../protocol_codes.h"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QDebug>
 #include <QDate>
 
 MemberDataManager* MemberDataManager::m_instance = nullptr;
@@ -13,7 +18,56 @@ MemberDataManager* MemberDataManager::instance()
 
 MemberDataManager::MemberDataManager(QObject *parent) : QObject(parent)
 {
+    // 连接网络包接收信号
+    connect(&NetworkManager::instance(), &NetworkManager::packetReceived,
+            this, &MemberDataManager::onPacketReceived);
+    
     initMockData();
+}
+
+void MemberDataManager::requestMemberList()
+{
+    qDebug() << "[MEMBER] Requesting member list from server...";
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_MEMBER_LIST, QJsonObject());
+}
+
+void MemberDataManager::onPacketReceived(const Protocol::NetPacket &packet)
+{
+    if (packet.cmdId == Protocol::CMD_GET_MEMBER_LIST) {
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray arr = root["data"].toArray();
+            
+            // 全量更新
+            m_members.clear();
+            
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject obj = arr[i].toObject();
+                MemberInfo info;
+                // 格式化 ID：1 -> M00001
+                info.id = QString("M%1").arg(obj["member_id"].toInt(), 5, 10, QChar('0'));
+                info.name = obj["name"].toString();
+                info.gender = obj["gender"].toString();
+                info.birthday = obj["birthday"].toString();
+                info.phone = obj["phone"].toString();
+                info.balance = obj["balance"].toDouble();
+                info.consume_amt = obj["consume_amt"].toDouble();
+                info.points = obj["points"].toInt();
+                info.level = obj["level_name"].toString();
+                info.isActive = true;
+                info.status = "正常";
+                
+                qDebug() << "[DEBUG] Member ID:" << info.id << "Name:" << info.name << "Gender:" << info.gender;
+                
+                m_members[info.id] = info;
+            }
+            
+            qDebug() << "[MEMBER] Member list updated. Count:" << m_members.size();
+            emit dataChanged();
+        }
+    }
 }
 
 void MemberDataManager::initMockData()
@@ -35,17 +89,13 @@ void MemberDataManager::initMockData()
         m_members[id] = info;
     };
 
+    /*
     addMock("M001", "张三", "男", "1990-05-20", "13800138000", "黄金会员", 500.00, 1250.00, 125, "团团（波斯猫）");
     addMock("M002", "李芳", "女", "1995-10-12", "13912345678", "普通会员", 0.00, 100.00, 10, "豆豆（柴犬）, 咪咪（银渐层）");
-    addMock("M003", "王五", "男", "1988-03-05", "13777777777", "铂金会员", 1200.00, 3500.00, 350, "旺财（金毛犬）");
-    addMock("M004", "赵六", "男", "1992-07-15", "13666666666", "钻石会员", 2500.00, 8800.00, 880);
-    addMock("M005", "孙七", "女", "1993-11-20", "18189294306", "普通会员", 50.00, 100.00, 10);
-    addMock("M006", "周八", "男", "1991-01-30", "13511112222", "黄金会员", 300.00, 600.00, 60);
-    addMock("M007", "吴九", "女", "1994-06-18", "13433334444", "普通会员", 20.00, 50.00, 5);
-    addMock("M008", "郑十", "男", "1989-12-25", "13355556666", "铂金会员", 800.00, 2000.00, 200);
-    addMock("M009", "钱十一", "男", "1992-03-14", "13277778888", "钻石会员", 1500.00, 5000.00, 500);
-    addMock("M010", "陈十二", "女", "1996-08-08", "13199990000", "普通会员", 10.00, 20.00, 2);
+    ...
     addMock("M011", "林十三", "男", "1990-09-09", "13012123434", "黄金会员", 450.00, 1100.00, 110);
+    */
+    Q_UNUSED(addMock);
 }
 
 QList<MemberInfo> MemberDataManager::allMembers() const

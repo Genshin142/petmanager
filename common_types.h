@@ -97,6 +97,7 @@ struct ProductInfo {
     QString category;
     QString origin;          // 产地
     QString spec;
+    QString unit;            // 单位 (如: 袋, 瓶, 包)
     double price = 0.0;
     double costPrice = 0.0;  // 成本价 (管理权限可见)
     int stock = 0;
@@ -116,6 +117,7 @@ struct ProductInfo {
     double netWeightKg = 0.0; // 净重 (用于计算单日喂养成本)
     int dailyFeedingGrams = 0;// 建议每日喂食量 (g)
     bool isActive = true;    // 是否在架 (档案管理专用)
+    bool isWarning = false;  // 库存预警标志
 };
 
 struct ServiceInfo {
@@ -133,6 +135,8 @@ struct ServiceInfo {
 };
 
 struct StockInRecord {
+    int id;               // 数据库唯一标识
+    QString inboundNo;    // 入库单号
     QString dateTime;
     QString productName;
     QString barcode;

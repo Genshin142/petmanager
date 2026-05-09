@@ -17,7 +17,10 @@ namespace Protocol {
         // 宠物与会员类 (2000-2999)
         CMD_GET_PET_LIST    = 2001,
         CMD_GET_MEMBER_LIST = 2002,
-        CMD_UPDATE_PET      = 2003,
+        CMD_GET_PRODUCT_LIST = 2003, // 获取商品列表
+        CMD_GET_INBOUND_LIST = 2004, // 获取入库单据列表
+        CMD_SHELVE_PRODUCT = 2005,   // 上架商品
+        CMD_UPDATE_PET      = 2006,
 
         // 业务与订单类 (3000-3999)
         CMD_CREATE_ORDER    = 3001,

@@ -1,9 +1,12 @@
 #include "networkmanager.h"
 #include <QtCore/QDataStream>
+#include <QtCore/QThreadPool>
 
 NetworkManager::NetworkManager(QObject *parent) : QObject(parent)
 {
     m_socket = new QTcpSocket(this);
+    m_threadPool = new QThreadPool(this);
+    m_threadPool->setMaxThreadCount(4);
     
     connect(m_socket, &QTcpSocket::connected, this, &NetworkManager::connected);
     connect(m_socket, &QTcpSocket::disconnected, this, &NetworkManager::disconnected);
@@ -77,19 +80,18 @@ void NetworkManager::onReadyRead()
         packet.cmdId = cmdId;
         packet.data = bodyData;
 
-        qDebug() << "[NET] Received Response CMD:" << cmdId;
+        // 在后台线程池中解析并发出信号
+        m_threadPool->start([=]() {
+            emit packetReceived(packet);
 
-        // 通用包处理
-        emit packetReceived(packet);
-
-        // 业务逻辑分发：登录
-        if (cmdId == Protocol::CMD_LOGIN) {
-            QJsonDocument doc = QJsonDocument::fromJson(bodyData);
-            QJsonObject resp = doc.object();
-            emit loginResponse(resp["status"].toInt(), 
-                               resp["message"].toString(), 
-                               resp["user_info"].toObject());
-        }
+            if (cmdId == Protocol::CMD_LOGIN) {
+                QJsonDocument doc = QJsonDocument::fromJson(bodyData);
+                QJsonObject resp = doc.object();
+                emit loginResponse(resp["status"].toInt(), 
+                                   resp["message"].toString(), 
+                                   resp["user_info"].toObject());
+            }
+        });
 
         m_buffer.remove(0, (int)totalLength);
     }

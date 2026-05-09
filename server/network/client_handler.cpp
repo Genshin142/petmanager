@@ -18,21 +18,24 @@ ClientHandler::~ClientHandler()
 
 void ClientHandler::sendPacket(int cmdId, const QByteArray &jsonBody)
 {
-    if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState) return;
+    // 确保在 Socket 所属线程执行
+    QMetaObject::invokeMethod(this, [=]() {
+        if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState) return;
 
-    QByteArray block;
-    QDataStream ds(&block, QIODevice::WriteOnly);
-    ds.setByteOrder(QDataStream::BigEndian);
+        QByteArray block;
+        QDataStream ds(&block, QIODevice::WriteOnly);
+        ds.setByteOrder(QDataStream::BigEndian);
 
-    unsigned int totalLength = Protocol::HEADER_SIZE + jsonBody.size();
-    
-    // 写入 4字节长度 + 4字节指令ID + 包体
-    ds << totalLength;
-    ds << cmdId;
-    block.append(jsonBody);
+        unsigned int totalLength = Protocol::HEADER_SIZE + jsonBody.size();
+        
+        // 写入 4字节长度 + 4字节指令ID + 包体
+        ds << totalLength;
+        ds << cmdId;
+        block.append(jsonBody);
 
-    m_socket->write(block);
-    m_socket->flush();
+        m_socket->write(block);
+        m_socket->flush();
+    }, Qt::QueuedConnection);
 }
 
 void ClientHandler::onReadyRead()

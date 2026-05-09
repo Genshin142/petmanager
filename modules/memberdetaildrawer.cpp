@@ -342,6 +342,29 @@ QWidget* MemberDetailDrawer::createOrderPage()
     return w;
 }
 
+void MemberDetailDrawer::setMemberInfo(const MemberInfo &info)
+{
+    m_currentMember = info;
+    
+    // 如果没有数据，显示占位状态
+    if (info.id.isEmpty()) {
+        m_nameLabel->setText("暂无会员数据");
+        m_idLabel->setText("");
+        // 使用头文件中定义的正确变量名
+        if (m_levelLabel) m_levelLabel->hide();
+        if (m_statusLabel) m_statusLabel->hide();
+        // 隐藏或清空其他详细字段
+        for (auto *label : findChildren<QLabel*>()) {
+            if (label->property("isField").toBool()) label->setText("--");
+        }
+        return;
+    }
+
+    if (m_levelLabel) m_levelLabel->show();
+    if (m_statusLabel) m_statusLabel->show();
+    m_nameLabel->setText(info.name);
+}
+
 void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVisit, const QString &pets)
 {
     m_currentMember = info;
@@ -387,6 +410,8 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
 
     m_valGender->setText(info.gender);
     m_valBirthday->setText(info.birthday);
+    m_valGender->setText(info.gender.isEmpty() ? "未知" : info.gender);
+    m_valBirthday->setText(info.birthday.isEmpty() ? "未填写" : info.birthday);
     m_valPhone->setText(info.phone);
     m_valLevel->setText(info.level);
     m_valBalance->setText(QString("¥ %1").arg(info.balance, 0, 'f', 2));

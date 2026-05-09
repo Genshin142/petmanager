@@ -441,14 +441,20 @@ void MemberModule::setupUI()
     // 禁用右键菜单
     memTable->setContextMenuPolicy(Qt::NoContextMenu);
 
-    // --- 初始化首行加载逻辑 ---
-    addSampleData(); 
-    updateStatistics();
+    // --- 联网：数据同步逻辑 ---
+    connect(MemberDataManager::instance(), &MemberDataManager::dataChanged, this, [=](){
+        addSampleData();
+        updateStatistics();
+        
+        // 数据回来后，如果表里有数据且当前没选中，则自动选中第一行
+        if (memTable->rowCount() > 0 && memTable->currentRow() < 0) {
+            memTable->selectRow(0);
+            onCellClicked(0, 0); // 触发抽屉展示
+        }
+    });
     
-    if (memTable->rowCount() > 0) {
-        memTable->selectRow(0); // 视觉高亮
-        onCellClicked(0, 0);   // 加载详情数据并展开
-    }
+    // 初始请求数据
+    MemberDataManager::instance()->requestMemberList();
 }
 
 void MemberModule::addRow(const MemberInfo &info, const QString &lastVisit, const QString &pets)
@@ -711,6 +717,12 @@ void MemberModule::addSampleData()
 {
     memTable->setRowCount(0);
     auto allOnes = MemberDataManager::instance()->allMembers();
+    
+    if (allOnes.isEmpty()) {
+        if (m_detailDrawer) m_detailDrawer->setMemberInfo(MemberInfo()); 
+        return;
+    }
+
     // 排序逻辑：注销会员排在最后，其余按工号排序
     std::sort(allOnes.begin(), allOnes.end(), [](const MemberInfo &a, const MemberInfo &b){
         if (a.isActive != b.isActive) return a.isActive; // 活跃在前

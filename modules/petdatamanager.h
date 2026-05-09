@@ -6,6 +6,7 @@
 #include <QList>
 #include <QDateTime>
 #include "../common_types.h"
+#include "../protocol_codes.h"
 
 class PetDataManager : public QObject
 {
@@ -14,6 +15,7 @@ public:
     static PetDataManager* instance();
 
     // 宠物信息管理
+    void requestPetList(); // 从服务器拉取最新数据
     void updatePet(const PetInfo &info);
     PetInfo getPet(const QString &id) const;
     QList<PetInfo> allPets() const;
@@ -82,6 +84,9 @@ public:
 signals:
     void petDataChanged(const QString &petId);
     void globalDataChanged();
+
+private slots:
+    void onPacketReceived(const Protocol::NetPacket &packet);
 
 private:
     explicit PetDataManager(QObject *parent = nullptr);

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QMap>
 #include <QList>
+#include "../protocol_codes.h"
 #include "addmemberdialog.h"
 
 class MemberDataManager : public QObject
@@ -11,7 +12,8 @@ class MemberDataManager : public QObject
     Q_OBJECT
 public:
     static MemberDataManager* instance();
-
+    
+    void requestMemberList(); // 从服务器拉取会员列表
     QList<MemberInfo> allMembers() const;
     QList<MemberInfo> activeMembers() const;
     MemberInfo getMember(const QString &id) const;
@@ -25,6 +27,9 @@ public:
 
 signals:
     void dataChanged();
+
+private slots:
+    void onPacketReceived(const Protocol::NetPacket &packet);
 
 private:
     explicit MemberDataManager(QObject *parent = nullptr);

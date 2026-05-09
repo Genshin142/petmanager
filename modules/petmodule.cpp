@@ -123,6 +123,9 @@ PetModule::PetModule(UserRole role, QWidget *parent) : QWidget(parent),
         onCurrentCellChanged(0, 0, -1, -1);
         petTable->selectRow(0);
     }
+
+    // 触发从服务器拉取真实数据
+    PetDataManager::instance()->requestPetList();
 }
 
 void PetModule::setupUI()
@@ -264,10 +267,10 @@ void PetModule::setupUI()
     petTable->setItemDelegate(new PetRowDelegate(petTable));
     
     // 优化列宽分配，使其更加均匀美观
-    petTable->setColumnWidth(0, 90);  // ID
-    petTable->setColumnWidth(4, 110); // 状态
-    petTable->setColumnWidth(5, 130); // 入店时间
-    petTable->setColumnWidth(6, 160); // 操作 (加宽以容纳彻底删除按钮)
+    petTable->setColumnWidth(0, 80);  // ID
+    petTable->setColumnWidth(4, 100); // 状态
+    petTable->setColumnWidth(5, 180); // 入店时间
+    petTable->setColumnWidth(6, 180); // 操作 (加宽以容纳彻底删除按钮)
 
     petTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     petTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); // 信息

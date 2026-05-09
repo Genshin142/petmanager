@@ -5,93 +5,80 @@
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QtCore/QDebug>
+#include <glog/logging.h>
+#include <QtNetwork/QTcpSocket>
+#include "../logic/user_controller.h"
+#include "../logic/pet_controller.h"
+#include "../logic/member_controller.h"
+#include <QtCore/QThread>
+#include "../logic/product_controller.h"
 
 ServerCore::ServerCore(QObject *parent) : QObject(parent)
 {
-    m_tcpServer = new QTcpServer(this);
+    m_server = new QTcpServer(this);
+    m_threadPool = new QThreadPool(this);
+    m_threadPool->setMaxThreadCount(QThread::idealThreadCount()); // 动态使用 CPU 核心数
+    
+    connect(m_server, &QTcpServer::newConnection, this, &ServerCore::onNewConnection);
+    
+    // 初始化业务控制器
+    new UserController(this, this);
+    new PetController(this, this);
+    new MemberController(this, this);
+    new ProductController(this, this);
 }
 
 bool ServerCore::start(quint16 port)
 {
-    connect(m_tcpServer, &QTcpServer::newConnection, this, &ServerCore::onNewConnection);
-    return m_tcpServer->listen(QHostAddress::Any, port);
+    return m_server->listen(QHostAddress::Any, port);
 }
 
 void ServerCore::onNewConnection()
 {
-    while (m_tcpServer->hasPendingConnections()) {
-        QTcpSocket *socket = m_tcpServer->nextPendingConnection();
+    while (m_server->hasPendingConnections()) {
+        QTcpSocket *socket = m_server->nextPendingConnection();
         ClientHandler *handler = new ClientHandler(socket, this);
         
-        connect(handler, &ClientHandler::packetReady, this, [this, handler](const Protocol::NetPacket &p){
-            this->dispatchPacket(handler, p);
-        });
+        connect(handler, &ClientHandler::packetReady, this, &ServerCore::onPacketReady);
         connect(handler, &ClientHandler::disconnected, this, &ServerCore::onClientDisconnected);
         
         m_clients.append(handler);
-        qDebug() << "[NET] New client connected from" << socket->peerAddress().toString() 
-                 << ". Total clients:" << m_clients.size();
+        LOG_I("[NET] New client connected from " << socket->peerAddress().toString().toStdString() 
+                 << ". Total clients: " << m_clients.size());
     }
 }
 
-void ServerCore::dispatchPacket(ClientHandler *client, const Protocol::NetPacket &packet)
+void ServerCore::registerHandler(int cmdId, HandlerFunc handler)
 {
-    qDebug() << "[DISPATCH] Received Command:" << packet.cmdId << "Size:" << packet.length;
-
-    switch (packet.cmdId) {
-        case Protocol::CMD_LOGIN:
-            handleLogin(client, packet.data);
-            break;
-        case Protocol::CMD_HEARTBEAT:
-            client->sendPacket(Protocol::CMD_HEARTBEAT, "{\"status\":\"alive\"}");
-            break;
-        default:
-            qWarning() << "[DISPATCH] Unknown command ID:" << packet.cmdId;
-            break;
-    }
+    m_handlers[cmdId] = handler;
 }
 
-void ServerCore::handleLogin(ClientHandler *client, const QByteArray &data)
+void ServerCore::onPacketReady(const Protocol::NetPacket &packet)
 {
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (doc.isNull()) {
-        qWarning() << "[AUTH] Invalid JSON data received for login.";
-        return;
-    }
+    LOG_I("[DISPATCH] Received Command: " << packet.cmdId << " Size: " << packet.length);
 
-    QJsonObject obj = doc.object();
-    QString user = obj["username"].toString();
-    QString pwd = obj["password"].toString();
+    ClientHandler *client = qobject_cast<ClientHandler*>(sender());
+    if (!client) return;
 
-    qDebug() << "[AUTH] Login attempt for user:" << user;
-
-    // 从连接池获取数据库连接
-    QSqlDatabase db = ConnectionPool::instance().openConnection();
-    QSqlQuery query(db);
-    query.prepare("SELECT emp_id, real_name, role FROM sys_employees "
-                  "WHERE username = ? AND password = ? AND is_deleted = 0");
-    query.addBindValue(user);
-    query.addBindValue(pwd);
-
-    QJsonObject response;
-    if (query.exec() && query.next()) {
-        response["status"] = Protocol::STATUS_OK;
-        response["message"] = "Login success";
-        
-        QJsonObject userInfo;
-        userInfo["emp_id"] = query.value("emp_id").toInt();
-        userInfo["name"] = query.value("real_name").toString();
-        userInfo["role"] = query.value("role").toString();
-        response["user_info"] = userInfo;
-        
-        qDebug() << "[AUTH] Success:" << user << "(" << query.value("real_name").toString() << ")";
+    if (m_handlers.contains(packet.cmdId)) {
+        // 解析 JSON 数据并分发给对应的 Handler (使用线程池)
+        auto handler = m_handlers[packet.cmdId];
+        m_threadPool->start([=]() {
+            QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+            if (doc.isNull() && packet.cmdId != Protocol::CMD_HEARTBEAT) {
+                LOG_W("[DISPATCH] Invalid JSON for command: " << packet.cmdId);
+                return;
+            }
+            handler(client, doc.object());
+        });
     } else {
-        response["status"] = Protocol::STATUS_AUTH_FAIL;
-        response["message"] = "Invalid username or password";
-        qDebug() << "[AUTH] Failed for user:" << user;
+        // 特殊处理心跳
+        if (packet.cmdId == Protocol::CMD_HEARTBEAT) {
+            client->sendPacket(Protocol::CMD_HEARTBEAT, "{\"status\":\"alive\"}");
+        } else {
+            LOG_W("[DISPATCH] No handler registered for command: " << packet.cmdId);
+        }
     }
-
-    client->sendPacket(Protocol::CMD_LOGIN, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
 void ServerCore::onClientDisconnected()
@@ -100,6 +87,6 @@ void ServerCore::onClientDisconnected()
     if (handler) {
         m_clients.removeAll(handler);
         handler->deleteLater();
-        qDebug() << "[NET] Client disconnected. Remaining clients:" << m_clients.size();
+        LOG_I("[NET] Client disconnected. Remaining clients: " << m_clients.size());
     }
 }

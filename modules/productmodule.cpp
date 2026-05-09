@@ -33,6 +33,7 @@
 #include "custom_calendar_edit.h"
 #include "productdatamanager.h"
 #include "fostermodule.h"
+#include "selectinbounddialog.h"
 
 // --- 复刻：全行圆角边框选中委托 ---
 class ProductRowDelegate : public QStyledItemDelegate {
@@ -86,13 +87,23 @@ public:
 
         // 绘制默认文本（针对非 CellWidget 列）
         if (!index.model()->data(index, Qt::UserRole + 1).toBool()) {
-            painter->setPen(QColor((opt.state & QStyle::State_Selected) ? "#1e40af" : "#303133"));
+            bool isWarning = index.model()->data(index, Qt::UserRole + 2).toBool();
+            
+            painter->setPen(QColor(isWarning ? "#ef4444" : ((opt.state & QStyle::State_Selected) ? "#1e40af" : "#303133")));
             QFont font = painter->font();
             font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
             font.setPointSize(10);
             painter->setFont(font);
-            QRect textRect = opt.rect.adjusted(4, 0, -4, 0);
+            
+            QRect textRect = opt.rect.adjusted(10, 0, -20, 0);
             painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
+
+            // 如果是库存列（第6列）且有预警，画个小红点
+            if (isWarning && index.column() == 6) {
+                 painter->setBrush(QColor("#ef4444"));
+                 painter->setPen(Qt::NoPen);
+                 painter->drawEllipse(opt.rect.right() - 15, opt.rect.center().y() - 3, 6, 6);
+            }
         }
         
         painter->restore();
@@ -386,6 +397,7 @@ void ProductModule::setupUI() {
     // 设置全局详情抽屉
     setupDetailDrawer();
     m_detailDrawer->setFixedWidth(450);
+    m_detailDrawer->show(); // 确保初始显示
 
     rootLayout->addWidget(leftContainer, 1);
     
@@ -402,31 +414,63 @@ void ProductModule::setupUI() {
     // 绑定信号：行选中时刷新并滑出抽屉
     connect(prodTable, &QTableWidget::itemSelectionChanged, this, [=](){
         int row = prodTable->currentRow();
-        if (row >= 0) {
+        if (row >= 0 && row < prodTable->rowCount()) {
             auto item1 = prodTable->item(row, 1);
             if (!item1) return;
             QString barcode = item1->text();
             ProductInfo info = ProductDataManager::instance()->getProduct(barcode);
-            updateDetailDrawer(info);
-            openDrawer();
+            if (!info.barcode.isEmpty()) {
+                updateDetailDrawer(info);
+                openDrawer();
+            }
         }
     });
 
 
 
-    // 注入数据 (从单例获取)
-    auto all = ProductDataManager::instance()->allProducts();
-    for (const auto &p : all) {
-        addProductRow(p);
-    }
+    // --- 联网：数据同步逻辑 (加固版) ---
+    connect(ProductDataManager::instance(), &ProductDataManager::productDataChanged, this, [=](){
+        qDebug() << "[PRODUCT] Refreshing UI from server data...";
+        
+        // 1. 暂时屏蔽信号，防止 setRowCount(0) 触发连锁崩溃
+        prodTable->blockSignals(true);
+        
+        prodTable->setRowCount(0);
+        auto all = ProductDataManager::instance()->allProducts();
+        for (const auto &p : all) {
+            addProductRow(p);
+        }
+        updateStats();
+        updatePagination();
+        
+        // 2. 恢复信号并安全选中
+        prodTable->blockSignals(false);
+        
+        if (prodTable->rowCount() > 0) {
+            prodTable->selectRow(0);
+            // 主动触发一次详情更新，确保占位符消失
+            int row = 0;
+            auto item1 = prodTable->item(row, 1);
+            if (item1) {
+                QString barcode = item1->text();
+                ProductInfo info = ProductDataManager::instance()->getProduct(barcode);
+                if (!info.barcode.isEmpty()) {
+                    updateDetailDrawer(info);
+                }
+            }
+        } else {
+            updateDetailDrawer(ProductInfo()); // 确实没数据时显示占位符
+        }
+    });
 
+    // 初始加载一次本地缓存，并触发服务器请求
+    auto initialData = ProductDataManager::instance()->allProducts();
+    for (const auto &p : initialData) addProductRow(p);
     updateStats();
     updatePagination();
-    
-    // 默认选中第一行，展示详情
-    if (prodTable->rowCount() > 0) {
-        prodTable->selectRow(0);
-    }
+    if (prodTable->rowCount() > 0) prodTable->selectRow(0);
+
+    ProductDataManager::instance()->requestProductList();
 }
 
 
@@ -482,8 +526,9 @@ void ProductModule::addProductRow(const ProductInfo &info) {
     // 库存数值项 (第 7 列)
     QTableWidgetItem *stockItem = new QTableWidgetItem(QString::number(info.stock));
     stockItem->setTextAlignment(Qt::AlignCenter);
-    stockItem->setData(Qt::UserRole, info.minStock); // 存储预警阈值
-    if (info.stock <= info.minStock) stockItem->setForeground(QColor("#f56c6c"));
+    stockItem->setData(Qt::UserRole + 2, info.isWarning);
+    stockItem->setData(Qt::UserRole, info.minStock);
+    if (info.isWarning) stockItem->setForeground(QColor("#f56c6c"));
     prodTable->setItem(row, 6, stockItem);
 
     // 状态标签 (第 8 列)
@@ -549,15 +594,13 @@ void ProductModule::addProductRow(const ProductInfo &info) {
 }
 
 void ProductModule::onListing() {
-    ProductInfo emptyInfo;
-    emptyInfo.barcode = "";
-    emptyInfo.name = "";
-    emptyInfo.stock = 0;
-    emptyInfo.minStock = 5;
-    emptyInfo.productionDate = QDate::currentDate().toString("yyyy-MM-dd");
-    emptyInfo.shelfLifeDays = 365;
-    
-    showProductEditDialog(emptyInfo, true);
+    SelectInboundDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        // 上架成功后，SelectInboundDialog 会发出 shelveResult 信号
+        // ProductDataManager::requestProductList() 会被自动调用
+        // 我们这里只需要确保 UI 刷新（已经在 connect 里处理了）
+        updatePagination();
+    }
 }
 
 void ProductModule::onEditProduct() {
@@ -1138,9 +1181,9 @@ void ProductModule::updateStats() {
     }
 
     // 恢复看板统计更新
-    varietyLabel->setText(QStringLiteral("%1种").arg(varieties));
-    lowStockLabel->setText(QStringLiteral("%1项").arg(lowStock));
-    totalValueLabel->setText(QStringLiteral("￥%1").arg(totalValue, 0, 'f', 2));
+    if (varietyLabel) varietyLabel->setText(QStringLiteral("%1种").arg(varieties));
+    if (lowStockLabel) lowStockLabel->setText(QStringLiteral("%1项").arg(lowStock));
+    if (totalValueLabel) totalValueLabel->setText(QStringLiteral("￥%1").arg(totalValue, 0, 'f', 2));
 }
 
 void ProductModule::onPreviewImage()
@@ -1289,23 +1332,59 @@ int ProductModule::getLowStockCount() const
     return count;
 }
 
+void ProductModule::setupEmptyPlaceholder() {
+    m_emptyPlaceholder = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(m_emptyPlaceholder);
+    layout->setAlignment(Qt::AlignCenter);
+    layout->setSpacing(20);
+
+    // 图标 (使用 SVG 或 字符)
+    QLabel *iconLabel = new QLabel("📦");
+    iconLabel->setStyleSheet("font-size: 64px; background: transparent; border: none;");
+    
+    QLabel *textLabel = new QLabel("暂无商品上架");
+    textLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #94a3b8; background: transparent; border: none;");
+    
+    QLabel *subText = new QLabel("请在“商品入库登记”中选择记录进行上架\n或点击“商品上架”按钮手动添加");
+    subText->setAlignment(Qt::AlignCenter);
+    subText->setStyleSheet("font-size: 13px; color: #cbd5e1; background: transparent; border: none; line-height: 1.5;");
+
+    layout->addStretch();
+    layout->addWidget(iconLabel, 0, Qt::AlignCenter);
+    layout->addWidget(textLabel, 0, Qt::AlignCenter);
+    layout->addWidget(subText, 0, Qt::AlignCenter);
+    layout->addStretch();
+}
+
 void ProductModule::setupDetailDrawer() {
     // ===== 抽屉面板（侧边布局） =====
     m_detailDrawer = new QWidget(this);
     m_detailDrawer->setFixedWidth(450);
-    m_detailDrawer->hide();
+    // 不再默认隐藏，保持占位
     
+    m_stackedWidget = new QStackedWidget(m_detailDrawer);
+    m_detailContent = new QWidget();
+    setupEmptyPlaceholder();
+    
+    m_stackedWidget->addWidget(m_emptyPlaceholder);
+    m_stackedWidget->addWidget(m_detailContent);
+    m_stackedWidget->setCurrentWidget(m_emptyPlaceholder);
+
     m_drawerContainer = new QFrame();
     m_drawerContainer->setObjectName("ProductDetailContainer");
     m_drawerContainer->setStyleSheet("QFrame#ProductDetailContainer { background: white; border-radius: 12px; border: 1px solid #ebeef5; }");
-    m_drawerContainer->setAttribute(Qt::WA_StyledBackground); // 开启背景绘制支持
+    m_drawerContainer->setAttribute(Qt::WA_StyledBackground); 
     
     QVBoxLayout *outerLayout = new QVBoxLayout(m_detailDrawer);
-    outerLayout->setContentsMargins(20, 20, 20, 20); // 恢复内部 20px 边距，确保卡片宽度为 410px
+    outerLayout->setContentsMargins(20, 20, 20, 20); 
     outerLayout->addWidget(m_drawerContainer);
     
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_drawerContainer);
-    mainLayout->setContentsMargins(0, 0, 0, 10); // 底部留出 10px 间距，确保圆角边框可见
+    QVBoxLayout *containerLayout = new QVBoxLayout(m_drawerContainer);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+    containerLayout->addWidget(m_stackedWidget);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_detailContent);
+    mainLayout->setContentsMargins(0, 0, 0, 10); 
     mainLayout->setSpacing(0);
 
     // ===== 抽屉头部（关闭按钮 + 标题 + 编辑按钮） =====
@@ -1600,11 +1679,17 @@ void ProductModule::openDrawer() {
 }
 
 void ProductModule::closeDrawer() {
-    m_detailDrawer->hide();
+    // 点击关闭时，切回占位状态而非完全隐藏
+    updateDetailDrawer(ProductInfo());
+    prodTable->clearSelection();
 }
 
 void ProductModule::updateDetailDrawer(const ProductInfo &info) {
-    if (info.barcode.isEmpty()) return;
+    if (info.barcode.isEmpty()) {
+        m_stackedWidget->setCurrentWidget(m_emptyPlaceholder);
+        return;
+    }
+    m_stackedWidget->setCurrentWidget(m_detailContent);
 
     // 1. 文本与基础信息更新
     m_lblDetailName->setText(info.name);
@@ -1668,7 +1753,12 @@ void ProductModule::updateDetailDrawer(const ProductInfo &info) {
     int remainingDays = QDate::currentDate().daysTo(expiryDate);
     m_lblDetailDate->setText("生产日期：" + info.productionDate);
 
-    if (remainingDays < 0) {
+    if (totalDays <= 0) {
+        m_lblDetailExpiry->setText("保质期：长期有效");
+        m_expiryBar->setValue(0);
+        m_lblHealthScore->setText("A");
+        m_lblHealthScore->setStyleSheet("background: #67c23a; color: white; border-radius: 12px; font-weight: bold; font-size: 13px;");
+    } else if (remainingDays < 0) {
         m_lblDetailExpiry->setText("❗ 已过期");
         m_lblDetailExpiry->setStyleSheet("color: #f56c6c; font-weight: bold; font-size: 11px;");
         m_expiryBar->setValue(100);

@@ -38,6 +38,7 @@ SOURCES += \
     modules/productdatamanager.cpp \
     modules/inboundmodule.cpp \
     modules/inboundregistrationdialog.cpp \
+    modules/selectinbounddialog.cpp \
     modules/employeedetaildrawer.cpp \
     modules/memberdetaildrawer.cpp \
     modules/appointmentitemdelegate.cpp \
@@ -104,6 +105,7 @@ HEADERS += \
     modules/productdatamanager.h \
     modules/inboundmodule.h \
     modules/inboundregistrationdialog.h \
+    modules/selectinbounddialog.h \
     modules/employeedetaildrawer.h \
     modules/memberdetaildrawer.h \
     modules/appointmentitemdelegate.h \

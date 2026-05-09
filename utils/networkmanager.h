@@ -45,6 +45,7 @@ private:
 
     QTcpSocket *m_socket;
     QByteArray m_buffer;
+    class QThreadPool *m_threadPool;
 };
 
 #endif // NETWORKMANAGER_H

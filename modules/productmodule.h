@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QTableWidget>
+#include <QStackedWidget>
 #include <QLineEdit>
 #include <QLabel>
 #include <QDateEdit>
@@ -28,8 +29,13 @@ protected:
 private:
     void setupUI();
     void showProductEditDialog(const ProductInfo &info, bool isNew = false);
+    QStackedWidget *m_stackedWidget;
+    QWidget *m_detailContent;
+    QWidget *m_emptyPlaceholder;
+
     void setupDetailDrawer();
     void updateDetailDrawer(const ProductInfo &info);
+    void setupEmptyPlaceholder();
     void updateNutritionTable(const QVariantMap &nutrition);
     
     void addProductRow(const ProductInfo &info);

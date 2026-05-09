@@ -4,6 +4,9 @@
 #include <QRandomGenerator>
 #include "logisticsmanager.h"
 #include "memberdatamanager.h"
+#include "../utils/networkmanager.h"
+#include <QJsonArray>
+#include <QJsonDocument>
 
 PetDataManager* PetDataManager::m_instance = nullptr;
 
@@ -18,6 +21,10 @@ PetDataManager* PetDataManager::instance()
 PetDataManager::PetDataManager(QObject *parent)
     : QObject(parent)
 {
+    // 连接网络管理器的包接收信号
+    connect(&NetworkManager::instance(), &NetworkManager::packetReceived, 
+            this, &PetDataManager::onPacketReceived);
+    
     initMockData();
 }
 
@@ -42,10 +49,12 @@ void PetDataManager::initMockData()
         m_pets[info.id] = info;
     };
 
+    /*
     addDemo("P001", "布丁", "狗", "金毛犬", "公", "2岁", "待接走", "M001", "张三", "13800138000", "", "foster_outdoor_new.png");
     addDemo("P002", "芝麻", "猫", "英短蓝猫", "母", "1岁", "寄养中", "M002", "李芳", "13911112222", "A-101", "foster_sleep_new.png");
     addDemo("P003", "豆豆", "狗", "柴犬", "公", "3岁", "在家", "M002", "李芳", "13911112222", "", "foster_bath_new.png");
     addDemo("P004", "小雪", "狗", "萨摩耶", "母", "2岁", "洗护中", "M004", "赵六", "13366667777", "", "load_img.jpg");
+    */
 
     // 2. 模拟预约数据 (Appointment) - 建立业务来源
     auto addAppt = [&](const QString &id, const QString &petId, const QString &type, const QString &status, const QString &time, const QString &staff = "陈店长", double amount = 150.0) {
@@ -90,6 +99,64 @@ void PetDataManager::initMockData()
     // 【新增】到店服务示例
     addOrd("ORD-10006", "P001", "常规剪指甲 (到店)", 15.0, "Paid", "Direct", "");
     addOrd("ORD-10007", "P002", "耳道清理 (到店)", 30.0, "Unpaid", "Direct", "");
+}
+
+void PetDataManager::requestPetList()
+{
+    qDebug() << "[PET] Requesting pet list from server...";
+    NetworkManager::instance().sendRequest(2001, QJsonObject());
+}
+
+void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
+{
+    if (packet.cmdId == 2001) {
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray arr = root["data"].toArray();
+            
+            // 清理旧数据（或者增量更新，这里选择全量覆盖）
+            m_pets.clear();
+            
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject obj = arr[i].toObject();
+                PetInfo info;
+                // 数据库字段到 PetInfo 结构体的映射
+                // 格式化 ID：1 -> P00001
+                info.id = QString("P%1").arg(obj["pet_id"].toVariant().toLongLong(), 5, 10, QChar('0'));
+                info.name = obj["pet_name"].toString();
+                info.species = obj["species"].toString();
+                info.breed = obj["breed"].toString();
+                info.gender = obj["gender"].toString();
+                info.age = QString("%1个月").arg(obj["age_months"].toInt());
+                info.weight = obj["weight"].toDouble();
+                info.health = obj["health_status"].toString();
+                info.medicalHistory = obj["medical_history"].toString();
+                info.vaccine = obj["vaccine_status"].toString();
+                info.dietary = obj["dietary_habit"].toString();
+                info.status = obj["current_status"].toString();
+                info.ownerId = QString("M%1").arg(obj["member_id"].toVariant().toLongLong(), 5, 10, QChar('0'));
+                info.ownerName = obj["owner_name"].toString(); // 联表查询得到的
+                info.avatarPath = obj["avatar_path"].toString();
+                info.address = obj["home_address"].toString();
+                
+                // 处理 ISO 日期格式 (将 2026-05-09T12:35:33 转换为 2026-05-09 12:35)
+                QString rawTime = obj["join_time"].toString();
+                QDateTime dt = QDateTime::fromString(rawTime, Qt::ISODate);
+                if (dt.isValid()) {
+                    info.joinTime = dt.toString("yyyy-MM-dd HH:mm");
+                } else {
+                    info.joinTime = rawTime; // 降级处理
+                }
+                
+                m_pets[info.id] = info;
+            }
+            
+            qDebug() << "[PET] Pet list updated from server. Count: " << m_pets.size();
+            emit globalDataChanged();
+        }
+    }
 }
 
 void PetDataManager::updatePet(const PetInfo &info)

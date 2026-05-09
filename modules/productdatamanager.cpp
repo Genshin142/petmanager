@@ -1,6 +1,12 @@
 #include "productdatamanager.h"
+#include "../utils/networkmanager.h"
+#include "../protocol_codes.h"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QDebug>
 #include <QDate>
 #include <QSet>
+#include <QMutexLocker>
 
 ProductDataManager* ProductDataManager::m_instance = nullptr;
 
@@ -14,7 +20,123 @@ ProductDataManager* ProductDataManager::instance()
 
 ProductDataManager::ProductDataManager(QObject *parent) : QObject(parent)
 {
-    initMockData();
+    connect(&NetworkManager::instance(), &NetworkManager::packetReceived,
+            this, &ProductDataManager::onPacketReceived);
+    // initMockData(); // 清空界面，不再使用模拟数据
+}
+
+void ProductDataManager::requestInboundList()
+{
+    QJsonObject obj;
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_INBOUND_LIST, obj);
+}
+
+void ProductDataManager::shelveProduct(int inboundId)
+{
+    QJsonObject obj;
+    obj["id"] = inboundId;
+    NetworkManager::instance().sendRequest(Protocol::CMD_SHELVE_PRODUCT, obj);
+}
+
+void ProductDataManager::requestProductList()
+{
+    qDebug() << "[PRODUCT] Requesting product list from server...";
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_PRODUCT_LIST, QJsonObject());
+}
+
+void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
+{
+    if (packet.cmdId == Protocol::CMD_GET_PRODUCT_LIST) {
+        {
+            QMutexLocker locker(&m_mutex);
+            QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+            QJsonObject root = doc.object();
+            
+            if (root["status"].toInt() == Protocol::STATUS_OK) {
+                QJsonArray arr = root["data"].toArray();
+                
+                // 全量更新
+                m_products.clear();
+                
+                for (int i = 0; i < arr.size(); ++i) {
+                    QJsonObject obj = arr[i].toObject();
+                    ProductInfo info;
+                    info.barcode = obj["barcode"].toString();
+                    info.name = obj["name"].toString();
+                    info.brand = obj["brand"].toString();
+                    info.origin = obj["origin"].toString();
+                    info.category = obj["category"].toString();
+                    info.spec = obj["spec"].toString();
+                    info.unit = obj["unit"].toString();
+                    info.price = obj["sale_price"].toDouble();
+                    info.costPrice = obj["cost_price"].toDouble();
+                    info.stock = obj["stock_curr"].toInt();
+                    info.minStock = obj["stock_min"].toInt();
+                    info.productionDate = obj["production_date"].toString();
+                    info.shelfLifeDays = obj["shelf_life_days"].toInt();
+                    info.supplier = obj["supplier"].toString();
+                    info.supplierPhone = obj["supplier_phone"].toString();
+                    info.description = obj["description"].toString();
+                    info.ingredients = obj["ingredients"].toString();
+                    info.storageReq = obj["storage_req"].toString();
+                    info.tags = obj["tags"].toString().split(",", Qt::SkipEmptyParts);
+                    info.isActive = obj["is_active"].toBool();
+                    info.isWarning = obj["is_warning"].toBool();
+                    
+                    m_products[info.barcode] = info;
+                }
+                qDebug() << "[PRODUCT] Product list updated. Count:" << m_products.size();
+            }
+        } // 这里 locker 超出作用域，自动释放锁
+        
+        emit productDataChanged(); // 锁释放后再发出信号，安全！
+    }
+    else if (packet.cmdId == Protocol::CMD_GET_INBOUND_LIST) {
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        QList<StockInRecord> list;
+        
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray arr = root["data"].toArray();
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject obj = arr[i].toObject();
+                StockInRecord rec;
+                rec.id = obj["id"].toInt();
+                rec.dateTime = obj["created_at"].toString();
+                rec.inboundNo = obj["inbound_no"].toString();
+                rec.barcode = obj["barcode"].toString();
+                rec.productName = obj["product_name"].toString();
+                rec.spec = obj["spec"].toString();
+                rec.category = obj["category"].toString();
+                rec.supplier = obj["supplier"].toString();
+                rec.quantity = obj["quantity"].toInt();
+                rec.costPrice = obj["cost_price"].toDouble();
+                rec.productionDate = obj["production_date"].toString();
+                rec.shelfLifeDays = obj["shelf_life_days"].toInt();
+                rec.supplierPhone = obj["supplier_phone"].toString();
+                rec.operatorName = obj["operator_name"].toString();
+                rec.isShelved = obj["is_shelved"].toBool();
+                list.append(rec);
+            }
+        }
+        {
+            QMutexLocker locker(&m_mutex);
+            m_records = list;
+        }
+        emit inboundListReceived(list);
+        emit productDataChanged(); // 通知 UI 刷新统计数字
+    }
+    else if (packet.cmdId == Protocol::CMD_SHELVE_PRODUCT) {
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        bool success = (root["status"].toInt() == Protocol::STATUS_OK);
+        QString msg = root["message"].toString();
+        
+        if (success) {
+            requestProductList(); // 上架成功，立即刷新商品列表
+        }
+        emit shelveResult(success, msg);
+    }
 }
 
 void ProductDataManager::initMockData()
@@ -226,34 +348,46 @@ void ProductDataManager::initMockData()
 
 QList<ProductInfo> ProductDataManager::allProducts() const
 {
+    QMutexLocker locker(&m_mutex);
     return m_products.values();
 }
 
 ProductInfo ProductDataManager::getProduct(const QString &barcode) const
 {
+    QMutexLocker locker(&m_mutex);
     return m_products.value(barcode);
 }
 
 void ProductDataManager::addProduct(const ProductInfo &info)
 {
-    m_products[info.barcode] = info;
+    {
+        QMutexLocker locker(&m_mutex);
+        m_products[info.barcode] = info;
+    }
     emit productDataChanged();
 }
 
 void ProductDataManager::updateProduct(const ProductInfo &info)
 {
-    m_products[info.barcode] = info;
+    {
+        QMutexLocker locker(&m_mutex);
+        m_products[info.barcode] = info;
+    }
     emit productDataChanged();
 }
 
 void ProductDataManager::removeProduct(const QString &barcode)
 {
-    m_products.remove(barcode);
+    {
+        QMutexLocker locker(&m_mutex);
+        m_products.remove(barcode);
+    }
     emit productDataChanged();
 }
 
 QList<ProductInfo> ProductDataManager::getLowStockItems() const
 {
+    QMutexLocker locker(&m_mutex);
     QList<ProductInfo> list;
     for (const auto &p : m_products) {
         if (p.stock <= p.minStock) {
@@ -264,11 +398,15 @@ QList<ProductInfo> ProductDataManager::getLowStockItems() const
 }
 
 QList<StockInRecord> ProductDataManager::getAllRecords() const {
+    QMutexLocker locker(&m_mutex);
     return m_records;
 }
 
 void ProductDataManager::addRecord(const StockInRecord &rec) {
-    m_records.prepend(rec); // 最新的排在前面
+    {
+        QMutexLocker locker(&m_mutex);
+        m_records.prepend(rec); // 最新的排在前面
+    }
     emit productDataChanged();
 }
 
@@ -372,15 +510,17 @@ void ProductDataManager::restoreRecord(const QString &dateTime, const QString &b
 }
 
 void ProductDataManager::hardDeleteRecord(const QString &dateTime, const QString &barcode) {
-    for (int i = 0; i < m_records.size(); ++i) {
-        if (m_records[i].dateTime == dateTime && m_records[i].barcode == barcode) {
-            m_records.removeAt(i);
-            // 彻底删除逻辑：如果该条码对应的商品已存在于档案中，也将其删除
-            if (m_products.contains(barcode)) {
-                m_products.remove(barcode);
+    {
+        QMutexLocker locker(&m_mutex);
+        for (int i = 0; i < m_records.size(); ++i) {
+            if (m_records[i].dateTime == dateTime && m_records[i].barcode == barcode) {
+                m_records.removeAt(i);
+                if (m_products.contains(barcode)) {
+                    m_products.remove(barcode);
+                }
+                break;
             }
-            emit productDataChanged();
-            break;
         }
     }
+    emit productDataChanged();
 }

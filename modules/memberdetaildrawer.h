@@ -26,6 +26,7 @@ public:
     explicit MemberDetailDrawer(QWidget *parent = nullptr);
 
 public slots:
+    void setMemberInfo(const MemberInfo &info);
     void setMember(const MemberInfo &info, const QString &lastVisit, const QString &pets);
     void updateBalance(double newBalance);
     void showDrawer();
