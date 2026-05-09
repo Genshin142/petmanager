@@ -6,6 +6,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include "utils/networkmanager.h"
 
 LoginWindow::LoginWindow(QWidget *parent)
     : QWidget(parent)
@@ -53,6 +54,17 @@ LoginWindow::LoginWindow(QWidget *parent)
 
     connect(ui->closeBtn, &QPushButton::clicked, this, &QWidget::close);
 
+    // 1. 初始化网络连接
+    NetworkManager::instance().connectToServer("127.0.0.1", 8080);
+
+    // 2. 绑定登录响应信号
+    connect(&NetworkManager::instance(), &NetworkManager::loginResponse, 
+            this, &LoginWindow::onLoginResponse);
+    
+    // 3. 错误处理
+    connect(&NetworkManager::instance(), &NetworkManager::errorOccurred, this, [this](QString err){
+         QMessageBox::critical(this, "网络错误", "无法连接到服务端，请确认后端程序已启动。\n" + err);
+    });
 }
 
 LoginWindow::~LoginWindow()
@@ -65,18 +77,38 @@ void LoginWindow::on_loginBtn_clicked()
     QString user = ui->usernameEdit->text();
     QString pwd = ui->passwordEdit->text();
 
-    if (user == "admin" && pwd == "123456") {
-        MainWindow *mw = new MainWindow(ADMIN, "系统管理员 (管理员)");
+    if (user.isEmpty() || pwd.isEmpty()) {
+        QMessageBox::warning(this, "提示", "请输入用户名和密码");
+        return;
+    }
+
+    // 发起网络请求
+    QJsonObject req;
+    req["username"] = user;
+    req["password"] = pwd;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_LOGIN, req);
+    
+    ui->loginBtn->setEnabled(false);
+    ui->loginBtn->setText("正在验证...");
+}
+
+void LoginWindow::onLoginResponse(int status, const QString &message, const QJsonObject &userInfo)
+{
+    ui->loginBtn->setEnabled(true);
+    ui->loginBtn->setText("登录");
+
+    if (status == Protocol::STATUS_OK) {
+        // 根据后端返回的角色进行转换
+        UserRole role = (userInfo["role"].toString() == "店长") ? ADMIN : STAFF;
+        QString displayName = QString("%1 (%2)").arg(userInfo["name"].toString(), userInfo["role"].toString());
+        
+        MainWindow *mw = new MainWindow(role, displayName);
         mw->show();
         this->close();
     } 
-    else if (user == "staff01" && pwd == "123456") {
-        MainWindow *mw = new MainWindow(STAFF, "店员小张 (staff01)");
-        mw->show();
-        this->close();
-    }
     else {
-        QMessageBox::warning(this, "登录失败", "用户名或密码错误！\n测试账号：admin 或 staff01 (密码均为 123456)");
+        QMessageBox::warning(this, "登录失败", message);
     }
 }
 

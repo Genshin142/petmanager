@@ -10,6 +10,7 @@ SOURCES += \
     main.cpp \
     loginwindow.cpp \
     mainwindow.cpp \
+    utils/networkmanager.cpp \
     modules/membermodule.cpp \
     modules/rolemodule.cpp \
     modules/petmodule.cpp \
@@ -68,6 +69,7 @@ SOURCES += \
 
 HEADERS += \
     utils/logger.h \
+    utils/networkmanager.h \
     loginwindow.h \
     mainwindow.h \
     modules/membermodule.h \

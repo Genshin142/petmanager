@@ -4,6 +4,8 @@
 #include <QWidget>
 #include <QMouseEvent>
 #include <QPoint>
+#include <QJsonObject>
+#include "common_types.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class LoginWindow; }
@@ -19,6 +21,7 @@ public:
 
 private slots:
     void on_loginBtn_clicked();
+    void onLoginResponse(int status, const QString &message, const QJsonObject &userInfo);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;//鼠标按下事件
