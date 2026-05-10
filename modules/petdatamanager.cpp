@@ -26,37 +26,12 @@ PetDataManager::PetDataManager(QObject *parent)
             this, &PetDataManager::onPacketReceived);
     
     initMockData();
+    requestRoomList();
 }
 
 void PetDataManager::initMockData()
 {
-    // 1. 核心演示：宠物与客户关系 (Member & Pet)
-    auto addDemo = [&](const QString &id, const QString &name, const QString &species, const QString &breed, const QString &gender, const QString &age, const QString &status, const QString &ownerId, const QString &ownerName, const QString &ownerPhone, 
-                       const QString &roomNo = "", const QString &avatar = "") {
-        PetInfo info;
-        info.id = id; info.name = name; info.species = species; info.breed = breed; 
-        info.gender = gender; info.age = age; info.status = status;
-        info.ownerId = ownerId; info.ownerName = ownerName; info.ownerPhone = ownerPhone;
-        info.health = "健康"; info.vaccine = "已接种"; info.medicalHistory = "无";
-        info.dietary = "常规饮食"; info.roomNo = roomNo;
-        info.weight = 12.5; info.joinTime = "2026-01-15";
-        info.avatarPath = avatar.isEmpty() ? ":/images/load_img.jpg" : ":/images/" + avatar;
-        
-        if (status.contains("寄养中")) {
-            info.fosterStartTime = QDate::currentDate().addDays(-3).toString("yyyy-MM-dd");
-            info.fosterEndTime = QDate::currentDate().addDays(4).toString("yyyy-MM-dd");
-        }
-        m_pets[info.id] = info;
-    };
-
-    /*
-    addDemo("P001", "布丁", "狗", "金毛犬", "公", "2岁", "待接走", "M001", "张三", "13800138000", "", "foster_outdoor_new.png");
-    addDemo("P002", "芝麻", "猫", "英短蓝猫", "母", "1岁", "寄养中", "M002", "李芳", "13911112222", "A-101", "foster_sleep_new.png");
-    addDemo("P003", "豆豆", "狗", "柴犬", "公", "3岁", "在家", "M002", "李芳", "13911112222", "", "foster_bath_new.png");
-    addDemo("P004", "小雪", "狗", "萨摩耶", "母", "2岁", "洗护中", "M004", "赵六", "13366667777", "", "load_img.jpg");
-    */
-
-    // 2. 模拟预约数据 (Appointment) - 建立业务来源
+    // 1. 模拟预约数据 (Appointment) - 建立业务来源
     auto addAppt = [&](const QString &id, const QString &petId, const QString &type, const QString &status, const QString &time, const QString &staff = "陈店长", double amount = 150.0) {
         AppointmentInfo a;
         a.id = id; a.petId = petId; 
@@ -154,6 +129,26 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
             }
             
             qDebug() << "[PET] Pet list updated from server. Count: " << m_pets.size();
+            emit globalDataChanged();
+        }
+    } else if (packet.cmdId == Protocol::CMD_GET_ROOM_LIST) {
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray arr = root["data"].toArray();
+            m_rooms.clear();
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject obj = arr[i].toObject();
+                BoardingRoom room;
+                room.id = obj["id"].toInt();
+                room.roomNo = obj["room_no"].toString();
+                room.type = obj["room_type"].toString();
+                room.status = obj["status"].toString();
+                room.description = obj["description"].toString();
+                room.isActive = obj["is_active"].toVariant().toBool();
+                m_rooms[room.id] = room;
+            }
+            qDebug() << "[ROOM] Room list updated. Count: " << m_rooms.size();
             emit globalDataChanged();
         }
     }
@@ -360,7 +355,21 @@ bool PetDataManager::isRoomAvailable(int roomId, const QDate &start, const QDate
     return true;
 }
 
+QList<BoardingRoom> PetDataManager::allRooms() const {
+    return m_rooms.values();
+}
+
+BoardingRoom PetDataManager::getRoom(int id) const {
+    return m_rooms.value(id);
+}
+
+void PetDataManager::requestRoomList() {
+    qDebug() << "[ROOM] Requesting room list...";
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_ROOM_LIST, QJsonObject());
+}
+
 QString PetDataManager::getRoomType(int roomId) const {
+    if (m_rooms.contains(roomId)) return m_rooms[roomId].type;
     if (roomId >= 111 && roomId <= 115) return "豪华房";
     if (roomId >= 116 && roomId <= 120) return "多宠房";
     return "标准房";
@@ -368,10 +377,16 @@ QString PetDataManager::getRoomType(int roomId) const {
 
 QList<int> PetDataManager::getAvailableRooms(const QDate &start, const QDate &end, const QString &type) const {
     QList<int> available;
-    for (int i = 101; i <= 120; ++i) {
-        if (!type.isEmpty() && getRoomType(i) != type) continue;
-        if (isRoomAvailable(i, start, end)) {
-            available.append(i);
+    QList<int> roomIds = m_rooms.keys();
+    if (roomIds.isEmpty()) {
+        // Fallback for mock if no rooms from server
+        for (int i = 101; i <= 120; ++i) roomIds << i;
+    }
+    
+    for (int rid : roomIds) {
+        if (!type.isEmpty() && getRoomType(rid) != type) continue;
+        if (isRoomAvailable(rid, start, end)) {
+            available.append(rid);
         }
     }
     return available;
@@ -579,7 +594,31 @@ QList<AppointmentInfo> PetDataManager::getAppointmentsForPet(const QString &petI
 }
 
 void PetDataManager::addOrder(const OrderInfo &info) { m_orders[info.id] = info; emit globalDataChanged(); }
-void PetDataManager::updateOrder(const OrderInfo &info) { if (m_orders.contains(info.id)) { m_orders[info.id] = info; emit globalDataChanged(); } }
+void PetDataManager::updateOrder(const OrderInfo &info) {
+    if (m_orders.contains(info.id)) {
+        bool wasUnpaid = (m_orders[info.id].status == "Unpaid");
+        m_orders[info.id] = info;
+        
+        // 核心释放逻辑：寄养结算完成后自动退房
+        if (wasUnpaid && info.status == "Paid" && info.sourceModule == "Boarding") {
+            PetInfo pet = getPet(info.petId);
+            if (!pet.id.isEmpty()) {
+                pet.status = "已离店";
+                pet.roomNo = ""; // 物理清空房位占用
+                updatePet(pet);
+                
+                // 同步更新预约状态为完成
+                for (auto &appt : m_appointments) {
+                    if (appt.petId == info.petId && appt.type == "Boarding" && 
+                       (appt.status == "CheckedIn" || appt.status == "Pending")) {
+                        appt.status = "Completed";
+                    }
+                }
+            }
+        }
+        emit globalDataChanged();
+    }
+}
 
 void PetDataManager::cancelOrder(const QString &orderId, const QString &reason)
 {

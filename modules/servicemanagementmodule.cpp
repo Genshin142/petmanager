@@ -264,6 +264,8 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
     m_detailPanel->setFixedWidth(450); 
     mainHorizontalLayout->addWidget(m_detailPanel);
 
+    connect(ServiceDataManager::instance(), &ServiceDataManager::serviceDataChanged, this, &ServiceManagementModule::updateTableData);
+
     QTimer::singleShot(0, this, &ServiceManagementModule::updateTableData);
 }
 
@@ -498,8 +500,9 @@ void ServiceManagementModule::updateTableData()
         m_serviceTable->setRowHeight(row, 60);
 
 
-        // 1. 服务编码
-        QTableWidgetItem *idItem = new QTableWidgetItem("SVR-100" + QString::number(row + 1));
+        // 1. 服务编码 (统一格式: S001)
+        QString formattedId = QString("S%1").arg(info.id.toInt(), 3, 10, QChar('0'));
+        QTableWidgetItem *idItem = new QTableWidgetItem(formattedId);
         idItem->setData(Qt::UserRole, info.id);
         idItem->setTextAlignment(Qt::AlignCenter);
         m_serviceTable->setItem(row, 0, idItem);
@@ -510,8 +513,16 @@ void ServiceManagementModule::updateTableData()
         // 3. 所属分类
         addItem(row, 2, info.category);
 
-        // 4. 标准时长
-        addItem(row, 3, QString("%1 分钟").arg(info.durationMinutes));
+        // 4. 标准时长 (根据时长自动选择单位)
+        QString durationText;
+        if (info.durationMinutes >= 1440) {
+            durationText = QString::number(info.durationMinutes / 1440.0, 'f', 0) + " 天";
+        } else if (info.durationMinutes >= 60) {
+            durationText = QString::number(info.durationMinutes / 60.0, 'f', 0) + " 小时";
+        } else {
+            durationText = QString::number(info.durationMinutes) + " 分钟";
+        }
+        addItem(row, 3, durationText);
 
         // 5. 服务价格
         addItem(row, 4, QString("￥ %1").arg(info.price, 0, 'f', 2));
@@ -596,11 +607,26 @@ void ServiceManagementModule::updateDetailPanel(const ServiceInfo &info)
     m_lblDetailRevenue->setText("¥ " + QString::number(info.salesCount * info.price, 'f', 2));
     
     m_editPrice->setText("¥ " + QString::number(info.price, 'f', 2));
-    m_editDuration->setText(QString::number(info.durationMinutes) + " 分钟");
+    
+    // 详情面板时长转换
+    QString durationText;
+    if (info.durationMinutes >= 1440) {
+        durationText = QString::number(info.durationMinutes / 1440.0, 'f', 0) + " 天";
+    } else if (info.durationMinutes >= 60) {
+        durationText = QString::number(info.durationMinutes / 60.0, 'f', 0) + " 小时";
+    } else {
+        durationText = QString::number(info.durationMinutes) + " 分钟";
+    }
+    m_editDuration->setText(durationText);
     m_editCategory->setText(info.category);
-    m_editId->setText(info.id);
-
-    m_editCommFixed->setText(QString::number(info.commissionFixed, 'f', 2));
+    m_editId->setText(QString("S%1").arg(info.id.toInt(), 3, 10, QChar('0')));
+    m_editCommFixed->setText(QString("￥ %1").arg(info.commissionFixed, 0, 'f', 2));
+    
+    // 恢复固定的 Label 文本
+    if (m_editCommFixed->parentWidget()) {
+        QLabel *l = m_editCommFixed->parentWidget()->findChild<QLabel*>();
+        if (l) l->setText("服务提成金额 (元)");
+    }
     
     m_lblDetailDesc->setText(info.description.isEmpty() ? "<font color='#94a3b8'>暂无项目描述</font>" : info.description);
     

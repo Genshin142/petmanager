@@ -16,6 +16,7 @@ public:
 
     // 获取宠物列表
     void handleGetPetList(ClientHandler* client, const QJsonObject& data);
+    void handleGetRoomList(ClientHandler* client, const QJsonObject& data);
 
 private:
     ServerCore* m_core;

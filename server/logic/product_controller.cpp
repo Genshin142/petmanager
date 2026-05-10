@@ -72,6 +72,7 @@ void ProductController::handleGetProductList(ClientHandler* client, const QJsonO
         p["ingredients"] = getValue("ingredients").toString();
         p["storage_req"] = getValue("storage_req").toString();
         p["tags"] = getValue("tags").toString();
+        p["img_data"] = getValue("img_data").toString();
         p["is_active"] = getValue("is_active").toInt() == 1;
         
         // 自动计算预警状态
@@ -126,6 +127,7 @@ void ProductController::handleGetInboundList(ClientHandler* client, const QJsonO
             item["supplier_phone"] = query.value("supplier_phone").toString();
             item["operator_name"] = query.value("operator_name").toString();
             item["is_shelved"] = query.value("is_shelved").toInt() == 1;
+            item["img_data"] = query.value("img_data").toString();
             item["created_at"] = query.value("created_at").toDateTime().toString("yyyy-MM-dd HH:mm:ss");
             inboundList.append(item);
         }
@@ -161,6 +163,7 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
     QString spec = rec.value("spec").toString();
     QString category = rec.value("category").toString();
     QString supplier = rec.value("supplier").toString();
+    QString imgData = rec.value("img_data").toString();
 
     // 2. 更新或插入商品档案
     QSqlQuery checkQuery(db);
@@ -170,20 +173,22 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
     if (checkQuery.exec() && checkQuery.next()) {
         // 更新现有商品：累加库存，更新最后进价
         QSqlQuery updateQuery(db);
-        updateQuery.prepare("UPDATE products SET stock_current = stock_current + ?, cost_price = ?, supplier = ? WHERE barcode = ?");
+        updateQuery.prepare("UPDATE products SET stock_current = stock_current + ?, cost_price = ?, supplier = ?, img_data = ? WHERE barcode = ?");
         updateQuery.addBindValue(qty);
         updateQuery.addBindValue(cost);
         updateQuery.addBindValue(supplier);
+        updateQuery.addBindValue(imgData);
         updateQuery.addBindValue(barcode);
         updateQuery.exec();
     } else {
         // 新建商品档案
         QSqlQuery insertQuery(db);
-        insertQuery.prepare("INSERT INTO products (barcode, name, spec, category, cost_price, sale_price, stock_current, supplier, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)");
+        insertQuery.prepare("INSERT INTO products (barcode, name, spec, category, img_data, cost_price, sale_price, stock_current, supplier, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
         insertQuery.addBindValue(barcode);
         insertQuery.addBindValue(name);
         insertQuery.addBindValue(spec);
         insertQuery.addBindValue(category);
+        insertQuery.addBindValue(imgData);
         insertQuery.addBindValue(cost);
         insertQuery.addBindValue(cost * 1.5); // 默认 1.5 倍加价作为起步价
         insertQuery.addBindValue(qty);

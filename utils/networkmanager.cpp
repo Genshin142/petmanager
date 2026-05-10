@@ -82,11 +82,16 @@ void NetworkManager::onReadyRead()
 
         // 在后台线程池中解析并发出信号
         m_threadPool->start([=]() {
-            emit packetReceived(packet);
+            // 后台解析超大 JSON
+            QJsonDocument doc = QJsonDocument::fromJson(bodyData);
+            Protocol::NetPacket parsedPacket = packet;
+            parsedPacket.jsonObj = doc.object();
+            
+            // 将解析好的数据发射出去，主线程只负责读取
+            emit packetReceived(parsedPacket);
 
             if (cmdId == Protocol::CMD_LOGIN) {
-                QJsonDocument doc = QJsonDocument::fromJson(bodyData);
-                QJsonObject resp = doc.object();
+                QJsonObject resp = parsedPacket.jsonObj;
                 emit loginResponse(resp["status"].toInt(), 
                                    resp["message"].toString(), 
                                    resp["user_info"].toObject());

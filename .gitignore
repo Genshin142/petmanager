@@ -1,34 +1,34 @@
-# --- 编译产物 ---
-build/
-bin/
-release/
-debug/
+# Qt Creator
+*.pro.user
+*.pro.user.*
+
+# Compilation artifacts
 *.o
 *.obj
-*.exe
-*.dll
 *.so
 *.a
-*.lib
+*.dll
+*.exe
+debug/
+release/
 
-# --- Qt 自动生成的代码 ---
-moc_*.cpp
-ui_*.h
-qrc_*.cpp
-Makefile*
-*.pro.user
+# Build directories
+build*/
 
-# --- 编译器 & IDE 配置文件 ---
-.vscode/
-.idea/
-*.suo
-*.user
-*.ncb
-*.pdb
-
-# --- 临时文件 ---
+# Logs
 *.log
-*.tmp
+log*.txt
 
-# --- 工作树 ---
-.worktrees/
+# Misc / Typos
+et --hard HEAD
+proposal.txt
+proposal_utf8.txt
+
+# Personal Docs (Docx)
+*.docx
+
+# Superpowers / Internal
+.superpowers/
+.agent/
+.worktrees/
+.vscode/

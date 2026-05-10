@@ -5,6 +5,7 @@
 #include <QMap>
 #include <QStringList>
 #include "addemployeedialog.h"
+#include "../protocol_codes.h"
 
 class StaffDataManager : public QObject
 {
@@ -21,6 +22,8 @@ public:
     void hardDeleteStaff(const QString &id);
     
     QStringList activeStaffNames() const;
+    
+    void requestStaffList();
 
 signals:
     void staffDataChanged();
@@ -31,6 +34,9 @@ private:
     
     static StaffDataManager* m_instance;
     QMap<QString, EmployeeInfo> m_staff;
+
+private slots:
+    void onPacketReceived(const Protocol::NetPacket &packet);
 };
 
 #endif // STAFFDATAMANAGER_H

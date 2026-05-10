@@ -10,7 +10,9 @@ PetController::PetController(ServerCore* core, QObject* parent)
     : QObject(parent), m_core(core) 
 {
     // 注册指令：2001 -> 获取宠物列表
-    m_core->registerHandler(2001, std::bind(&PetController::handleGetPetList, this, std::placeholders::_1, std::placeholders::_2));
+    m_core->registerHandler(Protocol::CMD_GET_PET_LIST, std::bind(&PetController::handleGetPetList, this, std::placeholders::_1, std::placeholders::_2));
+    // 注册指令：2007 -> 获取房间列表
+    m_core->registerHandler(Protocol::CMD_GET_ROOM_LIST, std::bind(&PetController::handleGetRoomList, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& data) {
@@ -54,5 +56,45 @@ void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& d
         LOG_E("[PET] Database error: " << query.lastError().text().toStdString());
     }
 
-    client->sendPacket(2001, QJsonDocument(response).toJson(QJsonDocument::Compact));
+    client->sendPacket(Protocol::CMD_GET_PET_LIST, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleGetRoomList(ClientHandler* client, const QJsonObject& data) {
+    LOG_I("[ROOM] Fetching room list...");
+    Q_UNUSED(data);
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    query.prepare("SELECT * FROM boarding_rooms WHERE is_deleted = 0 ORDER BY room_no ASC");
+
+    QJsonObject response;
+    QJsonArray roomList;
+
+    if (query.exec()) {
+        while (query.next()) {
+            QJsonObject room;
+            QSqlRecord rec = query.record();
+            for (int i = 0; i < rec.count(); ++i) {
+                QString colName = rec.fieldName(i);
+                QVariant val = query.value(i);
+                if (val.typeId() == QMetaType::Int || val.typeId() == QMetaType::LongLong)
+                    room[colName] = val.toLongLong();
+                else if (val.typeId() == QMetaType::Double)
+                    room[colName] = val.toDouble();
+                else
+                    room[colName] = val.toString();
+            }
+            roomList.append(room);
+        }
+        response["status"] = Protocol::STATUS_OK;
+        response["data"] = roomList;
+        LOG_I("[ROOM] Successfully fetched " << roomList.size() << " rooms.");
+    } else {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = "Database error: " + query.lastError().text();
+        LOG_E("[ROOM] Database error: " << query.lastError().text().toStdString());
+    }
+
+    client->sendPacket(Protocol::CMD_GET_ROOM_LIST, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }

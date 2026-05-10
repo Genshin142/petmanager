@@ -36,6 +36,15 @@ struct FosterBatch {
     bool isActive;   // 是否当前寄养中
 };
 
+struct BoardingRoom {
+    int id;
+    QString roomNo;
+    QString type;      // "标准房", "豪华房", "多宠房"
+    QString status;    // "空闲", "入住中", "清理中", "维护中"
+    QString description;
+    bool isActive = true;
+};
+
 struct RoomStatusPeriod {
     QString type;      // "maintenance", "cleaning"
     QString startTime; // yyyy-MM-dd HH:mm
@@ -113,6 +122,7 @@ struct ProductInfo {
     QString suitablePets;    // 适用宠物/人群
     QString pairingSuggestion; // 搭配建议
     QStringList images;      // 多角度图片路径
+    QString imgData;         // 新增：首图 Base64 数据 (用于服务器同步)
     QStringList tags;        // 卖点标签 (如: 低敏, 美毛)
     double netWeightKg = 0.0; // 净重 (用于计算单日喂养成本)
     int dailyFeedingGrams = 0;// 建议每日喂食量 (g)
@@ -126,8 +136,7 @@ struct ServiceInfo {
     QString category;        // 洗护, 美容, 寄养, 训练, 医疗, 其他
     double price = 0.0;
     int durationMinutes = 0; // 预计耗时
-    double commissionFixed = 0.0; // 固定提成
-    int commissionPercent = 0;    // 比例提成 (%)
+    double commissionFixed = 0.0; // 服务提成金额
     int salesCount = 0;
     bool isActive = true;
     QString description;
@@ -150,6 +159,7 @@ struct StockInRecord {
     QString supplierPhone; // 新增：供应商联系方式
     QString operatorName;
     QStringList imgPaths; // 修改为多图路径
+    QString imgData;      // 新增：Base64 图片数据 (服务器存储)
     int shelfLifeDays;    // 新增：从入库单带出的保质期天数
     bool isShelved = false; // 新增：是否已完成上架入库
     bool isActive = true;   // 是否处于活跃状态 (逻辑删除)

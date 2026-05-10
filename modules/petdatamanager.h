@@ -44,6 +44,9 @@ public:
     QList<FosterBatch> getHistoryBatches(const QString &petId) const;
 
     // 房间与寄养业务逻辑
+    void requestRoomList();
+    QList<BoardingRoom> allRooms() const;
+    BoardingRoom getRoom(int id) const;
     bool isRoomAvailable(int roomId, const QDate &start, const QDate &end) const;
     QString getRoomType(int roomId) const;
     QList<int> getAvailableRooms(const QDate &start, const QDate &end, const QString &type = "") const;
@@ -101,7 +104,8 @@ private:
     QMap<QString, QList<FosterBatch>> m_historyBatches;
     QMap<int, QList<RoomStatusPeriod>> m_roomStatusPeriods;
     QMap<QString, AppointmentInfo> m_appointments;
-    QMap<QString, OrderInfo> m_orders; // 新增
+    QMap<QString, OrderInfo> m_orders; 
+    QMap<int, BoardingRoom> m_rooms;
 };
 
 #endif // PETDATAMANAGER_H

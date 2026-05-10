@@ -39,6 +39,7 @@ private:
     // UI 元素
     QLineEdit *nameEdit;
     QComboBox *roleCombo;
+    QComboBox *deptCombo;
     QComboBox *genderCombo;
     QSpinBox *ageBox;
     QLineEdit *phoneEdit;

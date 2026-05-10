@@ -12,6 +12,8 @@
 #include "../logic/member_controller.h"
 #include <QtCore/QThread>
 #include "../logic/product_controller.h"
+#include "../logic/staff_controller.h"
+#include "../logic/service_controller.h"
 
 ServerCore::ServerCore(QObject *parent) : QObject(parent)
 {
@@ -26,6 +28,8 @@ ServerCore::ServerCore(QObject *parent) : QObject(parent)
     new PetController(this, this);
     new MemberController(this, this);
     new ProductController(this, this);
+    new StaffController(this, this);
+    new ServiceController(this, this);
 }
 
 bool ServerCore::start(quint16 port)

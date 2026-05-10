@@ -3562,7 +3562,6 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
         delete item;
     }
 
-    int totalCount = 20;
     const int cardWidth = 210;  // 与 FosterCard::setFixedSize(210,155) 一致
     const int spacing = 25;     // 同步增大间距
     const int defaultCols = 4;
@@ -3572,13 +3571,29 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
                ? qMax(1, (availableWidth + spacing) / (cardWidth + spacing))
                : defaultCols;
 
+    QList<BoardingRoom> rooms = PetDataManager::instance()->allRooms();
+    if (rooms.isEmpty()) {
+        // Fallback for UI if rooms not loaded yet (simulate 20 rooms)
+        for (int i = 101; i <= 120; ++i) {
+            BoardingRoom r; r.id = i; r.roomNo = QString::number(i);
+            r.type = (i >= 111 && i <= 115) ? "豪华房" : (i >= 116 && i <= 120 ? "多宠房" : "标准房");
+            r.status = "空闲";
+            rooms << r;
+        }
+    }
+    
     QList<PetInfo> allPets = PetDataManager::instance()->allPets();
     
-    for (int i = 0; i < totalCount; ++i) {
-        int roomIdInt = 101 + i;
-        QString roomIdStr = QString::number(roomIdInt).rightJustified(3, '0'); // 格式化为 001, 101 等
+    for (int i = 0; i < rooms.size(); ++i) {
+        const BoardingRoom &room = rooms[i];
+        int roomIdInt = room.id;
+        QString roomIdStr = room.roomNo;
         
         QString status = "free";
+        if (room.status == "清理中") status = "cleaning";
+        else if (room.status == "维护中") status = "maintenance";
+        else if (room.status == "入住中") status = "occupied";
+
         QString pid, pname, oname, breed;
         
         // 房态匹配逻辑：从真实 PetDataManager 中检索 (日期敏感型)
@@ -3586,11 +3601,11 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
         for (const auto &pet : allPets) {
             bool roomMatch = (pet.roomNo == roomIdStr) || 
                            (pet.roomNo == QString::number(roomIdInt)) ||
-                           (pet.roomNo.toInt() == roomIdInt && !pet.roomNo.isEmpty());
+                           (!pet.roomNo.isEmpty() && pet.roomNo.toInt() == roomIdInt);
 
             if (roomMatch) {
                 QDate s = QDate::fromString(pet.fosterStartTime, "yyyy-MM-dd");
-                QDate e = pet.fosterEndTime == "至今" ? QDate::currentDate().addYears(1) : QDate::fromString(pet.fosterEndTime, "yyyy-MM-dd");
+                QDate e = (pet.fosterEndTime == "至今" || pet.fosterEndTime.isEmpty()) ? QDate::currentDate().addYears(1) : QDate::fromString(pet.fosterEndTime, "yyyy-MM-dd");
                 
                 // 检查选定日期是否落在此宠物的寄养/预约区间内
                 if (date >= s && date <= e) {
@@ -3613,24 +3628,20 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
         }
 
         // 如果没有宠物占用，从数据管理器获取维护/清洁状态 (日期敏感)
-        if (!found) {
+        if (!found && (status == "free" || status == "occupied")) {
             auto periods = PetDataManager::instance()->getRoomStatusPeriods(roomIdInt);
             for (const auto &p : periods) {
                 QDate s = QDate::fromString(p.startTime.split(" ").first(), "yyyy-MM-dd");
                 QDate e = QDate::fromString(p.endTime.split(" ").first(), "yyyy-MM-dd");
                 if (date >= s && date <= e) {
                     status = p.type;
+                    found = true;
                     break;
                 }
             }
         }
 
-        // 模拟房型分配：111-115 豪华，116-120 多宠，其余标准
-        QString roomType = "标准房";
-        if (roomIdInt >= 111 && roomIdInt <= 115) roomType = "豪华房";
-        else if (roomIdInt >= 116 && roomIdInt <= 120) roomType = "多宠房";
-
-        FosterCard *card = new FosterCard(roomIdInt, status, roomType, pid, pname, breed, oname, this);
+        FosterCard *card = new FosterCard(roomIdInt, status, room.type, pid, pname, breed, oname, this);
         connect(card, &FosterCard::clicked, this, &FosterModule::onCardClicked);
         roomGrid->addWidget(card, i / cols, i % cols, Qt::AlignTop);
     }

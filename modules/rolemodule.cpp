@@ -94,6 +94,13 @@ RoleModule::RoleModule(QWidget *parent) : QWidget(parent), m_currentRoleFilter("
     connect(m_drawer, &EmployeeDetailDrawer::avatarClicked, this, &RoleModule::showBigImage);
     connect(m_drawer, &EmployeeDetailDrawer::editRequested, this, &RoleModule::onEditEmployeeFromDrawer);
 
+    connect(StaffDataManager::instance(), &StaffDataManager::staffDataChanged, this, [=](){
+        empTable->setRowCount(0);
+        addSampleData();
+        updateStats();
+        updatePagination();
+    });
+
     setupUI();
     
     // 默认选中第一行

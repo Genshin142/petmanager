@@ -422,9 +422,11 @@ void PetRecordDrawer::hideDrawer()
     m_animation->start();
 }
 
+#include <QDebug>
 bool PetRecordDrawer::eventFilter(QObject *obj, QEvent *event)
 {
-    if (obj == m_avatarLabel && event->type() == QEvent::MouseButtonRelease) {
+    if (obj == m_avatarLabel && event->type() == QEvent::MouseButtonPress) {
+        qDebug() << "[PetRecordDrawer] Avatar Clicked! Emitting signal with path:" << m_currentPet.avatarPath;
         emit avatarClicked(m_currentPet.avatarPath);
         return true;
     }

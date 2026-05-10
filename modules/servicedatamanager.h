@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QMap>
 #include "../common_types.h"
+#include "../protocol_codes.h"
 
 class ServiceDataManager : public QObject
 {
@@ -18,11 +19,17 @@ public:
     void updateService(const ServiceInfo &info);
     void removeService(const QString &id);
     
+    // 网络同步接口
+    void requestServiceList();
+    
     // 联想搜索接口
     QList<ServiceInfo> searchServices(const QString &keyword) const;
     
 signals:
     void serviceDataChanged();
+
+private slots:
+    void onPacketReceived(const struct Protocol::NetPacket &packet);
 
 private:
     explicit ServiceDataManager(QObject *parent = nullptr);

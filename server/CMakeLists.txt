@@ -49,6 +49,8 @@ set(SOURCES
     logic/pet_controller.cpp
     logic/member_controller.cpp
     logic/product_controller.cpp
+    logic/staff_controller.cpp
+    logic/service_controller.cpp
 )
 
 # 4. 生成可执行程序

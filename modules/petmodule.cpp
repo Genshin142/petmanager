@@ -796,10 +796,12 @@ void PetModule::updatePagination()
     prevBtn->setEnabled(m_currentPage > 1);
 }
 
+#include <QDebug>
 bool PetModule::eventFilter(QObject *watched, QEvent *event) {
-    if (event->type() == QEvent::MouseButtonRelease) {
+    if (event->type() == QEvent::MouseButtonPress) {
         // 1. 如果点击的是头像，直接放大
         if (watched->property("avatarPath").isValid()) {
+            qDebug() << "[PetModule] Avatar Clicked! Path:" << watched->property("avatarPath").toString();
             showBigImage(watched->property("avatarPath").toString());
             return true;
         }
@@ -807,6 +809,7 @@ bool PetModule::eventFilter(QObject *watched, QEvent *event) {
         // 2. 如果点击的是头像周边的信息区域，手动选中该行
         if (watched->property("row").isValid()) {
             int row = watched->property("row").toInt();
+            qDebug() << "[PetModule] Info Widget Clicked! Row:" << row;
             petTable->selectRow(row);
             // 这里也可以顺便触发详情刷新逻辑
             onCurrentCellChanged(row, 0, -1, -1);
@@ -815,7 +818,7 @@ bool PetModule::eventFilter(QObject *watched, QEvent *event) {
     }
     
     // 3. 处理遮罩层点击（关闭预览）
-    if (watched == m_imagePreviewOverlay && event->type() == QEvent::MouseButtonRelease) {
+    if (watched == m_imagePreviewOverlay && event->type() == QEvent::MouseButtonPress) {
         hideBigImage();
         return true;
     }
@@ -863,10 +866,13 @@ bool PetModule::eventFilter(QObject *watched, QEvent *event) {
 
 void PetModule::showBigImage(const QString &path)
 {
-    if (path.isEmpty()) return;
+    qDebug() << "[PetModule] showBigImage called with path:" << path;
     
     QPixmap pix(path);
-    if (pix.isNull()) pix.load(":/images/load_img.jpg");
+    if (pix.isNull()) {
+        qDebug() << "[PetModule] Target image is null, loading default.";
+        pix.load(":/images/load_img.jpg");
+    }
     
     // 确保遮罩覆盖整个 PetModule 区域
     m_imagePreviewOverlay->setGeometry(rect());
@@ -877,6 +883,7 @@ void PetModule::showBigImage(const QString &path)
     
     m_imagePreviewOverlay->show();
     m_imagePreviewOverlay->raise(); // 确保遮罩层在最顶层展示
+    qDebug() << "[PetModule] overlay shown successfully.";
 }
 
 void PetModule::hideBigImage()

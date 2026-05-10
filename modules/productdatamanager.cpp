@@ -49,8 +49,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
     if (packet.cmdId == Protocol::CMD_GET_PRODUCT_LIST) {
         {
             QMutexLocker locker(&m_mutex);
-            QJsonDocument doc = QJsonDocument::fromJson(packet.data);
-            QJsonObject root = doc.object();
+            QJsonObject root = packet.jsonObj;
             
             if (root["status"].toInt() == Protocol::STATUS_OK) {
                 QJsonArray arr = root["data"].toArray();
@@ -83,6 +82,20 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.isActive = obj["is_active"].toBool();
                     info.isWarning = obj["is_warning"].toBool();
                     
+                    QString imgRaw = obj["img_data"].toString();
+                    if (imgRaw.startsWith("[")) {
+                        QJsonDocument imgDoc = QJsonDocument::fromJson(imgRaw.toUtf8());
+                        if (imgDoc.isArray()) {
+                            QJsonArray imgArr = imgDoc.array();
+                            for (const auto& v : imgArr) {
+                                info.images.append(v.toString());
+                            }
+                            if (!info.images.isEmpty()) info.imgData = info.images[0];
+                        }
+                    } else {
+                        info.imgData = imgRaw;
+                    }
+                    
                     m_products[info.barcode] = info;
                 }
                 qDebug() << "[PRODUCT] Product list updated. Count:" << m_products.size();
@@ -92,8 +105,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         emit productDataChanged(); // 锁释放后再发出信号，安全！
     }
     else if (packet.cmdId == Protocol::CMD_GET_INBOUND_LIST) {
-        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
-        QJsonObject root = doc.object();
+        QJsonObject root = packet.jsonObj;
         QList<StockInRecord> list;
         
         if (root["status"].toInt() == Protocol::STATUS_OK) {
@@ -116,6 +128,21 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 rec.supplierPhone = obj["supplier_phone"].toString();
                 rec.operatorName = obj["operator_name"].toString();
                 rec.isShelved = obj["is_shelved"].toBool();
+                
+                QString imgRaw = obj["img_data"].toString();
+                if (imgRaw.startsWith("[")) {
+                    QJsonDocument imgDoc = QJsonDocument::fromJson(imgRaw.toUtf8());
+                    if (imgDoc.isArray()) {
+                        QJsonArray imgArr = imgDoc.array();
+                        for (const auto& v : imgArr) {
+                            rec.imgPaths.append(v.toString());
+                        }
+                        if (!rec.imgPaths.isEmpty()) rec.imgData = rec.imgPaths[0];
+                    }
+                } else {
+                    rec.imgData = imgRaw;
+                }
+                
                 list.append(rec);
             }
         }

@@ -816,12 +816,27 @@ void AddAppointmentDialog::onAddServiceRow()
             QString currentRoom = roomCombo->currentText();
             roomCombo->clear();
             
-            QList<int> available = PetDataManager::instance()->getAvailableRooms(startDate, endDate);
+            // 确定房型过滤条件
+            QString typeFilter = "";
+            auto tags = tagsWrapper->findChildren<QPushButton*>();
+            for (auto btn : tags) {
+                if (btn->isChecked()) {
+                    QString name = btn->text();
+                    if (name.contains("豪华")) typeFilter = "豪华房";
+                    else if (name.contains("多宠")) typeFilter = "多宠房";
+                    else if (name.contains("普通")) typeFilter = "标准房";
+                    break;
+                }
+            }
+
+            QList<int> available = PetDataManager::instance()->getAvailableRooms(startDate, endDate, typeFilter);
             if (available.isEmpty()) {
-                roomCombo->addItem("无空房", "");
+                roomCombo->addItem(typeFilter.isEmpty() ? "无空房" : QString("无%1空闲").arg(typeFilter), "");
             } else {
                 for (int rid : available) {
-                    roomCombo->addItem(QString("%1号房").arg(rid), QString::number(rid));
+                    BoardingRoom r = PetDataManager::instance()->getRoom(rid);
+                    QString display = r.roomNo.isEmpty() ? QString::number(rid) : r.roomNo;
+                    roomCombo->addItem(QString("%1号房").arg(display), QString::number(rid));
                 }
             }
             
@@ -888,24 +903,36 @@ void AddAppointmentDialog::onAddServiceRow()
                         QString name = tagBtn->text();
                         QString cat = combo->currentText();
                         
-                        // 定义互斥组
-                        QMap<QString, QStringList> exclusionGroups;
-                        exclusionGroups["洗护"] << "基础洗护" << "深度洗护" << "深度护理";
-                        exclusionGroups["美容"] << "整体造型" << "局部修剪";
-                        exclusionGroups["寄养"] << "普通寄养房间" << "豪华套房寄养" << "多宠家庭房寄养";
+                        // 1. 寄养分类：所有项目绝对互斥
+                        if (cat == "寄养") {
+                            auto allBtns = tagsWrapper->findChildren<QPushButton*>();
+                            for (auto other : allBtns) {
+                                if (other != tagBtn) other->setChecked(false);
+                            }
+                        } 
+                        // 2. 洗护/美容/保健：部分核心项目互斥
+                        else {
+                            QMap<QString, QStringList> exclusionGroups;
+                            // 洗护核心项目不能多选
+                            exclusionGroups["洗护"] << "基础三项护理" << "全身深度洗护" << "专业除臭洗护";
+                            // 美容核心造型不能多选
+                            exclusionGroups["美容"] << "全身推子造型" << "全手剪精修造型";
 
-                        if (exclusionGroups.contains(cat)) {
-                            const QStringList &exclList = exclusionGroups[cat];
-                            if (exclList.contains(name)) {
-                                // 取消同组其他互斥项的选择
-                                auto otherBtns = tagsWrapper->findChildren<QPushButton*>();
-                                for (auto other : otherBtns) {
-                                    if (other != tagBtn && exclList.contains(other->text())) {
-                                        other->setChecked(false);
+                            if (exclusionGroups.contains(cat)) {
+                                const QStringList &exclList = exclusionGroups[cat];
+                                if (exclList.contains(name)) {
+                                    auto otherBtns = tagsWrapper->findChildren<QPushButton*>();
+                                    for (auto other : otherBtns) {
+                                        if (other != tagBtn && exclList.contains(other->text())) {
+                                            other->setChecked(false);
+                                        }
                                     }
                                 }
                             }
                         }
+                    }
+                    if (combo->currentText() == "寄养") {
+                        updateAvailableRooms();
                     }
                     updateFinalPrice();
                 });

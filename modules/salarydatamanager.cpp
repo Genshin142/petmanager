@@ -60,15 +60,9 @@ void SalaryDataManager::initMockData() {
             pr.finalAmount = pr.orderAmount * (QRandomGenerator::global()->bounded(90, 101) / 100.0); // 随机 9-10 折
             
             // 严格对齐服务模块的设计
-            if (svc.commissionFixed > 0) {
-                pr.commissionType = "固定提成";
-                pr.commissionRate = svc.commissionFixed;
-                pr.commission = svc.commissionFixed;
-            } else {
-                pr.commissionType = "比例提成";
-                pr.commissionRate = svc.commissionPercent / 100.0;
-                pr.commission = pr.finalAmount * pr.commissionRate;
-            }
+            pr.commissionType = "固定提成";
+            pr.commissionRate = svc.commissionFixed;
+            pr.commission = svc.commissionFixed;
 
             pr.orderId = "ORD202404" + QString::number(1000 + QRandomGenerator::global()->bounded(0, 999));
             pr.customerId = QString::number(2000 + QRandomGenerator::global()->bounded(1, 100));

@@ -1,5 +1,10 @@
 #include "staffdatamanager.h"
 #include <QDateTime>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDebug>
+#include "../utils/networkmanager.h"
 
 StaffDataManager* StaffDataManager::m_instance = nullptr;
 
@@ -13,30 +18,77 @@ StaffDataManager* StaffDataManager::instance()
 
 StaffDataManager::StaffDataManager(QObject *parent) : QObject(parent)
 {
-    initMockData();
+    connect(&NetworkManager::instance(), &NetworkManager::packetReceived, 
+            this, &StaffDataManager::onPacketReceived);
+            
+    // 初始加载
+    requestStaffList();
 }
 
 void StaffDataManager::initMockData()
 {
-    auto addDemo = [&](const QString &id, const QString &name, const QString &role, const QString &status, 
-                       const QString &gender, int age, const QString &phone, const QString &email, const QString &idCard,
-                       int baseSalary, const QString &user = "", const QString &pwd = "123456") {
-        EmployeeInfo info;
-        info.id = id; info.name = name; info.role = role; info.status = status;
-        info.gender = gender; info.age = age; info.phone = phone; info.email = email;
-        info.idCard = idCard; info.baseSalary = baseSalary;
-        info.joinDate = "2023-01-01";
-        info.department = (role == "店长") ? "总店管理层" : "一线服务部";
-        info.username = user.isEmpty() ? id.toLower() : user;
-        info.password = pwd;
-        m_staff[id] = info;
-    };
+    // Mock data is now handled by server, but we keep the method signature for compatibility if needed
+}
 
-    addDemo("E001", "李四", "高级美容师", "在岗", "男", 28, "13800138000", "lisi@pet.com", "440106199601011234", 3500, "staff01");
-    addDemo("E002", "王五", "店员", "请假", "女", 24, "13911223344", "wangwu@pet.com", "440106200005204321", 3000, "staff02");
-    addDemo("E003", "张三", "实习生", "在岗", "男", 21, "13755667788", "zhangsan@pet.com", "440106200310105566", 1200, "staff03");
-    addDemo("E004", "赵六", "宠物医生", "在岗", "男", 35, "15088996677", "zhaoliu@pet.com", "440106198912128899", 6500, "staff04");
-    addDemo("E005", "孙梅", "店长", "在岗", "女", 32, "13612345678", "sunmei@pet.com", "440106199201011122", 8000, "admin01");
+void StaffDataManager::requestStaffList()
+{
+    qDebug() << "[STAFF] Requesting staff list from server...";
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_STAFF_LIST, QJsonObject());
+}
+
+void StaffDataManager::onPacketReceived(const Protocol::NetPacket &packet)
+{
+    if (packet.cmdId == Protocol::CMD_GET_STAFF_LIST) {
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray arr = root["data"].toArray();
+            m_staff.clear();
+            
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject obj = arr[i].toObject();
+                EmployeeInfo info;
+                info.id = QString("E%1").arg(obj["id"].toVariant().toLongLong(), 3, 10, QChar('0'));
+                info.name = obj["name"].toString();
+                info.role = obj["role"].toString();
+                info.gender = obj["gender"].toString();
+                info.age = obj["age"].toInt();
+                info.phone = obj["phone"].toString();
+                info.email = obj["email"].toString();
+                info.idCard = obj["idCard"].toString();
+                info.baseSalary = obj["baseSalary"].toInt();
+                info.status = obj["status"].toString();
+                info.imgPath = obj["imgPath"].toString();
+                info.joinDate = obj["joinDate"].toString();
+                info.emergencyContact = obj["emergencyContact"].toString();
+                info.emergencyPhone = obj["emergencyPhone"].toString();
+                info.address = obj["address"].toString();
+                info.education = obj["education"].toString();
+                info.department = obj["department"].toString();
+                info.username = obj["username"].toString();
+                
+                m_staff[info.id] = info;
+            }
+            
+            qDebug() << "[STAFF] Staff list updated from server. Count: " << m_staff.size();
+            emit staffDataChanged();
+        }
+    } else if (packet.cmdId == Protocol::CMD_ADD_STAFF || 
+               packet.cmdId == Protocol::CMD_UPDATE_STAFF || 
+               packet.cmdId == Protocol::CMD_DELETE_STAFF || 
+               packet.cmdId == Protocol::CMD_RESTORE_STAFF) {
+        
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            // 操作成功后刷新列表
+            requestStaffList();
+        } else {
+            qWarning() << "[STAFF] Server operation failed: " << root["message"].toString();
+        }
+    }
 }
 
 QList<EmployeeInfo> StaffDataManager::allStaff() const
@@ -51,37 +103,73 @@ EmployeeInfo StaffDataManager::getStaff(const QString &id) const
 
 void StaffDataManager::addStaff(const EmployeeInfo &info)
 {
-    m_staff[info.id] = info;
-    emit staffDataChanged();
+    QJsonObject obj;
+    obj["username"] = info.username;
+    obj["password"] = info.password;
+    obj["name"] = info.name;
+    obj["role"] = info.role;
+    obj["department"] = info.department;
+    obj["gender"] = info.gender;
+    obj["age"] = info.age;
+    obj["phone"] = info.phone;
+    obj["email"] = info.email;
+    obj["idCard"] = info.idCard;
+    obj["baseSalary"] = info.baseSalary;
+    obj["joinDate"] = info.joinDate;
+    obj["emergencyContact"] = info.emergencyContact;
+    obj["emergencyPhone"] = info.emergencyPhone;
+    obj["address"] = info.address;
+    obj["education"] = info.education;
+    obj["status"] = info.status;
+    obj["imgPath"] = info.imgPath;
+
+    NetworkManager::instance().sendRequest(Protocol::CMD_ADD_STAFF, obj);
 }
 
 void StaffDataManager::updateStaff(const EmployeeInfo &info)
 {
-    m_staff[info.id] = info;
-    emit staffDataChanged();
+    QJsonObject obj;
+    obj["id"] = info.id;
+    obj["username"] = info.username;
+    if (!info.password.isEmpty()) obj["password"] = info.password;
+    obj["name"] = info.name;
+    obj["role"] = info.role;
+    obj["department"] = info.department;
+    obj["gender"] = info.gender;
+    obj["age"] = info.age;
+    obj["phone"] = info.phone;
+    obj["email"] = info.email;
+    obj["idCard"] = info.idCard;
+    obj["baseSalary"] = info.baseSalary;
+    obj["joinDate"] = info.joinDate;
+    obj["emergencyContact"] = info.emergencyContact;
+    obj["emergencyPhone"] = info.emergencyPhone;
+    obj["address"] = info.address;
+    obj["education"] = info.education;
+    obj["status"] = info.status;
+    obj["imgPath"] = info.imgPath;
+
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_STAFF, obj);
 }
 
 void StaffDataManager::removeStaff(const QString &id)
 {
-    if (m_staff.contains(id)) {
-        m_staff[id].status = "离职";
-        emit staffDataChanged();
-    }
+    QJsonObject obj;
+    obj["id"] = id;
+    NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_STAFF, obj);
 }
 
 void StaffDataManager::restoreStaff(const QString &id)
 {
-    if (m_staff.contains(id)) {
-        m_staff[id].status = "在岗";
-        emit staffDataChanged();
-    }
+    QJsonObject obj;
+    obj["id"] = id;
+    NetworkManager::instance().sendRequest(Protocol::CMD_RESTORE_STAFF, obj);
 }
 
 void StaffDataManager::hardDeleteStaff(const QString &id)
 {
-    if (m_staff.remove(id) > 0) {
-        emit staffDataChanged();
-    }
+    // Not implemented in this version, could be added if needed
+    removeStaff(id); 
 }
 
 QStringList StaffDataManager::activeStaffNames() const

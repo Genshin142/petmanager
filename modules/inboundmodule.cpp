@@ -83,7 +83,8 @@ public:
     }
 };
 
-InboundModule::InboundModule(UserRole role, QWidget *parent) : QWidget(parent), m_selectedCategory("全部"), m_role(role), m_currentPage(1), m_pageSize(10)
+InboundModule::InboundModule(UserRole role, QWidget *parent) 
+    : QWidget(parent), m_selectedCategory("全部"), m_currentPage(1), m_pageSize(10), m_role(role)
 {
     setupUI();
     updateRecordList();
@@ -262,34 +263,35 @@ void InboundModule::setupUI()
 
     // --- 2. Table: Audit View ---
     m_recordTable = new QTableWidget();
-    m_recordTable->setColumnCount(10); 
-    m_recordTable->setHorizontalHeaderLabels({"图片", "入库日期", "商品名称", "条形码", "生产日期", "分类", "供应商", "数量", "状态", "操作"});
-    // --- 强化列宽控制：防止被其他拉伸列挤压 ---
+    m_recordTable->setColumnCount(9); 
+    m_recordTable->setHorizontalHeaderLabels({"图片", "入库日期", "商品名称", "条形码", "生产日期", "分类", "数量", "状态", "操作"});
+    
     QHeaderView *h = m_recordTable->horizontalHeader();
     h->setDefaultAlignment(Qt::AlignCenter);
     h->setSectionResizeMode(QHeaderView::Interactive);
     
-    // 0. 入库日期
+    // 0. 图片
     h->setSectionResizeMode(0, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(0, 160);
+    m_recordTable->setColumnWidth(0, 60);
     
-    // 1. 商品名称 (弹性拉伸)
-    h->setSectionResizeMode(1, QHeaderView::Stretch);
+    // 1. 入库日期
+    h->setSectionResizeMode(1, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(1, 160);
     
-    // 2. 条形码 (加宽并锁定)
-    h->setSectionResizeMode(2, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(2, 160);
+    // 2. 商品名称 (弹性拉伸)
+    h->setSectionResizeMode(2, QHeaderView::Stretch);
     
-    // 3. 生产日期
+    // 3. 条形码 (加宽以适配长条码)
     h->setSectionResizeMode(3, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(3, 110);
-
-    // 4. 分类
+    m_recordTable->setColumnWidth(3, 190);
+    
+    // 4. 生产日期 (加宽)
     h->setSectionResizeMode(4, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(4, 90);
+    m_recordTable->setColumnWidth(4, 130);
 
-    // 5. 供应商 (弹性拉伸)
-    h->setSectionResizeMode(5, QHeaderView::Stretch);
+    // 5. 分类
+    h->setSectionResizeMode(5, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(5, 90);
 
     // 6. 数量
     h->setSectionResizeMode(6, QHeaderView::Fixed);
@@ -468,7 +470,20 @@ void InboundModule::updateRecordList()
         QLabel *imgLabel = new QLabel();
         imgLabel->setFixedSize(40, 40);
         imgLabel->setStyleSheet("background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0;");
-        if (!rec.imgPaths.isEmpty()) {
+        imgLabel->setCursor(Qt::PointingHandCursor);
+        imgLabel->installEventFilter(this);
+        imgLabel->setProperty("isTableImg", true);
+        imgLabel->setProperty("imgPaths", rec.imgPaths);
+        imgLabel->setProperty("imgData", rec.imgData);
+        if (!rec.imgData.isEmpty()) {
+            QByteArray ba = QByteArray::fromBase64(rec.imgData.toUtf8());
+            QPixmap pix;
+            if (pix.loadFromData(ba)) {
+                imgLabel->setPixmap(pix.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            } else {
+                imgLabel->setText("损坏");
+            }
+        } else if (!rec.imgPaths.isEmpty()) {
             imgLabel->setPixmap(QPixmap(rec.imgPaths[0]).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         } else {
             imgLabel->setText("无图");
@@ -489,8 +504,7 @@ void InboundModule::updateRecordList()
         m_recordTable->setItem(row, 3, createItem(rec.barcode));
         m_recordTable->setItem(row, 4, createItem(rec.productionDate));
         m_recordTable->setItem(row, 5, createItem(rec.category.isEmpty() ? "未分类" : rec.category));
-        m_recordTable->setItem(row, 6, createItem(rec.supplier.isEmpty() ? "未知" : rec.supplier));
-        m_recordTable->setItem(row, 7, createItem(QString::number(rec.quantity)));
+        m_recordTable->setItem(row, 6, createItem(QString::number(rec.quantity)));
         
         QWidget *tagWrapper = new QWidget();
         QHBoxLayout *tagLayout = new QHBoxLayout(tagWrapper);
@@ -517,11 +531,11 @@ void InboundModule::updateRecordList()
         }
         tagLayout->addWidget(statusTag, 0, Qt::AlignCenter); 
         
-        m_recordTable->setCellWidget(row, 8, tagWrapper);
-        m_recordTable->setItem(row, 8, new QTableWidgetItem()); // 占位
-        m_recordTable->item(row, 8)->setData(Qt::UserRole + 1, true); // 标记此列已有 Widget
+        m_recordTable->setCellWidget(row, 7, tagWrapper);
+        m_recordTable->setItem(row, 7, new QTableWidgetItem()); // 占位
+        m_recordTable->item(row, 7)->setData(Qt::UserRole + 1, true); // 标记此列已有 Widget
 
-        // 列9：操作
+        // 列8：操作
         QWidget *btnWrap = new QWidget();
         QHBoxLayout *btnL = new QHBoxLayout(btnWrap);
         btnL->setContentsMargins(0, 0, 0, 0);
@@ -589,9 +603,9 @@ void InboundModule::updateRecordList()
         delBtn->setProperty("barcode", rec.barcode);
         
         btnL->addWidget(delBtn);
-        m_recordTable->setCellWidget(row, 9, btnWrap);
-        m_recordTable->setItem(row, 9, new QTableWidgetItem());
-        m_recordTable->item(row, 9)->setData(Qt::UserRole + 1, true);
+        m_recordTable->setCellWidget(row, 8, btnWrap);
+        m_recordTable->setItem(row, 8, new QTableWidgetItem());
+        m_recordTable->item(row, 8)->setData(Qt::UserRole + 1, true);
     }
 
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
@@ -843,6 +857,9 @@ void InboundModule::onRecordSelected()
     imgStack->addWidget(m_detailDotsContainer);
 
     m_detailImagePaths = rec.imgPaths;
+    if (!rec.imgData.isEmpty() && !m_detailImagePaths.contains(rec.imgData)) {
+        m_detailImagePaths.prepend(rec.imgData); // 优先显示数据库里的图
+    }
     m_detailImgIndex = 0;
     switchDetailImage(false);
 
@@ -1009,9 +1026,24 @@ void InboundModule::switchDetailImage(bool next)
         return;
     }
     if (next) m_detailImgIndex = (m_detailImgIndex + 1) % m_detailImagePaths.size();
-    QPixmap pix(m_detailImagePaths[m_detailImgIndex]);
-    m_detailPreviewImg->setPixmap(pix.scaled(m_detailPreviewImg->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-    if (m_backdrop->isVisible()) m_largePreviewImg->setPixmap(pix.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    QString imgSource = m_detailImagePaths[m_detailImgIndex];
+    QPixmap pix;
+    if (imgSource.length() > 500) { // 简单判断是否为 Base64
+        QByteArray ba = QByteArray::fromBase64(imgSource.toUtf8());
+        pix.loadFromData(ba);
+    } else {
+        pix.load(imgSource);
+    }
+    
+    if (pix.isNull()) {
+        m_detailPreviewImg->setText("图片丢失");
+    } else {
+        m_detailPreviewImg->setPixmap(pix.scaled(m_detailPreviewImg->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+        if (m_backdrop->isVisible()) {
+            int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
+            m_largePreviewImg->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        }
+    }
     updateDetailDots();
 }
 
@@ -1051,7 +1083,14 @@ void InboundModule::switchImage(bool next)
 {
     if (m_imagePaths.isEmpty()) return;
     if (next) m_currentImgIndex = (m_currentImgIndex + 1) % m_imagePaths.size();
-    QPixmap pix(m_imagePaths[m_currentImgIndex]);
+    QString imgSource = m_imagePaths[m_currentImgIndex];
+    QPixmap pix;
+    if (imgSource.length() > 500) {
+        pix.loadFromData(QByteArray::fromBase64(imgSource.toUtf8()));
+    } else {
+        pix.load(imgSource);
+    }
+    
     int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
     m_largePreviewImg->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     updateLargeDots();
@@ -1074,6 +1113,9 @@ void InboundModule::updateLargeDots()
 
 bool InboundModule::eventFilter(QObject *watched, QEvent *event)
 {
+    QLabel *watchedLabel = qobject_cast<QLabel*>(watched);
+    
+    // 1. 处理详情页主图
     if (watched == m_detailPreviewImg) {
         if (event->type() == QEvent::Wheel) {
             switchDetailImage(static_cast<QWheelEvent*>(event)->angleDelta().y() < 0);
@@ -1086,6 +1128,24 @@ bool InboundModule::eventFilter(QObject *watched, QEvent *event)
             return true;
         }
     }
+    
+    // 2. 处理表格中的小图 (点击放大)
+    if (watchedLabel && watchedLabel->property("isTableImg").toBool()) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            QStringList paths = watchedLabel->property("imgPaths").toStringList();
+            QString base64Data = watchedLabel->property("imgData").toString();
+            
+            m_imagePaths = paths;
+            if (!base64Data.isEmpty() && !m_imagePaths.contains(base64Data)) {
+                m_imagePaths.prepend(base64Data);
+            }
+            m_currentImgIndex = 0;
+            showLargePreview();
+            return true;
+        }
+    }
+
+    // 3. 处理大图预览背景及大图 (点击关闭/滚动切换)
     if (watched == m_backdrop || watched == m_largePreviewImg) {
         if (event->type() == QEvent::Wheel) {
             switchImage(static_cast<QWheelEvent*>(event)->angleDelta().y() < 0);

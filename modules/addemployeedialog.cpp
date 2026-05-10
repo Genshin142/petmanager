@@ -117,64 +117,69 @@ void AddEmployeeDialog::setupUI()
     nameEdit->setPlaceholderText("请输入姓名");
     formLayout->addWidget(nameEdit, 0, 1, 1, 3);
 
-    // 第二行：岗位 / 性别
+    // 第二行：岗位 / 部门
     addLabel("所属岗位:", 1, 0);
     roleCombo = new QComboBox();
     roleCombo->addItems({"店员", "高级美容师", "宠物医生", "实习生", "店长"});
     formLayout->addWidget(roleCombo, 1, 1);
 
-    addLabel("员工性别:", 1, 2);
+    addLabel("所属部门:", 1, 2);
+    deptCombo = new QComboBox();
+    deptCombo->addItems({"管理部", "服务部", "技术部", "后勤部"});
+    formLayout->addWidget(deptCombo, 1, 3);
+
+    // 第三行：性别 / 年龄
+    addLabel("员工性别:", 2, 0);
     genderCombo = new QComboBox();
     genderCombo->addItems({"男", "女"});
-    formLayout->addWidget(genderCombo, 1, 3);
+    formLayout->addWidget(genderCombo, 2, 1);
 
-    // 第三行：年龄 / 状态
-    addLabel("员工年龄:", 2, 0);
+    addLabel("员工年龄:", 2, 2);
     ageBox = new QSpinBox();
     ageBox->setRange(16, 70);
     ageBox->setValue(22);
-    formLayout->addWidget(ageBox, 2, 1);
+    formLayout->addWidget(ageBox, 2, 3);
 
-    addLabel("当前状态:", 2, 2);
+    // 第四行：状态 / 入职日期
+    addLabel("当前状态:", 3, 0);
     statusCombo = new QComboBox();
     statusCombo->addItems({"在岗", "离岗", "请假"});
-    formLayout->addWidget(statusCombo, 2, 3);
+    formLayout->addWidget(statusCombo, 3, 1);
 
-    // 第四行：手机号 (跨行?) 不，还是正常排列
-    addLabel("联系电话:", 3, 0);
+    addLabel("入职日期:", 3, 2);
+    joinDateEdit = new CustomCalendarEdit();
+    joinDateEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
+    formLayout->addWidget(joinDateEdit, 3, 3);
+
+    // 第五行：手机号
+    addLabel("联系电话:", 4, 0);
     phoneEdit = new QLineEdit();
     phoneEdit->setPlaceholderText("请输入手机号");
-    formLayout->addWidget(phoneEdit, 3, 1, 1, 3); // 占 3 列
+    formLayout->addWidget(phoneEdit, 4, 1, 1, 3);
 
-    // 第五行：电子邮箱
-    addLabel("联系邮箱:", 4, 0);
+    // 第六行：电子邮箱
+    addLabel("联系邮箱:", 5, 0);
     emailEdit = new QLineEdit();
     emailEdit->setPlaceholderText("example@pet.com");
-    formLayout->addWidget(emailEdit, 4, 1, 1, 3);
+    formLayout->addWidget(emailEdit, 5, 1, 1, 3);
 
-    // 第六行：身份证号
-    addLabel("身份证号:", 5, 0);
+    // 第七行：身份证号
+    addLabel("身份证号:", 6, 0);
     idCardEdit = new QLineEdit();
     idCardEdit->setPlaceholderText("请输入 18 位身份证号");
-    formLayout->addWidget(idCardEdit, 5, 1, 1, 3);
+    formLayout->addWidget(idCardEdit, 6, 1, 1, 3);
 
-    // 第七行：学历
-    addLabel("最高学历:", 6, 0);
+    // 第八行：学历 / 基本薪资
+    addLabel("最高学历:", 7, 0);
     eduCombo = new QComboBox();
     eduCombo->addItems({"大专", "本科", "硕士", "博士", "其他"});
-    formLayout->addWidget(eduCombo, 6, 1, 1, 3);
+    formLayout->addWidget(eduCombo, 7, 1);
 
-    // 第八行：基本薪资 / 入职日期
-    addLabel("基本底薪:", 7, 0);
+    addLabel("基本底薪:", 7, 2);
     salarySpin = new QSpinBox();
     salarySpin->setRange(0, 99999);
     salarySpin->setSuffix(" 元");
-    formLayout->addWidget(salarySpin, 7, 1);
-
-    addLabel("入职日期:", 7, 2);
-    joinDateEdit = new CustomCalendarEdit();
-    joinDateEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
-    formLayout->addWidget(joinDateEdit, 7, 3);
+    formLayout->addWidget(salarySpin, 7, 3);
 
     // 第九行：紧急联系人 / 联系电话
     addLabel("紧急联系人:", 8, 0);
@@ -193,18 +198,18 @@ void AddEmployeeDialog::setupUI()
     addressEdit->setPlaceholderText("请输入员工当前详细住址");
     formLayout->addWidget(addressEdit, 9, 1, 1, 3);
 
-    // 第十一行：账号与密码 (核心新增)
+    // 第十一行：账号与密码
     addLabel("登录账号:", 10, 0);
     usernameEdit = new QLineEdit();
     usernameEdit->setPlaceholderText("系统自动生成");
-    usernameEdit->setReadOnly(true); // 默认设为只读
+    usernameEdit->setReadOnly(true); 
     usernameEdit->setStyleSheet("QLineEdit { background-color: #f5f7fa; color: #909399; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px 10px; }");
     formLayout->addWidget(usernameEdit, 10, 1);
 
     addLabel("登录密码:", 10, 2);
     passwordEdit = new QLineEdit();
     passwordEdit->setPlaceholderText("初始密码");
-    passwordEdit->setText("123456"); // 默认密码
+    passwordEdit->setText("123456"); 
     formLayout->addWidget(passwordEdit, 10, 3);
 
     mainLayout->addLayout(formLayout);
@@ -296,6 +301,7 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
     idCardEdit->setText(info.idCard);
     salarySpin->setValue(info.baseSalary);
     statusCombo->setCurrentText(info.status);
+    deptCombo->setCurrentText(info.department.isEmpty() ? "服务部" : info.department);
     
     // HR 新增字段回填
     eduCombo->setCurrentText(info.education.isEmpty() ? "本科" : info.education);
@@ -356,7 +362,7 @@ EmployeeInfo AddEmployeeDialog::employeeInfo() const
 
     // 提取新增 HR 字段
     info.education = eduCombo->currentText();
-    info.department = ""; // 移除部门
+    info.department = deptCombo->currentText();
     info.emergencyContact = emergencyEdit->text();
     info.emergencyPhone = emergencyPhoneEdit->text();
     info.address = addressEdit->text();
