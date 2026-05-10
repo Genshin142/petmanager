@@ -14,6 +14,8 @@
 #include "../logic/product_controller.h"
 #include "../logic/staff_controller.h"
 #include "../logic/service_controller.h"
+#include "../logic/schedule_controller.h"
+#include "../logic/appointment_controller.h"
 
 ServerCore::ServerCore(QObject *parent) : QObject(parent)
 {
@@ -30,6 +32,8 @@ ServerCore::ServerCore(QObject *parent) : QObject(parent)
     new ProductController(this, this);
     new StaffController(this, this);
     new ServiceController(this, this);
+    new ScheduleController(this, this);
+    new AppointmentController(this, this);
 }
 
 bool ServerCore::start(quint16 port)

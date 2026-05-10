@@ -18,6 +18,14 @@ ScheduleModule::ScheduleModule(QWidget *parent) : QWidget(parent)
     m_currentMonday = today.addDays(1 - today.dayOfWeek());
     
     setupUI();
+    
+    // 初始化时请求整个月（当前周前后两周）的数据
+    QDate start = m_currentMonday.addDays(-14);
+    QDate end = m_currentMonday.addDays(28);
+    ScheduleDataManager::instance()->requestScheduleList(start.toString("yyyy-MM-dd"), end.toString("yyyy-MM-dd"));
+    
+    connect(ScheduleDataManager::instance(), &ScheduleDataManager::scheduleChanged, this, &ScheduleModule::updateTable);
+    
     updateTable();
 }
 
@@ -352,16 +360,18 @@ void ScheduleModule::onApplyTemplate()
     ScheduleTemplateDialog dialog(this);
     if (dialog.exec() == QDialog::Accepted) {
         // 店长在编辑器里点击了“保存并应用”
+        QList<ScheduleInfo> batchInfos;
         auto allStaff = StaffDataManager::instance()->allStaff();
         for (const auto &staff : allStaff) {
             auto weeklyTpl = ScheduleDataManager::instance()->getTemplateSchedule(staff.id);
             for (int i = 0; i < 7; ++i) {
                 ScheduleInfo info = weeklyTpl[i];
                 info.date = m_currentMonday.addDays(i).toString("yyyy-MM-dd");
-                ScheduleDataManager::instance()->saveSchedule(info);
+                batchInfos.append(info);
             }
         }
-        updateTable();
+        ScheduleDataManager::instance()->setSchedules(batchInfos);
+        
         CustomMessageDialog::showSuccess(this, "应用成功", "排班模板已成功应用到本周！");
     }
 }

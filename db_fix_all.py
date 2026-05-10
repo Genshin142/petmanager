@@ -90,6 +90,12 @@ def fix_database():
                     print(f"  + Adding missing column to inbound: {col}...")
                     cursor.execute(f"ALTER TABLE product_inbound ADD COLUMN {col} {df}")
 
+            # --- 2. 检查排班表 (sys_schedules) ---
+            cursor.execute("SHOW INDEX FROM sys_schedules WHERE Key_name = 'idx_emp_date'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE sys_schedules ADD UNIQUE KEY idx_emp_date (emp_id, work_date)")
+                print(" [OK] sys_schedules: 添加复合唯一索引 idx_emp_date")
+
             # --- 核心修复：Members 表 ---
             print("Optimizing members table...")
             cursor.execute("DESC members")

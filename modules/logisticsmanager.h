@@ -4,6 +4,7 @@
 #include <QTimer>
 #include <QDateTime>
 #include "../common_types.h"
+#include "../protocol_codes.h"
 
 class LogisticsManager : public QObject
 {
@@ -21,11 +22,16 @@ public:
     QList<LogisticsTask> getTasksForPet(const QString &petId) const;
     void cancelTaskByAppointmentId(const QString &apptId); // 新增：按预约ID取消物流任务
 
+    // 网络方法
+    void requestLogisticsList(const QDate &startDate, const QDate &endDate);
+    void updateLogisticsStatusRemote(const QString &taskId, const QString &status);
+
 signals:
     void logisticsDataChanged();
 
 private slots:
     void checkAndAutoUpdateTasks();
+    void onPacketReceived(const Protocol::NetPacket &packet);
 
 private:
     explicit LogisticsManager(QObject *parent = nullptr);

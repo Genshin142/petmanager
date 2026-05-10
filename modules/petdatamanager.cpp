@@ -512,6 +512,21 @@ void PetDataManager::addAppointment(const AppointmentInfo &info)
     AppointmentInfo newInfo = info;
     if (newInfo.id.isEmpty()) newInfo.id = QString::number(QDateTime::currentMSecsSinceEpoch());
     m_appointments[newInfo.id] = newInfo;
+
+    // 发送网络请求
+    QJsonObject body;
+    body["member_id"] = newInfo.memberName.toInt();  // 需要的话在 UI 层将 memberId 存入 info
+    body["pet_id"] = newInfo.petId.mid(1).toInt();   // "P001" -> 1
+    body["service_id"] = 0; // 待对接
+    body["staff_id"] = 0;   // 待对接
+    body["appt_time"] = newInfo.date + " " + newInfo.hour + ":00";
+    body["appt_type"] = newInfo.type;
+    body["notes"] = newInfo.notes;
+    body["address"] = newInfo.address;
+    body["amount"] = newInfo.amount;
+    body["need_transport"] = !newInfo.address.isEmpty();
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_ADD_APPOINTMENT, body);
     emit globalDataChanged();
 }
 
@@ -689,5 +704,73 @@ void PetDataManager::hardDeletePet(const QString &id)
         m_vaccineRecords.remove(id);
         m_historyBatches.remove(id);
         notifyGlobalDataChanged();
+    }
+}
+
+// ================== 预约网络方法 ==================
+
+void PetDataManager::requestAppointmentList(const QDate &startDate, const QDate &endDate)
+{
+    QJsonObject body;
+    body["start_date"] = startDate.toString("yyyy-MM-dd");
+    body["end_date"] = endDate.toString("yyyy-MM-dd");
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_APPOINTMENT_LIST, body);
+}
+
+void PetDataManager::updateAppointmentStatus(const QString &apptId, const QString &status)
+{
+    QJsonObject body;
+    body["appt_id"] = apptId.toInt();
+    body["status"] = status;
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_APPT_STATUS, body);
+}
+
+void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
+{
+    if (packet.cmdId == Protocol::CMD_GET_APPOINTMENT_LIST) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray data = root["data"].toArray();
+            // 不清空全部，仅更新服务器返回的部分
+            for (int i = 0; i < data.size(); ++i) {
+                QJsonObject obj = data[i].toObject();
+                AppointmentInfo info;
+                info.id = QString::number(obj["appt_id"].toInt());
+                info.petName = obj["pet_name"].toString();
+                info.memberName = obj["member_name"].toString();
+                info.status = obj["status"].toString();
+                info.address = obj["address"].toString();
+                info.amount = obj["amount"].toDouble();
+                info.type = obj["appt_type"].toString();
+                
+                // 解析时间
+                QString apptTime = obj["appt_time"].toString();
+                if (apptTime.length() >= 16) {
+                    info.date = apptTime.left(10);
+                    info.hour = apptTime.mid(11, 5);
+                }
+                
+                m_appointments[info.id] = info;
+            }
+            emit globalDataChanged();
+            qDebug() << "[APPT] Appointment list updated from server. Count:" << data.size();
+        }
+    }
+    else if (packet.cmdId == Protocol::CMD_ADD_APPOINTMENT) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            qDebug() << "[APPT] Appointment added successfully, appt_id:" << root["appt_id"].toInt();
+            // 可以触发重新拉取
+        }
+    }
+    else if (packet.cmdId == Protocol::CMD_UPDATE_APPT_STATUS) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            qDebug() << "[APPT] Appointment status updated successfully";
+            // 重新拉取最新数据
+            QDate today = QDate::currentDate();
+            QDate monday = today.addDays(1 - today.dayOfWeek());
+            requestAppointmentList(monday, monday.addDays(6));
+        }
     }
 }

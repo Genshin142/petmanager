@@ -1,5 +1,10 @@
 #include "scheduledatamanager.h"
 #include "staffdatamanager.h"
+#include "utils/networkmanager.h"
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QDebug>
 
 ScheduleDataManager* ScheduleDataManager::m_instance = nullptr;
 
@@ -13,7 +18,8 @@ ScheduleDataManager* ScheduleDataManager::instance()
 
 ScheduleDataManager::ScheduleDataManager(QObject *parent) : QObject(parent)
 {
-    initMockData();
+    // 监听网络回包
+    connect(&NetworkManager::instance(), &NetworkManager::packetReceived, this, &ScheduleDataManager::onPacketReceived);
 }
 
 
@@ -44,14 +50,67 @@ QList<ScheduleInfo> ScheduleDataManager::getWeeklySchedule(const QString &staffI
 
 void ScheduleDataManager::saveSchedule(const ScheduleInfo &info)
 {
-    QString key = QString("%1_%2").arg(info.employeeId).arg(info.date);
-    m_schedules[key] = info;
-    emit scheduleChanged();
+    setSchedule(info);
 }
 
 void ScheduleDataManager::setSchedule(const ScheduleInfo &info)
 {
-    saveSchedule(info);
+    QString key = info.employeeId + "_" + info.date;
+    m_schedules[key] = info;
+
+    // 同步到服务端
+    QJsonObject obj;
+    obj["emp_id"] = info.employeeId;
+    obj["work_date"] = info.date;
+    
+    if (info.type == SHIFT_MORNING) obj["shift_type"] = "早班";
+    else if (info.type == SHIFT_EVENING) obj["shift_type"] = "晚班";
+    else if (info.type == SHIFT_CUSTOM) obj["shift_type"] = "自定义";
+    else obj["shift_type"] = "休息";
+    
+    obj["plan_start"] = info.startTime;
+    obj["plan_end"] = info.endTime;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_SCHEDULE, obj);
+    emit scheduleChanged();
+}
+
+void ScheduleDataManager::requestScheduleList(const QString &startDate, const QString &endDate)
+{
+    QJsonObject body;
+    body["start_date"] = startDate;
+    body["end_date"] = endDate;
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_SCHEDULE, body);
+}
+
+void ScheduleDataManager::onPacketReceived(const Protocol::NetPacket &packet)
+{
+    if (packet.cmdId == Protocol::CMD_GET_SCHEDULE) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray data = root["data"].toArray();
+            m_schedules.clear(); // 暂时全量覆盖
+            for (int i = 0; i < data.size(); ++i) {
+                QJsonObject obj = data[i].toObject();
+                ScheduleInfo info;
+                info.employeeId = obj["emp_id"].toString();
+                info.date = obj["work_date"].toString();
+                
+                QString typeStr = obj["shift_type"].toString();
+                if (typeStr == "早班") info.type = SHIFT_MORNING;
+                else if (typeStr == "晚班") info.type = SHIFT_EVENING;
+                else if (typeStr == "自定义") info.type = SHIFT_CUSTOM;
+                else info.type = SHIFT_OFF;
+                
+                info.startTime = obj["plan_start"].toString();
+                info.endTime = obj["plan_end"].toString();
+                
+                QString key = info.employeeId + "_" + info.date;
+                m_schedules[key] = info;
+            }
+            emit scheduleChanged();
+        }
+    }
 }
 
 QList<ScheduleInfo> ScheduleDataManager::getTemplateSchedule(const QString &staffId)
@@ -84,10 +143,27 @@ void ScheduleDataManager::clearAllData() { m_schedules.clear(); }
 
 void ScheduleDataManager::setSchedules(const QList<ScheduleInfo> &infos)
 {
+    QJsonArray arr;
     for (const auto &info : infos) {
         QString key = QString("%1_%2").arg(info.employeeId).arg(info.date);
         m_schedules[key] = info;
+
+        QJsonObject obj;
+        obj["emp_id"] = info.employeeId;
+        obj["work_date"] = info.date;
+        if (info.type == SHIFT_MORNING) obj["shift_type"] = "早班";
+        else if (info.type == SHIFT_EVENING) obj["shift_type"] = "晚班";
+        else if (info.type == SHIFT_CUSTOM) obj["shift_type"] = "自定义";
+        else obj["shift_type"] = "休息";
+        obj["plan_start"] = info.startTime;
+        obj["plan_end"] = info.endTime;
+        arr.append(obj);
     }
+    
+    QJsonObject body;
+    body["schedules"] = arr;
+    NetworkManager::instance().sendRequest(Protocol::CMD_BATCH_UPDATE_SCHEDULE, body);
+
     emit scheduleChanged();
 }
 

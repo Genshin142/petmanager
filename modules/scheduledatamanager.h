@@ -5,6 +5,7 @@
 #include <QMap>
 #include <QDate>
 #include "common_types.h"
+#include "protocol_codes.h"
 
 class ScheduleDataManager : public QObject
 {
@@ -23,6 +24,12 @@ public:
     // 模板管理
     QList<ScheduleInfo> getTemplateSchedule(const QString &staffId);
     void saveTemplateSchedule(const QString &staffId, const QList<ScheduleInfo> &weeklyTemplate);
+
+    // Network methods
+    void requestScheduleList(const QString &startDate, const QString &endDate);
+
+public slots:
+    void onPacketReceived(const Protocol::NetPacket &packet);
 
     void clearAllData();   // 批量设置班次
     void setSchedules(const QList<ScheduleInfo> &infos);

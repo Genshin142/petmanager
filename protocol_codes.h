@@ -42,6 +42,19 @@ namespace Protocol {
         CMD_UPDATE_SERVICE   = 5003,
         CMD_DELETE_SERVICE   = 5004,
 
+        // 排班管理模块
+        CMD_GET_SCHEDULE     = 4101,
+        CMD_UPDATE_SCHEDULE  = 4102,
+        CMD_BATCH_UPDATE_SCHEDULE = 4103,
+
+        // 预约与物流模块
+        CMD_GET_APPOINTMENT_LIST      = 5101,
+        CMD_ADD_APPOINTMENT           = 5102,
+        CMD_UPDATE_APPT_STATUS        = 5103,
+        
+        CMD_GET_LOGISTICS_LIST        = 5201,
+        CMD_UPDATE_LOGISTICS_STATUS   = 5202,
+
         // 错误/响应类
         CMD_ERROR_RESPONSE  = 9999
     };

@@ -70,6 +70,10 @@ public:
     int getBoardingOccupation(const QDate &start, const QDate &end) const;
     QList<AppointmentInfo> getAppointmentsForPet(const QString &petId) const;
 
+    // 预约网络操作
+    void requestAppointmentList(const QDate &startDate, const QDate &endDate);
+    void updateAppointmentStatus(const QString &apptId, const QString &status);
+
     // 订单管理 (新)
     void addOrder(const OrderInfo &info);
     void updateOrder(const OrderInfo &info);
