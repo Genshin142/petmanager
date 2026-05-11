@@ -53,6 +53,7 @@ set(SOURCES
     logic/service_controller.cpp
     logic/schedule_controller.cpp
     logic/appointment_controller.cpp
+    logic/order_controller.cpp
 )
 
 # 4. 生成可执行程序

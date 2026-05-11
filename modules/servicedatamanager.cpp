@@ -33,6 +33,12 @@ void ServiceDataManager::initMockData()
 
 void ServiceDataManager::requestServiceList()
 {
+    if (!m_services.isEmpty()) {
+        emit serviceDataChanged();
+        return;
+    }
+    if (m_isLoading) return;
+    m_isLoading = true;
     qDebug() << "[SERVICE] Requesting service list from server...";
     NetworkManager::instance().sendRequest(Protocol::CMD_GET_SERVICE_LIST, QJsonObject());
 }
@@ -64,7 +70,10 @@ void ServiceDataManager::onPacketReceived(const Protocol::NetPacket &packet)
             }
             
             qDebug() << "[SERVICE] Service list updated from server. Count: " << m_services.size();
+            m_isLoading = false;
             emit serviceDataChanged();
+        } else {
+            m_isLoading = false;
         }
     } else if (packet.cmdId == Protocol::CMD_ADD_SERVICE || 
                packet.cmdId == Protocol::CMD_UPDATE_SERVICE || 
@@ -109,7 +118,7 @@ void ServiceDataManager::addService(const ServiceInfo &info)
     obj["description"] = info.description;
     obj["iconPath"] = info.icon;
     obj["isActive"] = info.isActive;
-
+    
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_SERVICE, obj);
 }
 
@@ -125,7 +134,7 @@ void ServiceDataManager::updateService(const ServiceInfo &info)
     obj["description"] = info.description;
     obj["iconPath"] = info.icon;
     obj["isActive"] = info.isActive;
-
+    
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_SERVICE, obj);
 }
 
@@ -138,12 +147,12 @@ void ServiceDataManager::removeService(const QString &id)
 
 QList<ServiceInfo> ServiceDataManager::searchServices(const QString &keyword) const
 {
-    QList<ServiceInfo> list;
+    QList<ServiceInfo> results;
+    QString kw = keyword.toLower();
     for (const auto &info : m_services) {
-        if (info.name.contains(keyword, Qt::CaseInsensitive) || 
-            info.category.contains(keyword, Qt::CaseInsensitive)) {
-            list.append(info);
+        if (info.name.toLower().contains(kw) || info.id.toLower().contains(kw)) {
+            results.append(info);
         }
     }
-    return list;
+    return results;
 }

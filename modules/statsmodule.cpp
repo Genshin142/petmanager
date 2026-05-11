@@ -352,7 +352,7 @@ QWidget* StatsModule::createFinanceView() {
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
             "QPushButton { border: none; border-radius: 6px; color: #64748b; font-size: 12px; font-weight: bold; background: transparent; } "
-            "QPushButton:checked { background: white; color: #3b82f6; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }"
+            "QPushButton:checked { background: white; color: #3b82f6; }"
         );
         return btn;
     };

@@ -6,6 +6,9 @@
 #include <QList>
 #include "../protocol_codes.h"
 #include "addmemberdialog.h"
+#include <QRecursiveMutex>
+#include <QPixmap>
+#include <QCache>
 
 class MemberDataManager : public QObject
 {
@@ -24,6 +27,8 @@ public:
     void restoreMember(const QString &id);
     void hardDeleteMember(const QString &id);
     void removePetFromMember(const QString &memberId, const QString &petName);
+    
+    QPixmap getMemberPixmap(const QString &id) const;
 
 signals:
     void dataChanged();
@@ -37,6 +42,13 @@ private:
 
     static MemberDataManager* m_instance;
     QMap<QString, MemberInfo> m_members;
+    mutable QRecursiveMutex m_mutex;
+    bool m_isLoading = false;
+    
+    QString m_cachePath;
+    mutable QCache<QString, QPixmap> m_pixmapCache;
+    void ensureCacheDir();
+    void saveToLocalCache(const QString &id, const QPixmap &pix);
 };
 
 #endif // MEMBERDATAMANAGER_H

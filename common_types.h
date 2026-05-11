@@ -97,6 +97,7 @@ struct PetInfo {
     QString fosterEndTime;   // 寄养结束时间
     double weight = 0.0;     // 当前体重 (kg)
     bool isActive = true;    // 是否处于活跃状态 (逻辑删除)
+    QString imgData;         // 新增：头像 Base64 数据 (用于本地缓存同步)
 };
 
 struct ProductInfo {
@@ -154,6 +155,7 @@ struct StockInRecord {
     QString category; // 新增：分类
     int quantity;
     double costPrice; // 新增：进货价
+    double salePrice = 0.0; // 新增：拟定售价
     QString productionDate; // 新增：生产日期
     QString supplier;
     QString supplierPhone; // 新增：供应商联系方式
@@ -306,6 +308,7 @@ struct EmployeeInfo {
     int baseSalary;
     QString status;
     QString imgPath;
+    QString imgData;         // 新增：头像 Base64 数据
     
     QString joinDate;
     QString emergencyContact;

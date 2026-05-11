@@ -16,6 +16,10 @@ public:
     void handleGetMemberList(ClientHandler *client, const QJsonObject &data);
 
 private:
+    void handleAddMember(ClientHandler *client, const QJsonObject &data);
+    void handleUpdateMember(ClientHandler *client, const QJsonObject &data);
+    void handleDeleteMember(ClientHandler *client, const QJsonObject &data);
+
     ServerCore *m_server;
 };
 

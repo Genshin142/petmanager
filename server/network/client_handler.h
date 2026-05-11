@@ -15,6 +15,10 @@ public:
     // 发送数据包的便捷方法
     void sendPacket(int cmdId, const QByteArray &jsonBody);
 
+    // 用户 ID 管理
+    void setUserId(int id) { m_userId = id; }
+    int userId() const { return m_userId; }
+
 signals:
     // 当一个完整的包解析出来时抛出此信号
     void packetReady(const Protocol::NetPacket &packet);
@@ -26,6 +30,7 @@ private slots:
 private:
     QTcpSocket *m_socket;
     QByteArray m_buffer; // 接收缓冲区，用于解决粘包/半包
+    int m_userId = 0;    // 关联的员工 ID
 };
 
 #endif // CLIENT_HANDLER_H

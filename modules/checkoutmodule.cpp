@@ -354,7 +354,7 @@ void CheckoutModule::setupUI()
     orderTable->setItemDelegate(new RowDelegate(orderTable));
     orderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     orderTable->setColumnWidth(0, 140); // Date
-    orderTable->setColumnWidth(1, 150); // Order ID
+    orderTable->setColumnWidth(1, 250); // Order ID (扩大宽度以确保长编号完整显示)
     orderTable->setColumnWidth(2, 120); // Customer
     orderTable->setColumnWidth(3, 100); // Item
     orderTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch); // Details takes all remaining space
@@ -430,6 +430,7 @@ void CheckoutModule::setupUI()
 
 void CheckoutModule::updateStats()
 {
+    qDebug() << "[CHECKOUT] updateStats started.";
     QLocale locale(QLocale::Chinese, QLocale::China);
     
     // 1. 获取今日实时营收 (锁定)
@@ -451,6 +452,7 @@ void CheckoutModule::updateStats()
         m_statPendingCount->setStyleSheet("font-size: 18px; font-weight: bold; color: #22c55e; border: none;");
         m_statPendingCount->setText("✓ 已清空");
     }
+    qDebug() << "[CHECKOUT] updateStats finished.";
 }
 
 void CheckoutModule::refreshView()
@@ -462,16 +464,18 @@ void CheckoutModule::refreshView()
 
 void CheckoutModule::updatePagination()
 {
-    orderTable->setRowCount(0);
     int total = m_displayData.size();
     int totalPages = qMax(1, (total + m_pageSize - 1) / m_pageSize);
     if (m_currentPage > totalPages) m_currentPage = totalPages;
     int start = (m_currentPage - 1) * m_pageSize;
     int end = qMin(start + m_pageSize, total);
+    
+    orderTable->setUpdatesEnabled(false); // 停止重绘，大幅提升填充速度
+    orderTable->setRowCount(end - start); // 预分配行数
+    
     for (int i = start; i < end; ++i) {
+        int row = i - start;
         const auto &order = m_displayData[i];
-        int row = orderTable->rowCount();
-        orderTable->insertRow(row);
         auto setItem = [&](int col, const QString &text, const QString &color = "#475569") {
             QTableWidgetItem *it = new QTableWidgetItem(text);
             it->setForeground(QColor(color));
@@ -493,7 +497,12 @@ void CheckoutModule::updatePagination()
                            (order.sourceModule == "Direct" ? "到店服务" : "其他业务"))));
         setItem(3, sourceZh, "#3b82f6");
         
-        setItem(4, order.itemDetails);
+        // 具体明细：如果包含多个商品（以+分隔），仅显示第一个并加省略号
+        QString displayDetails = order.itemDetails;
+        if (displayDetails.contains("+")) {
+            displayDetails = displayDetails.split("+").first() + "...";
+        }
+        setItem(4, displayDetails);
         
         QTableWidgetItem *amtIt = new QTableWidgetItem(QString("¥ %1").arg(order.totalAmount, 0, 'f', 2));
         amtIt->setForeground(QColor("#334155"));
@@ -513,6 +522,7 @@ void CheckoutModule::updatePagination()
         tagLayout->addWidget(tag);
         orderTable->setCellWidget(row, 6, tagContainer);
     }
+    orderTable->setUpdatesEnabled(true);
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
     prevBtn->setEnabled(m_currentPage > 1);
     nextBtn->setEnabled(m_currentPage < totalPages);

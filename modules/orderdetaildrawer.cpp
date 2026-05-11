@@ -15,11 +15,18 @@ OrderDetailDrawer::OrderDetailDrawer(QWidget *parent) : QWidget(parent)
 {
     setAttribute(Qt::WA_StyledBackground); // Allow QSS to style the background
     setupUI();
+    
+    // 监听数据变化，当商品信息同步完成后自动刷新图片和价格
+    connect(ProductDataManager::instance(), &ProductDataManager::productDataChanged, this, [this](){
+        if (!m_order.id.isEmpty() && (m_order.sourceModule == "Product" || m_order.sourceModule == "RetailPOS")) {
+            updateUI();
+        }
+    });
 }
 
 void OrderDetailDrawer::setupUI()
 {
-    setFixedWidth(470); // 略微增加总宽度以容纳外边距
+    setFixedWidth(420); // 适度减小总宽度，使其更紧凑
     // 父容器保持透明
     setStyleSheet("background: transparent; border: none;");
 
@@ -51,7 +58,7 @@ void OrderDetailDrawer::setupUI()
 
     // --- Header (Pet/Customer Profile) ---
     QWidget *header = new QWidget();
-    header->setMinimumHeight(140);
+    header->setFixedHeight(100); // 降低高度，给列表留更多空间
     header->setStyleSheet("background: transparent; border: none;");
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(15, 20, 100, 15); // Large right margin for button area
@@ -118,6 +125,7 @@ void OrderDetailDrawer::setupUI()
     // --- Bill List ---
     QScrollArea *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // 彻底禁止横向滚动条
     scroll->setStyleSheet(
         "QScrollArea { border: none; background: transparent; } "
         "QScrollBar:vertical { border: none; background: #f8fafc; width: 6px; margin: 0; } "
@@ -138,8 +146,8 @@ void OrderDetailDrawer::setupUI()
     QWidget *footer = new QWidget();
     footer->setStyleSheet("background: transparent; border-top: 1px solid #f1f5f9;");
     QVBoxLayout *footerLayout = new QVBoxLayout(footer);
-    footerLayout->setContentsMargins(30, 25, 30, 30);
-    footerLayout->setSpacing(20);
+    footerLayout->setContentsMargins(20, 15, 20, 20); // 减小页脚边距
+    footerLayout->setSpacing(10); // 减小间距
 
     QHBoxLayout *totalRow = new QHBoxLayout();
     QLabel *totalTitle = new QLabel("应付总额");
@@ -173,7 +181,7 @@ void OrderDetailDrawer::setupUI()
     footerLayout->addLayout(payGrid);
 
     m_confirmBtn = new QPushButton("确认结算");
-    m_confirmBtn->setFixedHeight(54);
+    m_confirmBtn->setFixedHeight(44); // 适度降低按钮高度
     m_confirmBtn->setCursor(Qt::PointingHandCursor);
     m_confirmBtn->setStyleSheet(
         "QPushButton { background: #3b82f6; color: white; border-radius: 10px; font-size: 16px; font-weight: 800; border: none; font-family: 'Microsoft YaHei'; } "
@@ -226,20 +234,35 @@ void OrderDetailDrawer::setupUI()
 
 void OrderDetailDrawer::setOrder(const OrderInfo &order)
 {
+    qDebug() << "[DRAWER] setOrder started for ID:" << order.id;
     m_order = order;
-    m_stack->setCurrentWidget(m_detailWidget);
+    if (m_stack) {
+        m_stack->setCurrentWidget(m_detailWidget);
+    }
     updateUI();
+    qDebug() << "[DRAWER] setOrder finished.";
 }
 
 void OrderDetailDrawer::showEmptyState()
 {
-    m_stack->setCurrentWidget(m_emptyWidget);
+    if (m_stack) {
+        m_stack->setCurrentWidget(m_emptyWidget);
+    }
 }
 
 void OrderDetailDrawer::updateUI()
 {
+    qDebug() << "[DRAWER] updateUI started for sourceModule:" << m_order.sourceModule;
     bool isProduct = (m_order.sourceModule == "Product" || m_order.sourceModule == "RetailPOS");
+    
+    if (!m_petAvatar) {
+        qWarning() << "[DRAWER] m_petAvatar is NULL!";
+        return;
+    }
+
     int avatarSize = m_petAvatar->width();
+    if (avatarSize <= 0) avatarSize = 70; // 兜底
+    
     QPixmap target(avatarSize, avatarSize);
     target.fill(Qt::transparent);
     QPainter painter(&target);
@@ -247,7 +270,8 @@ void OrderDetailDrawer::updateUI()
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
     
     // 主标题：会员信息
-    QString memberTitle = QString("%1 %2").arg(m_order.memberName).arg(m_order.memberId.isEmpty() ? "临时客" : m_order.memberId);
+    QString displayName = m_order.memberName.isEmpty() ? "临时客" : m_order.memberName;
+    QString memberTitle = QString("%1 %2").arg(displayName).arg(m_order.memberId);
     m_petInfoLabel->setText(memberTitle);
 
     if (isProduct) {
@@ -312,29 +336,38 @@ void OrderDetailDrawer::updateUI()
     // Clear items
     QLayoutItem *child;
     while ((child = m_itemsLayout->takeAt(0)) != nullptr) {
-        if (child->widget()) delete child->widget();
+        if (child->widget()) {
+            child->widget()->hide();
+            child->widget()->deleteLater();
+        }
         delete child;
     }
 
     // Add items helper (增加图片参数)
     auto addItem = [&](const QString &name, const QString &subtitle, double price, const QString &extra = "", const QString &iconPath = "") {
+        qDebug() << "  [DRAWER] addItem start:" << name;
         QWidget *itemW = new QWidget();
-        itemW->setStyleSheet("background: white;");
+        itemW->setObjectName("OrderItem");
+        itemW->setStyleSheet("QWidget#OrderItem { background: white; border-bottom: 1px solid #f8fafc; }");
         QHBoxLayout *rowLayout = new QHBoxLayout(itemW);
-        rowLayout->setContentsMargins(0, 15, 0, 15);
-        rowLayout->setSpacing(15);
+        rowLayout->setContentsMargins(10, 12, 10, 12);
+        rowLayout->setSpacing(12);
 
-        // 如果是商品，显示缩略图
         if (isProduct) {
             QLabel *img = new QLabel();
             img->setFixedSize(48, 48);
             img->setStyleSheet("background: #f8fafc; border-radius: 6px; border: 1px solid #f1f5f9;");
             img->setAlignment(Qt::AlignCenter);
-            if (!iconPath.isEmpty()) {
-                QPixmap p(iconPath);
-                if (!p.isNull()) img->setPixmap(p.scaled(44, 44, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            } else {
-                img->setText("📦");
+            if (isProduct) {
+                // 优化：从缓存获取图片，避免重复解码
+                ProductInfo pInfo = ProductDataManager::instance()->getProductByName(name);
+                QPixmap pix = ProductDataManager::instance()->getProductPixmap(pInfo.barcode);
+                
+                if (!pix.isNull()) {
+                    img->setPixmap(pix.scaled(44, 44, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                } else {
+                    img->setText("📦");
+                }
             }
             img->setCursor(Qt::PointingHandCursor);
             img->installEventFilter(this);
@@ -342,7 +375,6 @@ void OrderDetailDrawer::updateUI()
             img->setProperty("iconPath", iconPath);
             rowLayout->addWidget(img);
         }
-
         QVBoxLayout *textLayout = new QVBoxLayout();
         textLayout->setSpacing(4);
 
@@ -381,23 +413,15 @@ void OrderDetailDrawer::updateUI()
             itemGroups[name]++;
         }
 
-        // 获取商品价格与图片映射 (用于精准计价和显示图标)
-        QMap<QString, double> priceMap;
-        QMap<QString, QString> imageMap;
-        auto allProducts = ProductDataManager::instance()->allProducts();
-        for (const auto &p : allProducts) {
-            priceMap[p.name] = p.price;
-            if (!p.images.isEmpty()) imageMap[p.name] = p.images[0];
-        }
-
-        // 罗列合并后的项目
         for (auto it = itemGroups.begin(); it != itemGroups.end(); ++it) {
             QString name = it.key();
             int count = it.value();
-            double unitPrice = priceMap.value(name, 0.0);
-            QString imgPath = imageMap.value(name, ""); // 核心修复：获取商品实拍图路径
             
-            // 如果价格库里没找到，且该订单只有这一种商品，则用订单总额平摊
+            // 优化：直接通过名称查找，避免全量循环
+            ProductInfo p = ProductDataManager::instance()->getProductByName(name);
+            double unitPrice = p.barcode.isEmpty() ? 0.0 : p.price;
+            QString imgPath = p.images.isEmpty() ? "" : p.images[0];
+            
             if (unitPrice <= 0 && itemGroups.size() == 1) {
                 unitPrice = m_order.totalAmount / count;
             }
@@ -405,7 +429,6 @@ void OrderDetailDrawer::updateUI()
             double lineTotal = unitPrice * count;
             QString displayName = (count > 1) ? QString("%1 × %2").arg(name).arg(count) : name;
             
-            // 显示逻辑：主标题显示“品名 × 数量”，价格显示“折后总价”，并传入实拍图路径
             addItem(displayName, "", lineTotal, "", imgPath);
         }
     } else {
@@ -480,7 +503,14 @@ bool OrderDetailDrawer::eventFilter(QObject *obj, QEvent *event)
         int maxDim = qMin(mainWin->width(), mainWin->height()) * 0.8;
         
         if (!pathToShow.isEmpty()) {
-            QPixmap pix(pathToShow);
+            QPixmap pix;
+            if (pathToShow.startsWith("/9j/") || pathToShow.length() > 512) {
+                QByteArray data = QByteArray::fromBase64(pathToShow.toLatin1());
+                pix.loadFromData(data);
+            } else {
+                pix.load(pathToShow);
+            }
+
             if (!pix.isNull()) {
                 imgLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
             }

@@ -32,6 +32,7 @@ public:
 
     // 路由注册接口
     void registerHandler(int cmdId, HandlerFunc handler);
+    void broadcastPacket(int cmdId, const QJsonObject &data); 
 
 private slots:
     void onNewConnection();

@@ -98,6 +98,11 @@ void ScheduleController::handleUpdateSchedule(ClientHandler *client, const QJson
     if (upsertSchedule(body)) {
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "success";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "schedule";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = "Database error";
@@ -118,5 +123,13 @@ void ScheduleController::handleBatchUpdateSchedule(ClientHandler *client, const 
     QJsonObject response;
     response["status"] = allOk ? Protocol::STATUS_OK : Protocol::STATUS_ERROR;
     response["message"] = allOk ? "success" : "Partial failure";
+    
+    if (allOk) {
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "schedule";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    }
+
     client->sendPacket(Protocol::CMD_BATCH_UPDATE_SCHEDULE, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }

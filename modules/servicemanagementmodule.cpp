@@ -486,6 +486,10 @@ void ServiceManagementModule::updateTableData()
     int start = (m_currentPage - 1) * m_pageSize;
     int end = qMin(start + m_pageSize, total);
 
+    m_serviceTable->setUpdatesEnabled(false);
+    m_serviceTable->setRowCount(0);
+    m_serviceTable->setRowCount(end - start);
+
     auto addItem = [&](int row, int col, const QString &text, bool center = true) {
         QTableWidgetItem *item = new QTableWidgetItem(text);
         if (center) item->setTextAlignment(Qt::AlignCenter);
@@ -495,8 +499,7 @@ void ServiceManagementModule::updateTableData()
 
     for (int i = start; i < end; ++i) {
         const auto &info = filtered[i];
-        int row = m_serviceTable->rowCount();
-        m_serviceTable->insertRow(row);
+        int row = i - start;
         m_serviceTable->setRowHeight(row, 60);
 
 
@@ -561,6 +564,7 @@ void ServiceManagementModule::updateTableData()
         opL->addWidget(downBtn);
         m_serviceTable->setCellWidget(row, 7, opW);
     }
+    m_serviceTable->setUpdatesEnabled(true);
 
     // 更新分页控件状态
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));

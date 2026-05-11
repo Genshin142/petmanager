@@ -3,7 +3,6 @@
 #include "modules/membermodule.h"
 #include "modules/rolemodule.h"
 #include "modules/petmodule.h"
-#include "modules/productmodule.h"
 #include "modules/fostermodule.h"
 #include "modules/appointmentmodule.h"
 #include "modules/checkoutmodule.h"
@@ -33,7 +32,6 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
     memberMod = nullptr;
     roleMod = nullptr;
     petMod = nullptr;
-    productMod = nullptr;
     fosterMod = nullptr;
     apptMod = nullptr;
     checkoutMod = nullptr;
@@ -81,8 +79,7 @@ void MainWindow::initSidebar()
     navGroup->addButton(ui->navMember, 0);
     navGroup->addButton(ui->navRole, 1);
     navGroup->addButton(ui->navPet, 2);
-    ui->navProduct->setText("商品档案管理");
-    navGroup->addButton(ui->navProduct, 3);
+    ui->navProduct->setVisible(false); // 隐藏商品档案入口
     navGroup->addButton(ui->navFoster, 4);
     navGroup->addButton(ui->navOrder, 5);
     navGroup->addButton(ui->navCheckout, 6);
@@ -101,8 +98,8 @@ void MainWindow::initSidebar()
     navGroup->addButton(navLogistics, 9);
     ui->sidebarLayout->insertWidget(6, navLogistics);
 
-    // 动态添加入库登记按钮 (Index 10)
-    navInbound = new QPushButton("商品入库登记");
+    // 动态添加商品库存管理按钮 (Index 10) - 统一管理入口
+    navInbound = new QPushButton("商品库存管理");
     navGroup->addButton(navInbound, 10);
     ui->sidebarLayout->insertWidget(4, navInbound); 
 
@@ -150,8 +147,6 @@ void MainWindow::initModules(UserRole role)
     roleMod = new RoleModule(this);
     qDebug() << "PetModule...";
     petMod = new PetModule(role, this);
-    qDebug() << "ProductModule...";
-    productMod = new ProductModule(role, this);
     qDebug() << "FosterModule...";
     fosterMod = new FosterModule(this);
     qDebug() << "AppointmentModule...";
@@ -173,7 +168,7 @@ void MainWindow::initModules(UserRole role)
     ui->stack->addWidget(memberMod);  // index 0
     ui->stack->addWidget(roleMod);    // index 1
     ui->stack->addWidget(petMod);     // index 2
-    ui->stack->addWidget(productMod);  // index 3
+    ui->stack->addWidget(new QWidget()); // 占位 index 3 (原 ProductModule)
     ui->stack->addWidget(fosterMod);   // index 4
     ui->stack->addWidget(apptMod);     // index 5
     ui->stack->addWidget(checkoutMod); // index 6
@@ -259,23 +254,7 @@ void MainWindow::updateBadges()
     }
     qDebug() << "Logistics badge updated.";
 
-    if (ui->navProduct) {
-        int lowStockCount = 0;
-        // 3. 商品库存报警 (确保模块已初始化)
-        if (productMod) {
-            lowStockCount = productMod->getLowStockCount();
-        }
-
-        if (lowStockCount > 0) {
-            ui->navProduct->setText(QString("商品档案管理  (%1)").arg(lowStockCount));
-            ui->navProduct->setStyleSheet("QPushButton { color: #faad14; font-weight: bold; } "
-                                        "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
-        } else {
-            ui->navProduct->setText("商品档案管理");
-            ui->navProduct->setStyleSheet("");
-        }
-    }
-    qDebug() << "Product badge updated.";
+    qDebug() << "Product badge skip.";
 }
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {

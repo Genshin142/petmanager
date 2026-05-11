@@ -49,6 +49,7 @@ private:
         QLabel  *roomHint;            // 房号提示
         QComboBox *roomCombo;         // 房号选择
         QLineEdit *amountEdit;        // 新增：金额输入框
+        QLineEdit *addressEdit;       // 新增：接送地址输入框
         QWidget *container;
     };
     QVBoxLayout *m_serviceContainer;

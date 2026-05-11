@@ -74,6 +74,11 @@ void ServiceController::handleAddService(ClientHandler* client, const QJsonObjec
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Service added successfully";
         response["new_id"] = query.lastInsertId().toString();
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "service";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG(ERROR) << "[SERVICE] Failed to add service: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;
@@ -103,6 +108,11 @@ void ServiceController::handleUpdateService(ClientHandler* client, const QJsonOb
     if (query.exec()) {
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Service updated successfully";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "service";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG(ERROR) << "[SERVICE] Failed to update service: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;
@@ -123,6 +133,11 @@ void ServiceController::handleDeleteService(ClientHandler* client, const QJsonOb
     if (query.exec()) {
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Service deleted successfully";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "service";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG(ERROR) << "[SERVICE] Failed to delete service: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;

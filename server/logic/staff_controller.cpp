@@ -94,6 +94,11 @@ void StaffController::handleAddStaff(ClientHandler* client, const QJsonObject& d
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Staff added successfully";
         response["new_id"] = query.lastInsertId().toString();
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "staff";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG(ERROR) << "[STAFF] Failed to add staff: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;
@@ -143,6 +148,11 @@ void StaffController::handleUpdateStaff(ClientHandler* client, const QJsonObject
     if (query.exec()) {
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Staff updated successfully";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "staff";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG(ERROR) << "[STAFF] Failed to update staff: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;
@@ -163,6 +173,11 @@ void StaffController::handleDeleteStaff(ClientHandler* client, const QJsonObject
     if (query.exec()) {
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Staff deleted successfully";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "staff";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG(ERROR) << "[STAFF] Failed to delete staff: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;

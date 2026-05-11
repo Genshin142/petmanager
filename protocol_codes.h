@@ -19,15 +19,22 @@ namespace Protocol {
         // 宠物与会员类 (2000-2999)
         CMD_GET_PET_LIST    = 2001,
         CMD_GET_MEMBER_LIST = 2002,
+        CMD_ADD_MEMBER      = 2008,
+        CMD_UPDATE_MEMBER   = 2009,
+        CMD_DELETE_MEMBER   = 2010,
         CMD_GET_PRODUCT_LIST = 2003, // 获取商品列表
         CMD_GET_INBOUND_LIST = 2004, // 获取入库单据列表
         CMD_SHELVE_PRODUCT = 2005,   // 上架商品
+        CMD_UNSHELVE_PRODUCT = 2011, // 下架商品
         CMD_UPDATE_PET      = 2006,
         CMD_GET_ROOM_LIST   = 2007,
 
         // 业务与订单类 (3000-3999)
         CMD_CREATE_ORDER    = 3001,
         CMD_GET_APPOINTMENTS = 3002,
+        CMD_GET_ORDER_LIST  = 3003, // 获取订单列表
+        CMD_UPDATE_ORDER    = 3004, // 更新订单
+        CMD_CANCEL_ORDER    = 3005, // 作废订单
 
         // 员工管理类 (4000-4999)
         CMD_GET_STAFF_LIST = 4001,
@@ -54,6 +61,16 @@ namespace Protocol {
         
         CMD_GET_LOGISTICS_LIST        = 5201,
         CMD_UPDATE_LOGISTICS_STATUS   = 5202,
+
+        // 系统通知 (6000+)
+        CMD_NOTIFY_REFRESH = 6001, // 服务端通知客户端刷新数据
+        
+        // 财务与薪资类 (7000-7999)
+        CMD_GET_PERFORMANCE_LIST = 7001,
+        CMD_VERIFY_PERFORMANCE   = 7002,
+        CMD_GET_SALARY_LIST      = 7003,
+        CMD_APPROVE_SALARY       = 7004,
+        CMD_PAY_SALARY           = 7005,
 
         // 错误/响应类
         CMD_ERROR_RESPONSE  = 9999

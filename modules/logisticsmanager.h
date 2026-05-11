@@ -3,6 +3,7 @@
 
 #include <QTimer>
 #include <QDateTime>
+#include <QMutex>
 #include "../common_types.h"
 #include "../protocol_codes.h"
 
@@ -39,6 +40,7 @@ private:
 
     QMap<QString, LogisticsTask> m_tasks;
     QTimer *m_autoUpdateTimer;
+    mutable QMutex m_mutex;
 };
 
 #endif // LOGISTICSMANAGER_H

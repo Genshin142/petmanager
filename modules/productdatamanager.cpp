@@ -8,6 +8,11 @@
 #include <QSet>
 #include <QMutexLocker>
 
+#include <QDir>
+#include <QStandardPaths>
+#include <QBuffer>
+#include <QCoreApplication>
+
 ProductDataManager* ProductDataManager::m_instance = nullptr;
 
 ProductDataManager* ProductDataManager::instance()
@@ -20,28 +25,88 @@ ProductDataManager* ProductDataManager::instance()
 
 ProductDataManager::ProductDataManager(QObject *parent) : QObject(parent)
 {
+    m_pixmapCache.setMaxCost(100); 
+    
+    // 初始化缓存路径：位于可执行程序目录下的 cache/images
+    m_cachePath = QCoreApplication::applicationDirPath() + "/cache/images";
+    ensureCacheDir();
+
     connect(&NetworkManager::instance(), &NetworkManager::packetReceived,
             this, &ProductDataManager::onPacketReceived);
-    // initMockData(); // 清空界面，不再使用模拟数据
+    requestProductList(); 
 }
 
-void ProductDataManager::requestInboundList()
+void ProductDataManager::requestInboundList(bool onlyUnshelved)
 {
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_records.isEmpty()) {
+            emit inboundListReceived(); // 如果已经有数据，直接通知 UI
+            return;
+        }
+    }
     QJsonObject obj;
+    obj["onlyUnshelved"] = onlyUnshelved;
     NetworkManager::instance().sendRequest(Protocol::CMD_GET_INBOUND_LIST, obj);
 }
 
 void ProductDataManager::shelveProduct(int inboundId)
 {
+    {
+        QMutexLocker locker(&m_mutex);
+        for (auto &r : m_records) {
+            if (r.id == inboundId) {
+                r.isShelved = true;
+                break;
+            }
+        }
+    }
+    emit productDataChanged(); // 刷新统计和列表
+
     QJsonObject obj;
     obj["id"] = inboundId;
     NetworkManager::instance().sendRequest(Protocol::CMD_SHELVE_PRODUCT, obj);
 }
 
+void ProductDataManager::unshelveProduct(int inboundId)
+{
+    {
+        QMutexLocker locker(&m_mutex);
+        for (auto &r : m_records) {
+            if (r.id == inboundId) {
+                r.isShelved = false;
+                break;
+            }
+        }
+    }
+    emit productDataChanged(); // 刷新统计和列表
+
+    QJsonObject obj;
+    obj["id"] = inboundId;
+    NetworkManager::instance().sendRequest(Protocol::CMD_UNSHELVE_PRODUCT, obj);
+}
+
 void ProductDataManager::requestProductList()
 {
-    qDebug() << "[PRODUCT] Requesting product list from server...";
-    NetworkManager::instance().sendRequest(Protocol::CMD_GET_PRODUCT_LIST, QJsonObject());
+    bool shouldEmit = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_products.isEmpty() || m_isLoading) {
+            if (!m_products.isEmpty()) shouldEmit = true;
+        } else {
+            m_isLoading = true;
+        }
+    }
+
+    if (shouldEmit) {
+        emit productDataChanged();
+        return;
+    }
+
+    if (m_isLoading) {
+        qDebug() << "[PRODUCT] Requesting product list from server...";
+        NetworkManager::instance().sendRequest(Protocol::CMD_GET_PRODUCT_LIST, QJsonObject());
+    }
 }
 
 void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
@@ -54,8 +119,9 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
             if (root["status"].toInt() == Protocol::STATUS_OK) {
                 QJsonArray arr = root["data"].toArray();
                 
-                // 全量更新
+                // 增量更新，不再清理 m_pixmapCache 以保留已解码的图片
                 m_products.clear();
+                m_nameToBarcode.clear();
                 
                 for (int i = 0; i < arr.size(); ++i) {
                     QJsonObject obj = arr[i].toObject();
@@ -82,26 +148,42 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.isActive = obj["is_active"].toBool();
                     info.isWarning = obj["is_warning"].toBool();
                     
-                    QString imgRaw = obj["img_data"].toString();
-                    if (imgRaw.startsWith("[")) {
-                        QJsonDocument imgDoc = QJsonDocument::fromJson(imgRaw.toUtf8());
-                        if (imgDoc.isArray()) {
-                            QJsonArray imgArr = imgDoc.array();
-                            for (const auto& v : imgArr) {
-                                info.images.append(v.toString());
-                            }
-                            if (!info.images.isEmpty()) info.imgData = info.images[0];
+                    // 优化图片提取：优先尝试直接作为数组读取，避免二次解析字符串
+                    QJsonValue imgVal = obj["img_data"];
+                    if (imgVal.isArray()) {
+                        QJsonArray imgArr = imgVal.toArray();
+                        for (const auto& v : imgArr) {
+                            info.images.append(v.toString());
                         }
                     } else {
-                        info.imgData = imgRaw;
+                        QString imgRaw = imgVal.toString();
+                        if (imgRaw.startsWith("[")) {
+                            // 仅在确实是字符串化数组时才解析，且只解析一次
+                            QJsonDocument imgDoc = QJsonDocument::fromJson(imgRaw.toUtf8());
+                            if (imgDoc.isArray()) {
+                                QJsonArray imgArr = imgDoc.array();
+                                for (const auto& v : imgArr) {
+                                    info.images.append(v.toString());
+                                }
+                            }
+                        } else if (!imgRaw.isEmpty()) {
+                            info.imgData = imgRaw;
+                            info.images << imgRaw;
+                        }
+                    }
+                    
+                    if (!info.images.isEmpty() && info.imgData.isEmpty()) {
+                        info.imgData = info.images[0];
                     }
                     
                     m_products[info.barcode] = info;
+                    m_nameToBarcode[info.name] = info.barcode;
                 }
-                qDebug() << "[PRODUCT] Product list updated. Count:" << m_products.size();
+                qDebug() << "[PRODUCT] Product list updated (optimized). Count:" << m_products.size();
             }
         } // 这里 locker 超出作用域，自动释放锁
         
+        m_isLoading = false;
         emit productDataChanged(); // 锁释放后再发出信号，安全！
     }
     else if (packet.cmdId == Protocol::CMD_GET_INBOUND_LIST) {
@@ -128,6 +210,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 rec.supplierPhone = obj["supplier_phone"].toString();
                 rec.operatorName = obj["operator_name"].toString();
                 rec.isShelved = obj["is_shelved"].toBool();
+                rec.salePrice = obj["sale_price"].toDouble(); // 新增：解析拟定售价
                 
                 QString imgRaw = obj["img_data"].toString();
                 if (imgRaw.startsWith("[")) {
@@ -153,14 +236,15 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         emit inboundListReceived(list);
         emit productDataChanged(); // 通知 UI 刷新统计数字
     }
-    else if (packet.cmdId == Protocol::CMD_SHELVE_PRODUCT) {
+    else if (packet.cmdId == Protocol::CMD_SHELVE_PRODUCT || packet.cmdId == Protocol::CMD_UNSHELVE_PRODUCT) {
         QJsonDocument doc = QJsonDocument::fromJson(packet.data);
         QJsonObject root = doc.object();
         bool success = (root["status"].toInt() == Protocol::STATUS_OK);
         QString msg = root["message"].toString();
         
         if (success) {
-            requestProductList(); // 上架成功，立即刷新商品列表
+            requestProductList(); // 状态变更，刷新商品列表
+            requestInboundList(); // 刷新入库记录列表以更新状态位
         }
         emit shelveResult(success, msg);
     }
@@ -376,6 +460,7 @@ void ProductDataManager::initMockData()
 QList<ProductInfo> ProductDataManager::allProducts() const
 {
     QMutexLocker locker(&m_mutex);
+    qDebug() << "[PRODUCT] allProducts called, returning" << m_products.size() << "items.";
     return m_products.values();
 }
 
@@ -412,6 +497,69 @@ void ProductDataManager::removeProduct(const QString &barcode)
     emit productDataChanged();
 }
 
+ProductInfo ProductDataManager::getProductByName(const QString &name) const
+{
+    QMutexLocker locker(&m_mutex);
+    QString barcode = m_nameToBarcode.value(name);
+    return m_products.value(barcode);
+}
+
+QPixmap ProductDataManager::getProductPixmap(const QString &barcode) const
+{
+    // L1: 内存缓存 (最快)
+    if (m_pixmapCache.contains(barcode)) {
+        return *m_pixmapCache.object(barcode);
+    }
+
+    // L2: 本地磁盘缓存 (快)
+    QString localFilePath = m_cachePath + "/" + barcode + ".png";
+    if (QFile::exists(localFilePath)) {
+        QPixmap pix(localFilePath);
+        if (!pix.isNull()) {
+            m_pixmapCache.insert(barcode, new QPixmap(pix));
+            return pix;
+        }
+    }
+
+    // L3: 从内存数据（JSON 里的 Base64）解码 (慢)
+    ProductInfo info = getProduct(barcode);
+    if (info.imgData.isEmpty()) return QPixmap();
+
+    QPixmap pix;
+    if (info.imgData.startsWith("/9j/") || info.imgData.length() > 512) {
+        QByteArray data = QByteArray::fromBase64(info.imgData.toLatin1());
+        pix.loadFromData(data);
+    } else {
+        pix.load(info.imgData);
+    }
+
+    if (!pix.isNull()) {
+        m_pixmapCache.insert(barcode, new QPixmap(pix));
+        // 自动存入本地 L2 缓存
+        const_cast<ProductDataManager*>(this)->saveToLocalCache(barcode, pix);
+    }
+    return pix;
+}
+
+void ProductDataManager::ensureCacheDir()
+{
+    QDir dir(m_cachePath);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+}
+
+void ProductDataManager::saveToLocalCache(const QString &barcode, const QPixmap &pix)
+{
+    if (pix.isNull()) return;
+    QString localFilePath = m_cachePath + "/" + barcode + ".png";
+    if (!QFile::exists(localFilePath)) {
+        // 使用异步或直接保存，PNG 格式无损
+        pix.save(localFilePath, "PNG");
+        qDebug() << "[CACHE] Saved image to local:" << localFilePath;
+    }
+}
+
 QList<ProductInfo> ProductDataManager::getLowStockItems() const
 {
     QMutexLocker locker(&m_mutex);
@@ -438,11 +586,10 @@ void ProductDataManager::addRecord(const StockInRecord &rec) {
 }
 
 void ProductDataManager::updateRecord(const QString &oldDateTime, const QString &barcode, const StockInRecord &newRec) {
+    QMutexLocker locker(&m_mutex);
     for (auto &r : m_records) {
         if (r.dateTime == oldDateTime && r.barcode == barcode) {
             r = newRec;
-            // 保持原有的 dateTime 还是更新？通常“编辑资料”不应该改动入库时间，除非用户明确要求。
-            // 这里我们保持原有的 dateTime 以维持记录唯一性（或者使用 newRec 的，但 setEditMode 时我们保持了原有的）
             r.dateTime = oldDateTime; 
             break;
         }
@@ -451,6 +598,7 @@ void ProductDataManager::updateRecord(const QString &oldDateTime, const QString 
 }
 
 QList<StockInRecord> ProductDataManager::getUnlistedInboundItems() const {
+    QMutexLocker locker(&m_mutex);
     QList<StockInRecord> unlisted;
     QSet<QString> listedBarcodes;
     for (const auto &p : m_products) {
@@ -493,6 +641,7 @@ void ProductDataManager::addBatch(const StockBatch &batch) {
 }
 
 QList<StockBatch> ProductDataManager::getBatchesForProduct(const QString &barcode) const {
+    QMutexLocker locker(&m_mutex);
     QList<StockBatch> result;
     for (const auto &b : m_batches) {
         if (b.barcode == barcode && b.currentQty > 0) {
@@ -503,10 +652,12 @@ QList<StockBatch> ProductDataManager::getBatchesForProduct(const QString &barcod
 }
 
 QList<StockBatch> ProductDataManager::getAllBatches() const {
+    QMutexLocker locker(&m_mutex);
     return m_batches;
 }
 
 int ProductDataManager::calculateTotalStock(const QString &barcode) const {
+    QMutexLocker locker(&m_mutex);
     int total = 0;
     for (const auto &b : m_batches) {
         if (b.barcode == barcode) {
@@ -517,6 +668,7 @@ int ProductDataManager::calculateTotalStock(const QString &barcode) const {
 }
 
 void ProductDataManager::removeRecord(const QString &dateTime, const QString &barcode) {
+    QMutexLocker locker(&m_mutex);
     for (auto &r : m_records) {
         if (r.dateTime == dateTime && r.barcode == barcode) {
             r.isActive = false;
@@ -527,6 +679,7 @@ void ProductDataManager::removeRecord(const QString &dateTime, const QString &ba
 }
 
 void ProductDataManager::restoreRecord(const QString &dateTime, const QString &barcode) {
+    QMutexLocker locker(&m_mutex);
     for (auto &r : m_records) {
         if (r.dateTime == dateTime && r.barcode == barcode) {
             r.isActive = true;

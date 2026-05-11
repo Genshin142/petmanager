@@ -31,6 +31,7 @@ private slots:
     void onRestoreRecord();
     void onHardDeleteRecord();
     void onEditProductFromDrawer();
+    void onShelveFromDrawer();
 
 private:
     void setupUI();
@@ -69,6 +70,8 @@ private:
     QWidget *m_detailDrawer;
     QFrame *m_drawerContainer;
     QPushButton *m_editBtn;
+    QPushButton *m_shelveBtn;
+    QPushButton *m_unshelveBtn;
     QVBoxLayout *m_detailContentLayout;
     
     QLabel *m_detailPreviewImg;

@@ -16,6 +16,7 @@
 #include "../logic/service_controller.h"
 #include "../logic/schedule_controller.h"
 #include "../logic/appointment_controller.h"
+#include "../logic/order_controller.h"
 
 ServerCore::ServerCore(QObject *parent) : QObject(parent)
 {
@@ -34,6 +35,7 @@ ServerCore::ServerCore(QObject *parent) : QObject(parent)
     new ServiceController(this, this);
     new ScheduleController(this, this);
     new AppointmentController(this, this);
+    new OrderController(this, this);
 }
 
 bool ServerCore::start(quint16 port)
@@ -53,6 +55,14 @@ void ServerCore::onNewConnection()
         m_clients.append(handler);
         LOG_I("[NET] New client connected from " << socket->peerAddress().toString().toStdString() 
                  << ". Total clients: " << m_clients.size());
+    }
+}
+
+void ServerCore::broadcastPacket(int cmdId, const QJsonObject &data)
+{
+    QByteArray bytes = QJsonDocument(data).toJson(QJsonDocument::Compact);
+    for (auto client : m_clients) {
+        client->sendPacket(cmdId, bytes);
     }
 }
 

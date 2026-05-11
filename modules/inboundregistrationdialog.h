@@ -61,8 +61,9 @@ private:
     QLineEdit *m_qtyEdit;
     QLineEdit *m_costEdit;
     QLineEdit *m_supplierEdit;
-    QLineEdit *m_supplierPhoneEdit; // 新增
-    QComboBox *m_operatorCombo; // 新增：经办人
+    QLineEdit *m_supplierPhoneEdit;
+    QLineEdit *m_priceEdit; // 零售价
+    QComboBox *m_operatorCombo;
     class CustomCalendarEdit *m_dateEdit;
     QLineEdit *m_shelfLifeEdit;
     QPushButton *m_confirmBtn;

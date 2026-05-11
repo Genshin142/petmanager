@@ -6,6 +6,9 @@
 #include <QStringList>
 #include "addemployeedialog.h"
 #include "../protocol_codes.h"
+#include <QRecursiveMutex>
+#include <QPixmap>
+#include <QCache>
 
 class StaffDataManager : public QObject
 {
@@ -24,6 +27,8 @@ public:
     QStringList activeStaffNames() const;
     
     void requestStaffList();
+    
+    QPixmap getStaffPixmap(const QString &id) const;
 
 signals:
     void staffDataChanged();
@@ -34,6 +39,12 @@ private:
     
     static StaffDataManager* m_instance;
     QMap<QString, EmployeeInfo> m_staff;
+    bool m_isLoading = false;
+    mutable QRecursiveMutex m_mutex;
+    QString m_cachePath;
+    mutable QCache<QString, QPixmap> m_pixmapCache;
+    void ensureCacheDir();
+    void saveToLocalCache(const QString &id, const QPixmap &pix);
 
 private slots:
     void onPacketReceived(const Protocol::NetPacket &packet);

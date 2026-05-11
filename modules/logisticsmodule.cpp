@@ -98,6 +98,20 @@ private:
 };
 
 LogisticsModule::LogisticsModule(QWidget *parent) : QWidget(parent),
+    m_prevDayBtn(nullptr),
+    m_nextDayBtn(nullptr),
+    m_datePickerBtn(nullptr),
+    m_todayBtn(nullptr),
+    m_detailDrawer(nullptr),
+    m_kanbanArea(nullptr),
+    m_todayListLayout(nullptr),
+    m_tomorrowListLayout(nullptr),
+    m_todayTitle(nullptr),
+    m_tomorrowTitle(nullptr),
+    m_mainLayout(nullptr),
+    m_filterCombo(nullptr),
+    m_scrollArea(nullptr),
+    m_cardsContainer(nullptr),
     m_statTotalLabel(nullptr),
     m_statPendingLabel(nullptr),
     m_statOngoingLabel(nullptr),
@@ -603,7 +617,7 @@ void LogisticsModule::onDatePickerClicked()
 {
     QDialog dialog(this);
     dialog.setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
-    dialog.setStyleSheet("QDialog { background: white; border: 1px solid #dcdfe6; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }");
+    dialog.setStyleSheet("QDialog { background: white; border: 1px solid #dcdfe6; border-radius: 12px; }");
     
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     layout->setContentsMargins(10, 10, 10, 10);
@@ -701,6 +715,7 @@ bool LogisticsModule::eventFilter(QObject *watched, QEvent *event)
 void LogisticsModule::timerEvent(QTimerEvent *event)
 {
     Q_UNUSED(event);
+    if (!m_kanbanArea) return;
     static double angle = 0.0;
     angle += 0.2; // Speed of breathing
     int alpha = static_cast<int>(127 + 127 * std::sin(angle));

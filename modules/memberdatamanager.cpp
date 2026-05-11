@@ -6,6 +6,10 @@
 #include <QDebug>
 #include <QDate>
 
+#include <QDir>
+#include <QCoreApplication>
+#include <QFile>
+
 MemberDataManager* MemberDataManager::m_instance = nullptr;
 
 MemberDataManager* MemberDataManager::instance()
@@ -18,17 +22,36 @@ MemberDataManager* MemberDataManager::instance()
 
 MemberDataManager::MemberDataManager(QObject *parent) : QObject(parent)
 {
-    // 连接网络包接收信号
+    m_pixmapCache.setMaxCost(200); 
+    m_cachePath = QCoreApplication::applicationDirPath() + "/cache/members";
+    ensureCacheDir();
+
     connect(&NetworkManager::instance(), &NetworkManager::packetReceived,
             this, &MemberDataManager::onPacketReceived);
-    
-    initMockData();
+    requestMemberList(); 
 }
 
 void MemberDataManager::requestMemberList()
 {
-    qDebug() << "[MEMBER] Requesting member list from server...";
-    NetworkManager::instance().sendRequest(Protocol::CMD_GET_MEMBER_LIST, QJsonObject());
+    bool shouldEmit = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_members.isEmpty() || m_isLoading) {
+            if (!m_members.isEmpty()) shouldEmit = true;
+        } else {
+            m_isLoading = true;
+        }
+    }
+    
+    if (shouldEmit) {
+        emit dataChanged();
+        return;
+    }
+    
+    if (m_isLoading) {
+        qDebug() << "[MEMBER] Requesting member list from server...";
+        NetworkManager::instance().sendRequest(Protocol::CMD_GET_MEMBER_LIST, QJsonObject());
+    }
 }
 
 void MemberDataManager::onPacketReceived(const Protocol::NetPacket &packet)
@@ -40,32 +63,39 @@ void MemberDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         if (root["status"].toInt() == Protocol::STATUS_OK) {
             QJsonArray arr = root["data"].toArray();
             
-            // 全量更新
-            m_members.clear();
-            
-            for (int i = 0; i < arr.size(); ++i) {
-                QJsonObject obj = arr[i].toObject();
-                MemberInfo info;
-                // 格式化 ID：1 -> M00001
-                info.id = QString("M%1").arg(obj["member_id"].toInt(), 5, 10, QChar('0'));
-                info.name = obj["name"].toString();
-                info.gender = obj["gender"].toString();
-                info.birthday = obj["birthday"].toString();
-                info.phone = obj["phone"].toString();
-                info.balance = obj["balance"].toDouble();
-                info.consume_amt = obj["consume_amt"].toDouble();
-                info.points = obj["points"].toInt();
-                info.level = obj["level_name"].toString();
-                info.isActive = true;
-                info.status = "正常";
-                
-                qDebug() << "[DEBUG] Member ID:" << info.id << "Name:" << info.name << "Gender:" << info.gender;
-                
-                m_members[info.id] = info;
+            {
+                QMutexLocker locker(&m_mutex);
+                m_members.clear();
+                for (int i = 0; i < arr.size(); ++i) {
+                    QJsonObject obj = arr[i].toObject();
+                    MemberInfo info;
+                    // 格式化 ID：1 -> M00001
+                    info.id = QString("M%1").arg(obj["member_id"].toVariant().toLongLong(), 5, 10, QChar('0'));
+                    info.name = obj["name"].toString();
+                    info.gender = obj["gender"].toString();
+                    info.phone = obj["phone"].toString();
+                    info.level = obj["level_name"].toString(); // 修正 Key 名
+                    info.status = obj.contains("status") ? obj["status"].toString() : "正常"; // 容错处理
+                    info.balance = obj["balance"].toDouble();
+                    info.consume_amt = obj["consume_amt"].toDouble();
+                    info.points = obj["points"].toInt();
+                    info.birthday = obj["birthday"].toString();
+                    info.pets = obj["pets"].toString();
+                    info.imgData = obj["img_data"].toString();
+                    info.isActive = (info.status == "正常");
+                    
+                    qDebug() << "[DEBUG] Member ID:" << info.id << "Name:" << info.name << "Gender:" << info.gender;
+                    
+                    m_members[info.id] = info;
+                }
             }
             
             qDebug() << "[MEMBER] Member list updated. Count:" << m_members.size();
+            m_isLoading = false;
             emit dataChanged();
+        } else {
+            QMutexLocker locker(&m_mutex);
+            m_isLoading = false;
         }
     }
 }
@@ -100,11 +130,13 @@ void MemberDataManager::initMockData()
 
 QList<MemberInfo> MemberDataManager::allMembers() const
 {
+    QMutexLocker locker(&m_mutex);
     return m_members.values();
 }
 
 QList<MemberInfo> MemberDataManager::activeMembers() const
 {
+    QMutexLocker locker(&m_mutex);
     QList<MemberInfo> active;
     for (const auto &info : m_members) {
         if (info.isActive) {
@@ -116,6 +148,7 @@ QList<MemberInfo> MemberDataManager::activeMembers() const
 
 MemberInfo MemberDataManager::getMember(const QString &id) const
 {
+    QMutexLocker locker(&m_mutex);
     return m_members.value(id);
 }
 
@@ -171,5 +204,49 @@ void MemberDataManager::removePetFromMember(const QString &memberId, const QStri
         
         m_members[memberId].pets = list.join(", ");
         emit dataChanged();
+    }
+}
+QPixmap MemberDataManager::getMemberPixmap(const QString &id) const
+{
+    // L1: Memory
+    if (m_pixmapCache.contains(id)) {
+        return *m_pixmapCache.object(id);
+    }
+
+    // L2: Disk
+    QString localPath = m_cachePath + "/" + id + ".png";
+    if (QFile::exists(localPath)) {
+        QPixmap pix(localPath);
+        if (!pix.isNull()) {
+            m_pixmapCache.insert(id, new QPixmap(pix));
+            return pix;
+        }
+    }
+
+    // L3: Data
+    MemberInfo info = getMember(id);
+    if (info.imgData.isEmpty()) return QPixmap();
+
+    QPixmap pix;
+    QByteArray ba = QByteArray::fromBase64(info.imgData.toUtf8());
+    if (pix.loadFromData(ba)) {
+        m_pixmapCache.insert(id, new QPixmap(pix));
+        const_cast<MemberDataManager*>(this)->saveToLocalCache(id, pix);
+    }
+    return pix;
+}
+
+void MemberDataManager::ensureCacheDir()
+{
+    QDir dir(m_cachePath);
+    if (!dir.exists()) dir.mkpath(".");
+}
+
+void MemberDataManager::saveToLocalCache(const QString &id, const QPixmap &pix)
+{
+    if (pix.isNull()) return;
+    QString localPath = m_cachePath + "/" + id + ".png";
+    if (!QFile::exists(localPath)) {
+        pix.save(localPath, "PNG");
     }
 }

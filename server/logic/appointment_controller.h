@@ -16,6 +16,8 @@ private:
     void handleGetAppointments(ClientHandler *client, const QJsonObject &body);
     void handleAddAppointment(ClientHandler *client, const QJsonObject &body);
     void handleUpdateStatus(ClientHandler *client, const QJsonObject &body);
+    
+    ServerCore *m_core;
 };
 
 #endif // APPOINTMENT_CONTROLLER_H

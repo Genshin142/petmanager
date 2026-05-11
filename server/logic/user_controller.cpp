@@ -26,15 +26,19 @@ void UserController::handleLogin(ClientHandler* client, const QJsonObject& data)
 
     QJsonObject response;
     if (query.exec() && query.next()) {
+        int empId = query.value("emp_id").toInt();
+        client->setUserId(empId); // 绑定用户ID到连接对象
+        
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Login successful";
         
         QJsonObject userInfo;
+        userInfo["emp_id"] = empId;
         userInfo["real_name"] = query.value("real_name").toString();
         userInfo["role"] = query.value("role").toString();
         response["user_info"] = userInfo;
         
-        LOG_I("[AUTH] Success: " << user.toStdString());
+        LOG_I("[AUTH] Success: " << user.toStdString() << " (ID: " << empId << ")");
     } else {
         response["status"] = Protocol::STATUS_AUTH_FAIL;
         response["message"] = "Invalid username or password";

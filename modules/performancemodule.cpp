@@ -406,6 +406,7 @@ void PerformanceModule::setupUI()
 
 void PerformanceModule::refreshData()
 {
+    // 该方法由 performanceDataChanged 信号触发，仅负责 UI 更新
     updateStats();
     updateTable();
 }
@@ -522,8 +523,10 @@ void PerformanceModule::onVerifySingle(const QString &recordId)
 
 void PerformanceModule::onFilterChanged()
 {
-    m_currentPage = 1; // 筛选条件改变时重置到第一页
-    refreshData();
+    m_currentPage = 1; 
+    QString month = m_startDateEdit->text().left(7);
+    QString empId = m_employeeCombo->currentData().toString();
+    SalaryDataManager::instance()->requestPerformanceRecords(month, empId);
 }
 
 void PerformanceModule::setupImagePreview()

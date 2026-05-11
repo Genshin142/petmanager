@@ -74,6 +74,7 @@ private:
     QWidget *m_tileContainer;
     class QGridLayout *m_tileLayout;
     class QTableWidget *m_cartTable;
+    QLineEdit *m_searchEdit;
     QLineEdit *m_memberSearch;
     class QComboBox *m_memberCombo;
     class QComboBox *m_petCombo;

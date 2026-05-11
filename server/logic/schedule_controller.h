@@ -19,6 +19,8 @@ private:
     void handleBatchUpdateSchedule(ClientHandler *client, const QJsonObject &body);
     
     bool upsertSchedule(const QJsonObject &obj);
+    
+    ServerCore *m_core;
 };
 
 #endif // SCHEDULE_CONTROLLER_H

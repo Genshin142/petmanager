@@ -10,11 +10,11 @@ SOURCES += \
     main.cpp \
     loginwindow.cpp \
     mainwindow.cpp \
+    loadingwindow.cpp \
     utils/networkmanager.cpp \
     modules/membermodule.cpp \
     modules/rolemodule.cpp \
     modules/petmodule.cpp \
-    modules/productmodule.cpp \
     modules/fostermodule.cpp \
     modules/appointmentmodule.cpp \
     modules/checkoutmodule.cpp \
@@ -73,10 +73,10 @@ HEADERS += \
     utils/networkmanager.h \
     loginwindow.h \
     mainwindow.h \
+    loadingwindow.h \
     modules/membermodule.h \
     modules/rolemodule.h \
     modules/petmodule.h \
-    modules/productmodule.h \
     modules/fostermodule.h \
     modules/appointmentmodule.h \
     modules/historyappointmentdialog.h \

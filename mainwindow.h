@@ -15,7 +15,6 @@ class QVBoxLayout;
 class MemberModule;
 class RoleModule;
 class PetModule;
-class ProductModule;
 class FosterModule;
 class AppointmentModule;
 class CheckoutModule;
@@ -49,7 +48,6 @@ private:
     MemberModule *memberMod;
     RoleModule *roleMod;
     PetModule *petMod;
-    ProductModule *productMod;
     FosterModule *fosterMod;
     AppointmentModule *apptMod;
     CheckoutModule *checkoutMod;

@@ -39,9 +39,10 @@ private slots:
 private:
     void setupUI();
     void addSampleData();
-    void addRow(const MemberInfo &info, const QString &lastVisit = "未知", const QString &pets = "无");
+    void addRowAt(int r, const MemberInfo &info, const QString &lastVisit = "未知", const QString &pets = "无");
     void updateRowInPlace(int r, const MemberInfo &info, const QString &lastVisit, const QString &pets);
     void updatePagination();
+    void refreshTable();
     QString generateNextMemberId();
     
     QGraphicsDropShadowEffect *tableShadow;
@@ -71,6 +72,7 @@ private:
     UserRole m_role;
     int m_currentPage;
     int m_pageSize;
+    QList<MemberInfo> m_allMembers; // 全量数据缓存
 };
 
 #endif // MEMBERMODULE_H

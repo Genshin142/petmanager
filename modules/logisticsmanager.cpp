@@ -21,44 +21,12 @@ LogisticsManager* LogisticsManager::instance()
 
 LogisticsManager::LogisticsManager(QObject *parent) : QObject(parent)
 {
-    // 初始化模拟数据 - petId 必须与 PetDataManager 中的数据对应
-    auto addTask = [&](const QString &pId, const QString &type, const QString &status, 
-                       const QString &addr, const QString &time, const QString &module, 
-                       const QString &room, const QString &driver, double amount,
-                       const QString &apptId = "") {
-        LogisticsTask task;
-        task.taskId = "T" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
-        task.petId = pId;
-        task.type = type;
-        task.status = status;
-        task.address = addr;
-        task.appointmentTime = QDate::currentDate().toString("yyyy-MM-dd") + " " + time;
-        task.relatedModule = module;
-        task.relatedRoomId = room;
-        task.driver = driver;
-        task.amount = amount;
-        task.relatedAppointmentId = apptId;
-        m_tasks.insert(task.taskId, task);
-    };
-
-    // 布丁(P001) - 金毛犬 - 张三 | 洗护完成后送回
-    addTask("P001", "单程送宠", "已完成", "滨江花园 5号楼 302", "09:00 - 11:00", 
-            "洗护送回", "", "王师傅", 50.0, "APP-2026050201");
-    
-    // 芝麻(P002) - 英短蓝猫 - 李芳 | 寄养入住接宠
-    addTask("P002", "单程接宠", "已完成", "万达广场 A座 1502", "11:00 - 14:00", 
-            "寄养入住", "A-101", "李师傅", 70.0);
-    
-    // 豆豆(P003) - 柴犬 - 李芳 | 体检接宠
-    addTask("P003", "单程接宠", "待处理", "阳光小区 3栋 201", "14:00 - 16:00", 
-            "就医体检", "", "张师傅", 45.0, "APP-2026050203");
-    
-    // 小雪(P004) - 萨摩耶 - 赵六 | 洗护接宠(进行中)
-    addTask("P004", "单程接宠", "进行中", "月亮湾 8号别墅", "16:00 - 18:00", 
-            "单纯洗护", "", "赵师傅", 60.0, "APP-2026050202");
-
-    // 连接网络信号
+    // 模拟数据已清空，改为纯联网模式
     connect(&NetworkManager::instance(), &NetworkManager::packetReceived, this, &LogisticsManager::onPacketReceived);
+    
+    // 初始化时请求一次数据
+    QDate today = QDate::currentDate();
+    requestLogisticsList(today.addDays(-1), today.addDays(1));
 
     // 设置自动更新计时器 (每30秒检查一次过期任务)
     m_autoUpdateTimer = new QTimer(this);
@@ -190,6 +158,7 @@ void LogisticsManager::updateTaskStatus(const QString &taskId, const QString &st
 
 QList<LogisticsTask> LogisticsManager::getAllTasks() const
 {
+    QMutexLocker locker(&m_mutex);
     return m_tasks.values();
 }
 
@@ -271,18 +240,21 @@ void LogisticsManager::onPacketReceived(const Protocol::NetPacket &packet)
         QJsonObject root = packet.jsonObj;
         if (root["status"].toInt() == Protocol::STATUS_OK) {
             QJsonArray data = root["data"].toArray();
-            for (int i = 0; i < data.size(); ++i) {
-                QJsonObject obj = data[i].toObject();
-                LogisticsTask task;
-                task.taskId = obj["task_id"].toString();
-                task.petId = QString("P%1").arg(obj["pet_id"].toInt(), 3, 10, QChar('0'));
-                task.type = obj["task_type"].toString();
-                task.status = obj["status"].toString();
-                task.address = obj["address"].toString();
-                task.appointmentTime = obj["schedule_time"].toString();
-                task.amount = obj["amount"].toDouble();
-                task.relatedAppointmentId = QString::number(obj["appt_id"].toInt());
-                m_tasks[task.taskId] = task;
+            {
+                QMutexLocker locker(&m_mutex);
+                for (int i = 0; i < data.size(); ++i) {
+                    QJsonObject obj = data[i].toObject();
+                    LogisticsTask task;
+                    task.taskId = obj["task_id"].toString();
+                    task.petId = QString("P%1").arg(obj["pet_id"].toInt(), 3, 10, QChar('0'));
+                    task.type = obj["task_type"].toString();
+                    task.status = obj["status"].toString();
+                    task.address = obj["address"].toString();
+                    task.appointmentTime = obj["schedule_time"].toString();
+                    task.amount = obj["amount"].toDouble();
+                    task.relatedAppointmentId = QString::number(obj["appt_id"].toInt());
+                    m_tasks[task.taskId] = task;
+                }
             }
             emit logisticsDataChanged();
             qDebug() << "[LOGISTICS] Tasks updated from server. Count:" << data.size();
@@ -293,5 +265,9 @@ void LogisticsManager::onPacketReceived(const Protocol::NetPacket &packet)
         if (root["status"].toInt() == Protocol::STATUS_OK) {
             qDebug() << "[LOGISTICS] Task status updated successfully";
         }
+    } else if (packet.cmdId == Protocol::CMD_NOTIFY_REFRESH) {
+        QDate today = QDate::currentDate();
+        requestLogisticsList(today.addDays(-1), today.addDays(1));
+        qDebug() << "[LOGISTICS] Received global refresh notification.";
     }
 }

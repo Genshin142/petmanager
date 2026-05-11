@@ -91,9 +91,25 @@ public:
     }
 };
 
-PetModule::PetModule(UserRole role, QWidget *parent) : QWidget(parent),
-    prevBtn(nullptr), nextBtn(nullptr), pageLabel(nullptr), m_currentPage(1), m_pageSize(10),
-    jumpEdit(nullptr), jumpValidator(nullptr), jumpBtn(nullptr), m_role(role)
+PetModule::PetModule(UserRole role, QWidget *parent) 
+    : QWidget(parent)
+    , petTable(nullptr)
+    , searchEdit(nullptr)
+    , m_statusGroup(nullptr)
+    , prevBtn(nullptr)
+    , nextBtn(nullptr)
+    , pageLabel(nullptr)
+    , m_currentPage(1)
+    , m_pageSize(10)
+    , jumpEdit(nullptr)
+    , jumpValidator(nullptr)
+    , jumpBtn(nullptr)
+    , m_drawer(nullptr)
+    , m_isRefreshing(false)
+    , m_imagePreviewOverlay(nullptr)
+    , m_previewLabel(nullptr)
+    , m_floatingTooltip(nullptr)
+    , m_role(role)
 {
     m_drawer = new PetRecordDrawer(this);
     connect(m_drawer, &PetRecordDrawer::logAdded, this, &PetModule::onLogAdded);

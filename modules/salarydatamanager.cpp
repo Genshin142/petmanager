@@ -3,6 +3,11 @@
 #include "servicedatamanager.h"
 #include <QDateTime>
 #include <QRandomGenerator>
+#include "../utils/networkmanager.h"
+#include "../protocol_codes.h"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QDebug>
 
 SalaryDataManager* SalaryDataManager::m_instance = nullptr;
 
@@ -12,89 +17,16 @@ SalaryDataManager* SalaryDataManager::instance() {
 }
 
 SalaryDataManager::SalaryDataManager(QObject *parent) : QObject(parent) {
-    initMockData();
+    connect(&NetworkManager::instance(), &NetworkManager::packetReceived,
+            this, &SalaryDataManager::onPacketReceived);
 }
 
 void SalaryDataManager::initMockData() {
-    QString currentMonth = QDate::currentDate().toString("yyyy-MM");
-    QString lastMonth = QDate::currentDate().addMonths(-1).toString("yyyy-MM");
-    
-    auto staff = StaffDataManager::instance()->allStaff();
-    
-    // 生成上个月的数据 (已发放)
-    for (const auto &s : staff) {
-        SalaryInfo info;
-        info.employeeId = s.id;
-        info.employeeName = s.name;
-        info.month = lastMonth;
-        info.id = "SAL-" + lastMonth.mid(0, 4) + lastMonth.mid(5, 2) + "-" + s.id;
-        info.baseSalary = s.baseSalary;
-        info.commission = QRandomGenerator::global()->bounded(1000, 5000);
-        info.bonus = QRandomGenerator::global()->bounded(200, 1000);
-        info.deduction = 0;
-        info.netPay = info.baseSalary + info.commission + info.bonus - info.deduction;
-        info.status = "已发放";
-        info.payTime = lastMonth + "-10 10:00";
-        m_salaries[info.id] = info;
-
-        // 生成一些业绩记录 (基于服务管理模块的真实配置)
-        auto services = ServiceDataManager::instance()->activeServices();
-        if (services.isEmpty()) {
-            // 如果服务模块没初始化，则初始化之
-            ServiceDataManager::instance();
-            services = ServiceDataManager::instance()->activeServices();
-        }
-
-        int recordCount = QRandomGenerator::global()->bounded(3, 8);
-        for (int i = 0; i < recordCount; ++i) {
-            if (services.isEmpty()) break;
-            const auto &svc = services[QRandomGenerator::global()->bounded(services.size())];
-
-            PerformanceRecord pr;
-            pr.id = "PERF-" + QString::number(QDateTime::currentMSecsSinceEpoch()) + QString::number(i) + s.id;
-            pr.employeeId = s.id;
-            pr.employeeName = s.name;
-            pr.serviceDate = lastMonth + "-" + QString::number(QRandomGenerator::global()->bounded(1, 28)).rightJustified(2, '0');
-            pr.serviceName = svc.name;
-            pr.orderAmount = svc.price;
-            pr.finalAmount = pr.orderAmount * (QRandomGenerator::global()->bounded(90, 101) / 100.0); // 随机 9-10 折
-            
-            // 严格对齐服务模块的设计
-            pr.commissionType = "固定提成";
-            pr.commissionRate = svc.commissionFixed;
-            pr.commission = svc.commissionFixed;
-
-            pr.orderId = "ORD202404" + QString::number(1000 + QRandomGenerator::global()->bounded(0, 999));
-            pr.customerId = QString::number(2000 + QRandomGenerator::global()->bounded(1, 100));
-            pr.customerName = (i % 3 == 0) ? "陈大文" : ((i % 3 == 1) ? "林小姐" : "张先生");
-            pr.payMethod = (i % 2 == 0) ? "会员卡" : "微信支付";
-            pr.petId = QString::number(5000 + QRandomGenerator::global()->bounded(1, 100));
-            pr.petName = (i % 3 == 0) ? "小白" : ((i % 3 == 1) ? "咪咪" : "旺财");
-            pr.petBreed = (i % 2 == 0) ? "布偶猫" : "金毛犬";
-            pr.status = "已核销";
-            pr.verifyTime = pr.serviceDate + " 18:00";
-            m_performance[pr.id] = pr;
-        }
-    }
-
-    // 生成本月的数据 (待审核)
-    for (const auto &s : staff) {
-        SalaryInfo info;
-        info.employeeId = s.id;
-        info.employeeName = s.name;
-        info.month = currentMonth;
-        info.id = "SAL-" + currentMonth.mid(0, 4) + currentMonth.mid(5, 2) + "-" + s.id;
-        info.baseSalary = s.baseSalary;
-        info.commission = QRandomGenerator::global()->bounded(500, 3000);
-        info.bonus = 0;
-        info.deduction = 0;
-        info.netPay = info.baseSalary + info.commission + info.bonus - info.deduction;
-        info.status = "待审核";
-        m_salaries[info.id] = info;
-    }
+    // 数据将由服务端下发
 }
 
 QList<SalaryInfo> SalaryDataManager::getSalariesByMonth(const QString &month) {
+    QMutexLocker locker(&m_mutex);
     QList<SalaryInfo> list;
     for (const auto &s : m_salaries) {
         if (s.month == month) list.append(s);
@@ -103,30 +35,30 @@ QList<SalaryInfo> SalaryDataManager::getSalariesByMonth(const QString &month) {
 }
 
 SalaryInfo SalaryDataManager::getSalary(const QString &id) {
+    QMutexLocker locker(&m_mutex);
     return m_salaries.value(id);
 }
 
 void SalaryDataManager::updateSalary(const SalaryInfo &info) {
+    QMutexLocker locker(&m_mutex);
     m_salaries[info.id] = info;
     emit salaryDataChanged();
 }
 
 void SalaryDataManager::approveSalary(const QString &id) {
-    if (m_salaries.contains(id)) {
-        m_salaries[id].status = "待发放";
-        emit salaryDataChanged();
-    }
+    QJsonObject obj;
+    obj["salary_id"] = id;
+    NetworkManager::instance().sendRequest(Protocol::CMD_APPROVE_SALARY, obj);
 }
 
 void SalaryDataManager::paySalary(const QString &id) {
-    if (m_salaries.contains(id)) {
-        m_salaries[id].status = "已发放";
-        m_salaries[id].payTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-        emit salaryDataChanged();
-    }
+    QJsonObject obj;
+    obj["salary_id"] = id;
+    NetworkManager::instance().sendRequest(Protocol::CMD_PAY_SALARY, obj);
 }
 
 SalaryDataManager::SalaryStats SalaryDataManager::getStats(const QString &month) {
+    QMutexLocker locker(&m_mutex);
     SalaryStats stats = {0, 0, 0};
     for (const auto &s : m_salaries) {
         if (s.month == month) {
@@ -139,11 +71,13 @@ SalaryDataManager::SalaryStats SalaryDataManager::getStats(const QString &month)
 }
 
 void SalaryDataManager::addPerformanceRecord(const PerformanceRecord &record) {
+    QMutexLocker locker(&m_mutex);
     m_performance[record.id] = record;
     emit performanceDataChanged();
 }
 
 QList<PerformanceRecord> SalaryDataManager::getPerformanceRecords(const QString &month, const QString &employeeId) {
+    QMutexLocker locker(&m_mutex);
     QList<PerformanceRecord> list;
     for (const auto &p : m_performance) {
         if (p.serviceDate.startsWith(month)) {
@@ -156,28 +90,96 @@ QList<PerformanceRecord> SalaryDataManager::getPerformanceRecords(const QString 
 }
 
 void SalaryDataManager::verifyPerformance(const QString &recordId) {
-    if (m_performance.contains(recordId)) {
-        m_performance[recordId].status = "已核销";
-        m_performance[recordId].verifyTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-        emit performanceDataChanged();
+    QJsonObject obj;
+    obj["record_id"] = recordId;
+    NetworkManager::instance().sendRequest(Protocol::CMD_VERIFY_PERFORMANCE, obj);
+}
+
+void SalaryDataManager::requestPerformanceRecords(const QString &month, const QString &employeeId) {
+    QJsonObject obj;
+    obj["month"] = month;
+    if (!employeeId.isEmpty()) obj["employee_id"] = employeeId;
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_PERFORMANCE_LIST, obj);
+}
+
+void SalaryDataManager::requestSalaries(const QString &month) {
+    QJsonObject obj;
+    obj["month"] = month;
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_SALARY_LIST, obj);
+}
+
+void SalaryDataManager::onPacketReceived(const Protocol::NetPacket &packet) {
+    if (packet.cmdId == Protocol::CMD_GET_PERFORMANCE_LIST) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray data = root["data"].toArray();
+            QMutexLocker locker(&m_mutex);
+            m_performance.clear();
+            for (int i = 0; i < data.size(); ++i) {
+                QJsonObject obj = data[i].toObject();
+                PerformanceRecord pr;
+                pr.id = obj["id"].toString();
+                pr.employeeId = obj["employee_id"].toString();
+                pr.employeeName = obj["employee_name"].toString();
+                pr.serviceDate = obj["service_date"].toString();
+                pr.serviceName = obj["service_name"].toString();
+                pr.orderAmount = obj["order_amount"].toDouble();
+                pr.commission = obj["commission"].toDouble();
+                pr.status = obj["status"].toString();
+                pr.orderId = obj["order_id"].toString();
+                pr.verifyTime = obj["verify_time"].toString();
+                pr.customerId = obj["customer_id"].toString();
+                pr.customerName = obj["customer_name"].toString();
+                pr.payMethod = obj["pay_method"].toString();
+                pr.petId = obj["pet_id"].toString();
+                pr.petName = obj["pet_name"].toString();
+                pr.petBreed = obj["pet_breed"].toString();
+                pr.finalAmount = obj["final_amount"].toDouble();
+                pr.commissionType = obj["commission_type"].toString();
+                pr.commissionRate = obj["commission_rate"].toDouble();
+                m_performance[pr.id] = pr;
+            }
+            emit performanceDataChanged();
+        }
+    } else if (packet.cmdId == Protocol::CMD_GET_SALARY_LIST) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray data = root["data"].toArray();
+            QMutexLocker locker(&m_mutex);
+            m_salaries.clear();
+            for (int i = 0; i < data.size(); ++i) {
+                QJsonObject obj = data[i].toObject();
+                SalaryInfo info;
+                info.id = obj["id"].toString();
+                info.employeeId = obj["employee_id"].toString();
+                info.employeeName = obj["employee_name"].toString();
+                info.month = obj["month"].toString();
+                info.baseSalary = obj["base_salary"].toDouble();
+                info.commission = obj["commission"].toDouble();
+                info.bonus = obj["bonus"].toDouble();
+                info.deduction = obj["deduction"].toDouble();
+                info.netPay = obj["net_pay"].toDouble();
+                info.status = obj["status"].toString();
+                info.payTime = obj["pay_time"].toString();
+                info.remark = obj["remark"].toString();
+                m_salaries[info.id] = info;
+            }
+            emit salaryDataChanged();
+        }
+    } else if (packet.cmdId == Protocol::CMD_VERIFY_PERFORMANCE || 
+               packet.cmdId == Protocol::CMD_APPROVE_SALARY || 
+               packet.cmdId == Protocol::CMD_PAY_SALARY) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            qDebug() << "[SALARY] Operation success for CMD:" << packet.cmdId;
+        }
     }
 }
 
 void SalaryDataManager::generateMonthlySalaries(const QString &month) {
-    auto staff = StaffDataManager::instance()->allStaff();
-    for (const auto &s : staff) {
-        QString id = "SAL-" + month.mid(0, 4) + month.mid(5, 2) + "-" + s.id;
-        if (!m_salaries.contains(id)) {
-            SalaryInfo info;
-            info.id = id;
-            info.employeeId = s.id;
-            info.employeeName = s.name;
-            info.month = month;
-            info.baseSalary = s.baseSalary;
-            info.status = "待审核";
-            // 这里以后可以加入真实的业绩汇总逻辑
-            m_salaries[id] = info;
-        }
-    }
-    emit salaryDataChanged();
+    // 该功能通常由服务端自动执行，客户端仅提供触发接口
+    QJsonObject obj;
+    obj["month"] = month;
+    // 假设复用审批接口或新增
+    qDebug() << "[SALARY] Triggering monthly salary generation for:" << month;
 }

@@ -37,6 +37,7 @@ private:
 
     static ServiceDataManager *m_instance;
     QMap<QString, ServiceInfo> m_services;
+    bool m_isLoading = false;
 };
 
 #endif // SERVICEDATAMANAGER_H

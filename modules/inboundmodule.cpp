@@ -112,6 +112,7 @@ InboundModule::InboundModule(UserRole role, QWidget *parent)
 
     // 初始请求
     ProductDataManager::instance()->requestInboundList();
+    ProductDataManager::instance()->requestProductList();
 }
 
 void InboundModule::setupUI()
@@ -263,8 +264,8 @@ void InboundModule::setupUI()
 
     // --- 2. Table: Audit View ---
     m_recordTable = new QTableWidget();
-    m_recordTable->setColumnCount(9); 
-    m_recordTable->setHorizontalHeaderLabels({"图片", "入库日期", "商品名称", "条形码", "生产日期", "分类", "数量", "状态", "操作"});
+    m_recordTable->setColumnCount(10); 
+    m_recordTable->setHorizontalHeaderLabels({"图片", "入库日期", "商品名称", "条形码", "售价", "生产日期", "分类", "数量", "状态", "操作"});
     
     QHeaderView *h = m_recordTable->horizontalHeader();
     h->setDefaultAlignment(Qt::AlignCenter);
@@ -281,29 +282,33 @@ void InboundModule::setupUI()
     // 2. 商品名称 (弹性拉伸)
     h->setSectionResizeMode(2, QHeaderView::Stretch);
     
-    // 3. 条形码 (加宽以适配长条码)
+    // 3. 条形码
     h->setSectionResizeMode(3, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(3, 190);
+    m_recordTable->setColumnWidth(3, 140);
     
-    // 4. 生产日期 (加宽)
+    // 4. 售价 (新增)
     h->setSectionResizeMode(4, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(4, 130);
-
-    // 5. 分类
+    m_recordTable->setColumnWidth(4, 90);
+    
+    // 5. 生产日期
     h->setSectionResizeMode(5, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(5, 90);
+    m_recordTable->setColumnWidth(5, 110);
 
-    // 6. 数量
+    // 6. 分类
     h->setSectionResizeMode(6, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(6, 70);
+    m_recordTable->setColumnWidth(6, 80);
 
-    // 7. 状态
+    // 7. 数量
     h->setSectionResizeMode(7, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(7, 100);
+    m_recordTable->setColumnWidth(7, 70);
 
-    // 8. 操作
+    // 8. 状态
     h->setSectionResizeMode(8, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(8, 160);
+    m_recordTable->setColumnWidth(8, 90);
+
+    // 9. 操作
+    h->setSectionResizeMode(9, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(9, 160);
 
     
     m_recordTable->setItemDelegate(new InboundRowDelegate(m_recordTable));
@@ -400,6 +405,12 @@ void InboundModule::setupUI()
     connect(m_endDateEdit, &CustomCalendarEdit::dateChanged, this, &InboundModule::onFilterChanged);
     connect(m_categoryGroup, QOverload<int>::of(&QButtonGroup::idClicked), this, &InboundModule::onFilterChanged);
     connect(m_recordTable, &QTableWidget::itemSelectionChanged, this, &InboundModule::onRecordSelected);
+    
+    // 数据同步
+    connect(ProductDataManager::instance(), &ProductDataManager::productDataChanged, this, [this](){
+        updateRecordList();
+        onRecordSelected(); // 刷新抽屉按钮状态
+    });
 }
 
 void InboundModule::updateRecordList()
@@ -428,8 +439,14 @@ void InboundModule::updateRecordList()
                 continue;
         }
 
-        // Category Filter
-        if (catFilter != "全部" && rec.category != catFilter) continue;
+        // Category Filter (归一化处理：只看 "/" 后面的部分)
+        if (catFilter != "全部") {
+            QString actualCat = rec.category.trimmed();
+            QString mainCat = actualCat.contains('/') ? actualCat.split('/').last().trimmed() : actualCat;
+            
+            // 精确匹配或以后缀匹配（兼容“猫零食”匹配“零食”按钮）
+            if (mainCat != catFilter && !actualCat.endsWith(catFilter)) continue;
+        }
 
         filtered.append(rec);
     }
@@ -466,7 +483,7 @@ void InboundModule::updateRecordList()
             return item;
         };
 
-        // 列0：图片
+        // 列0：图片 - 优化：使用共享缓存，避免重复 Base64 解码
         QLabel *imgLabel = new QLabel();
         imgLabel->setFixedSize(40, 40);
         imgLabel->setStyleSheet("background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0;");
@@ -474,8 +491,14 @@ void InboundModule::updateRecordList()
         imgLabel->installEventFilter(this);
         imgLabel->setProperty("isTableImg", true);
         imgLabel->setProperty("imgPaths", rec.imgPaths);
-        imgLabel->setProperty("imgData", rec.imgData);
-        if (!rec.imgData.isEmpty()) {
+        imgLabel->setProperty("barcode", rec.barcode);
+
+        // 尝试从缓存获取已解码的图片
+        QPixmap cachedPix = ProductDataManager::instance()->getProductPixmap(rec.barcode);
+        if (!cachedPix.isNull()) {
+            imgLabel->setPixmap(cachedPix.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        } else if (!rec.imgData.isEmpty()) {
+            // 如果缓存没有（理论上登录时已预加载），则回退到手动加载并存入缓存
             QByteArray ba = QByteArray::fromBase64(rec.imgData.toUtf8());
             QPixmap pix;
             if (pix.loadFromData(ba)) {
@@ -483,8 +506,6 @@ void InboundModule::updateRecordList()
             } else {
                 imgLabel->setText("损坏");
             }
-        } else if (!rec.imgPaths.isEmpty()) {
-            imgLabel->setPixmap(QPixmap(rec.imgPaths[0]).scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         } else {
             imgLabel->setText("无图");
             imgLabel->setAlignment(Qt::AlignCenter);
@@ -500,11 +521,30 @@ void InboundModule::updateRecordList()
         m_recordTable->item(row, 0)->setData(Qt::UserRole + 1, true);
 
         m_recordTable->setItem(row, 1, createItem(displayDt.toString("yyyy-MM-dd HH:mm")));
-        m_recordTable->setItem(row, 2, createItem(rec.productName));
+        QTableWidgetItem *nameItem = createItem(rec.productName);
+        nameItem->setData(Qt::UserRole, rec.id); // 存储 ID 用于精准操作
+        m_recordTable->setItem(row, 2, nameItem);
         m_recordTable->setItem(row, 3, createItem(rec.barcode));
-        m_recordTable->setItem(row, 4, createItem(rec.productionDate));
-        m_recordTable->setItem(row, 5, createItem(rec.category.isEmpty() ? "未分类" : rec.category));
-        m_recordTable->setItem(row, 6, createItem(QString::number(rec.quantity)));
+        
+        // 优先显示本次入库登记的拟定售价
+        QString priceStr = (rec.salePrice > 0) ? QString("¥%1").arg(rec.salePrice, 0, 'f', 2) : "-";
+        
+        // 如果入库单没价格，再尝试找商品档案
+        if (priceStr == "-") {
+            ProductInfo pInfo = ProductDataManager::instance()->getProduct(rec.barcode);
+            if (!pInfo.barcode.isEmpty() && pInfo.price > 0) {
+                priceStr = QString("¥%1").arg(pInfo.price, 0, 'f', 2);
+            }
+        }
+        
+        auto *priceItem = createItem(priceStr);
+        priceItem->setForeground(QBrush(QColor("#3b82f6")));
+        priceItem->setFont(QFont("Segoe UI", 10, QFont::Bold));
+        m_recordTable->setItem(row, 4, priceItem);
+
+        m_recordTable->setItem(row, 5, createItem(rec.productionDate));
+        m_recordTable->setItem(row, 6, createItem(rec.category.isEmpty() ? "未分类" : rec.category));
+        m_recordTable->setItem(row, 7, createItem(QString::number(rec.quantity)));
         
         QWidget *tagWrapper = new QWidget();
         QHBoxLayout *tagLayout = new QHBoxLayout(tagWrapper);
@@ -531,9 +571,9 @@ void InboundModule::updateRecordList()
         }
         tagLayout->addWidget(statusTag, 0, Qt::AlignCenter); 
         
-        m_recordTable->setCellWidget(row, 7, tagWrapper);
-        m_recordTable->setItem(row, 7, new QTableWidgetItem()); // 占位
-        m_recordTable->item(row, 7)->setData(Qt::UserRole + 1, true); // 标记此列已有 Widget
+        m_recordTable->setCellWidget(row, 8, tagWrapper);
+        m_recordTable->setItem(row, 8, new QTableWidgetItem()); // 占位
+        m_recordTable->item(row, 8)->setData(Qt::UserRole + 1, true); // 标记此列已有 Widget
 
         // 列8：操作
         QWidget *btnWrap = new QWidget();
@@ -603,9 +643,9 @@ void InboundModule::updateRecordList()
         delBtn->setProperty("barcode", rec.barcode);
         
         btnL->addWidget(delBtn);
-        m_recordTable->setCellWidget(row, 8, btnWrap);
-        m_recordTable->setItem(row, 8, new QTableWidgetItem());
-        m_recordTable->item(row, 8)->setData(Qt::UserRole + 1, true);
+        m_recordTable->setCellWidget(row, 9, btnWrap);
+        m_recordTable->setItem(row, 9, new QTableWidgetItem());
+        m_recordTable->item(row, 9)->setData(Qt::UserRole + 1, true);
     }
 
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
@@ -674,10 +714,12 @@ void InboundModule::onNextPage() {
 
 void InboundModule::onFilterChanged()
 {
-    // 处理发送者
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (btn && m_categoryGroup && m_categoryGroup->buttons().contains(btn)) {
-        m_selectedCategory = btn->text();
+    // 处理分类选择 (从 ButtonGroup 获取当前选中的按钮)
+    if (m_categoryGroup) {
+        QPushButton *checkedBtn = qobject_cast<QPushButton*>(m_categoryGroup->checkedButton());
+        if (checkedBtn) {
+            m_selectedCategory = checkedBtn->text();
+        }
     }
 
     // 动态维护范围限制
@@ -756,7 +798,29 @@ void InboundModule::setupDetailDrawer()
     scroll->setWidget(content);
     l->addWidget(scroll);
 
-    // 初始化编辑按钮 (标准化样式与位置)
+    // 底部操作区 (上架按钮)
+    m_shelveBtn = new QPushButton("确认上架并开售");
+    m_shelveBtn->setFixedHeight(48);
+    m_shelveBtn->setCursor(Qt::PointingHandCursor);
+    m_shelveBtn->setStyleSheet(
+        "QPushButton { background: #3b82f6; color: white; border: none; border-radius: 12px; font-size: 15px; font-weight: bold; } "
+        "QPushButton:hover { background: #2563eb; } "
+        "QPushButton:disabled { background: #e2e8f0; color: #94a3b8; }"
+    );
+    l->addWidget(m_shelveBtn);
+    m_shelveBtn->hide();
+
+    m_unshelveBtn = new QPushButton("下架商品");
+    m_unshelveBtn->setFixedHeight(48);
+    m_unshelveBtn->setCursor(Qt::PointingHandCursor);
+    m_unshelveBtn->setStyleSheet(
+        "QPushButton { background: white; color: #ef4444; border: 1px solid #ef4444; border-radius: 12px; font-size: 15px; font-weight: bold; } "
+        "QPushButton:hover { background: #fef2f2; } "
+    );
+    l->addWidget(m_unshelveBtn);
+    m_unshelveBtn->hide();
+
+    // 初始化编辑与上架按钮
     m_editBtn = new QPushButton("修改资料", m_drawerContainer);
     m_editBtn->setFixedSize(90, 32);
     m_editBtn->setCursor(Qt::PointingHandCursor);
@@ -775,9 +839,20 @@ void InboundModule::setupDetailDrawer()
     
     m_editBtn->move(297, 21);
     m_editBtn->raise();
-    m_editBtn->hide(); // 初始隐藏，选中记录后显示
+    m_editBtn->hide();
     
     connect(m_editBtn, &QPushButton::clicked, this, &InboundModule::onEditProductFromDrawer);
+    connect(m_shelveBtn, &QPushButton::clicked, this, &InboundModule::onShelveFromDrawer);
+    connect(m_unshelveBtn, &QPushButton::clicked, this, [this](){
+        int row = m_recordTable->currentRow();
+        if (row < 0) return;
+        QTableWidgetItem *nameItem = m_recordTable->item(row, 2);
+        if (!nameItem) return;
+        int id = nameItem->data(Qt::UserRole).toInt();
+        if (id > 0) {
+            ProductDataManager::instance()->unshelveProduct(id);
+        }
+    });
 }
 
 void InboundModule::onNewRegistration()
@@ -885,10 +960,21 @@ void InboundModule::onRecordSelected()
     heroLayout->addStretch(); 
 
     // 采用绝对定位固定位置 (由 setupDetailDrawer 初始化)
-    m_editBtn->show();
-    m_editBtn->raise();
-    
     m_detailContentLayout->addWidget(heroSection);
+    
+    // 控制操作按钮显示
+    if (rec.isActive) {
+        if (!rec.isShelved) {
+            m_shelveBtn->show();
+            m_unshelveBtn->hide();
+        } else {
+            m_shelveBtn->hide();
+            m_unshelveBtn->show();
+        }
+    } else {
+        m_shelveBtn->hide();
+        m_unshelveBtn->hide();
+    }
 
     // --- 2. Grouped Details Area (Redesigned from 'Boxes' to 'List') ---
     auto createDetailGroup = [&](const QString &title, const QList<QPair<QString, QString>> &items) {
@@ -931,6 +1017,8 @@ void InboundModule::onRecordSelected()
     inboundInfo << qMakePair(QString("入库数量"), QString::number(rec.quantity));
     inboundInfo << qMakePair(QString("规格单位"), rec.spec.isEmpty() ? "-" : rec.spec);
     inboundInfo << qMakePair(QString("入库时间"), rec.dateTime);
+    inboundInfo << qMakePair(QString("零售标价"), (rec.salePrice > 0) ? QString("¥ %1").arg(rec.salePrice, 0, 'f', 2) : 
+                               (pInfo.price > 0 ? QString("¥ %1").arg(pInfo.price, 0, 'f', 2) : "未设价格"));
     inboundInfo << qMakePair(QString("经办人"), rec.operatorName.isEmpty() ? "-" : rec.operatorName);
     
     m_detailContentLayout->addWidget(createDetailGroup("物流与库存记录", inboundInfo));
@@ -1164,15 +1252,17 @@ void InboundModule::onEditProductFromDrawer()
     int row = m_recordTable->currentRow();
     if (row < 0) return;
 
-    QString dateTime = m_recordTable->item(row, 0)->text();
-    QString barcode = m_recordTable->item(row, 2)->text();
+    // 获取唯一标识：入库时间 + 条码 (注意列索引的变化)
+    QString dateTime = m_recordTable->item(row, 1)->text(); // 入库日期在第 1 列
+    QString barcode = m_recordTable->item(row, 3)->text();  // 条形码在第 3 列
     
     // 1. 获取入库记录
     QList<StockInRecord> records = ProductDataManager::instance()->getAllRecords();
     StockInRecord rec;
     bool found = false;
     for(const auto& r : records) {
-        if(r.dateTime == dateTime && r.barcode == barcode) {
+        // 兼容处理：dateTime 可能包含秒，text() 可能只显示到分
+        if(r.dateTime.contains(dateTime) && r.barcode == barcode) {
             rec = r;
             found = true;
             break;
@@ -1194,4 +1284,21 @@ void InboundModule::onEditProductFromDrawer()
     });
 
     dlg.exec();
+}
+
+void InboundModule::onShelveFromDrawer()
+{
+    int row = m_recordTable->currentRow();
+    if (row < 0) return;
+
+    QTableWidgetItem *nameItem = m_recordTable->item(row, 2);
+    if (!nameItem) return;
+    
+    int inboundId = nameItem->data(Qt::UserRole).toInt();
+    if (inboundId <= 0) {
+        CustomMessageDialog::showWarning(this, "错误", "无法解析记录ID，请刷新列表后再试。");
+        return;
+    }
+
+    ProductDataManager::instance()->shelveProduct(inboundId);
 }

@@ -197,11 +197,20 @@ void AddAppointmentDialog::setupUI()
     setEditStyle(m_petCombo);
     
     auto pets = PetDataManager::instance()->allPets();
+    bool hasPets = false;
     for (const auto &pet : pets) {
-        if (pet.id.isEmpty() || pet.id == "0") continue; // 过滤无效宠物
+        if (pet.id.isEmpty() || pet.id == "0") continue; 
         m_petCombo->addItem(QString("%1 (%2) | %3").arg(pet.name, pet.id, pet.breed), pet.id);
+        hasPets = true;
     }
-    m_petCombo->lineEdit()->installEventFilter(this); // 让输入框也能触发下拉
+    
+    if (!hasPets) {
+        m_petCombo->addItem("暂无宠物信息", "");
+        m_petCombo->setEnabled(false);
+        m_petCombo->setStyleSheet(m_petCombo->styleSheet() + "QComboBox { color: #94a3b8; }");
+    }
+    
+    m_petCombo->lineEdit()->installEventFilter(this); 
     mainLayout->addWidget(m_petCombo);
 
     QFrame *ownerCard = new QFrame();
@@ -242,6 +251,7 @@ void AddAppointmentDialog::setupUI()
     mainLayout->addWidget(ownerCard);
 
     connect(m_petCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AddAppointmentDialog::onPetChanged);
+    if (hasPets) onPetChanged(0); // 初始化即触发联动
 
     // 2. 业务选择
     QHBoxLayout *serviceHeader = new QHBoxLayout();
@@ -775,9 +785,58 @@ void AddAppointmentDialog::onAddServiceRow()
     returnLayout->addWidget(retHourC);
     returnLayout->addStretch();
     
-    itemLayout->addWidget(returnParamWidget);
+    // --- 第五行：地址输入区 (新) ---
+    QFrame *addressContainer = new QFrame();
+    addressContainer->setObjectName("addressContainer");
+    addressContainer->setVisible(false);
+    QHBoxLayout *addressLayout = new QHBoxLayout(addressContainer);
+    addressLayout->setContentsMargins(5, 0, 0, 5);
+    addressLayout->setSpacing(8);
+
+    QLabel *addressIcon = new QLabel("📍");
+    addressIcon->setStyleSheet("font-size: 14px;");
+    
+    QLineEdit *addressEdit = new QLineEdit();
+    addressEdit->setPlaceholderText("请输入详细接送地址...");
+    addressEdit->setFixedHeight(40);
+    addressEdit->setStyleSheet(
+        "QLineEdit { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; background: #f8fafc; font-size: 12px; color: #1e293b; } "
+        "QLineEdit:focus { border-color: #3b82f6; background: white; }"
+    );
+    
+    addressLayout->addWidget(addressIcon);
+    addressLayout->addWidget(addressEdit, 1);
+    itemLayout->addWidget(addressContainer);
 
     // (寄养控件已内联到主行)
+
+    auto updateFinalPrice = [=]() {
+        double totalAmount = 0.0;
+        auto allServices = ServiceDataManager::instance()->allServices();
+        
+        auto tagBtns = tagsWrapper->findChildren<QPushButton*>();
+        for (auto btn : tagBtns) {
+            if (btn->isChecked()) {
+                QString name = btn->text();
+                for (const auto &info : allServices) {
+                    if (info.name == name) {
+                        totalAmount += info.price;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 寄养业务逻辑：按天计费
+        if (combo->currentText() == "寄养") {
+            QDate startDate = QDate::fromString(dateEdit->text(), "yyyy-MM-dd");
+            QDate endDate = QDate::fromString(boardingEndDateEdit->text(), "yyyy-MM-dd");
+            int days = qMax(1, startDate.daysTo(endDate));
+            totalAmount *= days;
+        }
+
+        amtEdit->setText(QString::number(totalAmount, 'f', 2));
+    };
 
     // 寄养天数自动计算与房间库存检查
     auto updateBoardingDays = [=]() {
@@ -790,10 +849,13 @@ void AddAppointmentDialog::onAddServiceRow()
                 days = 1;
             }
             boardingDaysLabel->setText(QString("共 %1 天").arg(days));
+            
+            // 重要：同步更新价格
+            updateFinalPrice();
 
             // 库存检查
             int maxOccupation = PetDataManager::instance()->getBoardingOccupation(startDate, endDate);
-            int totalRooms = 10; // 假设总共有10间房
+            int totalRooms = 10; 
             
             if (maxOccupation >= totalRooms) {
                 boardingStatusLabel->setText("⚠ 房间已满");
@@ -850,28 +912,6 @@ void AddAppointmentDialog::onAddServiceRow()
     connect(dateEdit, &QLineEdit::textChanged, this, updateAvailableRooms);
     connect(boardingEndDateEdit, &QLineEdit::textChanged, this, updateAvailableRooms);
 
-    auto updateFinalPrice = [=]() {
-        // 计算所有选中的服务项总价 (从 ServiceDataManager 获取实时价格)
-        double totalAmount = 0.0;
-        auto allServices = ServiceDataManager::instance()->allServices();
-        
-        auto tagBtns = tagsWrapper->findChildren<QPushButton*>();
-        for (auto btn : tagBtns) {
-            if (btn->isChecked()) {
-                QString name = btn->text();
-                // 在所有服务中查找对应名称的价格
-                for (const auto &info : allServices) {
-                    if (info.name == name) {
-                        totalAmount += info.price;
-                        break;
-                    }
-                }
-            }
-        }
-
-        amtEdit->setText(QString::number(totalAmount, 'f', 2));
-    };
-
     auto updateAtomicTags = [=](const QString &mainType) {
         QLayoutItem *child;
         while ((child = tagsRow->takeAt(0)) != nullptr) {
@@ -910,12 +950,22 @@ void AddAppointmentDialog::onAddServiceRow()
                                 if (other != tagBtn) other->setChecked(false);
                             }
                         } 
-                        // 2. 洗护/美容/保健：部分核心项目互斥
+                        // 2. 接送分类：互斥逻辑
+                        else if (cat == "接送") {
+                            QStringList transExcl = {"单程接宠入店", "单程送宠回家", "往返接送服务"};
+                            if (transExcl.contains(name)) {
+                                auto otherBtns = tagsWrapper->findChildren<QPushButton*>();
+                                for (auto other : otherBtns) {
+                                    if (other != tagBtn && transExcl.contains(other->text())) {
+                                        other->setChecked(false);
+                                    }
+                                }
+                            }
+                        }
+                        // 3. 洗护/美容/保健：部分核心项目互斥
                         else {
                             QMap<QString, QStringList> exclusionGroups;
-                            // 洗护核心项目不能多选
                             exclusionGroups["洗护"] << "基础三项护理" << "全身深度洗护" << "专业除臭洗护";
-                            // 美容核心造型不能多选
                             exclusionGroups["美容"] << "全身推子造型" << "全手剪精修造型";
 
                             if (exclusionGroups.contains(cat)) {
@@ -931,6 +981,18 @@ void AddAppointmentDialog::onAddServiceRow()
                             }
                         }
                     }
+
+                    // 联动控制：如果任意接/送相关的标签被选中，显示地址栏
+                    bool needsAddress = false;
+                    auto allBtns = tagsWrapper->findChildren<QPushButton*>();
+                    for (auto btn : allBtns) {
+                        if (btn->isChecked() && (btn->text().contains("接") || btn->text().contains("送"))) {
+                            needsAddress = true;
+                            break;
+                        }
+                    }
+                    addressContainer->setVisible(needsAddress);
+
                     if (combo->currentText() == "寄养") {
                         updateAvailableRooms();
                     }
@@ -1026,6 +1088,7 @@ void AddAppointmentDialog::onAddServiceRow()
     items.roomHint = roomHint;
     items.roomCombo = roomCombo;
     items.amountEdit = amtEdit;
+    items.addressEdit = addressEdit;
     items.container = rowWidget;
     delLabel->setProperty("rowPtr", QVariant::fromValue((void*)rowWidget));
     m_serviceRows.append(items);
@@ -1079,7 +1142,10 @@ QList<AppointmentInfo> AddAppointmentDialog::getAppointmentInfos() const
         info.hour = row.hourCombo->currentData().toString();
         info.notes = notes;
         info.status = "Pending";
-        if (info.type == "Transport") info.address = pet.address;
+        if (info.type == "Transport") {
+            info.address = row.addressEdit->text();
+            if (info.address.isEmpty()) info.address = pet.address; // 兜底使用宠物登记地址
+        }
         info.amount = row.amountEdit->text().toDouble();
         
         // 寄养特殊处理：使用日期范围代替时间槽

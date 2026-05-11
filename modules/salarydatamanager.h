@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QMap>
 #include <QList>
+#include <QRecursiveMutex>
 #include "../common_types.h"
 
 class SalaryDataManager : public QObject
@@ -20,10 +21,13 @@ public:
     void approveSalary(const QString &id);
     void paySalary(const QString &id);
 
-    // 业绩提成管理 (后续业绩核销模块会调用)
     void addPerformanceRecord(const PerformanceRecord &record);
     QList<PerformanceRecord> getPerformanceRecords(const QString &month, const QString &employeeId = "");
     void verifyPerformance(const QString &recordId);
+    
+    // 网络请求
+    void requestPerformanceRecords(const QString &month, const QString &employeeId = "");
+    void requestSalaries(const QString &month);
     
     // 汇总数据
     struct SalaryStats {
@@ -41,10 +45,14 @@ private:
     explicit SalaryDataManager(QObject *parent = nullptr);
     void initMockData();
 
+private slots:
+    void onPacketReceived(const class Protocol::NetPacket &packet);
+
     static SalaryDataManager *m_instance;
     
     QMap<QString, SalaryInfo> m_salaries; // Key: SalaryId
     QMap<QString, PerformanceRecord> m_performance; // Key: RecordId
+    mutable QRecursiveMutex m_mutex;
 };
 
 #endif // SALARYDATAMANAGER_H

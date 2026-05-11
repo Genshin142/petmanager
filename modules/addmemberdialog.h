@@ -21,6 +21,7 @@ struct MemberInfo {
     bool isActive = true; // 是否有效（逻辑删除标志）
     QString status = "正常"; // 状态：正常、已注销、锁定等
     QString pets = "无";    // 关联的宠物信息字符串
+    QString imgData;        // 新增：头像 Base64 数据
 };
 
 class AddMemberDialog : public QDialog
@@ -41,5 +42,7 @@ private:
     MemberInfo m_info;
     class CustomCalendarEdit *m_birthdayEdit;
 };
+
+Q_DECLARE_METATYPE(MemberInfo)
 
 #endif // ADDMEMBERDIALOG_H

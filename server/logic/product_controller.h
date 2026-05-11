@@ -22,6 +22,7 @@ private:
     void handleGetProductList(ClientHandler* client, const QJsonObject &data);
     void handleGetInboundList(ClientHandler* client, const QJsonObject &data);
     void handleShelveProduct(ClientHandler* client, const QJsonObject &data);
+    void handleUnshelveProduct(ClientHandler* client, const QJsonObject &data);
     
     ServerCore *m_server;
 };

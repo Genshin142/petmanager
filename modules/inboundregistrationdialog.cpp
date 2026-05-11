@@ -2,7 +2,7 @@
 #include "productdatamanager.h"
 #include <QDateTime>
 #include <QWheelEvent>
-#include <QMessageBox>
+#include "custommessagedialog.h"
 #include <QFileDialog>
 #include <QIntValidator>
 #include <QDoubleValidator>
@@ -130,7 +130,12 @@ void InboundRegistrationDialog::setupUI()
     m_nameEdit = new QLineEdit();
     m_nameEdit->setPlaceholderText("请输入商品全称");
     m_categoryCombo = new QComboBox();
-    m_categoryCombo->addItems({"主食", "零食", "玩具", "洗护", "日用", "医疗"});
+    m_categoryCombo->addItems({
+        "猫/主食", "猫/零食", "猫/玩具", "猫/洗护", 
+        "狗/主食", "狗/零食", "狗/玩具", "狗/洗护",
+        "小宠/零食", "其他/日用"
+    });
+    m_categoryCombo->setEditable(true); // 允许手动输入特殊分类
     m_specEdit = new QLineEdit();
     m_originEdit = new QLineEdit();
     m_qtyEdit = new QLineEdit("1");
@@ -142,7 +147,12 @@ void InboundRegistrationDialog::setupUI()
     m_costEdit->setValidator(costValidator);
     
     m_supplierEdit = new QLineEdit();
-    m_supplierPhoneEdit = new QLineEdit(); // 新增
+    m_supplierPhoneEdit = new QLineEdit();
+    
+    m_priceEdit = new QLineEdit("0.00"); // 零售价
+    QDoubleValidator *priceValidator = new QDoubleValidator(0, 999999, 2, this);
+    priceValidator->setNotation(QDoubleValidator::StandardNotation);
+    m_priceEdit->setValidator(priceValidator);
     
     m_operatorCombo = new QComboBox(); // 新增
     m_operatorCombo->addItems({"系统管理员", "店长admin", "营业员staff", "仓库主管"});
@@ -156,15 +166,19 @@ void InboundRegistrationDialog::setupUI()
 
     createField("商品名称", m_nameEdit, 0, 0);
     createField("所属分类", m_categoryCombo, 0, 1);
+    createField("产地/品牌", m_originEdit, 0, 2); // 挪到第一行
+    
     createField("规格单位", m_specEdit, 1, 0);
-    createField("产地/品牌", m_originEdit, 1, 1);
-    createField("入库数量", m_qtyEdit, 2, 0);
-    createField("进货成本", m_costEdit, 2, 1);
-    createField("供应商", m_supplierEdit, 4, 0);
-    createField("供应商电话", m_supplierPhoneEdit, 4, 1);
+    createField("入库数量", m_qtyEdit, 1, 1);
+    createField("经办人", m_operatorCombo, 1, 2);
+    
+    createField("进货成本", m_costEdit, 2, 0);
+    createField("零售价格", m_priceEdit, 2, 1); // 新增价格
+    createField("供应商", m_supplierEdit, 2, 2);
+    
     createField("生产日期", m_dateEdit, 3, 0);
     createField("保质期(天)", m_shelfLifeEdit, 3, 1);
-    createField("经办人", m_operatorCombo, 5, 0);
+    createField("供应商电话", m_supplierPhoneEdit, 3, 2);
 
     mainLayout->addWidget(formFrame);
 
@@ -195,6 +209,7 @@ void InboundRegistrationDialog::updatePreviewCard(const QString &barcode)
         m_specEdit->clear();
         m_originEdit->clear();
         m_costEdit->setText("0.00");
+        m_priceEdit->setText("0.00");
         m_supplierEdit->clear();
         m_supplierPhoneEdit->clear();
         m_shelfLifeEdit->setText("365");
@@ -207,6 +222,7 @@ void InboundRegistrationDialog::updatePreviewCard(const QString &barcode)
         m_specEdit->setText(info.spec);
         m_originEdit->setText(info.origin);
         m_costEdit->setText(QString::number(info.costPrice, 'f', 2));
+        m_priceEdit->setText(QString::number(info.price, 'f', 2));
         m_supplierEdit->setText(info.supplier);
         m_supplierPhoneEdit->setText(info.supplierPhone);
         m_shelfLifeEdit->setText(QString::number(info.shelfLifeDays));
@@ -234,7 +250,7 @@ void InboundRegistrationDialog::setEditMode(const StockInRecord &rec, const Prod
     m_barcodeEdit->setEnabled(false); // 条码不可改
     
     m_nameEdit->setText(rec.productName);
-    m_categoryCombo->setCurrentText(pInfo.category);
+    m_categoryCombo->setCurrentText(pInfo.category.isEmpty() ? rec.category : pInfo.category);
     m_specEdit->setText(rec.spec);
     m_originEdit->setText(pInfo.origin);
     m_qtyEdit->setText(QString::number(rec.quantity));
@@ -255,7 +271,7 @@ void InboundRegistrationDialog::onConfirmInbound()
 {
     QString barcode = m_barcodeEdit->text().trimmed();
     if (barcode.isEmpty()) {
-        QMessageBox::warning(this, "提示", "请先扫描商品条形码");
+        CustomMessageDialog::showWarning(this, "提示", "请先扫描商品条形码");
         return;
     }
 
@@ -272,8 +288,28 @@ void InboundRegistrationDialog::onConfirmInbound()
     rec.imgPaths = m_imagePaths;
     rec.shelfLifeDays = m_shelfLifeEdit->text().toInt();
 
+    // --- 同步更新商品档案库 ---
+    ProductInfo info = ProductDataManager::instance()->getProduct(barcode);
+    info.barcode = barcode;
+    info.name = rec.productName;
+    info.category = m_categoryCombo->currentText();
+    info.spec = rec.spec;
+    info.origin = m_originEdit->text();
+    info.costPrice = rec.costPrice;
+    info.price = m_priceEdit->text().toDouble();
+    info.shelfLifeDays = rec.shelfLifeDays;
+    info.supplier = rec.supplier;
+    info.supplierPhone = rec.supplierPhone;
+    info.images = rec.imgPaths;
+    info.isActive = true;
+    
+    if (ProductDataManager::instance()->getProduct(barcode).barcode.isEmpty()) {
+        ProductDataManager::instance()->addProduct(info);
+    } else {
+        ProductDataManager::instance()->updateProduct(info);
+    }
+
     if (m_isEditMode) {
-        // 更新现有记录 (需要 dateTime 和 barcode 匹配)
         ProductDataManager::instance()->updateRecord(m_currentRecord.dateTime, m_currentRecord.barcode, rec);
         emit recordUpdated();
     } else {

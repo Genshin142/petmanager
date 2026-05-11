@@ -10,15 +10,15 @@
 #include <glog/logging.h>
 
 AppointmentController::AppointmentController(ServerCore *core, QObject *parent)
-    : QObject(parent)
+    : QObject(parent), m_core(core)
 {
-    core->registerHandler(Protocol::CMD_GET_APPOINTMENT_LIST, [this](ClientHandler *client, const QJsonObject &body) {
+    m_core->registerHandler(Protocol::CMD_GET_APPOINTMENT_LIST, [this](ClientHandler *client, const QJsonObject &body) {
         handleGetAppointments(client, body);
     });
-    core->registerHandler(Protocol::CMD_ADD_APPOINTMENT, [this](ClientHandler *client, const QJsonObject &body) {
+    m_core->registerHandler(Protocol::CMD_ADD_APPOINTMENT, [this](ClientHandler *client, const QJsonObject &body) {
         handleAddAppointment(client, body);
     });
-    core->registerHandler(Protocol::CMD_UPDATE_APPT_STATUS, [this](ClientHandler *client, const QJsonObject &body) {
+    m_core->registerHandler(Protocol::CMD_UPDATE_APPT_STATUS, [this](ClientHandler *client, const QJsonObject &body) {
         handleUpdateStatus(client, body);
     });
 }
@@ -54,11 +54,8 @@ void AppointmentController::handleGetAppointments(ClientHandler *client, const Q
             item["status"] = query.value("status").toString();
             item["address"] = query.value("address").toString();
             item["amount"] = query.value("amount").toDouble();
-            
-            // 冗余显示数据
             item["pet_name"] = query.value("pet_name").toString();
             item["member_name"] = query.value("member_name").toString();
-            
             data.append(item);
         }
         response["status"] = Protocol::STATUS_OK;
@@ -66,7 +63,6 @@ void AppointmentController::handleGetAppointments(ClientHandler *client, const Q
     } else {
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = "Failed to fetch appointments";
-        LOG_E("[DB] Get Appointments failed: " << query.lastError().text().toStdString());
     }
 
     ConnectionPool::instance().closeConnection(db);
@@ -78,7 +74,6 @@ void AppointmentController::handleAddAppointment(ClientHandler *client, const QJ
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QJsonObject response;
 
-    // 开启事务保护！
     if (!db.transaction()) {
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = "Transaction start failed";
@@ -91,7 +86,6 @@ void AppointmentController::handleAddAppointment(ClientHandler *client, const QJ
         QSqlQuery query(db);
         QString groupId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
-        // 1. 插入预约单
         query.prepare("INSERT INTO appointments (group_id, member_id, pet_id, service_id, staff_id, appt_time, appt_type, notes, address, amount) "
                       "VALUES (:group, :mid, :pid, :sid, :staff, :time, :type, :notes, :addr, :amt)");
         query.bindValue(":group", groupId);
@@ -105,39 +99,38 @@ void AppointmentController::handleAddAppointment(ClientHandler *client, const QJ
         query.bindValue(":addr", body["address"].toString());
         query.bindValue(":amt", body["amount"].toDouble());
 
-        if (!query.exec()) throw std::runtime_error("Insert appointment failed: " + query.lastError().text().toStdString());
+        if (!query.exec()) throw std::runtime_error("Insert appointment failed");
         int newApptId = query.lastInsertId().toInt();
 
-        // 2. 如果带有接送地址，自动生成物流接单
-        if (body["need_transport"].toBool() && !body["address"].toString().isEmpty()) {
-            QSqlQuery logisQuery(db);
-            logisQuery.prepare("INSERT INTO logistics_tasks (task_id, pet_id, appt_id, task_type, address, schedule_time) "
-                               "VALUES (:tid, :pid, :aid, '接宠', :addr, :time)");
-            logisQuery.bindValue(":tid", QUuid::createUuid().toString(QUuid::WithoutBraces));
-            logisQuery.bindValue(":pid", body["pet_id"].toInt());
-            logisQuery.bindValue(":aid", newApptId);
-            logisQuery.bindValue(":addr", body["address"].toString());
-            // 假设提前1小时接宠
-            QDateTime apptTime = QDateTime::fromString(body["appt_time"].toString(), "yyyy-MM-dd HH:mm:ss");
-            logisQuery.bindValue(":time", apptTime.addSecs(-3600).toString("yyyy-MM-dd HH:mm:ss"));
-            
-            if (!logisQuery.exec()) throw std::runtime_error("Insert logistics failed: " + logisQuery.lastError().text().toStdString());
+        // 寄养处理
+        QString roomNo = body["room_no"].toString();
+        if (body["appt_type"].toString() == "Boarding" && !roomNo.isEmpty()) {
+            QSqlQuery roomQuery(db);
+            roomQuery.prepare("UPDATE rooms SET status = '已预订' WHERE room_no = :rno AND status = '空闲'");
+            roomQuery.bindValue(":rno", roomNo);
+            roomQuery.exec();
         }
 
-        // 没问题则提交事务
         db.commit();
-        response["status"] = Protocol::STATUS_OK;
-        response["appt_id"] = newApptId;
+        
+        QJsonObject res;
+        res["status"] = Protocol::STATUS_OK;
+        res["appt_id"] = newApptId;
+        client->sendPacket(Protocol::CMD_ADD_APPOINTMENT, QJsonDocument(res).toJson(QJsonDocument::Compact));
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "appointment";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
         
     } catch (const std::exception &e) {
         db.rollback();
-        LOG_E("[DB] Add Appointment Rollback: " << e.what());
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = e.what();
+        client->sendPacket(Protocol::CMD_ADD_APPOINTMENT, QJsonDocument(response).toJson(QJsonDocument::Compact));
     }
 
     ConnectionPool::instance().closeConnection(db);
-    client->sendPacket(Protocol::CMD_ADD_APPOINTMENT, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
 void AppointmentController::handleUpdateStatus(ClientHandler *client, const QJsonObject &body)
@@ -162,11 +155,9 @@ void AppointmentController::handleUpdateStatus(ClientHandler *client, const QJso
         query.bindValue(":status", newStatus);
         query.bindValue(":aid", apptId);
         
-        if (!query.exec()) throw std::runtime_error("Update appointment status failed");
+        if (!query.exec()) throw std::runtime_error("Update status failed");
 
-        // 如果状态更新为“已完成”，自动转入订单池（待结算）
         if (newStatus == "已完成") {
-            // 先查询该预约的信息
             query.prepare("SELECT member_id, pet_id, amount FROM appointments WHERE appt_id = :aid");
             query.bindValue(":aid", apptId);
             if (query.exec() && query.next()) {
@@ -174,10 +165,8 @@ void AppointmentController::handleUpdateStatus(ClientHandler *client, const QJso
                 int memberId = query.value("member_id").toInt();
                 int petId = query.value("pet_id").toInt();
                 
-                // 插入 orders 表
                 QSqlQuery orderQuery(db);
                 QString orderNo = "ORD" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss") + QString::number(apptId);
-                
                 orderQuery.prepare("INSERT INTO orders (order_no, source_module, related_id, member_id, pet_id, total_amount, actual_pay, payment_method, status, operator_id) "
                                    "VALUES (:no, 'Appointment', :rel, :mid, :pid, :tot, 0, '未支付', '待支付', 1)");
                 orderQuery.bindValue(":no", orderNo);
@@ -185,17 +174,19 @@ void AppointmentController::handleUpdateStatus(ClientHandler *client, const QJso
                 orderQuery.bindValue(":mid", memberId);
                 orderQuery.bindValue(":pid", petId);
                 orderQuery.bindValue(":tot", amount);
-                
-                if (!orderQuery.exec()) throw std::runtime_error("Auto-generate order failed: " + orderQuery.lastError().text().toStdString());
+                orderQuery.exec();
             }
         }
 
         db.commit();
         response["status"] = Protocol::STATUS_OK;
-        response["message"] = "Status updated";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "appointment";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } catch (const std::exception &e) {
         db.rollback();
-        LOG_E("[DB] Update Appointment Rollback: " << e.what());
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = e.what();
     }

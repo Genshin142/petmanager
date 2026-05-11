@@ -94,7 +94,22 @@ public:
     }
 };
 
-MemberModule::MemberModule(UserRole role, QWidget *parent) : QWidget(parent), m_role(role), m_currentPage(1), m_pageSize(30)
+MemberModule::MemberModule(UserRole role, QWidget *parent) 
+    : QWidget(parent)
+    , tableShadow(nullptr)
+    , m_isRefreshing(false)
+    , memTable(nullptr)
+    , searchEdit(nullptr)
+    , levelFilterCombo(nullptr)
+    , prevBtn(nullptr)
+    , nextBtn(nullptr)
+    , jumpEdit(nullptr)
+    , jumpValidator(nullptr)
+    , pageLabel(nullptr)
+    , m_detailDrawer(nullptr)
+    , m_role(role)
+    , m_currentPage(1)
+    , m_pageSize(30)
 {
     setupUI();
 }
@@ -443,24 +458,25 @@ void MemberModule::setupUI()
 
     // --- 联网：数据同步逻辑 ---
     connect(MemberDataManager::instance(), &MemberDataManager::dataChanged, this, [=](){
+        qDebug() << "[MEMBER] dataChanged signal received.";
         addSampleData();
         updateStatistics();
         
         // 数据回来后，如果表里有数据且当前没选中，则自动选中第一行
         if (memTable->rowCount() > 0 && memTable->currentRow() < 0) {
+            qDebug() << "[MEMBER] Auto-selecting first row...";
             memTable->selectRow(0);
             onCellClicked(0, 0); // 触发抽屉展示
         }
+        qDebug() << "[MEMBER] member data refresh complete.";
     });
     
     // 初始请求数据
     MemberDataManager::instance()->requestMemberList();
 }
 
-void MemberModule::addRow(const MemberInfo &info, const QString &lastVisit, const QString &pets)
+void MemberModule::addRowAt(int r, const MemberInfo &info, const QString &lastVisit, const QString &pets)
 {
-    int r = memTable->rowCount();
-    memTable->insertRow(r);
     updateRowInPlace(r, info, lastVisit, pets);
 }
 
@@ -710,45 +726,39 @@ void MemberModule::updateRowInPlace(int r, const MemberInfo &info, const QString
 
     memTable->setCellWidget(r, 11, actionWidget);
     
-    updatePagination();
+    // 批量添加时不在这里执行分页计算，由外部在循环结束后统一调用
+    // updatePagination();
 }
 
 void MemberModule::addSampleData()
 {
-    memTable->setRowCount(0);
-    auto allOnes = MemberDataManager::instance()->allMembers();
-    
-    if (allOnes.isEmpty()) {
-        if (m_detailDrawer) m_detailDrawer->setMemberInfo(MemberInfo()); 
-        return;
-    }
+    refreshTable();
+}
 
-    // 排序逻辑：注销会员排在最后，其余按工号排序
-    std::sort(allOnes.begin(), allOnes.end(), [](const MemberInfo &a, const MemberInfo &b){
-        if (a.isActive != b.isActive) return a.isActive; // 活跃在前
+void MemberModule::refreshTable()
+{
+    m_allMembers = MemberDataManager::instance()->allMembers();
+    
+    // 排序逻辑：活跃在前，其余按ID排序
+    std::sort(m_allMembers.begin(), m_allMembers.end(), [](const MemberInfo &a, const MemberInfo &b){
+        if (a.isActive != b.isActive) return a.isActive;
         return a.id < b.id;
     });
-    
-    for (const auto &info : allOnes) {
-        // 使用 info.pets，实际业务中可根据需要从 PetDataManager 动态计算，这里保持 DataManager 同步
-        QString lastVisit = "2026-03-10";
-        addRow(info, lastVisit, info.pets);
-    }
+    updateStatistics();
+    updatePagination();
 }
 
 void MemberModule::updateStatistics()
 {
-    int total = memTable->rowCount();
+    int total = m_allMembers.size();
     int regular = 0, gold = 0, platinum = 0, diamond = 0;
     
-    for(int i=0; i<total; ++i) {
-        if(memTable->item(i, 4)) {
-            QString level = memTable->item(i, 4)->text();
-            if(level.contains("普通")) regular++;
-            else if(level.contains("黄金")) gold++;
-            else if(level.contains("铂金")) platinum++;
-            else if(level.contains("钻石")) diamond++;
-        }
+    for(const auto &info : m_allMembers) {
+        QString level = info.level;
+        if(level.contains("普通")) regular++;
+        else if(level.contains("黄金")) gold++;
+        else if(level.contains("铂金")) platinum++;
+        else if(level.contains("钻石")) diamond++;
     }
     
     if (totalMemberLabel) totalMemberLabel->setText(QString::number(total));
@@ -756,8 +766,6 @@ void MemberModule::updateStatistics()
     if (goldMemberLabel) goldMemberLabel->setText(QString::number(gold));
     if (platinumMemberLabel) platinumMemberLabel->setText(QString::number(platinum));
     if (diamondMemberLabel) diamondMemberLabel->setText(QString::number(diamond));
-    
-    updatePagination();
 }
 
 void MemberModule::onSearchTextChanged(const QString &text)
@@ -821,50 +829,49 @@ void MemberModule::onJumpPage()
 
 void MemberModule::updatePagination()
 {
-    QString searchText = searchEdit->text();
-    QList<int> visibleRows;
-
-    // 1. 筛选符合搜索条件的行
-    for (int i = 0; i < memTable->rowCount(); ++i) {
-        auto item0 = memTable->item(i, 0);
-        auto item1 = memTable->item(i, 1);
-        bool match = searchText.isEmpty() ||
-                    ((item0 && item0->text().contains(searchText, Qt::CaseInsensitive)) ||
-                     (item1 && item1->text().contains(searchText, Qt::CaseInsensitive)));
+    memTable->setUpdatesEnabled(false);
+    memTable->blockSignals(true);
+    
+    QString searchText = searchEdit->text().trimmed().toLower();
+    QString selectedLevel = levelFilterCombo->currentText();
+    
+    QList<MemberInfo> filtered;
+    for (const auto &info : m_allMembers) {
+        bool levelMatch = (selectedLevel == "全部等级" || info.level == selectedLevel);
+        bool textMatch = searchText.isEmpty() || 
+                         (info.name.toLower().contains(searchText) || info.id.toLower().contains(searchText) || info.phone.contains(searchText));
         
-        if (match) {
-            visibleRows.append(i);
+        if (levelMatch && textMatch) {
+            filtered.append(info);
         }
-        memTable->setRowHidden(i, true); // 先统统隐藏
     }
 
-    // 2. 计算分页 (不需要再次排序，因为物理行顺序已经是正确的了)
-    int totalVisible = visibleRows.size();
+    int totalVisible = filtered.size();
     int totalPages = qMax(1, (totalVisible + m_pageSize - 1) / m_pageSize);
-
-    // 动态更新页面跳跃输入框的数字输入上限
-    if (jumpValidator) jumpValidator->setTop(totalPages);
-
     if (m_currentPage > totalPages) m_currentPage = totalPages;
     if (m_currentPage < 1) m_currentPage = 1;
 
-    // 3. 显示当前页的行
     int start = (m_currentPage - 1) * m_pageSize;
     int end = qMin(start + m_pageSize, totalVisible);
 
+    memTable->setRowCount(0); // 清空
+    memTable->setRowCount(end - start); // 仅设置当前页行数
+
     for (int i = start; i < end; ++i) {
-        memTable->setRowHidden(visibleRows[i], false);
+        int r = i - start;
+        const auto &info = filtered[i];
+        // 调用已有的 addRow 逻辑（需要稍微修改 addRow 接受行号）
+        addRowAt(r, info, "2026-03-10", info.pets);
     }
+
+    memTable->setUpdatesEnabled(true);
+    memTable->blockSignals(false);
 
     // 4. 更新控件状态
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
     prevBtn->setEnabled(m_currentPage > 1);
     nextBtn->setEnabled(m_currentPage < totalPages);
-    
-    // 如果没有匹配结果，按钮也屏蔽
     if (totalVisible == 0) {
-        prevBtn->setEnabled(false);
-        nextBtn->setEnabled(false);
         pageLabel->setText("第 0 页 / 共 0 页");
     }
 }

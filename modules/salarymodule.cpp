@@ -428,6 +428,7 @@ void SalaryModule::setupUI()
 
 void SalaryModule::refreshData()
 {
+    // 该方法由 salaryDataChanged 信号触发
     updateStats();
     updateTable();
 }
@@ -525,7 +526,7 @@ void SalaryModule::onNextPage() {
 void SalaryModule::onMonthChanged(int index)
 {
     m_currentMonth = m_monthCombo->itemText(index);
-    refreshData();
+    SalaryDataManager::instance()->requestSalaries(m_currentMonth);
 }
 
 void SalaryModule::onSearchEmployee(const QString &text)

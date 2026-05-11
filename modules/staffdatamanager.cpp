@@ -6,6 +6,11 @@
 #include <QDebug>
 #include "../utils/networkmanager.h"
 
+#include <QDir>
+#include <QCoreApplication>
+#include <QFile>
+#include <QMutexLocker>
+
 StaffDataManager* StaffDataManager::m_instance = nullptr;
 
 StaffDataManager* StaffDataManager::instance()
@@ -18,6 +23,10 @@ StaffDataManager* StaffDataManager::instance()
 
 StaffDataManager::StaffDataManager(QObject *parent) : QObject(parent)
 {
+    m_pixmapCache.setMaxCost(50);
+    m_cachePath = QCoreApplication::applicationDirPath() + "/cache/staff";
+    ensureCacheDir();
+
     connect(&NetworkManager::instance(), &NetworkManager::packetReceived, 
             this, &StaffDataManager::onPacketReceived);
             
@@ -27,11 +36,17 @@ StaffDataManager::StaffDataManager(QObject *parent) : QObject(parent)
 
 void StaffDataManager::initMockData()
 {
-    // Mock data is now handled by server, but we keep the method signature for compatibility if needed
+    // Mock data is now handled by server
 }
 
 void StaffDataManager::requestStaffList()
 {
+    if (!m_staff.isEmpty()) {
+        emit staffDataChanged();
+        return;
+    }
+    if (m_isLoading) return;
+    m_isLoading = true;
     qDebug() << "[STAFF] Requesting staff list from server...";
     NetworkManager::instance().sendRequest(Protocol::CMD_GET_STAFF_LIST, QJsonObject());
 }
@@ -67,12 +82,16 @@ void StaffDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 info.education = obj["education"].toString();
                 info.department = obj["department"].toString();
                 info.username = obj["username"].toString();
+                info.imgData = obj["img_data"].toString();
                 
                 m_staff[info.id] = info;
             }
             
             qDebug() << "[STAFF] Staff list updated from server. Count: " << m_staff.size();
+            m_isLoading = false;
             emit staffDataChanged();
+        } else {
+            m_isLoading = false;
         }
     } else if (packet.cmdId == Protocol::CMD_ADD_STAFF || 
                packet.cmdId == Protocol::CMD_UPDATE_STAFF || 
@@ -168,7 +187,6 @@ void StaffDataManager::restoreStaff(const QString &id)
 
 void StaffDataManager::hardDeleteStaff(const QString &id)
 {
-    // Not implemented in this version, could be added if needed
     removeStaff(id); 
 }
 
@@ -181,4 +199,43 @@ QStringList StaffDataManager::activeStaffNames() const
         }
     }
     return names;
+}
+QPixmap StaffDataManager::getStaffPixmap(const QString &id) const
+{
+    if (m_pixmapCache.contains(id)) return *m_pixmapCache.object(id);
+
+    QString localPath = m_cachePath + "/" + id + ".png";
+    if (QFile::exists(localPath)) {
+        QPixmap pix(localPath);
+        if (!pix.isNull()) {
+            m_pixmapCache.insert(id, new QPixmap(pix));
+            return pix;
+        }
+    }
+
+    EmployeeInfo info = getStaff(id);
+    if (info.imgData.isEmpty()) return QPixmap();
+
+    QPixmap pix;
+    QByteArray ba = QByteArray::fromBase64(info.imgData.toUtf8());
+    if (pix.loadFromData(ba)) {
+        m_pixmapCache.insert(id, new QPixmap(pix));
+        const_cast<StaffDataManager*>(this)->saveToLocalCache(id, pix);
+    }
+    return pix;
+}
+
+void StaffDataManager::ensureCacheDir()
+{
+    QDir dir(m_cachePath);
+    if (!dir.exists()) dir.mkpath(".");
+}
+
+void StaffDataManager::saveToLocalCache(const QString &id, const QPixmap &pix)
+{
+    if (pix.isNull()) return;
+    QString localPath = m_cachePath + "/" + id + ".png";
+    if (!QFile::exists(localPath)) {
+        pix.save(localPath, "PNG");
+    }
 }
