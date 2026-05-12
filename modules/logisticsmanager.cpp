@@ -119,20 +119,9 @@ void LogisticsManager::addLogisticsTask(const LogisticsTask &task)
 void LogisticsManager::cancelTask(const QString &taskId)
 {
     if (m_tasks.contains(taskId)) {
-        LogisticsTask &task = m_tasks[taskId];
-        if (task.status != "已完成") {
-            task.status = "已取消";
-            
-            // 如果有关联的预约单，尝试将其状态设回 Pending 
-            if (!task.relatedAppointmentId.isEmpty()) {
-                AppointmentInfo appt = PetDataManager::instance()->getAppointment(task.relatedAppointmentId);
-                if (!appt.id.isEmpty()) {
-                    appt.status = "Pending";
-                    PetDataManager::instance()->updateAppointment(appt);
-                }
-            }
-            emit logisticsDataChanged();
-        }
+        // 直接从本地列表中删除任务，实现“取消即删除”
+        m_tasks.remove(taskId);
+        emit logisticsDataChanged();
     }
 }
 

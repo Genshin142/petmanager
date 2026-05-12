@@ -1,4 +1,5 @@
 #include "petmodule.h"
+#include "../utils/imageutils.h"
 #include "petdatamanager.h"
 #include <QVBoxLayout>
 #include <QLabel>
@@ -275,26 +276,27 @@ void PetModule::setupUI()
     mainLayout->addWidget(operationCard);
 
     petTable = new QTableWidget();
-    petTable->setColumnCount(7);
+    petTable->setColumnCount(8);
     petTable->setHorizontalHeaderLabels({
-        "宠物ID", "宠物信息", "所属主人", "基本属性", "状态", "入店时间", "操作"
+        "宠物ID", "宠物信息", "品种", "所属主人", "基本属性", "状态", "入店时间", "操作"
     });
     petTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     petTable->setItemDelegate(new PetRowDelegate(petTable));
     
     // 优化列宽分配，使其更加均匀美观
     petTable->setColumnWidth(0, 80);  // ID
-    petTable->setColumnWidth(4, 100); // 状态
-    petTable->setColumnWidth(5, 180); // 入店时间
-    petTable->setColumnWidth(6, 180); // 操作 (加宽以容纳彻底删除按钮)
+    petTable->setColumnWidth(5, 100); // 状态
+    petTable->setColumnWidth(6, 180); // 入店时间
+    petTable->setColumnWidth(7, 180); // 操作 (加宽以容纳彻底删除按钮)
 
     petTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     petTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch); // 信息
-    petTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch); // 主人
-    petTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch); // 属性
-    petTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
+    petTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch); // 品种
+    petTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch); // 主人
+    petTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch); // 属性
     petTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
     petTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
+    petTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Fixed);
 
     // 4. 表格卡片容器 (12px 圆角)
     QFrame *tableCard = new QFrame();
@@ -496,27 +498,39 @@ void PetModule::addPetRow(const PetInfo &info)
 
     QWidget *infoWidget = new QWidget();
     QHBoxLayout *infoLayout = new QHBoxLayout(infoWidget);
-    infoLayout->setContentsMargins(10, 5, 10, 5);
+    infoLayout->setContentsMargins(25, 5, 10, 5); // 增加左边距，确保所有头像左侧对齐线一致
     infoLayout->setSpacing(12);
+    infoLayout->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
     QLabel *avatarImg = new QLabel();
     avatarImg->setFixedSize(45, 45);
-    avatarImg->setStyleSheet("border-radius: 22px; background: #f0f2f5; ");
+    avatarImg->setStyleSheet("border: none; background: transparent;"); 
     avatarImg->setCursor(Qt::PointingHandCursor);
     avatarImg->setProperty("avatarPath", info.avatarPath);
     avatarImg->installEventFilter(this);
     
-    QPixmap pix(info.avatarPath); 
-    if (pix.isNull()) pix.load(":/images/load_img.jpg"); 
+    QPixmap srcPix = ImageUtils::loadPixmap(info.avatarPath);
+    if (srcPix.isNull()) srcPix.load(":/images/load_img.jpg");
     
     QPixmap target(45, 45);
     target.fill(Qt::transparent);
     QPainter painter(&target);
     painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
     QPainterPath path;
-    path.addEllipse(0, 0, 45, 45);
+    path.addEllipse(1, 1, 43, 43);
     painter.setClipPath(path);
-    painter.drawPixmap(0, 0, 45, 45, pix.scaled(45, 45, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    
+    QPixmap scaled = srcPix.scaled(45, 45, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    int x = (45 - scaled.width()) / 2;
+    int y = (45 - scaled.height()) / 2;
+    painter.drawPixmap(x, y, scaled);
+    
+    // 绘制 1px 细边框，防止抗锯齿边缘发虚并增加质感
+    painter.setClipping(false);
+    painter.setPen(QPen(QColor("#f0f2f5"), 1));
+    painter.drawEllipse(1, 1, 43, 43);
+    
     avatarImg->setPixmap(target);
     
     QVBoxLayout *nameV = new QVBoxLayout();
@@ -528,14 +542,11 @@ void PetModule::addPetRow(const PetInfo &info)
     nameL->setText(QString("%1 <span style='color:%2; font-weight:bold;'>%3</span>")
                    .arg(info.name).arg(genderCol).arg(genderSym));
     nameL->setStyleSheet("font-weight: bold; color: #303133; font-size: 14px; border: none; background: transparent;");
-    QLabel *breedL = new QLabel(info.breed);
-    breedL->setStyleSheet("color: #909399; font-size: 12px; border: none; background: transparent;");
-    nameV->addWidget(nameL); nameV->addWidget(breedL);
+    nameV->addWidget(nameL); 
+
     
-    infoLayout->addStretch();
     infoLayout->addWidget(avatarImg);
     infoLayout->addLayout(nameV);
-    infoLayout->addStretch();
 
     infoWidget->setProperty("row", row); // 保存行号用于手动选中
     infoWidget->installEventFilter(this);
@@ -543,16 +554,19 @@ void PetModule::addPetRow(const PetInfo &info)
     
     // 关键修复：容器层不能设为穿透，否则子控件头像无法点中
     nameL->setAttribute(Qt::WA_TransparentForMouseEvents);
-    breedL->setAttribute(Qt::WA_TransparentForMouseEvents);
     petTable->setCellWidget(row, 1, infoWidget);
+
+    QTableWidgetItem *breedItem = new QTableWidgetItem(info.breed);
+    breedItem->setTextAlignment(Qt::AlignCenter);
+    petTable->setItem(row, 2, breedItem);
 
     QTableWidgetItem *ownerItem = new QTableWidgetItem(QString("%1 (%2)").arg(info.ownerName, info.ownerId));
     ownerItem->setTextAlignment(Qt::AlignCenter);
-    petTable->setItem(row, 2, ownerItem);
+    petTable->setItem(row, 3, ownerItem);
 
     QTableWidgetItem *attrItem = new QTableWidgetItem(QString("%1 · %2").arg(info.species, info.age));
     attrItem->setTextAlignment(Qt::AlignCenter);
-    petTable->setItem(row, 3, attrItem);
+    petTable->setItem(row, 4, attrItem);
 
     QWidget *statusWrap = new QWidget();
     QHBoxLayout *statusL = new QHBoxLayout(statusWrap);
@@ -569,20 +583,21 @@ void PetModule::addPetRow(const PetInfo &info)
     else if (info.status == "已预约") { bgColor = "#f0f9eb"; textColor = "#67c23a"; borderColor = "#c2e7b0"; }
     else if (info.status == "待接走") { bgColor = "#fef0f0"; textColor = "#f56c6c"; borderColor = "#fbc4c4"; }
     else if (info.status == "接送中") { bgColor = "#f4f4f5"; textColor = "#6b7280"; borderColor = "#e4e4e7"; }
+    else if (info.status == "在店") { bgColor = "#e6f7ff"; textColor = "#0050b3"; borderColor = "#91d5ff"; } // 亮蓝色，与“在家”区分
     else if (info.status == "已注销") { bgColor = "#f4f4f5"; textColor = "#94a3b8"; borderColor = "#e2e8f0"; }
-    else { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e9e9eb"; }
+    else { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e9e9eb"; } // 默认（如在家）
 
     statusTag->setStyleSheet(QString(
         "background-color: %1; color: %2; border: 1px solid %3; border-radius: 11px; font-size: 11px; font-weight: bold; padding: 0 12px;"
     ).arg(bgColor, textColor, borderColor));
 
     statusL->addWidget(statusTag);
-    petTable->setCellWidget(row, 4, statusWrap);
+    petTable->setCellWidget(row, 5, statusWrap);
 
     QTableWidgetItem *timeItem = new QTableWidgetItem(info.joinTime);
     timeItem->setTextAlignment(Qt::AlignCenter);
     timeItem->setForeground(QColor("#909399"));
-    petTable->setItem(row, 5, timeItem);
+    petTable->setItem(row, 6, timeItem);
 
     QWidget *btnWrap = new QWidget();
     QHBoxLayout *btnL = new QHBoxLayout(btnWrap);
@@ -647,8 +662,8 @@ void PetModule::addPetRow(const PetInfo &info)
     
     delBtn->setProperty("petId", info.id);
     btnL->addWidget(delBtn);
-    petTable->setCellWidget(row, 6, btnWrap);
-    petTable->setItem(row, 6, new QTableWidgetItem("")); 
+    petTable->setCellWidget(row, 7, btnWrap);
+    petTable->setItem(row, 7, new QTableWidgetItem("")); 
 }
 
 void PetModule::updateStats()
@@ -658,7 +673,7 @@ void PetModule::updateStats()
     int grooming = 0;
 
     for (int i = 0; i < total; ++i) {
-        QWidget *w = petTable->cellWidget(i, 4); // 在店状态列索引为4
+        QWidget *w = petTable->cellWidget(i, 5); // 状态列索引现在为5
         if (w) {
             QLabel *tag = w->findChild<QLabel*>();
             if (tag) {
@@ -722,25 +737,32 @@ void PetModule::onSearch(const QString &keyword)
 
 void PetModule::onEditPet()
 {
+    int row = -1;
     QPushButton *btn = qobject_cast<QPushButton*>(sender());
-    if (!btn) return;
+    
+    if (btn) {
+        for (int i = 0; i < petTable->rowCount(); ++i) {
+            QWidget *w = petTable->cellWidget(i, 7); // 操作列现在是7
+            if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
+                row = i;
+                break;
+            }
+        }
+    } else {
+        row = petTable->currentRow();
+    }
 
-    for (int i = 0; i < petTable->rowCount(); ++i) {
-        QWidget *w = petTable->cellWidget(i, 6);
-        if (w && w->layout() && w->layout()->indexOf(btn) != -1) {
-             QString petId = petTable->item(i, 0)->text();
-             PetInfo info = PetDataManager::instance()->getPet(petId);
-             if (info.id.isEmpty()) break;
-             
-             AddPetDialog dlg(this);
-             dlg.setPetInfo(info);
-             if (dlg.exec() == QDialog::Accepted) {
-                  PetInfo newInfo = dlg.getPetInfo();
-                  PetDataManager::instance()->updatePet(newInfo);
-                  // 移除手动 removeRow 和 addPetRow，由 PetDataManager 信号触发 refreshTable 保持排序
-                  updateStats();
-             }
-             break;
+    if (row >= 0 && row < petTable->rowCount()) {
+        QString petId = petTable->item(row, 0)->text();
+        PetInfo info = PetDataManager::instance()->getPet(petId);
+        if (!info.id.isEmpty()) {
+            AddPetDialog dlg(this);
+            dlg.setPetInfo(info);
+            if (dlg.exec() == QDialog::Accepted) {
+                PetInfo newInfo = dlg.getPetInfo();
+                PetDataManager::instance()->updatePet(newInfo);
+                updateStats();
+            }
         }
     }
 }
@@ -882,9 +904,9 @@ bool PetModule::eventFilter(QObject *watched, QEvent *event) {
 
 void PetModule::showBigImage(const QString &path)
 {
-    qDebug() << "[PetModule] showBigImage called with path:" << path;
+    qDebug() << "[PetModule] showBigImage called with path:" << path.left(50) << "...";
     
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (pix.isNull()) {
         qDebug() << "[PetModule] Target image is null, loading default.";
         pix.load(":/images/load_img.jpg");

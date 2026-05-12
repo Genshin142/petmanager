@@ -55,6 +55,12 @@ private:
     QLabel *m_lblHistory, *m_lblDetailDesc;
     
     ServiceInfo m_currentService;
+    
+    // 统计面板组件
+    QLabel *m_lblStatTotal;
+    QLabel *m_lblStatPopular;
+    QLabel *m_lblStatRevenue;
+    QLabel *m_lblStatComm;
 };
 
 #endif // SERVICEMANAGEMENTMODULE_H

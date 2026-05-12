@@ -15,6 +15,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QTimer>
+#include <QRegularExpression>
 
 // --- 复用高级行渲染委托，实现全行圆角边框选中效果 ---
 class ServiceRowDelegate : public QStyledItemDelegate {
@@ -69,10 +70,9 @@ public:
             painter->drawLine(opt.rect.bottomLeft(), opt.rect.bottomRight());
         }
 
-        // 文本绘制
         painter->setPen(QColor((opt.state & QStyle::State_Selected) ? "#1e40af" : "#334155"));
         QFont font = painter->font();
-        font.setWeight(QFont::Bold);
+        font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
         font.setPointSize(10);
         painter->setFont(font);
 
@@ -114,7 +114,7 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
 
     QHBoxLayout *dashLayout = new QHBoxLayout();
     dashLayout->setSpacing(15);
-    auto createStatCard = [&](const QString &title, const QString &val, const QString &color) {
+    auto createStatCard = [&](const QString &title, const QString &val, const QString &color, QLabel* &valLabel) {
         QFrame *card = new QFrame();
         card->setFixedHeight(80);
         card->setStyleSheet("QFrame { background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; }");
@@ -122,16 +122,16 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
         l->setContentsMargins(15, 10, 15, 10);
         QLabel *t = new QLabel(title);
         t->setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold; border: none;");
-        QLabel *v = new QLabel(val);
-        v->setStyleSheet(QString("font-size: 20px; font-weight: bold; color: %1; border: none;").arg(color));
+        valLabel = new QLabel(val);
+        valLabel->setStyleSheet(QString("font-size: 20px; font-weight: bold; color: %1; border: none;").arg(color));
         l->addWidget(t);
-        l->addWidget(v);
+        l->addWidget(valLabel);
         return card;
     };
-    dashLayout->addWidget(createStatCard("服务项总数", "24", "#3b82f6"));
-    dashLayout->addWidget(createStatCard("本月热门", "精油SPA", "#1e293b"));
-    dashLayout->addWidget(createStatCard("营收预估", "¥ 4,280", "#22c55e"));
-    dashLayout->addWidget(createStatCard("待结算提成", "¥ 1,250", "#f59e0b"));
+    dashLayout->addWidget(createStatCard("服务项总数", "0", "#3b82f6", m_lblStatTotal));
+    dashLayout->addWidget(createStatCard("本月热门", "--", "#1e293b", m_lblStatPopular));
+    dashLayout->addWidget(createStatCard("营收预估", "¥ 0", "#22c55e", m_lblStatRevenue));
+    dashLayout->addWidget(createStatCard("待结算提成", "¥ 0", "#f59e0b", m_lblStatComm));
     topLayout->addLayout(dashLayout);
     leftLayout->addWidget(topCard);
 
@@ -463,6 +463,27 @@ void ServiceManagementModule::updateTableData()
     m_serviceTable->setRowCount(0);
     QList<ServiceInfo> allServices = ServiceDataManager::instance()->allServices();
     
+    // --- 实时统计逻辑 ---
+    int totalCount = allServices.size();
+    double totalRevenue = 0;
+    double totalCommission = 0;
+    QString popularName = "--";
+    int maxSales = -1;
+
+    for (const auto &info : allServices) {
+        totalRevenue += (info.price * info.salesCount);
+        totalCommission += (info.commissionFixed * info.salesCount);
+        if (info.salesCount > maxSales && info.salesCount > 0) {
+            maxSales = info.salesCount;
+            popularName = info.name;
+        }
+    }
+
+    m_lblStatTotal->setText(QString::number(totalCount));
+    m_lblStatPopular->setText(popularName);
+    m_lblStatRevenue->setText(QString("¥ %1").arg(totalRevenue, 0, 'f', 0).replace(QRegularExpression("(\\d)(?=(\\d{3})+(?!\\d))"), "\\1,"));
+    m_lblStatComm->setText(QString("¥ %1").arg(totalCommission, 0, 'f', 0).replace(QRegularExpression("(\\d)(?=(\\d{3})+(?!\\d))"), "\\1,"));
+
     QString activeCat = "全部";
     for (auto btn : m_categoryContainer->findChildren<QPushButton*>()) {
         if (btn->isChecked()) { activeCat = btn->text(); break; }

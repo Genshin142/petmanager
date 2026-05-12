@@ -77,6 +77,7 @@ private:
 
     QString m_currentMonth;
     QString m_currentSalaryId;
+    QString m_currentStaffImgPath;
 
     int m_currentPage = 1;
     const int m_pageSize = 11;

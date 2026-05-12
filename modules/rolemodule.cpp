@@ -1,4 +1,5 @@
 #include "rolemodule.h"
+#include "../utils/imageutils.h"
 #include "addemployeedialog.h"
 #include "custommessagedialog.h"
 #include "staffdatamanager.h"
@@ -140,13 +141,14 @@ void RoleModule::showBigImage(const QString &path)
 {
     if (path.isEmpty()) return;
     
-    QPixmap pix(path);
-    if (pix.isNull()) return;
+    QPixmap pix = ImageUtils::loadPixmap(path);
+    if (pix.isNull()) pix.load(":/images/load_img.jpg");
     
     // 确保遮罩覆盖整个模块区域
     m_imagePreviewOverlay->setGeometry(rect());
     
     // 统一标准：取窗口最小维度的 80%
+    
     int maxDim = qMin(this->window()->width(), this->window()->height()) * 0.8;
     m_previewLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     
@@ -169,7 +171,11 @@ QPixmap RoleModule::createCircularAvatar(const QPixmap &src, int size)
     QPainterPath path;
     path.addEllipse(0, 0, size, size);
     painter.setClipPath(path);
-    painter.drawPixmap(0, 0, size, size, src.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    
+    QPixmap scaled = src.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    int x = (size - scaled.width()) / 2;
+    int y = (size - scaled.height()) / 2;
+    painter.drawPixmap(x, y, scaled);
     return target;
 }
 
@@ -469,15 +475,27 @@ void RoleModule::updateStats()
 
     for (int i = 0; i < empTable->rowCount(); ++i) {
         if (empTable->isRowHidden(i)) continue;
-        // 检查状态 (新索引：第 3 列)
+        
+        // 检查状态 (第 3 列)
         QWidget* statusWidget = empTable->cellWidget(i, 3);
         if (statusWidget) {
             QLabel* tag = statusWidget->findChild<QLabel*>();
             if (tag) {
                 QString status = tag->text();
-                if (status != "离职") totalEmp++;
-                if (status == "在岗") todayAttend++;
-                if (status == "请假") onLeave++;
+                // 只要不是离职，就计入在职总数
+                if (status != "离职") {
+                    totalEmp++;
+                }
+                
+                // 如果是“在职”或“在岗”，计入今日实到
+                if (status == "在职" || status == "在岗") {
+                    todayAttend++;
+                }
+                
+                // 请假人数
+                if (status == "请假") {
+                    onLeave++;
+                }
             }
         }
     }
@@ -541,7 +559,8 @@ void RoleModule::setEmployeeRowData(int row, const QString &id, const QString &n
     QLabel *avatarLabel = new QLabel();
     avatarLabel->setFixedSize(40, 40);
     avatarLabel->setStyleSheet("border: none; background: transparent;"); // 确保没有外框
-    QPixmap targetAvatar = imgPath.isEmpty() ? (gender == "女" ? m_femaleAvatar : m_maleAvatar) : createCircularAvatar(QPixmap(imgPath), 40);
+    QPixmap srcPix = ImageUtils::loadPixmap(imgPath);
+    QPixmap targetAvatar = imgPath.isEmpty() || srcPix.isNull() ? (gender == "女" ? m_femaleAvatar : m_maleAvatar) : createCircularAvatar(srcPix, 40);
     avatarLabel->setPixmap(targetAvatar);
     avatarLabel->setProperty("imgPath", imgPath.isEmpty() ? (gender == "女" ? ":/images/female.png" : ":/images/male.png") : imgPath);
     avatarLabel->installEventFilter(this);

@@ -29,14 +29,14 @@ CREATE TABLE sys_employees (
     username VARCHAR(32) NOT NULL UNIQUE COMMENT '登录账号',
     password VARCHAR(255) NOT NULL COMMENT '密码哈希',
     real_name VARCHAR(20) NOT NULL COMMENT '真实姓名',
-    role ENUM('店长', '收银', '美容师', '司机') NOT NULL DEFAULT '美容师',
+    role ENUM('店长', '收银', '美容师', '司机') NOT NULL COMMENT '角色',
     department VARCHAR(50) COMMENT '所属部门',
     gender ENUM('男', '女', '未知') DEFAULT '未知',
     age TINYINT UNSIGNED COMMENT '年龄',
     phone CHAR(11) UNIQUE COMMENT '手机号',
     email VARCHAR(50) COMMENT '邮箱',
     id_card CHAR(18) COMMENT '身份证号',
-    base_salary DECIMAL(8,2) UNSIGNED DEFAULT 0 COMMENT '基础底薪',
+    base_salary DECIMAL(10,2) COMMENT '基础底薪',
     join_date DATE COMMENT '入职日期',
     emergency_contact VARCHAR(20) COMMENT '紧急联系人',
     emergency_phone CHAR(11) COMMENT '紧急联系电话',
@@ -55,13 +55,13 @@ CREATE TABLE sys_employees (
 
 -- [新增表 1.1] 系统操作日志表 (对齐 SysOperationLog)
 CREATE TABLE sys_operation_logs (
-    log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     operator_name VARCHAR(20) NOT NULL COMMENT '操作人姓名',
     module VARCHAR(50) NOT NULL COMMENT '操作模块',
-    action VARCHAR(50) NOT NULL COMMENT '动作(如:扣减库存)',
-    details TEXT COMMENT '详情/变更差异',
+    action VARCHAR(50) NOT NULL COMMENT '动作',
+    details TEXT COMMENT '详情',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_time_module (created_at, module)
+    INDEX idx_time_module (created_at)
 ) COMMENT='系统操作审计日志';
 
 -- [新增表 1.2] 员工薪资发放记录 (对齐 SalaryInfo)
@@ -69,17 +69,15 @@ CREATE TABLE salary_records (
     salary_id INT AUTO_INCREMENT PRIMARY KEY,
     emp_id INT NOT NULL,
     salary_month CHAR(7) NOT NULL COMMENT '薪资月份 YYYY-MM',
-    base_salary DECIMAL(8,2) NOT NULL DEFAULT 0.00,
-    commission DECIMAL(8,2) NOT NULL DEFAULT 0.00 COMMENT '提成总额',
-    bonus DECIMAL(8,2) NOT NULL DEFAULT 0.00 COMMENT '奖金',
-    deduction DECIMAL(8,2) NOT NULL DEFAULT 0.00 COMMENT '扣款',
-    net_pay DECIMAL(8,2) NOT NULL DEFAULT 0.00 COMMENT '实发金额',
+    base_salary DECIMAL(10,2) DEFAULT 0.00,
+    commission DECIMAL(10,2) DEFAULT 0.00,
+    bonus DECIMAL(10,2) DEFAULT 0.00,
+    deduction DECIMAL(10,2) DEFAULT 0.00,
+    net_pay DECIMAL(10,2) DEFAULT 0.00,
     status ENUM('待审核', '已发放') DEFAULT '待审核',
-    pay_time DATETIME COMMENT '发放时间',
+    pay_time DATETIME,
     remark VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id),
-    UNIQUE KEY idx_emp_month (emp_id, salary_month)
+    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id)
 ) COMMENT='月度薪资核算表';
 
 -- [表 2] 排班与考勤表
@@ -105,9 +103,7 @@ CREATE TABLE sys_schedule_templates (
     shift_type ENUM('休息', '早班', '晚班', '自定义') NOT NULL,
     plan_start TIME,
     plan_end TIME,
-    is_deleted TINYINT(1) DEFAULT 0,
-    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id),
-    UNIQUE KEY idx_emp_day (emp_id, day_of_week)
+    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id)
 ) COMMENT='周排班模板表';
 
 -- [表 3] 系统通用图片附件表
@@ -117,9 +113,7 @@ CREATE TABLE sys_images (
     target_id INT NOT NULL,
     url VARCHAR(255) NOT NULL,
     is_primary TINYINT DEFAULT 0,
-    sort_order INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0,
     INDEX idx_target (target_type, target_id)
 ) COMMENT='全系统通用图片附件表';
 
@@ -131,20 +125,19 @@ CREATE TABLE sys_images (
 -- [表 4] 会员信息表
 CREATE TABLE members (
     member_id INT AUTO_INCREMENT PRIMARY KEY,
-    phone CHAR(11) UNIQUE NOT NULL COMMENT '手机号(唯一索引)',
-    name VARCHAR(20) COMMENT '会员姓名',
-    balance DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '储值余额',
-    consume_amt DECIMAL(8,2) UNSIGNED DEFAULT 0.00 COMMENT '累计消费',
-    points INT UNSIGNED DEFAULT 0 COMMENT '可用积分',
+    phone CHAR(11) UNIQUE NOT NULL COMMENT '手机号',
+    name VARCHAR(20) COMMENT '姓名',
+    gender ENUM('男', '女', '未知') DEFAULT '未知',
+    birthday DATE,
+    balance DECIMAL(12,2) DEFAULT 0.00,
+    consume_amt DECIMAL(12,2) DEFAULT 0.00,
+    points INT UNSIGNED DEFAULT 0,
     level_name VARCHAR(10) DEFAULT '普通会员',
-    pay_pwd VARCHAR(255) COMMENT '支付密码',
-    
-    -- 核心：乐观锁，防止并发扣款冲突
+    pay_pwd VARCHAR(100),
     version INT UNSIGNED DEFAULT 0 COMMENT '乐观锁版本号',
-    
+    is_deleted TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0,
     INDEX idx_name (name)
 ) COMMENT='会员档案';
 
@@ -153,23 +146,21 @@ CREATE TABLE pets (
     pet_id INT AUTO_INCREMENT PRIMARY KEY,
     member_id INT NOT NULL,
     pet_name VARCHAR(20) NOT NULL,
-    species VARCHAR(10) COMMENT '猫/狗/异宠',
-    breed VARCHAR(20) COMMENT '具体品种',
+    species VARCHAR(10) COMMENT '物种',
+    breed VARCHAR(20) COMMENT '品种',
     gender ENUM('公', '母', '绝育公', '绝育母', '未知') DEFAULT '未知',
-    age_months INT UNSIGNED COMMENT '月龄',
-    weight DECIMAL(5,2) UNSIGNED COMMENT '体重(kg)',
-    health_status VARCHAR(50) COMMENT '健康状况',
-    medical_history TEXT COMMENT '既往病史',
-    vaccine_status TEXT COMMENT '疫苗记录',
-    dietary_habit TEXT COMMENT '饮食习惯',
-    avatar_path VARCHAR(255) COMMENT '头像路径',
-    home_address VARCHAR(255) COMMENT '家庭接送地址',
-    current_status ENUM('离店', '服务中', '寄养中') DEFAULT '离店',
-    
+    age_months INT UNSIGNED,
+    weight DECIMAL(6,2),
+    health_status VARCHAR(50),
+    medical_history TEXT,
+    vaccine_status TEXT,
+    dietary_habit TEXT,
+    avatar_path VARCHAR(255),
+    home_address VARCHAR(255),
+    current_status VARCHAR(50),
     join_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0 COMMENT '逻辑删除(对应isActive)',
-    
+    is_deleted TINYINT(1) DEFAULT 0,
     FOREIGN KEY (member_id) REFERENCES members(member_id),
     INDEX idx_pet_name (pet_name)
 ) COMMENT='宠物核心档案';
@@ -184,52 +175,62 @@ CREATE TABLE products (
     product_id INT AUTO_INCREMENT PRIMARY KEY,
     barcode VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(100) NOT NULL,
-    brand VARCHAR(50) COMMENT '品牌',
-    category VARCHAR(20) COMMENT '分类',
-    origin VARCHAR(50) COMMENT '产地',
-    spec VARCHAR(50) COMMENT '规格(如: 1.5kg/包)',
-    unit VARCHAR(10) COMMENT '计件单位',
-    purchase_price DECIMAL(7,2) UNSIGNED COMMENT '参考进价',
-    sale_price DECIMAL(7,2) UNSIGNED NOT NULL COMMENT '零售价',
-    
-    -- 聚合库存 (依然保留，用于列表快速展示，具体出库看批次表)
+    brand VARCHAR(50),
+    category VARCHAR(20),
+    img_data LONGTEXT,
+    origin VARCHAR(50),
+    spec VARCHAR(50),
+    sale_price DECIMAL(10,2) NOT NULL,
+    unit VARCHAR(20),
+    stock_curr INT,
+    cost_price DECIMAL(10,2),
     stock_current INT UNSIGNED DEFAULT 0,
     stock_min INT UNSIGNED DEFAULT 10,
-    
-    shelf_life_days INT UNSIGNED COMMENT '默认保质期(天)',
-    supplier VARCHAR(100) COMMENT '默认供应商',
+    production_date DATE,
+    shelf_life_days INT,
+    supplier VARCHAR(50),
     supplier_phone VARCHAR(20),
-    description TEXT COMMENT '商品描述',
-    ingredients TEXT COMMENT '原料组成',
-    nutrition_map JSON COMMENT '营养分析(支持灵活键值对)',
-    storage_req VARCHAR(50) COMMENT '存储要求',
-    tags VARCHAR(255) COMMENT '逗号分隔的卖点标签',
-    net_weight_kg DECIMAL(5,2) COMMENT '净重(用于计算喂食量)',
-    daily_feeding_grams INT COMMENT '建议日喂食量',
-    
-    is_active TINYINT(1) DEFAULT 1 COMMENT '是否上架',
+    description TEXT,
+    net_weight_kg DECIMAL(6,2),
+    is_active TINYINT(1) DEFAULT 1,
     is_deleted TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ingredients TEXT,
+    storage_req VARCHAR(255),
+    tags VARCHAR(255)
 ) COMMENT='商品全局字典';
+
+-- [新增表 7.1] 商品入库记录表
+CREATE TABLE product_inbound (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    inbound_no VARCHAR(50) NOT NULL,
+    barcode VARCHAR(50) NOT NULL,
+    product_name VARCHAR(100) NOT NULL,
+    spec VARCHAR(50),
+    category VARCHAR(50),
+    img_data LONGTEXT,
+    supplier VARCHAR(100),
+    quantity INT,
+    cost_price DECIMAL(10,2),
+    sale_price DECIMAL(10,2),
+    production_date DATE,
+    shelf_life_days INT,
+    supplier_phone VARCHAR(20),
+    operator_name VARCHAR(50),
+    is_shelved TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) COMMENT='商品入库记录表';
 
 -- [新增表 7.1] 商品批次库存表 (对齐 StockBatch，解决先进先出问题)
 CREATE TABLE product_batches (
-    batch_id VARCHAR(32) PRIMARY KEY COMMENT '批次号(生成规则)',
+    batch_id VARCHAR(32) PRIMARY KEY,
     product_id INT NOT NULL,
-    inbound_id INT NOT NULL COMMENT '关联入库单',
-    production_date DATE COMMENT '生产日期',
-    shelf_life_days INT UNSIGNED,
-    expiry_date DATE COMMENT '过期日期(系统自动计算)',
-    initial_qty INT UNSIGNED NOT NULL COMMENT '初始数量',
-    current_qty INT UNSIGNED NOT NULL COMMENT '当前剩余数量',
-    supplier VARCHAR(100),
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0,
+    expiry_date DATE NOT NULL,
+    initial_qty INT UNSIGNED NOT NULL,
+    current_qty INT UNSIGNED NOT NULL,
     FOREIGN KEY (product_id) REFERENCES products(product_id),
     INDEX idx_expiry (expiry_date, current_qty)
-) COMMENT='库存批次表(FEFO管理核心)';
+) COMMENT='库存批次表';
 
 
 -- ==========================================
@@ -240,55 +241,81 @@ CREATE TABLE product_batches (
 CREATE TABLE services (
     service_id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
-    category ENUM('美容洗护', '医疗保健', '寄养服务', '培训及其他') NOT NULL,
-    price DECIMAL(7,2) UNSIGNED NOT NULL,
-    duration_min INT UNSIGNED DEFAULT 30,
-    commission_type ENUM('比例', '固定金额') DEFAULT '比例',
-    commission_value DECIMAL(7,2) UNSIGNED DEFAULT 10.00,
+    category ENUM('洗护', '美容', '保健', '寄养', '接送') NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    duration_min INT,
+    commission_value DECIMAL(7,2) UNSIGNED,
     description TEXT,
     icon_path VARCHAR(255),
     status TINYINT DEFAULT 1,
+    commission_amt DECIMAL(10,2),
     is_deleted TINYINT(1) DEFAULT 0
 ) COMMENT='店内服务项目字典';
 
 -- [表 10] 预约单表 (对齐 AppointmentInfo)
 CREATE TABLE appointments (
     appt_id INT AUTO_INCREMENT PRIMARY KEY,
-    group_id VARCHAR(32) COMMENT '订单组ID(如接送单和洗护单属于同组)',
     member_id INT NOT NULL,
     pet_id INT NOT NULL,
     service_id INT NOT NULL,
-    staff_id INT COMMENT '执行员工',
-    station_id INT COMMENT '工位号',
-    appt_time DATETIME NOT NULL COMMENT '预约到店时间',
-    appt_type VARCHAR(20) DEFAULT '服务' COMMENT 'Transport/Grooming/Boarding',
+    staff_id INT,
+    appt_time DATETIME NOT NULL,
     status ENUM('待处理', '进行中', '已完成', '已取消') DEFAULT '待处理',
-    notes VARCHAR(255) COMMENT '客户备注',
-    address VARCHAR(255) COMMENT '接送地址',
-    amount DECIMAL(8,2) COMMENT '预约金额估算',
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0,
+    notes VARCHAR(255),
     FOREIGN KEY (member_id) REFERENCES members(member_id),
     FOREIGN KEY (pet_id) REFERENCES pets(pet_id),
-    INDEX idx_time_staff (appt_time, staff_id)
+    FOREIGN KEY (service_id) REFERENCES services(service_id),
+    FOREIGN KEY (staff_id) REFERENCES sys_employees(emp_id)
 ) COMMENT='预约管理主表';
+
+-- [新增表 10.2] 寄养房位表
+CREATE TABLE foster_rooms (
+    room_id INT AUTO_INCREMENT PRIMARY KEY,
+    room_no VARCHAR(20) NOT NULL UNIQUE,
+    room_type ENUM('普通', '豪华', '多宠') NOT NULL,
+    status ENUM('可用', '维修', '清洁中') DEFAULT '可用',
+    description TEXT,
+    has_camera TINYINT(1) DEFAULT 0
+) COMMENT='寄养房位表';
+
+-- [新增表 10.3] 寄养房位表(新版)
+CREATE TABLE boarding_rooms (
+    room_id INT AUTO_INCREMENT PRIMARY KEY,
+    room_no VARCHAR(20) NOT NULL UNIQUE,
+    room_type ENUM('标准房', '豪华房', '多宠房') NOT NULL,
+    status ENUM('空闲', '已预订', '入住中', '清理中', '维护中') DEFAULT '空闲',
+    current_pet_id INT,
+    description TEXT
+) COMMENT='寄养房位表( boarding_rooms )';
+
+-- [新增表 10.4] 寄养记录表
+CREATE TABLE boarding_records (
+    record_id INT AUTO_INCREMENT PRIMARY KEY,
+    room_no VARCHAR(20) NOT NULL,
+    pet_id INT NOT NULL,
+    member_id INT NOT NULL,
+    check_in_time DATETIME NOT NULL,
+    expected_check_out_time DATETIME NOT NULL,
+    actual_check_out_time DATETIME,
+    current_weight DECIMAL(5,2),
+    check_in_photo VARCHAR(255),
+    notes TEXT,
+    status ENUM('预约中', '入住中', '已离店', '已取消') DEFAULT '预约中',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) COMMENT='寄养记录表';
 
 -- [新增表 10.1] 物流接送任务表 (对齐 LogisticsTask)
 CREATE TABLE logistics_tasks (
     task_id VARCHAR(32) PRIMARY KEY,
     pet_id INT NOT NULL,
-    appt_id INT COMMENT '关联的预约单/寄养单',
+    appt_id INT,
     task_type ENUM('接宠', '送宠') NOT NULL,
     status ENUM('待处理', '进行中', '已送达', '已完成', '已取消') DEFAULT '待处理',
-    driver_id INT COMMENT '关联派送司机(员工ID)',
-    address VARCHAR(255) NOT NULL COMMENT '目的地',
-    schedule_time DATETIME NOT NULL COMMENT '要求到达时间',
-    amount DECIMAL(6,2) DEFAULT 0.00 COMMENT '接送费',
-    
+    driver_id INT,
+    address VARCHAR(255) NOT NULL,
+    schedule_time DATETIME NOT NULL,
+    amount DECIMAL(10,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0,
     FOREIGN KEY (pet_id) REFERENCES pets(pet_id)
 ) COMMENT='车辆接送物流调度表';
 
@@ -299,18 +326,12 @@ CREATE TABLE logistics_tasks (
 -- [新增表 11.1] 宠物日常活动跟踪表 (对齐 PetActivityLog)
 CREATE TABLE pet_activity_logs (
     log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    foster_record_id INT COMMENT '关联寄养单(如果是寄养期间)',
     pet_id INT NOT NULL,
-    log_time DATETIME NOT NULL COMMENT '发生时间',
-    log_type VARCHAR(20) NOT NULL COMMENT '投喂/洗护/检查/异常',
+    operator_id INT,
+    log_time DATETIME NOT NULL,
+    log_type VARCHAR(20) NOT NULL,
     remark TEXT,
-    icon_emoji VARCHAR(10) COMMENT '前端展示图标',
-    is_alert TINYINT(1) DEFAULT 0 COMMENT '1:健康预警触发(标红)',
-    operator_id INT NOT NULL COMMENT '经手人',
-    room_no VARCHAR(20) COMMENT '发生时所在房位',
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0,
+    is_alert TINYINT(1) DEFAULT 0,
     FOREIGN KEY (pet_id) REFERENCES pets(pet_id),
     INDEX idx_pet_time (pet_id, log_time)
 ) COMMENT='宠物健康/活动时间线表';
@@ -320,26 +341,36 @@ CREATE TABLE pet_activity_logs (
 -- ==========================================
 
 CREATE TABLE orders (
-    order_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT PRIMARY KEY,
     order_no VARCHAR(32) UNIQUE NOT NULL,
-    source_module VARCHAR(20) COMMENT '来源(Appointment/Boarding/Product)',
-    related_id INT COMMENT '来源业务主键ID',
+    source_module VARCHAR(30),
+    related_id VARCHAR(50),
     member_id INT,
-    pet_id INT,
-    total_amount DECIMAL(8,2) UNSIGNED NOT NULL,
-    discount DECIMAL(4,2) UNSIGNED DEFAULT 1.00 COMMENT '折扣率',
-    actual_pay DECIMAL(8,2) UNSIGNED NOT NULL,
-    payment_method VARCHAR(20) NOT NULL,
-    status ENUM('待支付', '已支付', '已退款', '已作废') DEFAULT '已支付',
-    cancel_reason VARCHAR(255) COMMENT '作废/退款原因',
-    operator_id INT NOT NULL,
-    
+    operator_id INT,
+    total_amount DECIMAL(12,2) NOT NULL,
+    discount DECIMAL(3,2),
+    actual_pay DECIMAL(12,2) NOT NULL,
+    item_details TEXT,
+    payment_method VARCHAR(20),
+    status VARCHAR(20),
+    cancel_reason VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted TINYINT(1) DEFAULT 0,
-    FOREIGN KEY (member_id) REFERENCES members(member_id),
-    INDEX idx_order_no (order_no)
+    FOREIGN KEY (member_id) REFERENCES members(member_id)
 ) COMMENT='财务对账单主表';
+
+-- [新增表 12.1] 员工绩效记录表
+CREATE TABLE sys_performance_records (
+    perf_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    emp_id INT NOT NULL,
+    order_id VARCHAR(32) NOT NULL,
+    service_date DATE NOT NULL,
+    service_name VARCHAR(50),
+    order_amount DECIMAL(10,2) NOT NULL,
+    commission_amt DECIMAL(10,2) NOT NULL,
+    status ENUM('待核销', '已核销') DEFAULT '待核销',
+    verify_time DATETIME,
+    FOREIGN KEY (emp_id) REFERENCES sys_employees(emp_id)
+) COMMENT='员工绩效记录表';
 
 
 ```

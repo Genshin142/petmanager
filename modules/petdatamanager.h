@@ -48,6 +48,7 @@ public:
 
     // 疫苗与寄养
     void updateVaccines(const QString &petId, const QList<VaccineRecord> &records);
+    void requestVaccines(const QString &petId);
     QList<VaccineRecord> getVaccines(const QString &petId) const;
     QList<FosterBatch> getHistoryBatches(const QString &petId) const;
 

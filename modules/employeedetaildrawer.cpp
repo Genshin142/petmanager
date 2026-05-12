@@ -1,4 +1,5 @@
 #include "employeedetaildrawer.h"
+#include "../utils/imageutils.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QGraphicsDropShadowEffect>
@@ -456,7 +457,7 @@ void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
     }
     m_currentEmployee.imgPath = effectivePath; // 确保 eventFilter 能拿到有效的路径进行放大
     
-    QPixmap pixmap(effectivePath);
+    QPixmap pixmap = ImageUtils::loadPixmap(effectivePath);
     if (pixmap.isNull()) {
         pixmap.load(":/images/load_img.jpg");
     }
@@ -470,7 +471,11 @@ void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
     // 留出 1px 边距防止裁切边缘被截断
     path.addEllipse(1, 1, avatarSize.width() - 2, avatarSize.height() - 2);
     painter.setClipPath(path);
-    painter.drawPixmap(0, 0, pixmap.scaled(avatarSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    
+    QPixmap scaled = pixmap.scaled(avatarSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    int x = (avatarSize.width() - scaled.width()) / 2;
+    int y = (avatarSize.height() - scaled.height()) / 2;
+    painter.drawPixmap(x, y, scaled);
     m_avatarLabel->setPixmap(target);
 }
 

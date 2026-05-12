@@ -1,4 +1,5 @@
 #include "scheduletemplatedialog.h"
+#include "../utils/imageutils.h"
 #include "scheduledatamanager.h"
 #include "staffdatamanager.h"
 #include "custommessagedialog.h"
@@ -74,7 +75,8 @@ void ScheduleTemplateDialog::setupUI()
         QLabel *avatar = new QLabel();
         avatar->setFixedSize(44, 44);
         avatar->setStyleSheet("border: none; background: transparent;");
-        QPixmap pix = staff.imgPath.isEmpty() ? QPixmap(staff.gender == "女" ? ":/images/female.png" : ":/images/male.png") : QPixmap(staff.imgPath);
+        QPixmap srcPix = ImageUtils::loadPixmap(staff.imgPath);
+        QPixmap pix = (staff.imgPath.isEmpty() || srcPix.isNull()) ? QPixmap(staff.gender == "女" ? ":/images/female.png" : ":/images/male.png") : srcPix;
         avatar->setPixmap(createCircularAvatar(pix, 44));
         
         QVBoxLayout *textL = new QVBoxLayout();
@@ -203,6 +205,10 @@ QPixmap ScheduleTemplateDialog::createCircularAvatar(const QPixmap &src, int siz
     QPainterPath path;
     path.addEllipse(0, 0, size, size);
     painter.setClipPath(path);
-    painter.drawPixmap(0, 0, size, size, src.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    
+    QPixmap scaled = src.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    int x = (size - scaled.width()) / 2;
+    int y = (size - scaled.height()) / 2;
+    painter.drawPixmap(x, y, scaled);
     return target;
 }

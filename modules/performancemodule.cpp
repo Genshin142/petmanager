@@ -4,6 +4,7 @@
 #include "common_types.h"
 #include "custom_calendar_edit.h"
 #include "custommessagedialog.h"
+#include "../utils/imageutils.h"
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -89,6 +90,9 @@ PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent)
     if (m_perfTable->rowCount() > 0) {
         m_perfTable->selectRow(0);
     }
+
+    // 触发初始数据请求
+    onFilterChanged();
 
     connect(SalaryDataManager::instance(), &SalaryDataManager::performanceDataChanged, this, &PerformanceModule::refreshData);
 }
@@ -370,8 +374,24 @@ void PerformanceModule::setupUI()
                 // 更新员工头部
                 m_detailHeaderAvatar->setText(r.employeeName.left(1));
                 m_detailHeaderName->setText(r.employeeName);
-                m_detailHeaderEmpId->setText("ID: " + r.employeeId);
-                EmployeeInfo emp = StaffDataManager::instance()->getStaff(r.employeeId);
+                
+                // 格式化 ID 以匹配 StaffDataManager 的格式 (E00X)
+                QString staffKey = QString("E%1").arg(r.employeeId.toInt(), 3, 10, QChar('0'));
+                EmployeeInfo emp = StaffDataManager::instance()->getStaff(staffKey);
+                
+                m_detailHeaderEmpId->setText("ID: " + emp.id); // 显示工号而不是纯数字
+                m_currentStaffImgPath = emp.imgPath; // 存储当前路径用于点击放大
+                
+                // 加载真实头像
+                if (!emp.imgPath.isEmpty()) {
+                    QPixmap pix = ImageUtils::loadPixmap(emp.imgPath);
+                    m_detailHeaderAvatar->setPixmap(ImageUtils::getCircularPixmap(pix, 60));
+                    m_detailHeaderAvatar->setText("");
+                } else {
+                    m_detailHeaderAvatar->setPixmap(QPixmap());
+                    m_detailHeaderAvatar->setText(r.employeeName.left(1));
+                }
+                
                 m_detailHeaderRole->setText(emp.role.isEmpty() ? "普通员工" : emp.role);
 
                 m_detailOrderIdVal->setText(r.orderId);
@@ -382,7 +402,7 @@ void PerformanceModule::setupUI()
                 m_detailActualPaidVal->setText(QString("¥%1").arg(r.finalAmount, 0, 'f', 2));
                 
                 if (r.commissionType == "固定提成") {
-                    m_detailCommFormulaVal->setText(QString("固定标准 = ¥%1").arg(r.commission, 0, 'f', 2));
+                    m_detailCommFormulaVal->setText(QString("固定提成 = ¥%1").arg(r.commission, 0, 'f', 2));
                 } else {
                     m_detailCommFormulaVal->setText(QString("¥%1 × %2% = ¥%3")
                                                     .arg(r.finalAmount, 0, 'f', 2)
@@ -473,13 +493,14 @@ void PerformanceModule::updateTable()
         };
 
         // 获取员工岗位信息
-        EmployeeInfo staff = StaffDataManager::instance()->getStaff(r.employeeId);
+        QString staffKey = QString("E%1").arg(r.employeeId.toInt(), 3, 10, QChar('0'));
+        EmployeeInfo staff = StaffDataManager::instance()->getStaff(staffKey);
 
         QTableWidgetItem *dateItem = createItem(r.serviceDate);
         dateItem->setData(Qt::UserRole, r.id);
         m_perfTable->setItem(row, 0, dateItem);
         m_perfTable->setItem(row, 1, createItem(r.employeeName));
-        m_perfTable->setItem(row, 2, createItem(r.employeeId)); // 工号
+        m_perfTable->setItem(row, 2, createItem(staff.id)); // 工号
         m_perfTable->setItem(row, 3, createItem(staff.role.isEmpty() ? "普通员工" : staff.role)); // 岗位/角色
         m_perfTable->setItem(row, 4, createItem(r.serviceName));
         m_perfTable->setItem(row, 5, createItem(QString("¥%1").arg(r.orderAmount, 0, 'f', 2)));
@@ -562,7 +583,7 @@ void PerformanceModule::showBigImage(const QString &path, const QString &text)
     
     QPixmap pix;
     if (!path.isEmpty()) {
-        pix.load(path);
+        pix = ImageUtils::loadPixmap(path);
     } else if (!text.isEmpty()) {
         pix = QPixmap(400, 400);
         pix.fill(Qt::transparent);
@@ -602,7 +623,7 @@ bool PerformanceModule::eventFilter(QObject *watched, QEvent *event)
         // 1. 点击头像放大
         if (watched == m_detailHeaderAvatar) {
             if (m_detailHeaderName->text() == "-") return true;
-            showBigImage("", m_detailHeaderAvatar->text());
+            showBigImage(m_currentStaffImgPath, m_detailHeaderAvatar->text());
             return true;
         }
         

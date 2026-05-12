@@ -109,6 +109,8 @@ void SalaryDataManager::requestSalaries(const QString &month) {
 }
 
 void SalaryDataManager::onPacketReceived(const Protocol::NetPacket &packet) {
+    qDebug() << "[SALARY_DM] Received Packet, CMD:" << packet.cmdId;
+    
     if (packet.cmdId == Protocol::CMD_GET_PERFORMANCE_LIST) {
         QJsonObject root = packet.jsonObj;
         if (root["status"].toInt() == Protocol::STATUS_OK) {

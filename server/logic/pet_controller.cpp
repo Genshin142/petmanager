@@ -16,6 +16,12 @@ PetController::PetController(ServerCore* core, QObject* parent)
     m_core->registerHandler(Protocol::CMD_UPDATE_PET, [this](ClientHandler* client, const QJsonObject& data) {
         handleUpdatePet(client, data);
     });
+    m_core->registerHandler(Protocol::CMD_GET_VACCINES, [this](ClientHandler* client, const QJsonObject& data) {
+        handleGetVaccines(client, data);
+    });
+    m_core->registerHandler(Protocol::CMD_UPDATE_VACCINES, [this](ClientHandler* client, const QJsonObject& data) {
+        handleUpdateVaccines(client, data);
+    });
 }
 
 void PetController::handleUpdatePet(ClientHandler* client, const QJsonObject& data) {
@@ -127,4 +133,83 @@ void PetController::handleGetRoomList(ClientHandler* client, const QJsonObject& 
     }
 
     client->sendPacket(Protocol::CMD_GET_ROOM_LIST, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleGetVaccines(ClientHandler* client, const QJsonObject& data) {
+    int petId = data["pet_id"].toInt();
+    LOG_I("[VACCINE] Fetching vaccine records for pet_id: " << petId);
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    query.prepare("SELECT vaccine_type, DATE_FORMAT(vaccine_date, '%Y-%m-%d') as v_date, "
+                  "DATE_FORMAT(expiry_date, '%Y-%m-%d') as e_date "
+                  "FROM pet_vaccine_records WHERE pet_id = ? ORDER BY vaccine_date DESC");
+    query.addBindValue(petId);
+
+    QJsonObject response;
+    QJsonArray records;
+
+    if (query.exec()) {
+        while (query.next()) {
+            QJsonObject item;
+            item["type"] = query.value("vaccine_type").toString();
+            item["date"] = query.value("v_date").toString();
+            item["expiry"] = query.value("e_date").toString();
+            records.append(item);
+        }
+        response["status"] = Protocol::STATUS_OK;
+        response["data"] = records;
+        response["pet_id"] = petId;
+        LOG_I("[VACCINE] Pet ID " << petId << " found " << records.size() << " records.");
+    } else {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+        LOG_E("[VACCINE] Database error for pet_id " << petId << ": " << query.lastError().text().toStdString());
+    }
+
+    client->sendPacket(Protocol::CMD_GET_VACCINES, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+
+void PetController::handleUpdateVaccines(ClientHandler* client, const QJsonObject& data) {
+    int petId = data["pet_id"].toInt();
+    QJsonArray records = data["records"].toArray();
+    LOG_I("[VACCINE] Updating vaccine records for pet_id: " << petId << ", count: " << records.size());
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    db.transaction();
+    QSqlQuery query(db);
+
+    // 1. 先删除旧记录
+    query.prepare("DELETE FROM pet_vaccine_records WHERE pet_id = ?");
+    query.addBindValue(petId);
+    
+    if (!query.exec()) {
+        db.rollback();
+        QJsonObject res; res["status"] = Protocol::STATUS_ERROR; res["message"] = query.lastError().text();
+        client->sendPacket(Protocol::CMD_UPDATE_VACCINES, QJsonDocument(res).toJson(QJsonDocument::Compact));
+        return;
+    }
+
+    // 2. 插入新记录
+    for (int i = 0; i < records.size(); ++i) {
+        QJsonObject obj = records[i].toObject();
+        query.prepare("INSERT INTO pet_vaccine_records (pet_id, vaccine_type, vaccine_date, expiry_date) VALUES (?, ?, ?, ?)");
+        query.addBindValue(petId);
+        query.addBindValue(obj["type"].toString());
+        query.addBindValue(obj["date"].toString());
+        query.addBindValue(obj["expiry"].toString());
+        if (!query.exec()) {
+            db.rollback();
+            QJsonObject res; res["status"] = Protocol::STATUS_ERROR; res["message"] = query.lastError().text();
+            client->sendPacket(Protocol::CMD_UPDATE_VACCINES, QJsonDocument(res).toJson(QJsonDocument::Compact));
+            return;
+        }
+    }
+
+    db.commit();
+    QJsonObject response;
+    response["status"] = Protocol::STATUS_OK;
+    response["pet_id"] = petId;
+    client->sendPacket(Protocol::CMD_UPDATE_VACCINES, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }

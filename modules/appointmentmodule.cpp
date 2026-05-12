@@ -6,6 +6,7 @@
 #include "fostermodule.h"
 #include "logisticsmanager.h"
 #include "custommessagedialog.h"
+#include "../utils/imageutils.h"
 #include <QFileDialog>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -382,7 +383,9 @@ void AppointmentModule::renderGrid()
             slotCard->setObjectName("slotCard");
             slotCard->setStyleSheet("#slotCard { background: white; border-radius: 8px; border: 1px solid #ebeef5; }");
             QVBoxLayout *sl = new QVBoxLayout(slotCard);
-            sl->setContentsMargins(0, 0, 0, 0); sl->setSpacing(0);
+            sl->setContentsMargins(0, 0, 0, 0); 
+            sl->setSpacing(0); // 头部与主体紧贴，内部由 body 负责边距
+            slotCard->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
 
             // Header
             QFrame *header = new QFrame();
@@ -406,9 +409,12 @@ void AppointmentModule::renderGrid()
 
             // Body
             QWidget *body = new QWidget();
+            body->setObjectName("slotBody");
             QVBoxLayout *bl = new QVBoxLayout(body);
-            bl->setContentsMargins(0, 0, 0, 0); bl->setSpacing(0);
-            body->setMinimumHeight(64);
+            bl->setContentsMargins(10, 8, 10, 8); // 稍微紧凑一点，对标物流中心
+            bl->setSpacing(8); 
+            body->setMinimumHeight(64); // 深度对标车辆调度中心的卡片高度
+            body->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
             
             if (slotTasks.isEmpty()) {
                 QLabel *empty = new QLabel("暂无预约");
@@ -422,7 +428,8 @@ void AppointmentModule::renderGrid()
 
                     QFrame *taskBtn = new QFrame();
                     taskBtn->setObjectName("taskBtn");
-                    taskBtn->setFixedHeight(64);
+                    taskBtn->setMinimumHeight(76); // 改用最小高度，允许内容扩展
+                    taskBtn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed); // 宽度跟随，高度固定在 76 或更多
                     taskBtn->setCursor(Qt::PointingHandCursor);
                     
                     // ═══ 超时判定逻辑 (使用统一 helper) ═══
@@ -450,8 +457,9 @@ void AppointmentModule::renderGrid()
                     tl->setContentsMargins(12, 8, 12, 8);
                     tl->setSpacing(12);
 
-                    // 宠物头像
-                    QPixmap pixmap(task.petAvatar.isEmpty() ? ":/images/load_img.jpg" : task.petAvatar);
+                    // 宠物头像 (修复: 使用 ImageUtils 支持 Base64 加载)
+                    QPixmap pixmap = ImageUtils::loadPixmap(task.petAvatar);
+                    if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
                     QSize avatarSize(40, 40);
                     QPixmap target(avatarSize);
                     target.fill(Qt::transparent);
@@ -539,10 +547,7 @@ void AppointmentModule::renderGrid()
                     bl->addWidget(taskBtn);
 
                     if (i < slotTasks.size() - 1) {
-                        QFrame *line = new QFrame();
-                        line->setFixedHeight(1);
-                        line->setStyleSheet("background: #f0f2f5; margin-left: 10px; margin-right: 10px;");
-                        bl->addWidget(line);
+                        // 移除手动绘制的细线，改用布局 Spacing 自动间隔，效果更透气
                     }
                 }
             }

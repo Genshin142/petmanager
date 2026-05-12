@@ -83,8 +83,8 @@ void OrderController::handleGetOrderList(ClientHandler *client, const QJsonObjec
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
     
-    // 这里可以根据时间范围过滤，目前先取最近 100 条
-    query.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 100");
+    // 这里可以根据时间范围过滤，目前先取最近 1000 条以支持报表统计
+    query.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 1000");
     
     QJsonObject response;
     QJsonArray orderList;

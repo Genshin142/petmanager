@@ -1,4 +1,5 @@
 #include "logisticsmodule.h"
+#include "../utils/imageutils.h"
 #include "logisticsmanager.h"
 #include "petdatamanager.h"
 #include "custommessagedialog.h"
@@ -48,7 +49,7 @@ protected:
     }
 private:
     void showBigImage(const QString& path) {
-        QPixmap pix(path);
+        QPixmap pix = ImageUtils::loadPixmap(path);
         if (pix.isNull()) pix.load(":/images/load_img.jpg");
         
         QPixmap whiteBg(pix.size());
@@ -494,8 +495,8 @@ void LogisticsModule::onDateChanged(const QDate &date)
                     QLabel *avatarLbl = new QLabel();
                     avatarLbl->setFixedSize(40, 40);
                     
-                    QPixmap pix(pet.avatarPath);
-                    if (pix.isNull()) pix.load(":/images/load_img.jpg");
+                    QPixmap srcPix = ImageUtils::loadPixmap(pet.avatarPath);
+                    if (srcPix.isNull()) srcPix.load(":/images/load_img.jpg");
                     QPixmap target(40, 40);
                     target.fill(Qt::transparent);
                     QPainter p(&target);
@@ -504,7 +505,11 @@ void LogisticsModule::onDateChanged(const QDate &date)
                     QPainterPath path;
                     path.addEllipse(1, 1, 38, 38);
                     p.setClipPath(path);
-                    p.drawPixmap(1, 1, 38, 38, pix.scaled(38, 38, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                    
+                    QPixmap scaled = srcPix.scaled(38, 38, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                    int x = (40 - scaled.width()) / 2;
+                    int y = (40 - scaled.height()) / 2;
+                    p.drawPixmap(x, y, scaled);
                     
                     p.setClipping(false);
                     QPen pen(QColor("#ebeef5"), 1);
@@ -512,6 +517,7 @@ void LogisticsModule::onDateChanged(const QDate &date)
                     p.drawEllipse(1, 1, 38, 38);
                     
                     avatarLbl->setPixmap(target);
+                    avatarLbl->setProperty("avatarPath", pet.avatarPath); // 确保点击放大有效
                     avatarLbl->setCursor(Qt::PointingHandCursor);
                     avatarLbl->setProperty("avatarPath", pet.avatarPath);
                     avatarLbl->installEventFilter(this);
@@ -639,7 +645,7 @@ void LogisticsModule::onDatePickerClicked()
 void LogisticsModule::showBigImage(const QString &path)
 {
     if (path.isEmpty()) return;
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (pix.isNull()) pix.load(":/images/load_img.jpg");
 
     QDialog *preview = new QDialog(this, Qt::FramelessWindowHint);
@@ -959,7 +965,7 @@ void LogisticsModule::showCreateTaskDialog(const QString &editTaskId)
         
         // Update Avatar
         *currentAvatarPath = info.avatarPath;
-        QPixmap pixmap(info.avatarPath);
+        QPixmap pixmap = ImageUtils::loadPixmap(info.avatarPath);
         if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
         QSize size(110, 110);
         QPixmap target(size);
@@ -1058,10 +1064,21 @@ void LogisticsModule::showCreateTaskDialog(const QString &editTaskId)
         }
 
         QString petId = petCombo->currentData().toString();
-        QString type = typeCombo->currentText();
-        QString addr = addrEdit->text();
         QString goDate = dateCombo->date().toString("yyyy-MM-dd");
         QString goTime = goDate + " " + timeSlotCombo->currentText();
+
+        // --- 冲突检测逻辑 (本地检测) ---
+        auto allTasks = LogisticsManager::instance()->getAllTasks();
+        for (const auto& t : allTasks) {
+            if (t.petId == petId && t.appointmentTime == goTime && t.taskId != editTaskId) {
+                CustomMessageDialog::showWarning(&dialog, "任务冲突", 
+                    QString("宠物【%1】在 %2 已有接送安排，请避开此时段。").arg(petCombo->currentText(), goTime));
+                return;
+            }
+        }
+
+        QString type = typeCombo->currentText();
+        QString addr = addrEdit->text();
 
         if (isEdit) {
             LogisticsTask task = editTask;
@@ -1092,6 +1109,15 @@ void LogisticsModule::showCreateTaskDialog(const QString &editTaskId)
             QString retTime = retDate + " " + returnTimeSlotCombo->currentText();
             QString retAddr = returnAddrEdit->text().trimmed();
             if (retAddr.isEmpty()) retAddr = addr;
+
+            // --- 往返冲突检测 (回程本地检测) ---
+            for (const auto& t : allTasks) {
+                if (t.petId == petId && t.appointmentTime == retTime) {
+                    CustomMessageDialog::showWarning(&dialog, "回程任务冲突", 
+                        QString("宠物【%1】在回程时段 %2 已有其他安排。").arg(petCombo->currentText(), retTime));
+                    return;
+                }
+            }
 
             LogisticsTask taskRet;
             taskRet.taskId = "T" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);

@@ -1,4 +1,5 @@
 #include "petrecorddrawer.h"
+#include "../utils/imageutils.h"
 #include "petmodule.h"
 #include "fostermodule.h"
 #include "petdatamanager.h"
@@ -204,19 +205,25 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     }
     
     // 头像处理
-    QPixmap pixmap(info.avatarPath);
-    if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
+    QPixmap srcPix = ImageUtils::loadPixmap(info.avatarPath);
+    if (srcPix.isNull()) srcPix.load(":/images/load_img.jpg");
+    
     QSize size(100, 100);
     QPixmap target(size);
     target.fill(Qt::transparent);
     QPainter p(&target);
     p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
     QPainterPath path;
-    // 留出 1px 边距防止裁切边缘被截断
     path.addEllipse(1, 1, size.width() - 2, size.height() - 2);
     p.setClipPath(path);
-    p.drawPixmap(0, 0, pixmap.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    
+    QPixmap scaled = srcPix.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    int x = (size.width() - scaled.width()) / 2;
+    int y = (size.height() - scaled.height()) / 2;
+    p.drawPixmap(x, y, scaled);
     m_avatarLabel->setPixmap(target);
+    m_avatarLabel->setProperty("avatarPath", info.avatarPath); // 确保点击放大有效
 
     // --- Tab 1: 档案页更新 ---
     m_valGender->setText(info.gender);

@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QFile>
+#include "../utils/imageutils.h"
 
 PetDataManager* PetDataManager::m_instance = nullptr;
 
@@ -103,8 +104,19 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.species = obj["species"].toString();
                     info.breed = obj["breed"].toString();
                     info.gender = obj["gender"].toString();
-                    info.age = QString("%1个月").arg(obj["age_months"].toInt());
-                    info.weight = obj["weight"].toDouble();
+                    int totalMonths = obj["age_months"].toVariant().toInt();
+                    if (totalMonths >= 12) {
+                        int years = totalMonths / 12;
+                        int months = totalMonths % 12;
+                        if (months > 0)
+                            info.age = QString("%1岁%2个月").arg(years).arg(months);
+                        else
+                            info.age = QString("%1岁").arg(years);
+                    } else {
+                        info.age = QString("%1个月").arg(totalMonths);
+                    }
+                    info.weight = obj["weight"].toVariant().toDouble();
+
                     info.health = obj["health_status"].toString();
                     info.medicalHistory = obj["medical_history"].toString();
                     info.vaccine = obj["vaccine_status"].toString();
@@ -123,11 +135,36 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     else info.joinTime = rawTime;
                     
                     m_pets[info.id] = info;
+                    
+                    // 核心逻辑：加载宠物后，自动请求该宠物的疫苗明细
+                    requestVaccines(info.id);
                 }
             }
             
             qDebug() << "[PET] Pet list updated from server. Count: " << m_pets.size();
             emit globalDataChanged();
+        }
+    } else if (packet.cmdId == Protocol::CMD_GET_VACCINES) {
+        QJsonObject root = packet.jsonObj;
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QString petId = QString("P%1").arg(root["pet_id"].toInt(), 5, 10, QChar('0'));
+            QJsonArray data = root["data"].toArray();
+            QList<VaccineRecord> records;
+            for (int i = 0; i < data.size(); ++i) {
+                QJsonObject obj = data[i].toObject();
+                VaccineRecord vr;
+                vr.type = obj["type"].toString();
+                vr.date = obj["date"].toString();
+                vr.expiry = obj["expiry"].toString();
+                records.append(vr);
+            }
+            m_vaccineRecords[petId] = records;
+            emit petDataChanged(petId);
+            qDebug() << "[VACCINE] Loaded" << records.size() << "records for pet:" << petId;
+        }
+    } else if (packet.cmdId == Protocol::CMD_UPDATE_VACCINES) {
+        if (packet.jsonObj["status"].toInt() == Protocol::STATUS_OK) {
+            qDebug() << "[VACCINE] Records saved successfully to server.";
         }
     } else if (packet.cmdId == Protocol::CMD_GET_ROOM_LIST) {
         QJsonDocument doc = QJsonDocument::fromJson(packet.data);
@@ -392,6 +429,27 @@ void PetDataManager::updateVaccines(const QString &petId, const QList<VaccineRec
 {
     m_vaccineRecords[petId] = records;
     emit petDataChanged(petId);
+
+    // 发送网络请求更新数据库
+    QJsonObject body;
+    body["pet_id"] = petId.mid(1).toInt();
+    QJsonArray arr;
+    for (const auto &vr : records) {
+        QJsonObject obj;
+        obj["type"] = vr.type;
+        obj["date"] = vr.date;
+        obj["expiry"] = vr.expiry;
+        arr.append(obj);
+    }
+    body["records"] = arr;
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_VACCINES, body);
+}
+
+void PetDataManager::requestVaccines(const QString &petId)
+{
+    QJsonObject body;
+    body["pet_id"] = petId.mid(1).toInt();
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_VACCINES, body);
 }
 
 QList<VaccineRecord> PetDataManager::getVaccines(const QString &petId) const
@@ -908,11 +966,15 @@ QPixmap PetDataManager::getPetPixmap(const QString &id) const
     }
 
     PetInfo info = getPet(id);
-    if (info.imgData.isEmpty()) return QPixmap();
+    
+    // 优先使用 imgData，其次尝试 avatarPath（数据库 avatar_path 列可能存储 base64 / Data URI）
+    QString source = info.imgData;
+    if (source.isEmpty()) source = info.avatarPath;
+    if (source.isEmpty()) return QPixmap();
 
-    QPixmap pix;
-    QByteArray ba = QByteArray::fromBase64(info.imgData.toUtf8());
-    if (pix.loadFromData(ba)) {
+    // 使用 ImageUtils 统一处理 Data URI、纯 base64、文件路径等所有格式
+    QPixmap pix = ImageUtils::loadPixmap(source);
+    if (!pix.isNull()) {
         m_pixmapCache.insert(id, new QPixmap(pix));
         const_cast<PetDataManager*>(this)->saveToLocalCache(id, pix);
     }

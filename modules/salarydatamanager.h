@@ -7,6 +7,10 @@
 #include <QRecursiveMutex>
 #include "../common_types.h"
 
+namespace Protocol {
+    struct NetPacket;
+}
+
 class SalaryDataManager : public QObject
 {
     Q_OBJECT
@@ -46,8 +50,9 @@ private:
     void initMockData();
 
 private slots:
-    void onPacketReceived(const class Protocol::NetPacket &packet);
+    void onPacketReceived(const Protocol::NetPacket &packet);
 
+private:
     static SalaryDataManager *m_instance;
     
     QMap<QString, SalaryInfo> m_salaries; // Key: SalaryId

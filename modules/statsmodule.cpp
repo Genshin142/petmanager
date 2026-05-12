@@ -1879,6 +1879,7 @@ void StatsModule::updateTopCharts() {
         series->setHoleSize(0.4); 
         series->setPieSize(0.7); 
         for (int i = 0; i < names.size(); ++i) {
+            if (vals[i] <= 0) continue;
             QPieSlice *slice = series->append(names[i], vals[i]);
             slice->setBrush(colors[i]);
             slice->setLabelVisible(true);
@@ -1891,30 +1892,55 @@ void StatsModule::updateTopCharts() {
             slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
         }
         chart->addSeries(series);
-        chart->setMargins(QMargins(0, 0, 0, 0)); // 移除图表内部边距
+        chart->setMargins(QMargins(0, 0, 0, 0)); 
         chart->legend()->hide();
         view->setChart(chart);
     };
 
-    updatePie(m_serviceHeatmapChart, 
-        {"洗护", "寄养", "医疗", "其他"}, 
-        {55.0, 25.0, 15.0, 5.0}, 
-        {QColor("#3b82f6"), QColor("#10b981"), QColor("#f59e0b"), QColor("#94a3b8")});
+    // 获取所有支付成功的订单进行统计
+    auto allOrders = PetDataManager::instance()->getOrders(QDate(2000,1,1), QDate(2099,12,31));
+    
+    // 1. 营收项目构成
+    QMap<QString, double> finComp;
+    finComp["商品营收"] = 0; finComp["服务营收"] = 0; finComp["寄养营收"] = 0; finComp["接送营收"] = 0;
+    
+    // 2. 支付渠道分布
+    QMap<QString, double> payComp;
+    payComp["Wechat"] = 0; payComp["Alipay"] = 0; payComp["MemberCard"] = 0; payComp["Cash"] = 0;
 
+    for (const auto &o : allOrders) {
+        if (o.status != "Paid") continue;
+        
+        // 营收分类
+        if (o.sourceModule == "Product") finComp["商品营收"] += o.finalAmount;
+        else if (o.sourceModule == "Service") finComp["服务营收"] += o.finalAmount;
+        else if (o.sourceModule == "Foster") finComp["寄养营收"] += o.finalAmount;
+        else if (o.sourceModule == "Logistics") finComp["接送营收"] += o.finalAmount;
+        
+        // 支付分类
+        if (payComp.contains(o.payMethod)) payComp[o.payMethod] += o.finalAmount;
+    }
+
+    updatePie(m_finCompChart,
+        {"商品营收", "服务营收", "寄养营收", "接送营收"},
+        {finComp["商品营收"], finComp["服务营收"], finComp["寄养营收"], finComp["接送营收"]},
+        {QColor("#3b82f6"), QColor("#8b5cf6"), QColor("#10b981"), QColor("#f59e0b")});
+
+    updatePie(m_finPayChart,
+        {"微信支付", "支付宝", "会员卡", "现金"},
+        {payComp["Wechat"], payComp["Alipay"], payComp["MemberCard"], payComp["Cash"]},
+        {QColor("#22c55e"), QColor("#3b82f6"), QColor("#f59e0b"), QColor("#94a3b8")});
+
+    // 产品和服务类目分布 (目前也从订单中推测，或者保持简单的固定展示，后续可深度挖掘 itemDetails)
     updatePie(m_productCategoryChart, 
         {"主粮", "零食", "用品", "玩具"}, 
         {45.0, 30.0, 15.0, 10.0}, 
         {QColor("#8b5cf6"), QColor("#ec4899"), QColor("#06b6d4"), QColor("#64748b")});
 
-    updatePie(m_finCompChart,
-        {"洗护营收", "商品营收", "寄养营收", "会员充值", "其他"},
-        {40.0, 30.0, 15.0, 10.0, 5.0},
-        {QColor("#3b82f6"), QColor("#8b5cf6"), QColor("#10b981"), QColor("#f59e0b"), QColor("#94a3b8")});
-
-    updatePie(m_finPayChart,
-        {"微信支付", "支付宝", "会员卡", "现金"},
-        {50.0, 30.0, 15.0, 5.0},
-        {QColor("#22c55e"), QColor("#3b82f6"), QColor("#f59e0b"), QColor("#94a3b8")});
+    updatePie(m_serviceHeatmapChart, 
+        {"洗护", "寄养", "医疗", "其他"}, 
+        {55.0, 25.0, 15.0, 5.0}, 
+        {QColor("#3b82f6"), QColor("#10b981"), QColor("#f59e0b"), QColor("#94a3b8")});
 }
 
 void StatsModule::updateCards() {
@@ -2160,14 +2186,7 @@ void StatsModule::updateDailyRevTable() {
             count++;
         }
         
-        // 补偿模拟数据，确保演示效果
-        if (total < 100) { 
-            svc = QRandomGenerator::global()->bounded(1000, 5000);
-            prod = QRandomGenerator::global()->bounded(500, 3000);
-            foster = QRandomGenerator::global()->bounded(300, 2000);
-            total = svc + prod + foster;
-            count = QRandomGenerator::global()->bounded(10, 50);
-        }
+        // 移除模拟数据补偿，仅显示真实数据
         double avg = count > 0 ? total / count : 0;
         m_allDailyRevData.append({label, total, svc, prod, foster, count, avg});
     };

@@ -1,4 +1,5 @@
 #include "memberdetaildrawer.h"
+#include "../utils/imageutils.h"
 #include <QPainter>
 #include <QDate>
 #include <QRandomGenerator>
@@ -104,7 +105,7 @@ void MemberDetailDrawer::setupUI()
     m_statusLabel->setStyleSheet("QLabel#StatusBadge { background: #eff6ff; color: #3b82f6; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #dbeafe; }");
     badgeLayout->addWidget(m_statusLabel);
     
-    m_petCountLabel = new QLabel("宠物资产: 0");
+    m_petCountLabel = new QLabel("宠物数量: 0");
     m_petCountLabel->setObjectName("PetBadge");
     m_petCountLabel->setStyleSheet("QLabel#PetBadge { background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #ffedd5; }");
     badgeLayout->addWidget(m_petCountLabel);
@@ -394,13 +395,13 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
     m_statusLabel->setText(info.status);
     if (m_valStatus) m_valStatus->setText(info.status);
     
-    // 统计宠物数量并更新标签
-    QStringList petList = pets.split("/", Qt::SkipEmptyParts);
+    // 统计宠物数量并更新标签（从 PetDataManager 动态获取最新数据）
     int count = 0;
-    for(const QString &p : petList) {
-        if(!p.trimmed().isEmpty() && p.trimmed() != "暂无") count++;
+    QList<PetInfo> allPets = PetDataManager::instance()->allPets();
+    for(const auto &pet : allPets) {
+        if (pet.ownerId == info.id) count++;
     }
-    m_petCountLabel->setText(QString("宠物资产: %1").arg(count));
+    m_petCountLabel->setText(QString("宠物数量: %1").arg(count));
     // 如果没有宠物，使用中性色；有宠物使用温暖的橙色
     if(count == 0) {
         m_petCountLabel->setStyleSheet("QLabel#PetBadge { background: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #f1f5f9; }");
@@ -475,18 +476,23 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             pAvatar->setStyleSheet("border: none; background: transparent;");
             pAvatar->installEventFilter(this);
             
-            QPixmap pix(pInfo.avatarPath);
-            if (pix.isNull()) pix.load(":/images/load_img.jpg");
+            QPixmap srcPix = ImageUtils::loadPixmap(pInfo.avatarPath);
+            if (srcPix.isNull()) srcPix.load(":/images/load_img.jpg");
             
             QSize size(54, 54);
             QPixmap target(size);
             target.fill(Qt::transparent);
             QPainter painter(&target);
             painter.setRenderHint(QPainter::Antialiasing);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform);
             QPainterPath path;
             path.addEllipse(0, 0, size.width(), size.height());
             painter.setClipPath(path);
-            painter.drawPixmap(0, 0, size.width(), size.height(), pix.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            
+            QPixmap scaled = srcPix.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            int x = (size.width() - scaled.width()) / 2;
+            int y = (size.height() - scaled.height()) / 2;
+            painter.drawPixmap(x, y, scaled);
             pAvatar->setPixmap(target);
             
             // B. 信息列
@@ -580,7 +586,7 @@ void MemberDetailDrawer::showBigImage(const QString &path)
     if (!m_imagePreviewOverlay || !m_previewLabel) return;
     
     m_currentPreviewPath = path;
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (!pix.isNull()) {
         m_previewLabel->setPixmap(pix.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         QWidget *win = this->window();

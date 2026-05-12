@@ -1,6 +1,7 @@
 #include "logisticsdetaildrawer.h"
 #include "petdatamanager.h"
 #include "logisticsmanager.h"
+#include "../utils/imageutils.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QScrollArea>
@@ -177,7 +178,7 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
 
     // Update Avatar
     m_currentAvatarPath = pet.avatarPath;
-    QPixmap pixmap(pet.avatarPath);
+    QPixmap pixmap = ImageUtils::loadPixmap(pet.avatarPath);
     if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
     QSize size(100, 100);
     QPixmap target(size);

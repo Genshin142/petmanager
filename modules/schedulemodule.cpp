@@ -1,4 +1,5 @@
 #include "schedulemodule.h"
+#include "../utils/imageutils.h"
 #include "modules/scheduledatamanager.h"
 #include "modules/staffdatamanager.h"
 #include "modules/custommessagedialog.h"
@@ -158,7 +159,7 @@ bool ScheduleModule::eventFilter(QObject *watched, QEvent *event) {
 void ScheduleModule::showBigImage(const QString &path)
 {
     if (path.isEmpty()) return;
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (pix.isNull()) return;
     
     m_imagePreviewOverlay->setGeometry(rect());
@@ -180,7 +181,11 @@ QPixmap ScheduleModule::createCircularAvatar(const QPixmap &src, int size)
     QPainterPath path;
     path.addEllipse(0, 0, size, size);
     painter.setClipPath(path);
-    painter.drawPixmap(0, 0, size, size, src.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    
+    QPixmap scaled = src.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    int x = (size - scaled.width()) / 2;
+    int y = (size - scaled.height()) / 2;
+    painter.drawPixmap(x, y, scaled);
     return target;
 }
 
@@ -223,7 +228,8 @@ void ScheduleModule::updateTable()
         avatar->setStyleSheet("border: none; background: transparent;"); // 移除可能存在的背景/边框
         
         // 设置头像并安装预览过滤器
-        QPixmap pix = staff.imgPath.isEmpty() ? QPixmap(staff.gender == "女" ? ":/images/female.png" : ":/images/male.png") : QPixmap(staff.imgPath);
+        QPixmap srcPix = ImageUtils::loadPixmap(staff.imgPath);
+        QPixmap pix = (staff.imgPath.isEmpty() || srcPix.isNull()) ? QPixmap(staff.gender == "女" ? ":/images/female.png" : ":/images/male.png") : srcPix;
         avatar->setPixmap(createCircularAvatar(pix, 44));
         avatar->setProperty("imgPath", staff.imgPath.isEmpty() ? (staff.gender == "女" ? ":/images/female.png" : ":/images/male.png") : staff.imgPath);
         avatar->installEventFilter(this);

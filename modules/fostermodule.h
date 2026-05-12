@@ -17,6 +17,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QComboBox>
 #include <QTextEdit>
+#include <QTimer>
 #include "../common_types.h"
 
 class QPropertyAnimation;
@@ -379,6 +380,7 @@ private:
     // 大图预览组件
     QWidget *m_imagePreviewOverlay = nullptr;
     QLabel *m_previewLabel = nullptr;
+    QTimer *m_refreshDebounce = nullptr;
 };
 
 #endif

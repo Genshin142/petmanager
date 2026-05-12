@@ -77,6 +77,7 @@ private:
 
     QString m_currentEmployeeId;
     QString m_currentRecordId; // 当前选中的记录 ID
+    QString m_currentStaffImgPath; // 当前头像路径
 };
 
 #endif // PERFORMANCEMODULE_H

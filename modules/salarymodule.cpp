@@ -3,6 +3,7 @@
 #include "staffdatamanager.h"
 #include "common_types.h"
 #include "custommessagedialog.h"
+#include "../utils/imageutils.h"
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -89,6 +90,9 @@ SalaryModule::SalaryModule(QWidget *parent) : QWidget(parent)
     if (m_salaryTable->rowCount() > 0) {
         m_salaryTable->selectRow(0);
     }
+
+    // 触发初始月份数据请求
+    onMonthChanged(0);
 
     connect(SalaryDataManager::instance(), &SalaryDataManager::salaryDataChanged, this, &SalaryModule::refreshData);
 }
@@ -364,9 +368,23 @@ void SalaryModule::setupUI()
             if (s.id == salaryId) {
                 m_detailAvatar->setText(s.employeeName.left(1));
                 m_detailName->setText(s.employeeName);
-                m_detailEmpId->setText("ID: " + s.employeeId);
+                // 格式化 ID 以匹配 StaffDataManager 的格式 (E00X)
+                QString staffKey = QString("E%1").arg(s.employeeId.toInt(), 3, 10, QChar('0'));
+                EmployeeInfo emp = StaffDataManager::instance()->getStaff(staffKey);
                 
-                EmployeeInfo emp = StaffDataManager::instance()->getStaff(s.employeeId);
+                m_detailEmpId->setText("ID: " + emp.id); // 显示工号
+                m_currentStaffImgPath = emp.imgPath; // 存储当前路径用于点击放大
+                
+                // 加载真实头像
+                if (!emp.imgPath.isEmpty()) {
+                    QPixmap pix = ImageUtils::loadPixmap(emp.imgPath);
+                    m_detailAvatar->setPixmap(ImageUtils::getCircularPixmap(pix, 60));
+                    m_detailAvatar->setText("");
+                } else {
+                    m_detailAvatar->setPixmap(QPixmap());
+                    m_detailAvatar->setText(s.employeeName.left(1));
+                }
+                
                 m_detailRole->setText(emp.role.isEmpty() ? "普通员工" : emp.role);
                 
                 m_detailBaseVal->setText(QString("¥%1").arg(s.baseSalary, 0, 'f', 2));
@@ -474,12 +492,14 @@ void SalaryModule::updateTable()
             return new QTableWidgetItem(text);
         };
 
-        EmployeeInfo emp = StaffDataManager::instance()->getStaff(s.employeeId);
-
         QTableWidgetItem *nameItem = createItem(s.employeeName);
         nameItem->setData(Qt::UserRole, s.id);
         m_salaryTable->setItem(row, 0, nameItem);
-        m_salaryTable->setItem(row, 1, createItem(s.employeeId));
+
+        QString staffKey = QString("E%1").arg(s.employeeId.toInt(), 3, 10, QChar('0'));
+        EmployeeInfo emp = StaffDataManager::instance()->getStaff(staffKey);
+
+        m_salaryTable->setItem(row, 1, createItem(emp.id)); // 工号
         m_salaryTable->setItem(row, 2, createItem(emp.role.isEmpty() ? "普通员工" : emp.role));
         m_salaryTable->setItem(row, 3, createItem(QString("¥%1").arg(s.baseSalary, 0, 'f', 2)));
         m_salaryTable->setItem(row, 4, createItem(QString("¥%1").arg(s.commission, 0, 'f', 2)));
@@ -579,7 +599,7 @@ void SalaryModule::showBigImage(const QString &path, const QString &text)
     
     QPixmap pix;
     if (!path.isEmpty()) {
-        pix.load(path);
+        pix = ImageUtils::loadPixmap(path);
     } else if (!text.isEmpty()) {
         pix = QPixmap(400, 400);
         pix.fill(Qt::transparent);
@@ -619,7 +639,7 @@ bool SalaryModule::eventFilter(QObject *watched, QEvent *event)
         // 1. 点击头像放大
         if (watched == m_detailAvatar) {
             if (m_detailName->text() == "-") return true;
-            showBigImage("", m_detailAvatar->text());
+            showBigImage(m_currentStaffImgPath, m_detailAvatar->text());
             return true;
         }
         

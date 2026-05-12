@@ -446,8 +446,36 @@ void AddAppointmentDialog::accept()
         m_errorLabel->setText("⚠ 请先选择宠物");
         return;
     }
-    
-    for (const auto &row : m_serviceRows) {
+
+    QString petId = m_petCombo->currentData().toString();
+    QString petName = m_petCombo->currentText().split(" (").first();
+    auto existingAppts = PetDataManager::instance()->getAppointments(1, 2000, "").first;
+
+    for (int i = 0; i < m_serviceRows.size(); ++i) {
+        const auto &row = m_serviceRows[i];
+        QString date = qobject_cast<QLineEdit*>(row.dateEdit)->text();
+        QString hour = row.hourCombo->currentText();
+        QString service = row.serviceCombo->currentText();
+        
+        // 1. 检查与数据库中已有预约的冲突
+        for (const auto &existing : existingAppts) {
+            if (existing.petId == petId && existing.date == date && existing.hour == hour && existing.status != "Cancelled") {
+                m_errorLabel->setText(QString("⚠ 冲突：宠物【%1】在 %2 %3 已有预约服务。").arg(petName, date, hour));
+                return;
+            }
+        }
+
+        // 2. 检查本次新增列表内部的冲突 (防止在同一个对话框里加了两个相同时间的)
+        for (int j = 0; j < i; ++j) {
+            QString prevDate = qobject_cast<QLineEdit*>(m_serviceRows[j].dateEdit)->text();
+            QString prevHour = m_serviceRows[j].hourCombo->currentText();
+            if (prevDate == date && prevHour == hour) {
+                m_errorLabel->setText(QString("⚠ 警告：您在本次提交中为相同时段添加了多项服务。"));
+                return;
+            }
+        }
+
+        // 3. 基础校验：洗护/美容等必须选子项
         bool hasSelected = false;
         auto tags = row.tagsContainer->findChildren<QPushButton*>();
         for (auto btn : tags) {
@@ -458,15 +486,14 @@ void AddAppointmentDialog::accept()
         }
         
         QString typeKey = row.serviceCombo->itemData(row.serviceCombo->currentIndex()).toString().split("|").first();
-        // 对于洗护、美容、医疗，强制要求至少选一个子项目
         if ((typeKey == "Grooming" || typeKey == "Beauty" || typeKey == "Medical") && !hasSelected) {
-            m_errorLabel->setText(QString("⚠ 请选择【%1】的具体服务项目").arg(row.serviceCombo->currentText()));
+            m_errorLabel->setText(QString("⚠ 请选择【%1】的具体服务项目").arg(service));
             return;
         }
-    }
+    } // 关闭 for 循环
     
     QDialog::accept();
-}
+} // 关闭 accept 函数
 
 
 

@@ -28,6 +28,8 @@ namespace Protocol {
         CMD_UNSHELVE_PRODUCT = 2011, // 下架商品
         CMD_UPDATE_PET      = 2006,
         CMD_GET_ROOM_LIST   = 2007,
+        CMD_GET_VACCINES    = 2012, // 获取疫苗记录明细
+        CMD_UPDATE_VACCINES = 2013, // 更新疫苗记录明细
 
         // 业务与订单类 (3000-3999)
         CMD_CREATE_ORDER    = 3001,

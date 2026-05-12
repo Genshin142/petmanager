@@ -1,6 +1,7 @@
 #include "appointmentdetaildrawer.h"
 #include "petdatamanager.h"
 #include "staffselectiondialog.h"
+#include "../utils/imageutils.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QScrollArea>
@@ -308,8 +309,8 @@ void AppointmentDetailDrawer::setAppointment(const QString &id)
 
     m_idLabel->setText(QString("ID: %1").arg(m_currentInfo.petId));
     
-    // 头像处理 (同步为 80x80 圆形)
-    QPixmap pixmap(m_currentInfo.petAvatar);
+    // 头像处理 (同步为 80x80 圆形，修复: 使用 ImageUtils 支持 Base64 加载)
+    QPixmap pixmap = ImageUtils::loadPixmap(m_currentInfo.petAvatar);
     if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
     QSize avatarSize(80, 80); // 同步 setupUI 中的尺寸
     QPixmap target(avatarSize);
