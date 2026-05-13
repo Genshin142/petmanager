@@ -19,6 +19,7 @@ public:
     void handleUpdateStaff(ClientHandler* client, const QJsonObject& data);
     void handleDeleteStaff(ClientHandler* client, const QJsonObject& data);
     void handleRestoreStaff(ClientHandler* client, const QJsonObject& data);
+    void handleHardDeleteStaff(ClientHandler* client, const QJsonObject& data);
 
 private:
     ServerCore* m_core;

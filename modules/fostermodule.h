@@ -60,70 +60,13 @@ private:
 };
 
 
-// 巨幕预览：头像放大弹窗
 class AvatarZoomDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit AvatarZoomDialog(const QString &pathOrText, QWidget *parent = nullptr) : QDialog(parent) {
-        setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
-        setAttribute(Qt::WA_TranslucentBackground);
-        setAttribute(Qt::WA_DeleteOnClose);
-        
-        // 核心修复：虽然以当前弹窗为父（保证在最前），但要覆盖整个主界面区域
-        QWidget *root = this;
-        while (root->parentWidget()) root = root->parentWidget();
-        setGeometry(root->geometry());
-        
-        QVBoxLayout *layout = new QVBoxLayout(this);
-        layout->setAlignment(Qt::AlignCenter);
-        
-        QSize appSize = root->size();
-        QSize targetSize = appSize * 0.8;
-        int side = qMin(targetSize.width(), targetSize.height());
-        
-        QLabel *bigAvatar = new QLabel();
-        bigAvatar->setFixedSize(side, side);
-        bigAvatar->setAlignment(Qt::AlignCenter);
-        
-        if (pathOrText.startsWith(":/") || QFile::exists(pathOrText)) {
-            QPixmap pix(pathOrText);
-            if (!pix.isNull()) {
-                QPixmap target(side, side);
-                target.fill(Qt::transparent);
-                QPainter p(&target);
-                p.setRenderHint(QPainter::Antialiasing);
-                QPainterPath path;
-                path.addEllipse(0, 0, side, side);
-                p.setClipPath(path);
-                p.drawPixmap(0, 0, side, side, pix.scaled(side, side, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-                bigAvatar->setPixmap(target);
-            }
-        } else {
-            bigAvatar->setText(pathOrText);
-            bigAvatar->setStyleSheet(
-                QString("font-size: %1px; background: white; border-radius: %2px; "
-                        "border: 4px solid white; color: #409eff;")
-                .arg(side * 0.45).arg(side / 2)
-            );
-        }
-        
-        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
-        shadow->setBlurRadius(50);
-        shadow->setColor(QColor(0, 0, 0, 150));
-        bigAvatar->setGraphicsEffect(shadow);
-        
-        layout->addWidget(bigAvatar);
-        show();
-        raise();
-    }
+    explicit AvatarZoomDialog(const QString &pathOrText, QWidget *parent = nullptr, const QString &petId = QString());
 protected:
-    void paintEvent(QPaintEvent *) override {
-        QPainter p(this);
-        p.fillRect(rect(), QColor(0, 0, 0, 200));
-    }
-    void mousePressEvent(QMouseEvent *) override {
-        close();
-    }
+    void paintEvent(class QPaintEvent *event) override;
+    void mousePressEvent(class QMouseEvent *event) override;
 };
 
 // 全屏图片预览弹窗

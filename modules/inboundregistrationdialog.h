@@ -66,6 +66,7 @@ private:
     QComboBox *m_operatorCombo;
     class CustomCalendarEdit *m_dateEdit;
     QLineEdit *m_shelfLifeEdit;
+    QLineEdit *m_minStockEdit;
     QPushButton *m_confirmBtn;
     bool m_isEditMode = false;
     StockInRecord m_currentRecord;

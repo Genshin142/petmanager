@@ -41,10 +41,6 @@ void StaffDataManager::initMockData()
 
 void StaffDataManager::requestStaffList()
 {
-    if (!m_staff.isEmpty()) {
-        emit staffDataChanged();
-        return;
-    }
     if (m_isLoading) return;
     m_isLoading = true;
     qDebug() << "[STAFF] Requesting staff list from server...";
@@ -96,7 +92,8 @@ void StaffDataManager::onPacketReceived(const Protocol::NetPacket &packet)
     } else if (packet.cmdId == Protocol::CMD_ADD_STAFF || 
                packet.cmdId == Protocol::CMD_UPDATE_STAFF || 
                packet.cmdId == Protocol::CMD_DELETE_STAFF || 
-               packet.cmdId == Protocol::CMD_RESTORE_STAFF) {
+               packet.cmdId == Protocol::CMD_RESTORE_STAFF ||
+               packet.cmdId == Protocol::CMD_HARD_DELETE_STAFF) {
         
         QJsonDocument doc = QJsonDocument::fromJson(packet.data);
         QJsonObject root = doc.object();
@@ -148,7 +145,9 @@ void StaffDataManager::addStaff(const EmployeeInfo &info)
 void StaffDataManager::updateStaff(const EmployeeInfo &info)
 {
     QJsonObject obj;
-    obj["id"] = info.id;
+    // 解析 ID，E001 -> 1
+    int dbId = info.id.startsWith("E") ? info.id.mid(1).toInt() : info.id.toInt();
+    obj["id"] = QString::number(dbId);
     obj["username"] = info.username;
     if (!info.password.isEmpty()) obj["password"] = info.password;
     obj["name"] = info.name;
@@ -174,20 +173,25 @@ void StaffDataManager::updateStaff(const EmployeeInfo &info)
 void StaffDataManager::removeStaff(const QString &id)
 {
     QJsonObject obj;
-    obj["id"] = id;
+    int dbId = id.startsWith("E") ? id.mid(1).toInt() : id.toInt();
+    obj["id"] = QString::number(dbId);
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_STAFF, obj);
 }
 
 void StaffDataManager::restoreStaff(const QString &id)
 {
     QJsonObject obj;
-    obj["id"] = id;
+    int dbId = id.startsWith("E") ? id.mid(1).toInt() : id.toInt();
+    obj["id"] = QString::number(dbId);
     NetworkManager::instance().sendRequest(Protocol::CMD_RESTORE_STAFF, obj);
 }
 
 void StaffDataManager::hardDeleteStaff(const QString &id)
 {
-    removeStaff(id); 
+    QJsonObject obj;
+    int dbId = id.startsWith("E") ? id.mid(1).toInt() : id.toInt();
+    obj["id"] = QString::number(dbId);
+    NetworkManager::instance().sendRequest(Protocol::CMD_HARD_DELETE_STAFF, obj);
 }
 
 QStringList StaffDataManager::activeStaffNames() const

@@ -154,23 +154,38 @@ MemberInfo MemberDataManager::getMember(const QString &id) const
 
 void MemberDataManager::addMember(const MemberInfo &info)
 {
-    m_members[info.id] = info;
-    emit dataChanged();
+    QJsonObject data;
+    data["name"] = info.name;
+    data["phone"] = info.phone;
+    data["gender"] = info.gender;
+    data["birthday"] = info.birthday;
+    data["level"] = info.level;
+    data["balance"] = info.balance;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_ADD_MEMBER, data);
 }
 
 void MemberDataManager::updateMember(const MemberInfo &info)
 {
-    m_members[info.id] = info;
-    emit dataChanged();
+    QJsonObject data;
+    // 解析 ID，M00001 -> 1
+    int dbId = info.id.mid(1).toInt();
+    data["member_id"] = dbId;
+    data["name"] = info.name;
+    data["phone"] = info.phone;
+    data["gender"] = info.gender;
+    data["birthday"] = info.birthday;
+    data["level"] = info.level;
+    data["balance"] = info.balance;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_MEMBER, data);
 }
 
 void MemberDataManager::removeMember(const QString &id)
 {
-    if (m_members.contains(id)) {
-        m_members[id].isActive = false;
-        m_members[id].status = "已注销";
-        emit dataChanged();
-    }
+    QJsonObject data;
+    data["member_id"] = id.mid(1).toInt();
+    NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_MEMBER, data);
 }
 
 void MemberDataManager::restoreMember(const QString &id)

@@ -29,6 +29,7 @@ void MemberController::handleAddMember(ClientHandler *client, const QJsonObject 
     QJsonObject response;
     if (query.exec()) {
         response["status"] = Protocol::STATUS_OK;
+        response["member_id"] = query.lastInsertId().toInt();
         // 广播
         QJsonObject notify;
         notify["module"] = "member";

@@ -14,6 +14,7 @@ StaffController::StaffController(ServerCore* core, QObject* parent)
     m_core->registerHandler(Protocol::CMD_UPDATE_STAFF, std::bind(&StaffController::handleUpdateStaff, this, std::placeholders::_1, std::placeholders::_2));
     m_core->registerHandler(Protocol::CMD_DELETE_STAFF, std::bind(&StaffController::handleDeleteStaff, this, std::placeholders::_1, std::placeholders::_2));
     m_core->registerHandler(Protocol::CMD_RESTORE_STAFF, std::bind(&StaffController::handleRestoreStaff, this, std::placeholders::_1, std::placeholders::_2));
+    m_core->registerHandler(Protocol::CMD_HARD_DELETE_STAFF, std::bind(&StaffController::handleHardDeleteStaff, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 void StaffController::handleGetStaffList(ClientHandler* client, const QJsonObject& data) {
@@ -162,17 +163,18 @@ void StaffController::handleUpdateStaff(ClientHandler* client, const QJsonObject
 }
 
 void StaffController::handleDeleteStaff(ClientHandler* client, const QJsonObject& data) {
-    LOG(INFO) << "[STAFF] Deleting staff ID: " << data["id"].toString().toStdString();
+    LOG(INFO) << "[STAFF] Marking staff as resigned ID: " << data["id"].toString().toStdString();
     
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("UPDATE sys_employees SET is_deleted = 1, status = '离职' WHERE emp_id = ?");
+    // 标记为离职，不设置 is_deleted = 1，以便档案保留在系统中
+    query.prepare("UPDATE sys_employees SET status = '离职' WHERE emp_id = ?");
     query.addBindValue(data["id"].toString().toInt());
 
     QJsonObject response;
     if (query.exec()) {
         response["status"] = Protocol::STATUS_OK;
-        response["message"] = "Staff deleted successfully";
+        response["message"] = "Staff marked as resigned successfully";
 
         // 广播通知
         QJsonObject notify;
@@ -191,17 +193,47 @@ void StaffController::handleRestoreStaff(ClientHandler* client, const QJsonObjec
     
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("UPDATE sys_employees SET is_deleted = 0, status = '在职' WHERE emp_id = ?");
+    query.prepare("UPDATE sys_employees SET is_deleted = 0, status = '在岗' WHERE emp_id = ?");
     query.addBindValue(data["id"].toString().toInt());
 
     QJsonObject response;
     if (query.exec()) {
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Staff restored successfully";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "staff";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG(ERROR) << "[STAFF] Failed to restore staff: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();
     }
     client->sendPacket(Protocol::CMD_RESTORE_STAFF, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void StaffController::handleHardDeleteStaff(ClientHandler* client, const QJsonObject& data) {
+    LOG(INFO) << "[STAFF] Hard deleting staff ID: " << data["id"].toString().toStdString();
+    
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    query.prepare("UPDATE sys_employees SET is_deleted = 1 WHERE emp_id = ?");
+    query.addBindValue(data["id"].toString().toInt());
+
+    QJsonObject response;
+    if (query.exec()) {
+        response["status"] = Protocol::STATUS_OK;
+        response["message"] = "Staff hard deleted successfully";
+
+        // 广播通知
+        QJsonObject notify;
+        notify["module"] = "staff";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    } else {
+        LOG(ERROR) << "[STAFF] Failed to hard delete staff: " << query.lastError().text().toStdString();
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+    }
+    client->sendPacket(Protocol::CMD_HARD_DELETE_STAFF, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }

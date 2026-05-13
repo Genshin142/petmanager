@@ -74,6 +74,66 @@ static QString getGenderBadgeHtml(const QString &gender) {
 #include <QHeaderView>
 #include "custom_calendar_edit.h"
 
+// --- AvatarZoomDialog 实现 ---
+AvatarZoomDialog::AvatarZoomDialog(const QString &pathOrText, QWidget *parent, const QString &petId) : QDialog(parent) {
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_DeleteOnClose);
+    
+    QWidget *root = this;
+    while (root->parentWidget()) root = root->parentWidget();
+    setGeometry(root->geometry());
+    
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->setAlignment(Qt::AlignCenter);
+    
+    QSize appSize = root->size();
+    QSize targetSize = appSize * 0.8;
+    int side = qMin(targetSize.width(), targetSize.height());
+    
+    QLabel *bigAvatar = new QLabel();
+    bigAvatar->setFixedSize(side, side);
+    bigAvatar->setAlignment(Qt::AlignCenter);
+    
+    QPixmap pix;
+    if (!petId.isEmpty()) {
+        pix = PetDataManager::instance()->getPetPixmap(petId);
+    } else if (pathOrText.startsWith(":/") || QFile::exists(pathOrText)) {
+        pix.load(pathOrText);
+    }
+
+    if (!pix.isNull()) {
+        QPixmap scaledPix = pix.scaled(side, side, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        bigAvatar->setPixmap(scaledPix);
+        bigAvatar->setFixedSize(scaledPix.size());
+    } else {
+        bigAvatar->setText(pathOrText);
+        bigAvatar->setStyleSheet(
+            QString("font-size: %1px; background: white; border-radius: %2px; "
+                    "border: 4px solid white; color: #409eff;")
+            .arg(side * 0.45).arg(side / 2)
+        );
+    }
+    
+    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(50);
+    shadow->setColor(QColor(0, 0, 0, 150));
+    bigAvatar->setGraphicsEffect(shadow);
+    
+    layout->addWidget(bigAvatar);
+    show();
+    raise();
+}
+
+void AvatarZoomDialog::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+    p.fillRect(rect(), QColor(0, 0, 0, 200));
+}
+
+void AvatarZoomDialog::mousePressEvent(QMouseEvent *) {
+    close();
+}
+
 // 全屏图片预览弹窗实现
 FullImagePreviewDialog::FullImagePreviewDialog(const QStringList &paths, int startIndex, QWidget *parent) 
     : QDialog(parent), m_paths(paths), m_currentIndex(startIndex) 
@@ -2280,6 +2340,235 @@ bool FosterDetailDialog::eventFilter(QObject *watched, QEvent *event) {
 }
 
 // ========================
+// FosterCheckoutDialog 实现
+// ========================
+
+class FosterCheckoutDialog : public QDialog {
+public:
+    FosterCheckoutDialog(int roomId, const QString &petId, QWidget *parent = nullptr) 
+        : QDialog(parent), m_roomId(roomId), m_petId(petId) {
+        setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
+        setAttribute(Qt::WA_TranslucentBackground);
+        setupUI();
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::MouseButtonPress && watched == m_avatarLabel) {
+            PetInfo pet = PetDataManager::instance()->getPet(m_petId);
+            (new AvatarZoomDialog(pet.name.left(1), this->window(), m_petId))->show();
+            return true;
+        }
+        return QDialog::eventFilter(watched, event);
+    }
+
+private:
+    void setupUI() {
+        PetInfo pet = PetDataManager::instance()->getPet(m_petId);
+        QString roomType = PetDataManager::instance()->getRoomType(m_roomId);
+        double roomRate = 50.0;
+        if (roomType == "豪华房") roomRate = 100.0;
+        else if (roomType == "多宠房") roomRate = 150.0;
+
+        QDate startDate = QDate::fromString(pet.fosterStartTime, "yyyy-MM-dd");
+        QDate endDate = QDate::currentDate();
+        int days = startDate.daysTo(endDate);
+        if (days <= 0) days = 1;
+
+        double totalAmount = days * roomRate;
+
+        QVBoxLayout *mainLayout = new QVBoxLayout(this);
+        mainLayout->setAlignment(Qt::AlignCenter);
+
+        QFrame *container = new QFrame();
+        container->setFixedSize(500, 680); // 增加高度容纳照片
+        container->setStyleSheet(
+            "QFrame { background: white; border-radius: 20px; border: 1px solid #e2e8f0; } "
+            "QLabel { border: none; background: transparent; } "
+            "QLineEdit { border: 1px solid #dcdfe6; border-radius: 8px; padding: 10px 15px; font-size: 14px; background: #fcfcfd; } "
+            "QLineEdit:focus { border-color: #3b82f6; background: white; }"
+        );
+        
+        QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
+        shadow->setBlurRadius(40); shadow->setOffset(0, 8); shadow->setColor(QColor(0, 0, 0, 40));
+        container->setGraphicsEffect(shadow);
+
+        QVBoxLayout *content = new QVBoxLayout(container);
+        content->setContentsMargins(35, 35, 35, 35);
+        content->setSpacing(20);
+
+        // Header
+        QLabel *titleL = new QLabel("🛎️ 办理离店与结算");
+        titleL->setStyleSheet("font-size: 24px; font-weight: 800; color: #1e293b;");
+        content->addWidget(titleL);
+
+        // Pet Summary Card
+        QFrame *summaryCard = new QFrame();
+        summaryCard->setStyleSheet("background: #f8fafc; border-radius: 15px; border: none;"); // 移除边框
+        QHBoxLayout *summaryL = new QHBoxLayout(summaryCard);
+        summaryL->setContentsMargins(15, 15, 15, 15);
+        
+        m_avatarLabel = new QLabel();
+        m_avatarLabel->setFixedSize(70, 70);
+        m_avatarLabel->setCursor(Qt::PointingHandCursor);
+        m_avatarLabel->installEventFilter(this);
+        QPixmap pix = PetDataManager::instance()->getPetPixmap(m_petId);
+        if (!pix.isNull()) {
+            QPixmap target(70, 70);
+            target.fill(Qt::transparent);
+            QPainter p(&target);
+            p.setRenderHint(QPainter::Antialiasing);
+            QPainterPath path; path.addEllipse(0, 0, 70, 70);
+            p.setClipPath(path);
+            p.drawPixmap(0, 0, 70, 70, pix.scaled(70, 70, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            m_avatarLabel->setPixmap(target);
+        } else {
+            m_avatarLabel->setText(pet.name.left(1));
+            m_avatarLabel->setStyleSheet("background: #3b82f6; color: white; font-size: 24px; font-weight: bold; border-radius: 35px;");
+            m_avatarLabel->setAlignment(Qt::AlignCenter);
+        }
+        
+        QVBoxLayout *infoL = new QVBoxLayout();
+        QLabel *nameL = new QLabel(pet.name);
+        nameL->setStyleSheet("font-size: 20px; font-weight: 800; color: #1e293b;");
+        QLabel *roomL = new QLabel(QString("房号: %1 (%2)").arg(m_roomId).arg(roomType));
+        roomL->setStyleSheet("font-size: 14px; color: #64748b; font-weight: 500;");
+        infoL->addWidget(nameL);
+        infoL->addWidget(roomL);
+        
+        summaryL->addWidget(m_avatarLabel);
+        summaryL->addLayout(infoL);
+        summaryL->addStretch();
+        content->addWidget(summaryCard);
+
+        // Bill Details
+        QVBoxLayout *billL = new QVBoxLayout();
+        billL->setSpacing(12);
+        
+        auto addBillRow = [&](const QString &label, const QString &val, bool isBold = false) {
+            QHBoxLayout *row = new QHBoxLayout();
+            QLabel *lbl = new QLabel(label);
+            lbl->setStyleSheet("color: #64748b; font-size: 14px; font-weight: 500;");
+            QLabel *v = new QLabel(val);
+            v->setStyleSheet(isBold ? "font-size: 16px; font-weight: 800; color: #1e293b;" : "font-size: 14px; color: #1e293b; font-weight: 600;");
+            row->addWidget(lbl); row->addStretch(); row->addWidget(v);
+            billL->addLayout(row);
+        };
+
+        addBillRow("入住日期", pet.fosterStartTime);
+        addBillRow("离店日期", endDate.toString("yyyy-MM-dd"));
+        addBillRow("寄养天数", QString("%1 天").arg(days), true);
+        addBillRow("房费单价", QString("¥ %1/天").arg(roomRate));
+        
+        QFrame *line = new QFrame(); line->setFixedHeight(1); line->setStyleSheet("background: #e2e8f0; border: none;");
+        billL->addWidget(line);
+        
+        QHBoxLayout *totalRow = new QHBoxLayout();
+        QLabel *totalLbl = new QLabel("应付合计");
+        totalLbl->setStyleSheet("font-size: 18px; font-weight: 800; color: #1e293b;");
+        QLabel *totalVal = new QLabel(QString("¥ %1").arg(totalAmount, 0, 'f', 2));
+        totalVal->setStyleSheet("font-size: 32px; font-weight: 900; color: #f59e0b; padding-bottom: 2px;"); // 增加字号并调整 padding
+        totalVal->setFixedHeight(45); // 固定高度防止截断
+        totalRow->addWidget(totalLbl); totalRow->addStretch(); totalRow->addWidget(totalVal);
+        billL->addLayout(totalRow);
+        content->addLayout(billL);
+
+        // Health & Media
+        QHBoxLayout *healthRow = new QHBoxLayout();
+        QVBoxLayout *weightCol = new QVBoxLayout();
+        QLabel *weightLbl = new QLabel("离店体重 (kg)");
+        weightLbl->setStyleSheet("font-size: 14px; font-weight: 700; color: #475569;");
+        QLineEdit *weightEdit = new QLineEdit(QString::number(pet.weight, 'f', 1));
+        weightCol->addWidget(weightLbl); weightCol->addWidget(weightEdit);
+        
+        QVBoxLayout *photoCol = new QVBoxLayout();
+        QLabel *photoLbl = new QLabel("离店照片");
+        photoLbl->setStyleSheet("font-size: 14px; font-weight: 700; color: #475569;");
+        QPushButton *photoBtn = new QPushButton("📸");
+        photoBtn->setFixedSize(60, 60);
+        photoBtn->setCursor(Qt::PointingHandCursor);
+        photoBtn->setStyleSheet(
+            "QPushButton { background: #f8fafc; border: 2px dashed #cbd5e0; border-radius: 12px; font-size: 24px; color: #94a3b8; } "
+            "QPushButton:hover { background: #f1f5f9; border-color: #3b82f6; color: #3b82f6; }"
+        );
+        connect(photoBtn, &QPushButton::clicked, this, [=]() {
+            QString file = QFileDialog::getOpenFileName(this, "选择离店照片", "", "Images (*.png *.jpg *.jpeg)");
+            if (!file.isEmpty()) {
+                photoBtn->setText("");
+                photoBtn->setIcon(QIcon(file));
+                photoBtn->setIconSize(QSize(45, 45));
+                photoBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #3b82f6; border-radius: 12px; }");
+            }
+        });
+        photoCol->addWidget(photoLbl); photoCol->addWidget(photoBtn);
+        
+        healthRow->addLayout(weightCol, 1);
+        healthRow->addLayout(photoCol);
+        content->addLayout(healthRow);
+
+        // Payment Method
+        QLabel *payLbl = new QLabel("结算方式");
+        payLbl->setStyleSheet("font-size: 14px; font-weight: 700; color: #475569;");
+        content->addWidget(payLbl);
+        
+        QHBoxLayout *payGrid = new QHBoxLayout();
+        QStringList methods = {"微信支付", "支付宝", "会员卡", "现金"};
+        QButtonGroup *group = new QButtonGroup(this);
+        for (const QString &m : methods) {
+            QPushButton *btn = new QPushButton(m);
+            btn->setCheckable(true);
+            btn->setFixedHeight(45);
+            btn->setCursor(Qt::PointingHandCursor);
+            btn->setStyleSheet(
+                "QPushButton { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; font-size: 14px; font-weight: 600; } "
+                "QPushButton:checked { background: #eff6ff; border-color: #3b82f6; color: #3b82f6; }"
+            );
+            payGrid->addWidget(btn);
+            group->addButton(btn);
+            if (m == "微信支付") btn->setChecked(true);
+        }
+        content->addLayout(payGrid);
+
+        content->addStretch();
+
+        // Footer Buttons
+        QHBoxLayout *footer = new QHBoxLayout();
+        footer->setSpacing(15);
+        QPushButton *cancelBtn = new QPushButton("取消");
+        cancelBtn->setFixedHeight(50);
+        cancelBtn->setFixedWidth(120);
+        cancelBtn->setStyleSheet(
+            "QPushButton { background: #f1f5f9; color: #64748b; border: none; border-radius: 12px; font-weight: 700; font-size: 15px; } "
+            "QPushButton:hover { background: #e2e8f0; }"
+        );
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+        
+        QPushButton *confirmBtn = new QPushButton("确认离店结算");
+        confirmBtn->setFixedHeight(50);
+        confirmBtn->setStyleSheet(
+            "QPushButton { background: #f59e0b; color: white; border: none; border-radius: 12px; font-weight: 800; font-size: 16px; padding: 0 30px; } "
+            "QPushButton:hover { background: #d97706; opacity: 0.95; }"
+        );
+        connect(confirmBtn, &QPushButton::clicked, this, [=]() {
+            QString method = group->checkedButton()->text();
+            PetDataManager::instance()->executeCheckOut(m_roomId, m_petId, endDate, weightEdit->text().toDouble(), totalAmount, method);
+            CustomMessageDialog::showSuccess(this, "结算成功", QString("%1 已办理离店，账单已同步。").arg(pet.name));
+            accept();
+        });
+        
+        footer->addWidget(cancelBtn);
+        footer->addWidget(confirmBtn, 1);
+        content->addLayout(footer);
+
+        mainLayout->addWidget(container);
+    }
+
+    int m_roomId;
+    QString m_petId;
+    QLabel *m_avatarLabel = nullptr;
+};
+
+// ========================
 // PillButton 实现
 // ========================
 
@@ -3232,8 +3521,12 @@ void FosterActionPanel::showManagementView(int roomId, const QString &petId, con
                 showCheckInForm();
             }
         } else {
-            // 原有的离店结算逻辑 (Placeholder)
-            CustomMessageDialog::showSuccess(this, "业务办理", QString("正在跳转至结算中心办理 Room %1 的相关手续...").arg(roomId));
+            // 离店结算对话框
+            FosterCheckoutDialog dlg(roomId, petId, this->window());
+            if (dlg.exec() == QDialog::Accepted) {
+                showCheckInForm(roomId); // 离店后切回入住界面
+                emit dataChanged();
+            }
         }
     });
 

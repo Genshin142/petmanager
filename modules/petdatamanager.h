@@ -62,6 +62,7 @@ public:
     void executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note = "");
     void executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight);
     void executeCancelBooking(int roomId, const QString &petId);
+    void executeCheckOut(int roomId, const QString &petId, const QDate &checkOutDate, double weight, double totalAmount, const QString &paymentMethod);
     
     // 房态管理
     void addRoomStatusPeriod(int roomId, const RoomStatusPeriod &period);
@@ -91,9 +92,19 @@ public:
     QList<OrderInfo> getOrders(const QDate &start, const QDate &end, const QString &filter = "", const QString &moduleFilter = "全部") const;
     OrderStats getOrderStats(const QDate &start, const QDate &end);
 
+    // 报表统计相关 (后台聚合模式)
+    void requestDashboardStats();
+    void requestRevenueTrend(const QString &range, int year = 0, int month = 0);
+
+
 signals:
     void petDataChanged(const QString &petId);
     void globalDataChanged();
+    
+    // 报表统计回调
+    void dashboardStatsReceived(const QJsonObject &data);
+    void revenueTrendReceived(const QJsonArray &data);
+
 
 private slots:
     void onPacketReceived(const Protocol::NetPacket &packet);

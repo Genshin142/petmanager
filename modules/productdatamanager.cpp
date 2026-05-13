@@ -248,6 +248,14 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         }
         emit shelveResult(success, msg);
     }
+    else if (packet.cmdId == Protocol::CMD_NOTIFY_REFRESH) {
+        QJsonObject root = packet.jsonObj;
+        if (root["module"].toString() == "product") {
+            qDebug() << "[PRODUCT] Refresh notification received from server.";
+            requestProductList();
+            requestInboundList();
+        }
+    }
 }
 
 void ProductDataManager::initMockData()
@@ -472,20 +480,30 @@ ProductInfo ProductDataManager::getProduct(const QString &barcode) const
 
 void ProductDataManager::addProduct(const ProductInfo &info)
 {
-    {
-        QMutexLocker locker(&m_mutex);
-        m_products[info.barcode] = info;
-    }
-    emit productDataChanged();
+    // 同步给服务器：更新商品档案库（Master Data）
+    // 通常在 CMD_ADD_INBOUND_RECORD 的处理逻辑中也会同步更新档案，但这里保留显式调用
+    QJsonObject obj;
+    obj["barcode"] = info.barcode;
+    obj["name"] = info.name;
+    obj["brand"] = info.brand;
+    obj["category"] = info.category;
+    obj["spec"] = info.spec;
+    obj["unit"] = info.unit;
+    obj["sale_price"] = info.price;
+    obj["stock_min"] = info.minStock;
+    obj["cost_price"] = info.costPrice;
+    obj["supplier"] = info.supplier;
+    obj["supplier_phone"] = info.supplierPhone;
+    obj["description"] = info.description;
+    obj["img_data"] = info.imgData;
+    
+    // 我们发送 UPDATE_PRODUCT 指令，服务端会自动处理新增或修改
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_PRODUCT, obj);
 }
 
 void ProductDataManager::updateProduct(const ProductInfo &info)
 {
-    {
-        QMutexLocker locker(&m_mutex);
-        m_products[info.barcode] = info;
-    }
-    emit productDataChanged();
+    addProduct(info); // 逻辑一致，都是 upsert
 }
 
 void ProductDataManager::removeProduct(const QString &barcode)
@@ -578,23 +596,42 @@ QList<StockInRecord> ProductDataManager::getAllRecords() const {
 }
 
 void ProductDataManager::addRecord(const StockInRecord &rec) {
-    {
-        QMutexLocker locker(&m_mutex);
-        m_records.prepend(rec); // 最新的排在前面
-    }
-    emit productDataChanged();
+    QJsonObject obj;
+    obj["barcode"] = rec.barcode;
+    obj["productName"] = rec.productName;
+    obj["spec"] = rec.spec;
+    obj["category"] = rec.category;
+    obj["quantity"] = rec.quantity;
+    obj["cost_price"] = rec.costPrice;
+    obj["sale_price"] = rec.salePrice;
+    obj["productionDate"] = rec.productionDate;
+    obj["shelfLifeDays"] = rec.shelfLifeDays;
+    obj["supplier"] = rec.supplier;
+    obj["supplier_phone"] = rec.supplierPhone;
+    obj["operatorName"] = rec.operatorName;
+    obj["imgData"] = rec.imgData;
+
+    NetworkManager::instance().sendRequest(Protocol::CMD_ADD_INBOUND_RECORD, obj);
 }
 
 void ProductDataManager::updateRecord(const QString &oldDateTime, const QString &barcode, const StockInRecord &newRec) {
-    QMutexLocker locker(&m_mutex);
-    for (auto &r : m_records) {
-        if (r.dateTime == oldDateTime && r.barcode == barcode) {
-            r = newRec;
-            r.dateTime = oldDateTime; 
-            break;
-        }
-    }
-    emit productDataChanged();
+    QJsonObject obj;
+    obj["id"] = newRec.id;
+    obj["barcode"] = newRec.barcode;
+    obj["productName"] = newRec.productName;
+    obj["spec"] = newRec.spec;
+    obj["category"] = newRec.category;
+    obj["quantity"] = newRec.quantity;
+    obj["cost_price"] = newRec.costPrice;
+    obj["sale_price"] = newRec.salePrice;
+    obj["productionDate"] = newRec.productionDate;
+    obj["shelfLifeDays"] = newRec.shelfLifeDays;
+    obj["supplier"] = newRec.supplier;
+    obj["supplier_phone"] = newRec.supplierPhone;
+    obj["operatorName"] = newRec.operatorName;
+    obj["imgData"] = newRec.imgData;
+
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_INBOUND_RECORD, obj);
 }
 
 QList<StockInRecord> ProductDataManager::getUnlistedInboundItems() const {
@@ -668,39 +705,23 @@ int ProductDataManager::calculateTotalStock(const QString &barcode) const {
 }
 
 void ProductDataManager::removeRecord(const QString &dateTime, const QString &barcode) {
-    QMutexLocker locker(&m_mutex);
-    for (auto &r : m_records) {
-        if (r.dateTime == dateTime && r.barcode == barcode) {
-            r.isActive = false;
-            emit productDataChanged();
-            break;
-        }
-    }
+    QJsonObject obj;
+    obj["dateTime"] = dateTime;
+    obj["barcode"] = barcode;
+    obj["hard"] = false;
+    NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
 }
 
 void ProductDataManager::restoreRecord(const QString &dateTime, const QString &barcode) {
-    QMutexLocker locker(&m_mutex);
-    for (auto &r : m_records) {
-        if (r.dateTime == dateTime && r.barcode == barcode) {
-            r.isActive = true;
-            emit productDataChanged();
-            break;
-        }
-    }
+    // 恢复操作暂时逻辑上等同于取消删除，目前服务端使用 is_deleted 标记
+    // 为了简单，我们先实现 hard delete 和 add，或者扩展服务端接口
+    // 这里暂时留空或发送一个逻辑恢复指令
 }
 
 void ProductDataManager::hardDeleteRecord(const QString &dateTime, const QString &barcode) {
-    {
-        QMutexLocker locker(&m_mutex);
-        for (int i = 0; i < m_records.size(); ++i) {
-            if (m_records[i].dateTime == dateTime && m_records[i].barcode == barcode) {
-                m_records.removeAt(i);
-                if (m_products.contains(barcode)) {
-                    m_products.remove(barcode);
-                }
-                break;
-            }
-        }
-    }
-    emit productDataChanged();
+    QJsonObject obj;
+    obj["dateTime"] = dateTime;
+    obj["barcode"] = barcode;
+    obj["hard"] = true;
+    NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
 }

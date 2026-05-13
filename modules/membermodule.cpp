@@ -882,15 +882,11 @@ void MemberModule::showAddMemberDialog()
     if (dialog.exec() == QDialog::Accepted) {
         MemberInfo info = dialog.getMemberInfo();
         
-        // 如果 ID 为空（新增模式），自动生成递增 ID
-        if (info.id.isEmpty()) {
-            info.id = generateNextMemberId();
-        }
-
-        // 加入默认最后到店日期
+        // 发送新增请求 (ID 由服务端生成)
         MemberDataManager::instance()->addMember(info);
-        addSampleData();
-        updateStatistics();
+        
+        // 提示用户 (实际数据会在服务端广播通知后自动刷新)
+        CustomMessageDialog::showSuccess(this, "提交成功", QString("会员 %1 的资料已提交到服务器。").arg(info.name));
     }
 }
 

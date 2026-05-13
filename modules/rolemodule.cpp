@@ -911,7 +911,15 @@ void RoleModule::refreshTablePreservingSelection(const QString &targetId)
         
         for (int i = 0; i < empTable->rowCount(); ++i) {
             bool match = true;
-            if (!searchText.isEmpty() && !empTable->item(i, 1)->text().contains(searchText, Qt::CaseInsensitive) && !empTable->item(i, 0)->text().contains(searchText, Qt::CaseInsensitive)) match = false;
+            if (!searchText.isEmpty()) {
+                QString nameText;
+                QWidget *w = empTable->cellWidget(i, 1);
+                if (w) {
+                    QLabel *lbl = w->findChildren<QLabel*>().last();
+                    if (lbl) nameText = lbl->text();
+                }
+                if (!nameText.contains(searchText, Qt::CaseInsensitive) && !empTable->item(i, 0)->text().contains(searchText, Qt::CaseInsensitive)) match = false;
+            }
             if (selectedRole != "全部职位" && empTable->item(i, 2)->text() != selectedRole) match = false;
             if (selectedStatus != "全部状态") {
                 QWidget *wa = empTable->cellWidget(i, 3);

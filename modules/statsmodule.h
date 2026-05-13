@@ -30,6 +30,11 @@ private slots:
     void onCategoryChanged(int index);
     void onDateRangeChanged();
     void onSearch(const QString &text);
+    
+    // 网络回调
+    void onDashboardStatsReceived(const QJsonObject &data);
+    void onRevenueTrendReceived(const QJsonArray &data);
+
 
 private:
     void setupUI();

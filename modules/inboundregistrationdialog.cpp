@@ -163,6 +163,9 @@ void InboundRegistrationDialog::setupUI()
     
     m_shelfLifeEdit = new QLineEdit("365");
     m_shelfLifeEdit->setValidator(new QIntValidator(0, 36500, this)); // 保质期天数非负
+    
+    m_minStockEdit = new QLineEdit("10"); // 默认预警值为 10
+    m_minStockEdit->setValidator(new QIntValidator(0, 999999, this));
 
     createField("商品名称", m_nameEdit, 0, 0);
     createField("所属分类", m_categoryCombo, 0, 1);
@@ -174,11 +177,13 @@ void InboundRegistrationDialog::setupUI()
     
     createField("进货成本", m_costEdit, 2, 0);
     createField("零售价格", m_priceEdit, 2, 1); // 新增价格
-    createField("供应商", m_supplierEdit, 2, 2);
+    createField("库存预警值", m_minStockEdit, 2, 2); // 占用供应商位置，供应商往下移
     
     createField("生产日期", m_dateEdit, 3, 0);
     createField("保质期(天)", m_shelfLifeEdit, 3, 1);
-    createField("供应商电话", m_supplierPhoneEdit, 3, 2);
+    createField("供应商", m_supplierEdit, 3, 2);
+    
+    createField("供应商电话", m_supplierPhoneEdit, 4, 0);
 
     mainLayout->addWidget(formFrame);
 
@@ -213,6 +218,7 @@ void InboundRegistrationDialog::updatePreviewCard(const QString &barcode)
         m_supplierEdit->clear();
         m_supplierPhoneEdit->clear();
         m_shelfLifeEdit->setText("365");
+        m_minStockEdit->setText("10");
         m_imagePaths.clear();
         switchImage(false);
     } else {
@@ -226,6 +232,7 @@ void InboundRegistrationDialog::updatePreviewCard(const QString &barcode)
         m_supplierEdit->setText(info.supplier);
         m_supplierPhoneEdit->setText(info.supplierPhone);
         m_shelfLifeEdit->setText(QString::number(info.shelfLifeDays));
+        m_minStockEdit->setText(QString::number(info.minStock));
         
         // 数量和生产日期不回填，保持默认或手动输入
         m_qtyEdit->setText("1");
@@ -259,6 +266,7 @@ void InboundRegistrationDialog::setEditMode(const StockInRecord &rec, const Prod
     m_supplierPhoneEdit->setText(rec.supplierPhone);
     m_dateEdit->setText(rec.productionDate);
     m_shelfLifeEdit->setText(QString::number(rec.shelfLifeDays));
+    m_minStockEdit->setText(QString::number(pInfo.minStock));
     m_operatorCombo->setCurrentText(rec.operatorName);
     
     m_imagePaths = rec.imgPaths;
@@ -286,6 +294,7 @@ void InboundRegistrationDialog::onConfirmInbound()
     rec.dateTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     rec.operatorName = m_operatorCombo->currentText(); // 保存选择的经办人
     rec.imgPaths = m_imagePaths;
+    if (!m_imagePaths.isEmpty()) rec.imgData = m_imagePaths.first(); // 设置主图
     rec.shelfLifeDays = m_shelfLifeEdit->text().toInt();
 
     // --- 同步更新商品档案库 ---
@@ -298,9 +307,11 @@ void InboundRegistrationDialog::onConfirmInbound()
     info.costPrice = rec.costPrice;
     info.price = m_priceEdit->text().toDouble();
     info.shelfLifeDays = rec.shelfLifeDays;
+    info.minStock = m_minStockEdit->text().toInt();
     info.supplier = rec.supplier;
     info.supplierPhone = rec.supplierPhone;
     info.images = rec.imgPaths;
+    info.imgData = rec.imgData;
     info.isActive = true;
     
     if (ProductDataManager::instance()->getProduct(barcode).barcode.isEmpty()) {

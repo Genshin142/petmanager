@@ -23,6 +23,10 @@ private:
     void handleGetInboundList(ClientHandler* client, const QJsonObject &data);
     void handleShelveProduct(ClientHandler* client, const QJsonObject &data);
     void handleUnshelveProduct(ClientHandler* client, const QJsonObject &data);
+    void handleAddInboundRecord(ClientHandler* client, const QJsonObject &data);
+    void handleUpdateInboundRecord(ClientHandler* client, const QJsonObject &data);
+    void handleDeleteInboundRecord(ClientHandler* client, const QJsonObject &data);
+    void handleUpdateProduct(ClientHandler* client, const QJsonObject &data);
     
     ServerCore *m_server;
 };

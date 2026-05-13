@@ -22,6 +22,8 @@
 #include <QtCharts/QBarCategoryAxis>
 #include <QtCharts/QValueAxis>
 #include <QtCharts/QChart>
+#include <QJsonArray>
+#include <QJsonObject>
 #include "custommessagedialog.h"
 #include "orderdetaildrawer.h"
 #include "staffdatamanager.h"
@@ -101,6 +103,9 @@ public:
 StatsModule::StatsModule(QWidget *parent) : QWidget(parent), m_currentCategory(0) {
     m_currentMonth = QDate::currentDate().toString("yyyy-MM");
     setupUI();
+    connect(PetDataManager::instance(), &PetDataManager::dashboardStatsReceived, this, &StatsModule::onDashboardStatsReceived);
+    connect(PetDataManager::instance(), &PetDataManager::revenueTrendReceived, this, &StatsModule::onRevenueTrendReceived);
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, &StatsModule::refreshData);
     refreshData();
 }
 
@@ -455,7 +460,15 @@ QWidget* StatsModule::createFinanceView() {
         m_yearPicker->setVisible(idx == 1 || idx == 2);
         m_monthPicker->setVisible(idx == 2);
     };
-    connect(m_trendRangeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ updatePickerVisibility(); refreshData(); });
+    connect(m_trendRangeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](){ 
+        updatePickerVisibility(); 
+        refreshData(); 
+    });
+    
+    connect(PetDataManager::instance(), &PetDataManager::dashboardStatsReceived, this, &StatsModule::onDashboardStatsReceived);
+    connect(PetDataManager::instance(), &PetDataManager::revenueTrendReceived, this, &StatsModule::onRevenueTrendReceived);
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, &StatsModule::refreshData);
+
     connect(m_yearPicker, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatsModule::refreshData);
     connect(m_monthPicker, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatsModule::refreshData);
     
@@ -1410,13 +1423,21 @@ QWidget* StatsModule::createInventoryView() {
 
 
 void StatsModule::refreshData() {
-    updateTopCharts();
+    // 1. 请求核心统计指标 (总营收、订单量、饼图分布)
+    PetDataManager::instance()->requestDashboardStats();
+    
+    // 2. 请求趋势图数据
+    int rangeIdx = m_trendRangeCombo->currentIndex();
+    QString range = (rangeIdx == 0) ? "all_years" : (rangeIdx == 1 ? "year" : "month");
+    int selYear = m_yearPicker->currentText().left(4).toInt();
+    int selMonth = m_monthPicker->currentIndex() + 1;
+    PetDataManager::instance()->requestRevenueTrend(range, selYear, selMonth);
+
+    // 3. 局部列表更新 (暂保持本地过滤)
     if (m_currentCategory == 1) updateServiceAnalysis();
     else if (m_currentCategory == 2) updateProductAnalysis();
-    else if (m_currentCategory == 3) updateServiceRankAnalysis(); // 先准备服务排行数据
+    else if (m_currentCategory == 3) updateServiceRankAnalysis();
     
-    updateCards();
-    updateCharts();
     m_dailyRevPage = 0; 
     updateDailyRevTable();
 }
@@ -1424,169 +1445,7 @@ void StatsModule::refreshData() {
 void StatsModule::updateCharts() {
     if (!m_finTrendChart || m_currentCategory != 0) return;
 
-    // 1. 营收趋势 (带历史穿透的核心逻辑)
-    {
-        QDateTime now = QDateTime::currentDateTime();
-        QDateTime start, end;
-        int rangeIdx = m_trendRangeCombo->currentIndex();
-        
-        // 解析选择的时间锚点
-        int selYear = m_yearPicker->currentText().left(4).toInt();
-        int selMonth = m_monthPicker->currentIndex() + 1;
-
-        bool groupByYear = (rangeIdx == 0);
-        bool groupByMonth = (rangeIdx == 1);
-        
-        if (groupByYear) { // 历年对比 (显示近5年)
-            start = QDateTime(QDate(now.date().year() - 4, 1, 1), QTime(0, 0));
-            end = now;
-        }
-        else if (groupByMonth) { // 年度走势 (显示选定年份的12个月)
-            start = QDateTime(QDate(selYear, 1, 1), QTime(0, 0));
-            end = QDateTime(QDate(selYear, 12, 31), QTime(23, 59, 59));
-        }
-        else { // 月度走势 (显示选定年月的具体日期)
-            start = QDateTime(QDate(selYear, selMonth, 1), QTime(0, 0));
-            end = start.addMonths(1).addDays(-1);
-        }
-
-        auto orders = PetDataManager::instance()->getOrders(start.date(), end.date());
-        QMap<QString, double> trendData;
-        QString format = groupByYear ? "yyyy年" : (groupByMonth ? "M月" : "MM-dd");
-
-        // 1. 预填充补零
-        QDateTime temp = start;
-        while (temp <= end) {
-            trendData[temp.toString(format)] = 0.0;
-            if (groupByYear) temp = temp.addYears(1);
-            else if (groupByMonth) temp = temp.addMonths(1);
-            else temp = temp.addDays(1);
-        }
-
-        // 2. 填充真实数据
-        for (const auto &o : orders) {
-            QDateTime dt = QDateTime::fromString(o.createTime, "yyyy-MM-dd HH:mm:ss");
-            if (!dt.isValid()) dt = QDateTime::fromString(o.createTime.left(10), "yyyy-MM-dd");
-            if (dt.isValid()) {
-                QString key = dt.toString(format);
-                if (trendData.contains(key)) trendData[key] += o.totalAmount;
-            }
-        }
-
-        QChart *chart = new QChart();
-        chart->setBackgroundVisible(false);
-        chart->layout()->setContentsMargins(0, 0, 0, 0);
-        
-        QLineSeries *series = new QLineSeries();
-        series->setColor(QColor("#3b82f6"));
-        series->setPen(QPen(QColor("#3b82f6"), 3));
-        series->setPointsVisible(true);
-        
-        // 使用透明柱状图作为“标签载体”，实现完美的顶部悬浮
-        QBarSeries *labelSeries = new QBarSeries();
-        QBarSet *set = new QBarSet("");
-        set->setBrush(Qt::transparent);
-        set->setPen(QPen(Qt::transparent)); // 彻底透明
-        set->setLabelColor(QColor("#475569"));
-        set->setLabelFont(QFont("Microsoft YaHei", 8, QFont::Bold));
-
-        QStringList categories;
-        double maxRev = 100;
-        for (auto it = trendData.begin(); it != trendData.end(); ++it) {
-            series->append(categories.size(), it.value());
-            *set << it.value();
-            categories << it.key();
-            if (it.value() > maxRev) maxRev = it.value();
-        }
-
-        labelSeries->append(set);
-        labelSeries->setLabelsVisible(true);
-        labelSeries->setLabelsFormat("¥@value"); // 加上货币符号
-        labelSeries->setLabelsPosition(QAbstractBarSeries::LabelsOutsideEnd); 
-        labelSeries->setBarWidth(0.01); // 进一步收缩宽度
-
-        chart->addSeries(series);
-        chart->addSeries(labelSeries);
-        
-        QBarCategoryAxis *axisX = new QBarCategoryAxis();
-        axisX->append(categories);
-        axisX->setGridLineVisible(false);
-        chart->addAxis(axisX, Qt::AlignBottom);
-        series->attachAxis(axisX);
-
-        QValueAxis *axisY = new QValueAxis();
-        axisY->setLabelFormat("%d");
-        axisY->setGridLineColor(QColor("#f1f5f9"));
-        axisY->setRange(0, maxRev * 1.2); // 留出 20% 的顶部空间
-        chart->addAxis(axisY, Qt::AlignLeft);
-        series->attachAxis(axisY);
-
-        chart->legend()->hide();
-        m_finTrendChart->setChart(chart);
-    }
-
-    // 2. 营收构成 & 支付方式 (按近30天展示)
-    {
-        double svc = 0, prod = 0;
-        QMap<QString, double> payMap;
-        auto orders = PetDataManager::instance()->getOrders(QDate::currentDate().addDays(-30), QDate::currentDate());
-        for(const auto &o : orders) {
-            if(o.status != "Paid") continue;
-            if(o.sourceModule == "Product") prod += o.finalAmount; else svc += o.finalAmount;
-            payMap[o.payMethod] += o.finalAmount;
-        }
-
-        // 营收构成饼图
-        QChart *compChart = new QChart();
-        compChart->setBackgroundVisible(false);
-        // 禁用动画
-        QPieSeries *compSeries = new QPieSeries();
-        compSeries->setHoleSize(0.35); 
-        compSeries->setPieSize(0.7); // 大幅放大尺寸
-        
-        QPieSlice *s1 = compSeries->append("服务营收", svc);
-        QPieSlice *s2 = compSeries->append("商品销售", prod);
-        s1->setBrush(QColor("#3b82f6")); s2->setBrush(QColor("#0ea5e9"));
-        
-        for (auto slice : compSeries->slices()) {
-            slice->setLabelVisible(true);
-            slice->setLabelPosition(QPieSlice::LabelOutside);
-            slice->setLabelArmLengthFactor(0.02); // 极短引线
-            slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold)); // 增大并加粗
-            slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
-        }
-        compChart->addSeries(compSeries);
-        compChart->setMargins(QMargins(0, 0, 0, 0));
-        compChart->legend()->hide();
-        m_finCompChart->setChart(compChart);
-
-        // 支付方式饼图
-        QChart *payChart = new QChart();
-        payChart->setBackgroundVisible(false);
-        // 禁用动画
-        QPieSeries *paySeries = new QPieSeries();
-        paySeries->setHoleSize(0.35);
-        paySeries->setPieSize(0.7); 
-        
-        QMap<QString, QColor> payColors = {{"会员卡", QColor("#6366f1")}, {"支付宝", QColor("#06b6d4")}, {"现金", QColor("#94a3b8")}};
-        for(auto it = payMap.begin(); it != payMap.end(); ++it) {
-            QString label = it.key() == "MemberCard" ? "会员卡" : (it.key() == "Alipay" ? "支付宝" : "现金");
-            QPieSlice *slice = paySeries->append(label, it.value());
-            if (payColors.contains(label)) slice->setBrush(payColors[label]);
-        }
-        
-        for (auto slice : paySeries->slices()) {
-            slice->setLabelVisible(true);
-            slice->setLabelPosition(QPieSlice::LabelOutside);
-            slice->setLabelArmLengthFactor(0.02);
-            slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold));
-            slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
-        }
-        payChart->addSeries(paySeries);
-        payChart->setMargins(QMargins(0, 0, 0, 0));
-        payChart->legend()->hide();
-        m_finPayChart->setChart(payChart);
-    }
+    // 营收趋势图数据刷新由 onRevenueTrendReceived 驱动
 }
 
 void StatsModule::updateServiceAnalysis() {
@@ -1613,10 +1472,7 @@ void StatsModule::updateServiceAnalysis() {
 
     // 3. 执行首次分页渲染
     m_staffPage = 0;
-    m_staffPage = 0;
     updateStaffTable();
-
-    // 4. 顶部图表已在 refreshData 中全局更新
 }
 
 void StatsModule::updateStaffTable() {
@@ -1872,96 +1728,14 @@ void StatsModule::goToServiceCategoryPage(int delta) {
 }
 
 void StatsModule::updateTopCharts() {
-    auto updatePie = [&](QChartView* view, const QStringList &names, const QList<double> &vals, const QList<QColor> &colors) {
-        QChart *chart = new QChart();
-        chart->setBackgroundVisible(false);
-        QPieSeries *series = new QPieSeries();
-        series->setHoleSize(0.4); 
-        series->setPieSize(0.7); 
-        for (int i = 0; i < names.size(); ++i) {
-            if (vals[i] <= 0) continue;
-            QPieSlice *slice = series->append(names[i], vals[i]);
-            slice->setBrush(colors[i]);
-            slice->setLabelVisible(true);
-            slice->setLabelPosition(QPieSlice::LabelOutside);
-            slice->setLabelArmLengthFactor(0.02);
-            slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold));
-            slice->setLabelColor(QColor("#475569")); 
-        }
-        for (auto slice : series->slices()) {
-            slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
-        }
-        chart->addSeries(series);
-        chart->setMargins(QMargins(0, 0, 0, 0)); 
-        chart->legend()->hide();
-        view->setChart(chart);
-    };
-
-    // 获取所有支付成功的订单进行统计
-    auto allOrders = PetDataManager::instance()->getOrders(QDate(2000,1,1), QDate(2099,12,31));
-    
-    // 1. 营收项目构成
-    QMap<QString, double> finComp;
-    finComp["商品营收"] = 0; finComp["服务营收"] = 0; finComp["寄养营收"] = 0; finComp["接送营收"] = 0;
-    
-    // 2. 支付渠道分布
-    QMap<QString, double> payComp;
-    payComp["Wechat"] = 0; payComp["Alipay"] = 0; payComp["MemberCard"] = 0; payComp["Cash"] = 0;
-
-    for (const auto &o : allOrders) {
-        if (o.status != "Paid") continue;
-        
-        // 营收分类
-        if (o.sourceModule == "Product") finComp["商品营收"] += o.finalAmount;
-        else if (o.sourceModule == "Service") finComp["服务营收"] += o.finalAmount;
-        else if (o.sourceModule == "Foster") finComp["寄养营收"] += o.finalAmount;
-        else if (o.sourceModule == "Logistics") finComp["接送营收"] += o.finalAmount;
-        
-        // 支付分类
-        if (payComp.contains(o.payMethod)) payComp[o.payMethod] += o.finalAmount;
-    }
-
-    updatePie(m_finCompChart,
-        {"商品营收", "服务营收", "寄养营收", "接送营收"},
-        {finComp["商品营收"], finComp["服务营收"], finComp["寄养营收"], finComp["接送营收"]},
-        {QColor("#3b82f6"), QColor("#8b5cf6"), QColor("#10b981"), QColor("#f59e0b")});
-
-    updatePie(m_finPayChart,
-        {"微信支付", "支付宝", "会员卡", "现金"},
-        {payComp["Wechat"], payComp["Alipay"], payComp["MemberCard"], payComp["Cash"]},
-        {QColor("#22c55e"), QColor("#3b82f6"), QColor("#f59e0b"), QColor("#94a3b8")});
-
-    // 产品和服务类目分布 (目前也从订单中推测，或者保持简单的固定展示，后续可深度挖掘 itemDetails)
-    updatePie(m_productCategoryChart, 
-        {"主粮", "零食", "用品", "玩具"}, 
-        {45.0, 30.0, 15.0, 10.0}, 
-        {QColor("#8b5cf6"), QColor("#ec4899"), QColor("#06b6d4"), QColor("#64748b")});
-
-    updatePie(m_serviceHeatmapChart, 
-        {"洗护", "寄养", "医疗", "其他"}, 
-        {55.0, 25.0, 15.0, 5.0}, 
-        {QColor("#3b82f6"), QColor("#10b981"), QColor("#f59e0b"), QColor("#94a3b8")});
+    // 异步驱动，数据更新由 onDashboardStatsReceived 异步回调触发
 }
 
 void StatsModule::updateCards() {
     if (m_cardValues.size() < 3) return;
 
-    int selYear = m_yearPicker->currentText().left(4).toInt();
-    int selMonth = m_monthPicker->currentIndex() + 1;
-    int rangeIdx = m_trendRangeCombo->currentIndex();
-
-    QDate curStart, curEnd, prevStart, prevEnd;
-
-    if (rangeIdx == 1) { // 年度
-        curStart = QDate(selYear, 1, 1); curEnd = QDate(selYear, 12, 31);
-        prevStart = QDate(selYear - 1, 1, 1); prevEnd = QDate(selYear - 1, 12, 31);
-    } else if (rangeIdx == 2) { // 月度
-        curStart = QDate(selYear, selMonth, 1); curEnd = curStart.addMonths(1).addDays(-1);
-        prevStart = curStart.addMonths(-1); prevEnd = curStart.addDays(-1);
-    } else { // 历年
-        curStart = QDate(selYear - 4, 1, 1); curEnd = QDate(selYear, 12, 31);
-        prevStart = QDate(selYear - 9, 1, 1); prevEnd = QDate(selYear - 5, 12, 31);
-    }
+    // 财务分类 (0) 的卡片更新已交由 onDashboardStatsReceived 异步处理
+    if (m_currentCategory == 0) return;
 
     auto updateCard = [&](int idx, const QString &val, double diff) {
         m_cardValues[idx]->setText(val);
@@ -1977,115 +1751,47 @@ void StatsModule::updateCards() {
     };
 
     if (m_currentCategory == 1) { // 店员统计卡片
-        // 从已准备好的 m_allStaffData 中提取冠军
         if (m_allStaffData.isEmpty()) {
-            updateCard(0, "无", 0);
-            updateCard(1, "无", 0);
-            updateCard(2, "¥0", 0);
+            updateCard(0, "无", 0); updateCard(1, "无", 0); updateCard(2, "¥0", 0);
             return;
         }
-
-        // 营收冠军 (m_allStaffData 已经按营收或单量排序，但为了保险我们重新找一次)
-        auto topRevIt = std::max_element(m_allStaffData.begin(), m_allStaffData.end(), [](const StaffRankData &a, const StaffRankData &b){
-            return a.rev < b.rev;
-        });
-        
-        // 单量冠军
-        auto topOrderIt = std::max_element(m_allStaffData.begin(), m_allStaffData.end(), [](const StaffRankData &a, const StaffRankData &b){
-            return a.count < b.count;
-        });
-
-        double totalRev = 0;
-        int totalOrders = 0;
-        for(const auto &s : m_allStaffData) {
-            totalRev += s.rev;
-            totalOrders += s.count;
-        }
+        auto topRevIt = std::max_element(m_allStaffData.begin(), m_allStaffData.end(), [](const StaffRankData &a, const StaffRankData &b){ return a.rev < b.rev; });
+        auto topOrderIt = std::max_element(m_allStaffData.begin(), m_allStaffData.end(), [](const StaffRankData &a, const StaffRankData &b){ return a.count < b.count; });
+        double totalRev = 0; int totalOrders = 0;
+        for(const auto &s : m_allStaffData) { totalRev += s.rev; totalOrders += s.count; }
         double avgEff = totalOrders > 0 ? totalRev / totalOrders : 0;
-
         updateCard(0, topRevIt->name.left(6), 0);
         updateCard(1, topOrderIt->name.left(6), 0);
         updateCard(2, QString("¥%1").arg(QString::number(avgEff, 'f', 0)), 0);
-        
         m_cardTrends[0]->setText(QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)));
         m_cardTrends[1]->setText(QString("%1 单").arg(topOrderIt->count));
         m_cardTrends[2]->setText("全店客单均值");
-        m_cardTrends[0]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
-        m_cardTrends[1]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
-        m_cardTrends[2]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
     } else if (m_currentCategory == 2) { // 商品统计卡片
         if (m_allProductData.isEmpty()) {
             updateCard(0, "无", 0); updateCard(1, "0", 0); updateCard(2, "¥0", 0);
             return;
         }
-        
-        // 销量之王 (m_allProductData 通常已经排好序)
-        auto topQtyIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){
-            return a.count < b.count;
-        });
-        
-        // 营收之王
-        auto topRevIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){
-            return a.rev < b.rev;
-        });
-
-        updateCard(0, topQtyIt->name.left(6), 0); // 热销榜首 (按销量)
-        updateCard(1, QString::number(topQtyIt->count), 0); // 冠军销量
-        updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0); // 冠军营收
-        
+        auto topQtyIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){ return a.count < b.count; });
+        auto topRevIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){ return a.rev < b.rev; });
+        updateCard(0, topQtyIt->name.left(6), 0);
+        updateCard(1, QString::number(topQtyIt->count), 0);
+        updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0);
         m_cardTrends[0]->setText("最受宠爱单品");
         m_cardTrends[1]->setText("本期累计卖出");
         m_cardTrends[2]->setText(topRevIt->name.left(6) + " 贡献");
-        m_cardTrends[0]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
-        m_cardTrends[1]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
-        m_cardTrends[2]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
     } else if (m_currentCategory == 3) { // 服务排行卡片
         if (m_allServiceData.isEmpty()) {
             updateCard(0, "无", 0); updateCard(1, "0", 0); updateCard(2, "¥0", 0);
             return;
         }
-        
-        auto topQtyIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){
-            return a.count < b.count;
-        });
-        auto topRevIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){
-            return a.rev < b.rev;
-        });
-
-        updateCard(0, topQtyIt->name.left(6), 0); // 最受欢迎
-        updateCard(1, QString::number(topQtyIt->count), 0); // 服务单量
-        updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0); // 服务营收
-        
+        auto topQtyIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){ return a.count < b.count; });
+        auto topRevIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){ return a.rev < b.rev; });
+        updateCard(0, topQtyIt->name.left(6), 0);
+        updateCard(1, QString::number(topQtyIt->count), 0);
+        updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0);
         m_cardTrends[0]->setText("金牌服务项目");
         m_cardTrends[1]->setText("本期服务人次");
         m_cardTrends[2]->setText(topRevIt->name.left(6) + " 贡献");
-        m_cardTrends[0]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
-        m_cardTrends[1]->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600; border: none;");
-        m_cardTrends[2]->setStyleSheet("color: #64748b; font-size: 13px; font-weight: 600; border: none;");
-    } else {
-        // 财务总览卡片 (原有逻辑)
-        auto getStats = [&](const QDate &s, const QDate &e) {
-            auto orders = PetDataManager::instance()->getOrders(s, e);
-            double rev = 0, profit = 0;
-            int count = 0;
-            for (const auto &o : orders) {
-                if (o.status != "Paid") continue;
-                rev += o.finalAmount;
-                profit += o.finalAmount * 0.65;
-                count++;
-            }
-            double avg = count > 0 ? rev / count : 0;
-            return QVector<double>{rev, profit, avg};
-        };
-
-        QVector<double> cur = getStats(curStart, curEnd);
-        QVector<double> prev = getStats(prevStart, prevEnd);
-
-        auto calcDiff = [](double c, double p) { return p > 0 ? ((c - p) / p) * 100 : 0; };
-
-        updateCard(0, QString("¥%1").arg(QString::number(cur[0], 'f', 0)), calcDiff(cur[0], prev[0]));
-        updateCard(1, QString("¥%1").arg(QString::number(cur[1], 'f', 0)), calcDiff(cur[1], prev[1]));
-        updateCard(2, QString("¥%1").arg(QString::number(cur[2], 'f', 0)), calcDiff(cur[2], prev[2]));
     }
 }
 
@@ -2244,4 +1950,106 @@ void StatsModule::goToDailyRevPage(int delta) {
         m_dailyRevPage = n;
         updateDailyRevTable();
     }
+}
+
+void StatsModule::onDashboardStatsReceived(const QJsonObject &data) {
+    // 1. 更新卡片 (KPI)
+    if (m_cardValues.size() >= 3) {
+        m_cardValues[0]->setText(QString("¥%1").arg(QString::number(data["totalRevenue"].toDouble(), 'f', 0)));
+        m_cardValues[1]->setText(QString::number(data["totalOrders"].toInt()));
+        m_cardValues[2]->setText(QString("¥%1").arg(QString::number(data["avgOrder"].toDouble(), 'f', 0)));
+        
+        m_cardTrends[0]->setText("核心营收指标");
+        m_cardTrends[1]->setText("已支付总单数");
+        m_cardTrends[2]->setText("全店客单均值");
+    }
+
+    // 2. 更新饼图
+    auto updatePie = [&](QChartView* view, const QJsonArray &arr, const QList<QColor> &colors) {
+        if (!view) return;
+        QChart *chart = new QChart();
+        chart->setBackgroundVisible(false);
+        QPieSeries *series = new QPieSeries();
+        series->setHoleSize(0.4); 
+        series->setPieSize(0.7); 
+        
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject obj = arr[i].toObject();
+            QString name = obj["name"].toString();
+            double val = obj["value"].toDouble();
+            if (val <= 0) continue;
+            
+            QPieSlice *slice = series->append(name, val);
+            if (i < colors.size()) slice->setBrush(colors[i]);
+            slice->setLabelVisible(true);
+            slice->setLabelPosition(QPieSlice::LabelOutside);
+            slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+        }
+        for (auto slice : series->slices()) {
+            slice->setLabel(QString("%1 %2%").arg(slice->label()).arg(QString::number(slice->percentage() * 100, 'f', 1)));
+        }
+        chart->addSeries(series);
+        chart->setMargins(QMargins(0, 0, 0, 0));
+        chart->legend()->hide();
+        view->setChart(chart);
+    };
+
+    updatePie(m_finCompChart, data["finComp"].toArray(), {QColor("#3b82f6"), QColor("#8b5cf6"), QColor("#10b981"), QColor("#f59e0b")});
+    updatePie(m_finPayChart, data["payComp"].toArray(), {QColor("#22c55e"), QColor("#3b82f6"), QColor("#f59e0b"), QColor("#94a3b8")});
+}
+
+void StatsModule::onRevenueTrendReceived(const QJsonArray &data) {
+    if (!m_finTrendChart) return;
+
+    QChart *chart = new QChart();
+    chart->setBackgroundVisible(false);
+    chart->layout()->setContentsMargins(0, 0, 0, 0);
+    
+    QLineSeries *series = new QLineSeries();
+    series->setColor(QColor("#3b82f6"));
+    series->setPen(QPen(QColor("#3b82f6"), 3));
+    series->setPointsVisible(true);
+    
+    QBarSeries *labelSeries = new QBarSeries();
+    QBarSet *set = new QBarSet("");
+    set->setBrush(Qt::transparent);
+    set->setPen(QPen(Qt::transparent));
+    set->setLabelColor(QColor("#475569"));
+    set->setLabelFont(QFont("Microsoft YaHei", 8, QFont::Bold));
+
+    QStringList categories;
+    double maxVal = 100;
+    for (int i = 0; i < data.size(); ++i) {
+        QJsonObject obj = data[i].toObject();
+        QString label = obj["label"].toString();
+        double val = obj["value"].toDouble();
+        
+        series->append(i, val);
+        *set << val;
+        categories << label;
+        if (val > maxVal) maxVal = val;
+    }
+    labelSeries->append(set);
+    labelSeries->setLabelsVisible(true);
+    labelSeries->setLabelsPosition(QAbstractBarSeries::LabelsOutsideEnd);
+
+    chart->addSeries(series);
+    chart->addSeries(labelSeries);
+
+    QBarCategoryAxis *axisX = new QBarCategoryAxis();
+    axisX->append(categories);
+    axisX->setGridLineVisible(false);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+    labelSeries->attachAxis(axisX);
+
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setRange(0, maxVal * 1.2);
+    axisY->setGridLineColor(QColor("#f1f5f9"));
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisY);
+    labelSeries->attachAxis(axisY);
+
+    chart->legend()->hide();
+    m_finTrendChart->setChart(chart);
 }

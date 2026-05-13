@@ -69,7 +69,7 @@ public:
             m_yearCombo = new QComboBox(navBar);
             
             for(int i = 1; i <= 12; ++i) m_monthCombo->addItem(QString("%1月").arg(i), i);
-            for(int i = 2022; i <= 2035; ++i) m_yearCombo->addItem(QString("%1年").arg(i), i);
+            for(int i = 1920; i <= 2050; ++i) m_yearCombo->addItem(QString("%1年").arg(i), i);
 
             // 稍微收缩宽度，确保小屏也能并排
             m_monthCombo->setFixedWidth(68);

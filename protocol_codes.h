@@ -24,6 +24,10 @@ namespace Protocol {
         CMD_DELETE_MEMBER   = 2010,
         CMD_GET_PRODUCT_LIST = 2003, // 获取商品列表
         CMD_GET_INBOUND_LIST = 2004, // 获取入库单据列表
+        CMD_ADD_INBOUND_RECORD = 2015, // 新增入库记录
+        CMD_UPDATE_INBOUND_RECORD = 2016, // 更新入库记录
+        CMD_DELETE_INBOUND_RECORD = 2017, // 删除/作废入库记录
+        CMD_UPDATE_PRODUCT = 2018, // 更新/新增商品档案
         CMD_SHELVE_PRODUCT = 2005,   // 上架商品
         CMD_UNSHELVE_PRODUCT = 2011, // 下架商品
         CMD_UPDATE_PET      = 2006,
@@ -44,6 +48,7 @@ namespace Protocol {
         CMD_UPDATE_STAFF   = 4003,
         CMD_DELETE_STAFF   = 4004,
         CMD_RESTORE_STAFF  = 4005,
+        CMD_HARD_DELETE_STAFF = 4006,
         
         // 服务管理类 (5000-5999)
         CMD_GET_SERVICE_LIST = 5001,
@@ -73,6 +78,10 @@ namespace Protocol {
         CMD_GET_SALARY_LIST      = 7003,
         CMD_APPROVE_SALARY       = 7004,
         CMD_PAY_SALARY           = 7005,
+        
+        // 统计报表类 (8000-8999)
+        CMD_GET_STATS_DASHBOARD = 8001, // 获取仪表盘核心指标
+        CMD_GET_STATS_REVENUE   = 8002, // 获取营收趋势数据 (趋势图)
 
         // 错误/响应类
         CMD_ERROR_RESPONSE  = 9999

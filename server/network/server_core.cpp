@@ -18,6 +18,7 @@
 #include "../logic/appointment_controller.h"
 #include "../logic/order_controller.h"
 #include "../logic/finance_controller.h"
+#include "../logic/report_controller.h"
 
 ServerCore::ServerCore(QObject *parent) : QObject(parent)
 {
@@ -38,6 +39,7 @@ ServerCore::ServerCore(QObject *parent) : QObject(parent)
     new AppointmentController(this, this);
     new OrderController(this, this);
     new FinanceController(this, this);
+    new ReportController(this, this);
 }
 
 bool ServerCore::start(quint16 port)

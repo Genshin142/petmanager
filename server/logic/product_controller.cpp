@@ -20,6 +20,14 @@ ProductController::ProductController(ServerCore *server, QObject *parent)
             std::bind(&ProductController::handleShelveProduct, this, std::placeholders::_1, std::placeholders::_2));
         m_server->registerHandler(Protocol::CMD_UNSHELVE_PRODUCT, 
             std::bind(&ProductController::handleUnshelveProduct, this, std::placeholders::_1, std::placeholders::_2));
+        m_server->registerHandler(Protocol::CMD_ADD_INBOUND_RECORD, 
+            std::bind(&ProductController::handleAddInboundRecord, this, std::placeholders::_1, std::placeholders::_2));
+        m_server->registerHandler(Protocol::CMD_UPDATE_INBOUND_RECORD, 
+            std::bind(&ProductController::handleUpdateInboundRecord, this, std::placeholders::_1, std::placeholders::_2));
+        m_server->registerHandler(Protocol::CMD_DELETE_INBOUND_RECORD, 
+            std::bind(&ProductController::handleDeleteInboundRecord, this, std::placeholders::_1, std::placeholders::_2));
+        m_server->registerHandler(Protocol::CMD_UPDATE_PRODUCT, 
+            std::bind(&ProductController::handleUpdateProduct, this, std::placeholders::_1, std::placeholders::_2));
     }
 }
 
@@ -325,4 +333,176 @@ void ProductController::handleUnshelveProduct(ClientHandler* client, const QJson
     QJsonObject notify;
     notify["module"] = "product";
     m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+}
+
+void ProductController::handleAddInboundRecord(ClientHandler* client, const QJsonObject &data)
+{
+    LOG_I("[PRODUCT] Adding new inbound record.");
+    
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    // 生成入库单号 IN + yyyyMMdd + 4位序号
+    QString today = QDate::currentDate().toString("yyyyMMdd");
+    QString prefix = "IN" + today;
+    query.prepare("SELECT inbound_no FROM product_inbound WHERE inbound_no LIKE ? ORDER BY inbound_no DESC LIMIT 1");
+    query.addBindValue(prefix + "%");
+    
+    QString newNo = prefix + "0001";
+    if (query.exec() && query.next()) {
+        QString lastNo = query.value(0).toString();
+        int seq = lastNo.right(4).toInt();
+        newNo = prefix + QString("%1").arg(seq + 1, 4, 10, QChar('0'));
+    }
+
+    query.prepare("INSERT INTO product_inbound (inbound_no, barcode, product_name, spec, category, supplier, quantity, cost_price, sale_price, production_date, shelf_life_days, supplier_phone, operator_name, img_data, is_shelved) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
+    query.addBindValue(newNo);
+    query.addBindValue(data["barcode"].toString());
+    query.addBindValue(data["productName"].toString());
+    query.addBindValue(data["spec"].toString());
+    query.addBindValue(data["category"].toString());
+    query.addBindValue(data["supplier"].toString());
+    query.addBindValue(data["quantity"].toInt());
+    query.addBindValue(data["cost_price"].toDouble());
+    query.addBindValue(data["sale_price"].toDouble());
+    query.addBindValue(data["productionDate"].toString());
+    query.addBindValue(data["shelfLifeDays"].toInt());
+    query.addBindValue(data["supplierPhone"].toString());
+    query.addBindValue(data["operatorName"].toString());
+    query.addBindValue(data["imgData"].toString());
+
+    QJsonObject resp;
+    if (query.exec()) {
+        resp["status"] = Protocol::STATUS_OK;
+        resp["inbound_no"] = newNo;
+        // 广播刷新
+        QJsonObject notify;
+        notify["module"] = "product";
+        m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    } else {
+        resp["status"] = Protocol::STATUS_ERROR;
+        resp["message"] = query.lastError().text();
+    }
+    client->sendPacket(Protocol::CMD_ADD_INBOUND_RECORD, QJsonDocument(resp).toJson(QJsonDocument::Compact));
+}
+
+void ProductController::handleUpdateInboundRecord(ClientHandler* client, const QJsonObject &data)
+{
+    int id = data["id"].toInt();
+    LOG_I("[PRODUCT] Updating inbound record ID: " << id);
+    
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    query.prepare("UPDATE product_inbound SET product_name=?, spec=?, category=?, supplier=?, quantity=?, cost_price=?, sale_price=?, production_date=?, shelf_life_days=?, supplier_phone=?, operator_name=?, img_data=? WHERE id=?");
+    query.addBindValue(data["productName"].toString());
+    query.addBindValue(data["spec"].toString());
+    query.addBindValue(data["category"].toString());
+    query.addBindValue(data["supplier"].toString());
+    query.addBindValue(data["quantity"].toInt());
+    query.addBindValue(data["cost_price"].toDouble());
+    query.addBindValue(data["sale_price"].toDouble());
+    query.addBindValue(data["productionDate"].toString());
+    query.addBindValue(data["shelfLifeDays"].toInt());
+    query.addBindValue(data["supplierPhone"].toString());
+    query.addBindValue(data["operatorName"].toString());
+    query.addBindValue(data["imgData"].toString());
+    query.addBindValue(id);
+
+    QJsonObject resp;
+    if (query.exec()) {
+        resp["status"] = Protocol::STATUS_OK;
+        // 广播刷新
+        QJsonObject notify;
+        notify["module"] = "product";
+        m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    } else {
+        resp["status"] = Protocol::STATUS_ERROR;
+        resp["message"] = query.lastError().text();
+    }
+    client->sendPacket(Protocol::CMD_UPDATE_INBOUND_RECORD, QJsonDocument(resp).toJson(QJsonDocument::Compact));
+}
+
+void ProductController::handleDeleteInboundRecord(ClientHandler* client, const QJsonObject &data)
+{
+    QString dateTime = data["dateTime"].toString();
+    QString barcode = data["barcode"].toString();
+    bool isHard = data["hard"].toBool();
+    
+    LOG_I("[PRODUCT] Deleting inbound record. Barcode: " << barcode.toStdString() << " Date: " << dateTime.toStdString());
+    
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    if (isHard) {
+        query.prepare("DELETE FROM product_inbound WHERE barcode = ? AND created_at = ?");
+    } else {
+        query.prepare("UPDATE product_inbound SET is_deleted = 1 WHERE barcode = ? AND created_at = ?");
+    }
+    query.addBindValue(barcode);
+    query.addBindValue(dateTime);
+
+    QJsonObject resp;
+    if (query.exec()) {
+        resp["status"] = Protocol::STATUS_OK;
+        // 广播刷新
+        QJsonObject notify;
+        notify["module"] = "product";
+        m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    } else {
+        resp["status"] = Protocol::STATUS_ERROR;
+        resp["message"] = query.lastError().text();
+    }
+    client->sendPacket(Protocol::CMD_DELETE_INBOUND_RECORD, QJsonDocument(resp).toJson(QJsonDocument::Compact));
+}
+
+void ProductController::handleUpdateProduct(ClientHandler* client, const QJsonObject &data)
+{
+    QString barcode = data["barcode"].toString();
+    LOG_I("[PRODUCT] Updating product archive: " << barcode.toStdString());
+    
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    // 检查是否存在
+    query.prepare("SELECT product_id FROM products WHERE barcode = ?");
+    query.addBindValue(barcode);
+    
+    bool exists = false;
+    if (query.exec() && query.next()) exists = true;
+    
+    if (exists) {
+        query.prepare("UPDATE products SET name=?, brand=?, origin=?, category=?, spec=?, unit=?, sale_price=?, stock_min=?, cost_price=?, supplier=?, supplier_phone=?, description=?, img_data=? WHERE barcode=?");
+    } else {
+        query.prepare("INSERT INTO products (name, brand, origin, category, spec, unit, sale_price, stock_min, cost_price, supplier, supplier_phone, description, img_data, barcode) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    }
+    
+    query.addBindValue(data["name"].toString());
+    query.addBindValue(data["brand"].toString());
+    query.addBindValue(data["origin"].toString());
+    query.addBindValue(data["category"].toString());
+    query.addBindValue(data["spec"].toString());
+    query.addBindValue(data["unit"].toString());
+    query.addBindValue(data["sale_price"].toDouble());
+    query.addBindValue(data["stock_min"].toInt());
+    query.addBindValue(data["cost_price"].toDouble());
+    query.addBindValue(data["supplier"].toString());
+    query.addBindValue(data["supplier_phone"].toString());
+    query.addBindValue(data["description"].toString());
+    query.addBindValue(data["img_data"].toString());
+    query.addBindValue(barcode);
+
+    QJsonObject resp;
+    if (query.exec()) {
+        resp["status"] = Protocol::STATUS_OK;
+        // 广播刷新
+        QJsonObject notify;
+        notify["module"] = "product";
+        m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    } else {
+        resp["status"] = Protocol::STATUS_ERROR;
+        resp["message"] = query.lastError().text();
+    }
+    client->sendPacket(Protocol::CMD_UPDATE_PRODUCT, QJsonDocument(resp).toJson(QJsonDocument::Compact));
 }

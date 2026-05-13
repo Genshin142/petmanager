@@ -368,6 +368,7 @@ void MemberDetailDrawer::setMemberInfo(const MemberInfo &info)
 
 void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVisit, const QString &pets)
 {
+    Q_UNUSED(pets);
     m_currentMember = info;
     m_nameLabel->setText(info.name);
     m_editBtn->show();

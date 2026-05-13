@@ -297,6 +297,14 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
             requestRoomList();
             requestOrderList();
         }
+    } else if (packet.cmdId == Protocol::CMD_GET_STATS_DASHBOARD) {
+        if (packet.jsonObj["status"].toInt() == Protocol::STATUS_OK) {
+            emit dashboardStatsReceived(packet.jsonObj["data"].toObject());
+        }
+    } else if (packet.cmdId == Protocol::CMD_GET_STATS_REVENUE) {
+        if (packet.jsonObj["status"].toInt() == Protocol::STATUS_OK) {
+            emit revenueTrendReceived(packet.jsonObj["data"].toArray());
+        }
     }
 }
 
@@ -617,6 +625,43 @@ void PetDataManager::executeCancelBooking(int roomId, const QString &petId) {
     log.remark = "客户取消了本次寄养预约。";
     log.operatorName = "系统管理员";
     addActivityLog(petId, log);
+
+    notifyGlobalDataChanged();
+    notifyPetDataChanged(petId);
+}
+
+void PetDataManager::executeCheckOut(int roomId, const QString &petId, const QDate &checkOutDate, double weight, double totalAmount, const QString &paymentMethod) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_pets.contains(petId)) return;
+
+    PetInfo &info = m_pets[petId];
+    info.status = "空闲";
+    info.roomNo = "";
+    info.fosterEndTime = checkOutDate.toString("yyyy-MM-dd");
+    info.weight = weight;
+
+    // 更新历史批次
+    if (m_historyBatches.contains(petId) && !m_historyBatches[petId].isEmpty()) {
+        m_historyBatches[petId].first().isActive = false;
+        m_historyBatches[petId].first().endTime = info.fosterEndTime;
+    }
+
+    // 创建账单
+    OrderInfo order;
+    order.id = "ORD-BO-" + QDateTime::currentDateTime().toString("yyyyMMddhhmmss");
+    order.sourceModule = "Boarding";
+    order.relatedId = QString::number(roomId);
+    order.petId = petId;
+    order.petName = info.name;
+    order.memberId = info.ownerId;
+    order.memberName = info.ownerName;
+    order.totalAmount = totalAmount;
+    order.finalAmount = totalAmount;
+    order.status = "Paid";
+    order.payMethod = paymentMethod;
+    order.createTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    
+    m_orders[order.id] = order;
 
     notifyGlobalDataChanged();
     notifyPetDataChanged(petId);
@@ -994,4 +1039,18 @@ void PetDataManager::saveToLocalCache(const QString &id, const QPixmap &pix)
     if (!QFile::exists(localPath)) {
         pix.save(localPath, "PNG");
     }
+}
+
+void PetDataManager::requestDashboardStats()
+{
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_STATS_DASHBOARD, QJsonObject());
+}
+
+void PetDataManager::requestRevenueTrend(const QString &range, int year, int month)
+{
+    QJsonObject body;
+    body["range"] = range;
+    body["year"] = year;
+    body["month"] = month;
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_STATS_REVENUE, body);
 }
