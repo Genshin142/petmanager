@@ -359,18 +359,31 @@ void PetDataManager::addPet(const PetInfo &info)
     newPet.id = petId;
     m_pets[petId] = newPet;
     
+    int ageMonths = 0;
+    QString ageStr = newPet.age;
+    if (ageStr.contains("岁")) {
+        int yearIdx = ageStr.indexOf("岁");
+        ageMonths += ageStr.left(yearIdx).toInt() * 12;
+        if (ageStr.contains("个月")) {
+            int monthIdx = ageStr.indexOf("个月");
+            ageMonths += ageStr.mid(yearIdx + 1, monthIdx - yearIdx - 1).toInt();
+        }
+    } else if (ageStr.contains("个月")) {
+        ageMonths = ageStr.left(ageStr.indexOf("个月")).toInt();
+    }
+    
     QJsonObject body;
     body["owner_id"] = newPet.ownerId;
     body["pet_name"] = newPet.name;
     body["species"] = newPet.species;
     body["breed"] = newPet.breed;
     body["gender"] = newPet.gender;
-    body["age"] = newPet.age;
+    body["age_months"] = ageMonths;
     body["weight"] = newPet.weight;
     body["avatar_path"] = newPet.avatarPath;
-    body["is_neutered"] = (newPet.health == "已绝育");
+    body["health_status"] = newPet.health;
     body["medical_history"] = newPet.medicalHistory;
-    body["dietary_restrictions"] = newPet.dietary;
+    body["dietary_habit"] = newPet.dietary;
     body["status"] = newPet.status;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_PET, body);

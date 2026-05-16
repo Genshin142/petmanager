@@ -75,8 +75,8 @@ void PetController::handleAddPet(ClientHandler* client, const QJsonObject& data)
     if (rawOwnerId.startsWith("M")) memberId = rawOwnerId.mid(1).toInt();
     else memberId = rawOwnerId.toInt();
 
-    query.prepare("INSERT INTO pets (member_id, pet_name, species, breed, gender, age, weight, avatar_path, "
-                  "is_neutered, medical_history, dietary_restrictions, current_status, is_deleted) "
+    query.prepare("INSERT INTO pets (member_id, pet_name, species, breed, gender, age_months, weight, avatar_path, "
+                  "health_status, medical_history, dietary_habit, current_status, is_deleted) "
                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
     
     query.addBindValue(memberId);
@@ -84,12 +84,12 @@ void PetController::handleAddPet(ClientHandler* client, const QJsonObject& data)
     query.addBindValue(data["species"].toString());
     query.addBindValue(data["breed"].toString());
     query.addBindValue(data["gender"].toString());
-    query.addBindValue(data["age"].toString());
+    query.addBindValue(data["age_months"].toInt());
     query.addBindValue(data["weight"].toDouble());
     query.addBindValue(data["avatar_path"].toString());
-    query.addBindValue(data["is_neutered"].toBool() ? 1 : 0);
+    query.addBindValue(data["health_status"].toString());
     query.addBindValue(data["medical_history"].toString());
-    query.addBindValue(data["dietary_restrictions"].toString());
+    query.addBindValue(data["dietary_habit"].toString());
     query.addBindValue(data["status"].toString().isEmpty() ? "在家" : data["status"].toString());
 
     QJsonObject response;
