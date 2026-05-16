@@ -33,21 +33,12 @@ MemberDataManager::MemberDataManager(QObject *parent) : QObject(parent)
 
 void MemberDataManager::requestMemberList()
 {
-    bool shouldEmitLocal = false;
     {
         QMutexLocker locker(&m_mutex);
         if (m_isLoading) {
             return; // Already fetching
         }
         m_isLoading = true;
-        if (!m_members.isEmpty()) {
-            shouldEmitLocal = true;
-        }
-    }
-    
-    // 发送本地数据缓存更新（让UI先有数据）
-    if (shouldEmitLocal) {
-        emit dataChanged();
     }
     
     qDebug() << "[MEMBER] Requesting member list from server...";
@@ -75,14 +66,15 @@ void MemberDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.gender = obj["gender"].toString();
                     info.phone = obj["phone"].toString();
                     info.level = obj["level_name"].toString(); // 修正 Key 名
-                    info.status = obj.contains("status") ? obj["status"].toString() : "正常"; // 容错处理
+                    info.status = obj["status"].toString();
+                    info.isDeleted = obj["is_deleted"].toBool();
+                    info.isActive = !info.isDeleted;
                     info.balance = obj["balance"].toDouble();
                     info.consume_amt = obj["consume_amt"].toDouble();
                     info.points = obj["points"].toInt();
                     info.birthday = obj["birthday"].toString();
                     info.pets = obj["pets"].toString();
                     info.imgData = obj["img_data"].toString();
-                    info.isActive = (info.status == "正常");
                     
                     qDebug() << "[DEBUG] Member ID:" << info.id << "Name:" << info.name << "Gender:" << info.gender;
                     
@@ -201,18 +193,16 @@ void MemberDataManager::removeMember(const QString &id)
 
 void MemberDataManager::restoreMember(const QString &id)
 {
-    if (m_members.contains(id)) {
-        m_members[id].isActive = true;
-        m_members[id].status = "正常";
-        emit dataChanged();
-    }
+    QJsonObject data;
+    data["member_id"] = id.mid(1).toInt();
+    NetworkManager::instance().sendRequest(Protocol::CMD_RESTORE_MEMBER, data);
 }
 
 void MemberDataManager::hardDeleteMember(const QString &id)
 {
-    if (m_members.remove(id) > 0) {
-        emit dataChanged();
-    }
+    QJsonObject data;
+    data["member_id"] = id.mid(1).toInt();
+    NetworkManager::instance().sendRequest(Protocol::CMD_HARD_DELETE_MEMBER, data);
 }
 
 void MemberDataManager::removePetFromMember(const QString &memberId, const QString &petName)

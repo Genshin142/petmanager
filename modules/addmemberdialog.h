@@ -19,6 +19,7 @@ struct MemberInfo {
     double consume_amt;  // 累计消费金额
     int points;         // 当前可用积分
     bool isActive = true; // 是否有效（逻辑删除标志）
+    bool isDeleted = false; // 是否已注销
     QString status = "正常"; // 状态：正常、已注销、锁定等
     QString pets = "无";    // 关联的宠物信息字符串
     QString imgData;        // 新增：头像 Base64 数据

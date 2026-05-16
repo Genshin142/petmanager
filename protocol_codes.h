@@ -22,6 +22,8 @@ namespace Protocol {
         CMD_ADD_MEMBER      = 2008,
         CMD_UPDATE_MEMBER   = 2009,
         CMD_DELETE_MEMBER   = 2010,
+        CMD_RESTORE_MEMBER  = 2021,
+        CMD_HARD_DELETE_MEMBER = 2022,
         CMD_GET_PRODUCT_LIST = 2003, // 获取商品列表
         CMD_GET_INBOUND_LIST = 2004, // 获取入库单据列表
         CMD_ADD_INBOUND_RECORD = 2015, // 新增入库记录
