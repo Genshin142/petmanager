@@ -611,7 +611,6 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             topRow->addWidget(iconL);
             topRow->addSpacing(6);
             topRow->addWidget(titleL);
-            topRow->addWidget(orderNoL);
             topRow->addStretch();
             
             // 状态标签 (QLabel with proper layout padding)
@@ -678,7 +677,11 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
                 oL->addWidget(bodyL);
             }
             
-            // 3. 底部行：日期与时间
+            // 3. 底部行：日期时间 + 订单号
+            QHBoxLayout *bottomRow = new QHBoxLayout();
+            bottomRow->setContentsMargins(0, 0, 0, 0);
+            bottomRow->setAlignment(Qt::AlignVCenter);
+
             QString dateInfo = QString("%1 %2").arg(dateStr, timeStr);
             if (o.sourceModule == "Boarding" && totalDays > 0) {
                 QDateTime endDt = QDateTime::fromString(o.createTime, "yyyy-MM-dd HH:mm:ss");
@@ -689,7 +692,12 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
 
             QLabel *dateL = new QLabel(dateInfo);
             dateL->setStyleSheet("color: #94a3b8; font-size: 11px; background: transparent; border: none;");
-            oL->addWidget(dateL);
+            
+            bottomRow->addWidget(dateL);
+            bottomRow->addStretch();
+            bottomRow->addWidget(orderNoL);
+            
+            oL->addLayout(bottomRow);
             
             m_orderListLayout->addWidget(oCard);
         }
