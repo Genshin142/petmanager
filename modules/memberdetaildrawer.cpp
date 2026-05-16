@@ -538,24 +538,25 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             if (summary.isEmpty()) summary = "业务结算";
             if (summary.length() > 40) summary = summary.left(37) + "...";
 
-            // 3. 构造极简模版 HTML (去掉卡片、背景和边框，使用 table 保证 Qt RichText 完美兼容)
+            // 3. 构造极简模版 HTML
+            // Qt 富文本对 colspan 和 float 支持极差。解决方案：使用 div 排版标题和内容，仅用无 colspan 的 table 来做左右对齐
             QString itemHtml = QString(
-                "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 12px;'>"
-                "  <tr>"
-                "    <td colspan='2' style='padding-bottom: 4px;'>"
-                "      <span style='color: %1;'>●</span>"
-                "      <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
-                "      %3"
-                "    </td>"
-                "  </tr>"
-                "  <tr>"
-                "    <td colspan='2' style='color: #1e293b; font-size: 13px; font-weight: 600; padding-left: 14px; padding-bottom: 6px;'>%4</td>"
-                "  </tr>"
-                "  <tr>"
-                "    <td style='color: #94a3b8; font-size: 11px; padding-left: 14px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;'>%5 %6</td>"
-                "    <td align='right' style='color: #1e293b; font-weight: 800; font-size: 13px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;'>¥ %7</td>"
-                "  </tr>"
-                "</table>"
+                "<div style='margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;'>"
+                "  <div style='padding-bottom: 6px;'>"
+                "    <span style='color: %1;'>●</span>"
+                "    <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
+                "    %3"
+                "  </div>"
+                "  <div style='color: #1e293b; font-size: 13px; font-weight: 600; padding-left: 14px; padding-bottom: 6px;'>"
+                "    %4"
+                "  </div>"
+                "  <table width='100%' cellpadding='0' cellspacing='0'>"
+                "    <tr>"
+                "      <td style='color: #94a3b8; font-size: 11px; padding-left: 14px; white-space: pre;'>%5 %6</td>"
+                "      <td align='right' style='color: #1e293b; font-weight: 800; font-size: 13px;'>¥ %7</td>"
+                "    </tr>"
+                "  </table>"
+                "</div>"
             ).arg(
                 accentColor, typeName,
                 (i == 0 ? "<span style='font-size: 9px; color: #3b82f6; font-weight: 800; margin-left: 8px;'>NEW</span>" : ""),
