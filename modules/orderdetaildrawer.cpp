@@ -1,6 +1,8 @@
 #include "orderdetaildrawer.h"
 #include "petdatamanager.h"
 #include "productdatamanager.h"
+#include "memberdatamanager.h"
+#include "addmemberdialog.h"
 #include "custommessagedialog.h"
 #include <QPainter>
 #include <QGraphicsDropShadowEffect>
@@ -202,7 +204,7 @@ void OrderDetailDrawer::setupUI()
 
         // --- 会员卡余额校验逻辑 ---
         if (method == "会员卡余额") {
-            MemberInfo member = PetDataManager::instance()->getMember(m_order.memberId);
+            MemberInfo member = MemberDataManager::instance()->getMember(m_order.memberId);
             if (member.id.isEmpty() || member.id == "Temporary") {
                 CustomMessageDialog::showWarning(this, "支付失败", "该订单为散客/临时客订单，无法使用会员卡支付！");
                 return;
@@ -219,7 +221,7 @@ void OrderDetailDrawer::setupUI()
             // 我们需要手动更新会员余额，或者确保后端/DataManager 有联动逻辑
             member.balance -= m_order.totalAmount;
             member.consume_amt += m_order.totalAmount;
-            PetDataManager::instance()->updateMember(member);
+            MemberDataManager::instance()->updateMember(member);
         }
         m_order.status = "Paid";
         m_order.payMethod = method;
