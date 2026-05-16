@@ -695,36 +695,44 @@ void PetModule::updateStats()
 
 void PetModule::filterByMemberAndHighlightPet(const QString &memberName, const QString &petName)
 {
-    for (int i = 0; i < petTable->rowCount(); ++i) {
-        for (int j = 0; j < petTable->columnCount(); ++j) {
-            QTableWidgetItem *item = petTable->item(i, j);
-            if (item) {
-                item->setBackground(QBrush());
-            }
+    // 1. Reset filters
+    searchEdit->clear();
+    if (QAbstractButton *btn = m_statusGroup->button(0)) {
+        btn->setChecked(true);
+    }
+    
+    // 2. Prepare full sorted list
+    QList<PetInfo> pets = PetDataManager::instance()->allPets();
+    std::sort(pets.begin(), pets.end(), [](const PetInfo &a, const PetInfo &b) {
+        if (a.isActive != b.isActive) return a.isActive > b.isActive;
+        return a.id < b.id;
+    });
+
+    // 3. Find the matching pet index
+    int targetIndex = -1;
+    for (int i = 0; i < pets.size(); ++i) {
+        if (pets[i].name == petName && pets[i].ownerName == memberName) {
+            targetIndex = i;
+            break;
         }
     }
 
-    searchEdit->clear();
-    onSearch("");
-
-    petTable->clearSelection();
-    petTable->clearFocus();
-    petTable->setCurrentItem(nullptr);
-    
-    for (int i = 0; i < petTable->rowCount(); ++i) {
-        if (!petTable->isRowHidden(i)) {
-            QTableWidgetItem *nameItem = petTable->item(i, 2);
-            QTableWidgetItem *ownerItem = petTable->item(i, 3);
-
-            if (nameItem && ownerItem) {
-                QString currentPetName = nameItem->text();
-                if (currentPetName == petName && ownerItem->text().startsWith(memberName + " ")) {
-                    petTable->scrollToItem(nameItem, QAbstractItemView::PositionAtCenter);
-                    petTable->selectRow(i);
-                    break;
-                }
+    // 4. Update pagination and refresh
+    if (targetIndex >= 0) {
+        int targetPage = (targetIndex / m_pageSize) + 1;
+        m_currentPage = targetPage;
+        refreshTable();
+        
+        // 5. Select in table
+        for (int i = 0; i < petTable->rowCount(); ++i) {
+            if (petTable->item(i, 0)->text() == pets[targetIndex].id) {
+                petTable->selectRow(i);
+                petTable->scrollToItem(petTable->item(i, 0), QAbstractItemView::PositionAtCenter);
+                break;
             }
         }
+    } else {
+        refreshTable();
     }
 }
 
@@ -801,12 +809,44 @@ void PetModule::onHardDeletePet()
 
 void PetModule::selectPetById(const QString &petId)
 {
-    for (int i = 0; i < petTable->rowCount(); ++i) {
-        if (petTable->item(i, 0)->text() == petId) { // ID 位于第 0 列
-            petTable->setCurrentCell(i, 0);
-            petTable->scrollToItem(petTable->item(i, 0));
-            return;
+    // 1. Reset filters
+    searchEdit->clear();
+    if (QAbstractButton *btn = m_statusGroup->button(0)) {
+        btn->setChecked(true);
+    }
+    
+    // 2. Prepare full sorted list
+    QList<PetInfo> pets = PetDataManager::instance()->allPets();
+    std::sort(pets.begin(), pets.end(), [](const PetInfo &a, const PetInfo &b) {
+        if (a.isActive != b.isActive) return a.isActive > b.isActive;
+        return a.id < b.id;
+    });
+
+    // 3. Find the matching pet index
+    int targetIndex = -1;
+    for (int i = 0; i < pets.size(); ++i) {
+        if (pets[i].id == petId) {
+            targetIndex = i;
+            break;
         }
+    }
+
+    // 4. Update pagination and refresh
+    if (targetIndex >= 0) {
+        int targetPage = (targetIndex / m_pageSize) + 1;
+        m_currentPage = targetPage;
+        refreshTable();
+        
+        // 5. Select in table
+        for (int i = 0; i < petTable->rowCount(); ++i) {
+            if (petTable->item(i, 0)->text() == petId) {
+                petTable->selectRow(i);
+                petTable->scrollToItem(petTable->item(i, 0), QAbstractItemView::PositionAtCenter);
+                break;
+            }
+        }
+    } else {
+        refreshTable();
     }
 }
 
