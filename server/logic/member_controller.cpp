@@ -44,12 +44,13 @@ void MemberController::handleAddMember(ClientHandler *client, const QJsonObject 
 void MemberController::handleUpdateMember(ClientHandler *client, const QJsonObject &data) {
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("UPDATE members SET name=?, phone=?, gender=?, birthday=?, balance=? WHERE member_id=?");
+    query.prepare("UPDATE members SET name=?, phone=?, gender=?, birthday=?, balance=?, level_name=? WHERE member_id=?");
     query.addBindValue(data["name"].toString());
     query.addBindValue(data["phone"].toString());
     query.addBindValue(data["gender"].toString());
     query.addBindValue(data["birthday"].toString());
     query.addBindValue(data["balance"].toDouble());
+    query.addBindValue(data["level"].toString());
     query.addBindValue(data["member_id"].toInt());
 
     QJsonObject response;

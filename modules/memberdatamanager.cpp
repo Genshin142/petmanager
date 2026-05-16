@@ -33,25 +33,25 @@ MemberDataManager::MemberDataManager(QObject *parent) : QObject(parent)
 
 void MemberDataManager::requestMemberList()
 {
-    bool shouldEmit = false;
+    bool shouldEmitLocal = false;
     {
         QMutexLocker locker(&m_mutex);
-        if (!m_members.isEmpty() || m_isLoading) {
-            if (!m_members.isEmpty()) shouldEmit = true;
-        } else {
-            m_isLoading = true;
+        if (m_isLoading) {
+            return; // Already fetching
+        }
+        m_isLoading = true;
+        if (!m_members.isEmpty()) {
+            shouldEmitLocal = true;
         }
     }
     
-    if (shouldEmit) {
+    // 发送本地数据缓存更新（让UI先有数据）
+    if (shouldEmitLocal) {
         emit dataChanged();
-        return;
     }
     
-    if (m_isLoading) {
-        qDebug() << "[MEMBER] Requesting member list from server...";
-        NetworkManager::instance().sendRequest(Protocol::CMD_GET_MEMBER_LIST, QJsonObject());
-    }
+    qDebug() << "[MEMBER] Requesting member list from server...";
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_MEMBER_LIST, QJsonObject());
 }
 
 void MemberDataManager::onPacketReceived(const Protocol::NetPacket &packet)
@@ -96,6 +96,17 @@ void MemberDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         } else {
             QMutexLocker locker(&m_mutex);
             m_isLoading = false;
+        }
+    } else if (packet.cmdId == Protocol::CMD_NOTIFY_REFRESH) {
+        QJsonDocument doc = QJsonDocument::fromJson(packet.data);
+        QJsonObject root = doc.object();
+        QString module = root["module"].toString();
+        if (module == "member" || module.isEmpty()) {
+            qDebug() << "[MEMBER] Received refresh broadcast, reloading member list...";
+            // Prevent redundant loads if already loading
+            if (!m_isLoading) {
+                requestMemberList();
+            }
         }
     }
 }
