@@ -508,59 +508,24 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
                 typeName = "接送服务";
             }
             
-            // 2. 解析明细摘要 (统一处理 JSON 或 纯文本)
-            QString summary = "";
-            QJsonDocument itemDoc = QJsonDocument::fromJson(o.itemDetails.toUtf8());
-            if (itemDoc.isArray()) {
-                QJsonArray items = itemDoc.array();
-                QStringList itemNames;
-                for (int j = 0; j < items.size(); ++j) {
-                    QJsonObject itemObj = items[j].toObject();
-                    QString name = itemObj["name"].toString();
-                    QString petName = itemObj["petName"].toString();
-                    
-                    if (o.sourceModule == "Product") {
-                        int count = itemObj.contains("count") ? itemObj["count"].toInt() : 1;
-                        name = QString("%1 <span style='color:#94a3b8;font-size:11px;'>x%2</span>").arg(name).arg(count);
-                    }
-                    
-                    if (!petName.isEmpty()) {
-                        itemNames << QString("%1 <span style='color:#94a3b8;font-weight:normal;'>(%2)</span>").arg(name, petName);
-                    } else {
-                        itemNames << name;
-                    }
-                }
-                summary = itemNames.join(", ");
-            } else {
-                summary = o.itemDetails;
-                if (summary.contains("+")) summary = summary.split("+").first();
-            }
-            if (summary.isEmpty()) summary = "业务结算";
-            if (summary.length() > 40) summary = summary.left(37) + "...";
-
-            // 3. 构造模版 HTML (使用带背景色的 table 形成卡片包裹视觉)
+            // 2. 构造极简模版 HTML (直接显示大类，不再展示具体商品明细)
             QString itemHtml = QString(
-                "<table width='100%' cellpadding='10' cellspacing='0' bgcolor='#f8fafc' style='border: 1px solid #f1f5f9;'>"
+                "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 12px;'>"
                 "  <tr>"
-                "    <td colspan='2' style='padding-bottom: 0px;'>"
+                "    <td colspan='2' style='padding-bottom: 6px;'>"
                 "      <span style='color: %1;'>●</span>"
-                "      <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
+                "      <span style='color: #1e293b; font-size: 13px; font-weight: 600;'>&nbsp;%2</span>"
                 "      %3"
                 "    </td>"
                 "  </tr>"
                 "  <tr>"
-                "    <td colspan='2' style='color: #1e293b; font-size: 13px; font-weight: 600; padding-top: 6px; padding-bottom: 8px;'>%4</td>"
-                "  </tr>"
-                "  <tr>"
-                "    <td style='color: #94a3b8; font-size: 11px;'>%5 &nbsp;%6</td>"
-                "    <td align='right' style='color: #1e293b; font-weight: 800; font-size: 13px;'>¥ %7</td>"
+                "    <td style='color: #94a3b8; font-size: 11px; padding-left: 14px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;'>%4 %5</td>"
+                "    <td align='right' style='color: #1e293b; font-weight: 800; font-size: 13px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;'>¥ %6</td>"
                 "  </tr>"
                 "</table>"
-                "<div style='height: 12px;'></div>" // 卡片之间的间隔
             ).arg(
                 accentColor, typeName,
                 (i == 0 ? "<span style='font-size: 9px; color: #3b82f6; font-weight: 800; margin-left: 8px;'>NEW</span>" : ""),
-                summary,
                 dateStr, timeStr,
                 QString::number(o.finalAmount, 'f', 2)
             );
