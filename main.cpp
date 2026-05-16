@@ -1,11 +1,16 @@
 #include <QApplication>
+#include <QDebug>
 #include "loginwindow.h"
 #include "mainwindow.h"
 #include "utils/logger.h"
 
 int main(int argc, char *argv[])
 {
-    Logger::init();
+    qDebug() << "==========================================";
+    qDebug() << "   PetManager Client Application v2.1   ";
+    qDebug() << "==========================================";
+
+    Logger::init("client.log");
     QApplication a(argc, argv);
     
     // 设置全局字体，确保全程序一致（特别是表格项等非 Widget 元素）

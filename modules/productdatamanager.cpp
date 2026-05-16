@@ -615,6 +615,8 @@ void ProductDataManager::addRecord(const StockInRecord &rec) {
 }
 
 void ProductDataManager::updateRecord(const QString &oldDateTime, const QString &barcode, const StockInRecord &newRec) {
+    Q_UNUSED(oldDateTime);
+    Q_UNUSED(barcode);
     QJsonObject obj;
     obj["id"] = newRec.id;
     obj["barcode"] = newRec.barcode;
@@ -713,6 +715,8 @@ void ProductDataManager::removeRecord(const QString &dateTime, const QString &ba
 }
 
 void ProductDataManager::restoreRecord(const QString &dateTime, const QString &barcode) {
+    Q_UNUSED(dateTime);
+    Q_UNUSED(barcode);
     // 恢复操作暂时逻辑上等同于取消删除，目前服务端使用 is_deleted 标记
     // 为了简单，我们先实现 hard delete 和 add，或者扩展服务端接口
     // 这里暂时留空或发送一个逻辑恢复指令

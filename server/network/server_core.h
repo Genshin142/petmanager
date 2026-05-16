@@ -9,7 +9,7 @@
 #include <QtNetwork/QTcpServer>
 #include <QtCore/QList>
 #include <QtCore/QThreadPool>
-#include <glog/logging.h>
+#include "../logger_compat.h"
 #include "../logic/pet_controller.h"
 #include "../logic/member_controller.h"
 #include "../logic/product_controller.h"

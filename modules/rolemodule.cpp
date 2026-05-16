@@ -3,6 +3,7 @@
 #include "addemployeedialog.h"
 #include "custommessagedialog.h"
 #include "staffdatamanager.h"
+#include "scheduledatamanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -104,11 +105,17 @@ RoleModule::RoleModule(QWidget *parent) : QWidget(parent), m_currentRoleFilter("
 
     setupUI();
     
-    // 默认选中第一行
+    // 默认选中第一行，并预请求当月排班数据
     QTimer::singleShot(100, this, [=](){
         if (empTable->rowCount() > 0) {
             empTable->setCurrentCell(0, 0);
         }
+        
+        // 预请求当前月份的排班数据，确保详情页有数据可显
+        QDate today = QDate::currentDate();
+        QString start = today.addMonths(-1).toString("yyyy-MM-01");
+        QString end = today.addMonths(2).toString("yyyy-MM-dd"); // 预取 3 个月
+        ScheduleDataManager::instance()->requestScheduleList(start, end);
     });
 }
 

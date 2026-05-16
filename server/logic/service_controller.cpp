@@ -4,7 +4,7 @@
 #include "../../protocol_codes.h"
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
-#include <glog/logging.h>
+#include "../logger_compat.h"
 
 ServiceController::ServiceController(ServerCore* core, QObject* parent)
     : QObject(parent), m_core(core)

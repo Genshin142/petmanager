@@ -16,10 +16,65 @@ ScheduleDataManager* ScheduleDataManager::instance()
     return m_instance;
 }
 
+#include <QStandardPaths>
+#include <QDir>
+
 ScheduleDataManager::ScheduleDataManager(QObject *parent) : QObject(parent)
 {
-    // 监听网络回包
+    // 1. 先从本地磁盘加载缓存，实现“秒开”
+    loadFromDisk();
+
+    // 2. 监听网络回包
     connect(&NetworkManager::instance(), &NetworkManager::packetReceived, this, &ScheduleDataManager::onPacketReceived);
+}
+
+void ScheduleDataManager::loadFromDisk()
+{
+    QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/schedule_cache.json";
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly)) {
+        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        QJsonArray arr = doc.array();
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonObject obj = arr[i].toObject();
+            ScheduleInfo info;
+            info.employeeId = obj["emp_id"].toString();
+            info.date = obj["work_date"].toString();
+            info.type = (ShiftType)obj["type"].toInt();
+            info.startTime = obj["start"].toString();
+            info.endTime = obj["end"].toString();
+            info.note = obj["note"].toString();
+            
+            QString key = info.employeeId + "_" + info.date;
+            m_schedules[key] = info;
+        }
+        file.close();
+        emit scheduleChanged();
+    }
+}
+
+void ScheduleDataManager::saveToDisk()
+{
+    QString dirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dirPath);
+    
+    QFile file(dirPath + "/schedule_cache.json");
+    if (file.open(QIODevice::WriteOnly)) {
+        QJsonArray arr;
+        for (auto it = m_schedules.begin(); it != m_schedules.end(); ++it) {
+            if (it.key().startsWith("TPL_")) continue; // 不保存模板
+            QJsonObject obj;
+            obj["emp_id"] = it.value().employeeId;
+            obj["work_date"] = it.value().date;
+            obj["type"] = (int)it.value().type;
+            obj["start"] = it.value().startTime;
+            obj["end"] = it.value().endTime;
+            obj["note"] = it.value().note;
+            arr.append(obj);
+        }
+        file.write(QJsonDocument(arr).toJson());
+        file.close();
+    }
 }
 
 
@@ -72,6 +127,7 @@ void ScheduleDataManager::setSchedule(const ScheduleInfo &info)
     obj["plan_end"] = info.endTime;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_SCHEDULE, obj);
+    saveToDisk();
     emit scheduleChanged();
 }
 
@@ -108,6 +164,7 @@ void ScheduleDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 QString key = info.employeeId + "_" + info.date;
                 m_schedules[key] = info;
             }
+            saveToDisk();
             emit scheduleChanged();
         }
     }
@@ -164,6 +221,7 @@ void ScheduleDataManager::setSchedules(const QList<ScheduleInfo> &infos)
     body["schedules"] = arr;
     NetworkManager::instance().sendRequest(Protocol::CMD_BATCH_UPDATE_SCHEDULE, body);
 
+    saveToDisk();
     emit scheduleChanged();
 }
 

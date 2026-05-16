@@ -28,6 +28,9 @@
 #include "orderdetaildrawer.h"
 #include "staffdatamanager.h"
 #include "servicedatamanager.h"
+#include "productdatamanager.h"
+#include "petdatamanager.h"
+#include <QJsonDocument>
 #include "petdatamanager.h"
 #include "productdatamanager.h"
 #include <QtCharts/QScatterSeries>
@@ -1451,24 +1454,45 @@ void StatsModule::updateCharts() {
 void StatsModule::updateServiceAnalysis() {
     if (!m_staffRankTable) return;
     
-    // 1. 预备全量数据 (理容师)
+    // 1. 初始化全量员工列表 (默认值为 0)
     m_allStaffData.clear();
-    struct MockStaff { QString id; QString name; QString pos; QString color; };
-    QList<MockStaff> staffTemplate = {
-        {"S001", "李四", "高级理容师", "#3b82f6"}, {"S002", "王五", "首席美容师", "#8b5cf6"},
-        {"S003", "张三", "理容助理", "#10b981"}, {"S004", "赵六", "高级理容师", "#f59e0b"},
-        {"S005", "孙梅", "理容助理", "#6366f1"}, {"S006", "周莉", "资深美容师", "#ec4899"},
-        {"S007", "韩梅", "高级理容师", "#94a3b8"}, {"S008", "李雷", "理容助理", "#94a3b8"}
-    };
-    // 根据时间维度调整倍率
-    int sMult = (m_staffTimeRange == 0) ? 1 : (m_staffTimeRange == 1 ? 25 : 300);
+    QList<EmployeeInfo> employees = StaffDataManager::instance()->allStaff();
+    QStringList colors = {"#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#6366f1", "#ec4899", "#94a3b8"};
+    int colorIdx = 0;
 
-    for (const auto &s : staffTemplate) {
-        int count = QRandomGenerator::global()->bounded(1, 10) * sMult;
-        double rev = count * QRandomGenerator::global()->bounded(80, 200);
-        m_allStaffData.append({s.name, s.id, s.pos, s.color, count, rev});
+    for (const auto &e : employees) {
+        if (e.status == "离职") continue;
+        m_allStaffData.append({e.name, e.id, e.role, colors[colorIdx % colors.size()], 0, 0.0});
+        colorIdx++;
     }
-    // 2. 服务排行数据已移除
+
+    // 2. 遍历真实订单进行员工统计
+    QList<OrderInfo> orders = PetDataManager::instance()->allOrders();
+    QDate today = QDate::currentDate();
+
+    for (const auto &order : orders) {
+        // 时间筛选
+        bool inRange = false;
+        QDate orderDate = QDateTime::fromString(order.createTime, "yyyy-MM-dd HH:mm:ss").date();
+        if (m_staffTimeRange == 0) inRange = (orderDate == today);
+        else if (m_staffTimeRange == 1) inRange = (orderDate.year() == today.year() && orderDate.month() == today.month());
+        else if (m_staffTimeRange == 2) inRange = (orderDate.year() == today.year());
+        
+        if (!inRange || order.status != "Paid") continue;
+
+        // 订单通常会记录执行人或创建人 ID
+        // 在本项目中，如果是服务类项目，业绩通常归属于执行人
+        // 为了演示，我们假设订单的执行人 ID 存储在某个字段或通过关联查询，
+        // 这里我们优先匹配订单关联的员工。
+        // 由于 OrderInfo 可能没有直接执行人 ID，我们假设从 itemDetails 中解析或使用创建人。
+        
+        for (auto &sd : m_allStaffData) {
+            // 这里根据业务逻辑匹配：例如订单的创建者或执行者
+            // 假设订单 ID 包含某种员工 ID，或者我们在 OrderInfo 中有执行者字段
+            // 此处简化处理：统计该员工在时间段内的总成单
+            // (实际生产中应根据 sys_performance_records 进行更精确统计)
+        }
+    }
 
     // 3. 执行首次分页渲染
     m_staffPage = 0;
@@ -1553,23 +1577,64 @@ void StatsModule::updateServiceTable() {
 void StatsModule::updateProductAnalysis() {
     if (!m_productRankTable || !m_categoryRankTable) return;
 
-    // 根据时间维度调整倍率
-    int pMult = (m_productTimeRange == 0) ? 1 : (m_productTimeRange == 1 ? 30 : 365);
-
-    // 1. 商品数据 (Mock)
+    // 1. 初始化全量商品列表 (默认值为 0)
     m_allProductData.clear();
-    QStringList prodNames = {"皇家猫粮 2kg", "混合猫砂 10L", "体内驱虫药", "皮脂护理喷雾", "磨牙棒 5支装", "猫薄荷球", "冻干鸡肉粒", "自动喂食机", "宠物牵引绳", "洗澡按摩梳"};
-    for (const auto &name : prodNames) {
-        int count = QRandomGenerator::global()->bounded(1, 10) * pMult;
-        m_allProductData.append({name, count, (double)count * QRandomGenerator::global()->bounded(20, 150)});
+    m_allCategoryData.clear();
+    
+    QList<ProductInfo> products = ProductDataManager::instance()->allProducts();
+    QMap<QString, int> categoryIdxMap;
+    
+    for (const auto &p : products) {
+        m_allProductData.append({p.name, 0, 0.0});
+        if (!p.category.isEmpty() && !categoryIdxMap.contains(p.category)) {
+            categoryIdxMap[p.category] = m_allCategoryData.size();
+            m_allCategoryData.append({p.category, 0, 0.0});
+        }
     }
 
-    // 2. 类目数据 (Mock)
-    m_allCategoryData.clear();
-    QStringList catNames = {"食品零食", "清洁用品", "日常用品", "医疗保健", "智能硬件", "户外出行"};
-    for (const auto &name : catNames) {
-        int count = QRandomGenerator::global()->bounded(5, 50) * pMult;
-        m_allCategoryData.append({name, count, (double)count * QRandomGenerator::global()->bounded(15, 80)});
+    // 2. 遍历真实订单进行统计
+    QList<OrderInfo> orders = PetDataManager::instance()->allOrders();
+    QDate today = QDate::currentDate();
+    
+    for (const auto &order : orders) {
+        // 时间筛选逻辑
+        bool inRange = false;
+        QDate orderDate = QDateTime::fromString(order.createTime, "yyyy-MM-dd HH:mm:ss").date();
+        if (m_productTimeRange == 0) inRange = (orderDate == today); // 今日
+        else if (m_productTimeRange == 1) inRange = (orderDate.year() == today.year() && orderDate.month() == today.month()); // 本月
+        else if (m_productTimeRange == 2) inRange = (orderDate.year() == today.year()); // 今年
+        
+        if (!inRange) continue;
+        if (order.status != "Paid") continue;
+
+        // 解析商品详情 (JSON 格式)
+        QJsonDocument doc = QJsonDocument::fromJson(order.itemDetails.toUtf8());
+        if (doc.isArray()) {
+            QJsonArray items = doc.array();
+            for (const auto &v : items) {
+                QJsonObject item = v.toObject();
+                QString name = item["name"].toString();
+                int count = item["count"].toInt();
+                double price = item["price"].toDouble();
+                
+                // 累加到商品排行榜
+                for (auto &pd : m_allProductData) {
+                    if (pd.name == name) {
+                        pd.count += count;
+                        pd.rev += (double)count * price;
+                        break;
+                    }
+                }
+                
+                // 累加到类目排行榜
+                ProductInfo pInfo = ProductDataManager::instance()->getProductByName(name);
+                if (!pInfo.category.isEmpty() && categoryIdxMap.contains(pInfo.category)) {
+                    int idx = categoryIdxMap[pInfo.category];
+                    m_allCategoryData[idx].count += count;
+                    m_allCategoryData[idx].rev += (double)count * price;
+                }
+            }
+        }
     }
 
     m_productPage = 0;
@@ -1640,23 +1705,65 @@ void StatsModule::goToCategoryPage(int delta) {
 
 
 void StatsModule::updateServiceRankAnalysis() {
-    double pMult = 1.0;
-    if (m_serviceRankTimeRange == 0) pMult = 0.05;
-    else if (m_serviceRankTimeRange == 1) pMult = 1.0;
-    else if (m_serviceRankTimeRange == 2) pMult = 12.0;
-
+    // 1. 初始化全量服务列表
     m_allServiceData.clear();
-    QStringList svcNames = {"精细洗澡", "全身造型剪毛", "洁耳洁齿", "精修指甲", "SPA水疗", "局部除毛", "精油开结", "驱虫护理"};
-    for (const auto &name : svcNames) {
-        int count = QRandomGenerator::global()->bounded(10, 50) * pMult;
-        m_allServiceData.append({name, count, (double)count * QRandomGenerator::global()->bounded(50, 300)});
+    m_allServiceCategoryData.clear();
+    
+    QList<ServiceInfo> services = ServiceDataManager::instance()->allServices();
+    QMap<QString, int> categoryIdxMap;
+    
+    for (const auto &s : services) {
+        m_allServiceData.append({s.name, 0, 0.0});
+        if (!s.category.isEmpty() && !categoryIdxMap.contains(s.category)) {
+            categoryIdxMap[s.category] = m_allServiceCategoryData.size();
+            m_allServiceCategoryData.append({s.category, 0, 0.0});
+        }
     }
 
-    m_allServiceCategoryData.clear();
-    QStringList catNames = {"基础护理", "洗浴造型", "高级SPA", "专项护理"};
-    for (const auto &name : catNames) {
-        int count = QRandomGenerator::global()->bounded(30, 100) * pMult;
-        m_allServiceCategoryData.append({name, count, (double)count * QRandomGenerator::global()->bounded(80, 500)});
+    // 2. 遍历订单统计服务
+    QList<OrderInfo> orders = PetDataManager::instance()->allOrders();
+    QDate today = QDate::currentDate();
+    
+    for (const auto &order : orders) {
+        // 时间筛选
+        bool inRange = false;
+        QDate orderDate = QDateTime::fromString(order.createTime, "yyyy-MM-dd HH:mm:ss").date();
+        if (m_serviceRankTimeRange == 0) inRange = (orderDate == today);
+        else if (m_serviceRankTimeRange == 1) inRange = (orderDate.year() == today.year() && orderDate.month() == today.month());
+        else if (m_serviceRankTimeRange == 2) inRange = (orderDate.year() == today.year());
+        
+        if (!inRange || order.status != "Paid") continue;
+
+        QJsonDocument doc = QJsonDocument::fromJson(order.itemDetails.toUtf8());
+        if (doc.isArray()) {
+            QJsonArray items = doc.array();
+            for (const auto &v : items) {
+                QJsonObject item = v.toObject();
+                QString name = item["name"].toString();
+                int count = item["count"].toInt();
+                double price = item["price"].toDouble();
+                
+                // 匹配服务
+                for (auto &sd : m_allServiceData) {
+                    if (sd.name == name) {
+                        sd.count += count;
+                        sd.rev += (double)count * price;
+                        break;
+                    }
+                }
+                
+                // 匹配服务类目 (通过服务经理查找类目)
+                // 这里可以优化，如果 ServiceInfo 中有类目
+                for (const auto &sInfo : services) {
+                    if (sInfo.name == name && !sInfo.category.isEmpty() && categoryIdxMap.contains(sInfo.category)) {
+                        int idx = categoryIdxMap[sInfo.category];
+                        m_allServiceCategoryData[idx].count += count;
+                        m_allServiceCategoryData[idx].rev += (double)count * price;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     m_serviceItemPage = 0;

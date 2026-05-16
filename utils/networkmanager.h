@@ -6,6 +6,8 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QDebug>
+#include <QtCore/QMutex>
+#include <functional>
 #include "../protocol_codes.h"
 
 class NetworkManager : public QObject
@@ -19,6 +21,9 @@ public:
     
     // 发送请求的基本方法
     void sendRequest(int cmdId, const QJsonObject &body);
+    
+    // 带回调的发送方法 (目前基于 cmdId 简单匹配)
+    void sendRequest(int cmdId, const QJsonObject &body, std::function<void(const QJsonObject&)> callback);
 
     // 检查连接状态
     bool isConnected() const { return m_socket->state() == QAbstractSocket::ConnectedState; }
@@ -46,6 +51,8 @@ private:
     QTcpSocket *m_socket;
     QByteArray m_buffer;
     class QThreadPool *m_threadPool;
+    QMap<int, QList<std::function<void(const QJsonObject&)>>> m_callbacks;
+    QMutex m_callbackMutex;
 };
 
 #endif // NETWORKMANAGER_H

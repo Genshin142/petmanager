@@ -7,7 +7,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDateTime>
-#include <glog/logging.h>
+#include "../logger_compat.h"
 
 AppointmentController::AppointmentController(ServerCore *core, QObject *parent)
     : QObject(parent), m_core(core)

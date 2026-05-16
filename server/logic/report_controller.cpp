@@ -5,7 +5,7 @@
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QJsonDocument>
-#include <glog/logging.h>
+#include "../logger_compat.h"
 
 ReportController::ReportController(ServerCore *core, QObject *parent)
     : QObject(parent), m_core(core)

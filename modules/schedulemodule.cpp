@@ -20,12 +20,12 @@ ScheduleModule::ScheduleModule(QWidget *parent) : QWidget(parent)
     
     setupUI();
     
-    // 初始化时请求整个月（当前周前后两周）的数据
-    QDate start = m_currentMonday.addDays(-14);
-    QDate end = m_currentMonday.addDays(28);
-    ScheduleDataManager::instance()->requestScheduleList(start.toString("yyyy-MM-dd"), end.toString("yyyy-MM-dd"));
-    
     connect(ScheduleDataManager::instance(), &ScheduleDataManager::scheduleChanged, this, &ScheduleModule::updateTable);
+
+    // 初始化时请求数据，界面会先显示缓存内容
+    QDate requestStart = m_currentMonday.addDays(-14);
+    QDate requestEnd = m_currentMonday.addDays(28);
+    ScheduleDataManager::instance()->requestScheduleList(requestStart.toString("yyyy-MM-dd"), requestEnd.toString("yyyy-MM-dd"));
     
     updateTable();
 }
@@ -139,6 +139,14 @@ void ScheduleModule::setupUI()
     connect(tplBtn, &QPushButton::clicked, this, &ScheduleModule::onApplyTemplate);
 }
 
+void ScheduleModule::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    if (m_imagePreviewOverlay) {
+        m_imagePreviewOverlay->setGeometry(rect());
+    }
+}
+
 bool ScheduleModule::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::MouseButtonRelease) {
         // 1. 如果点击的是头像，直接放大
@@ -208,6 +216,9 @@ void ScheduleModule::updateHeaderDates()
 
 void ScheduleModule::updateTable()
 {
+    // 优化 1：禁用更新，防止填充过程中的频繁重绘导致的卡顿
+    m_table->setUpdatesEnabled(false);
+    
     updateHeaderDates();
     
     auto allStaff = StaffDataManager::instance()->allStaff();
@@ -216,47 +227,63 @@ void ScheduleModule::updateTable()
     for (int i = 0; i < allStaff.size(); ++i) {
         const auto &staff = allStaff[i];
         
-        // 第 0 列：员工信息
-        QWidget *staffWidget = new QWidget();
-        QHBoxLayout *l = new QHBoxLayout(staffWidget);
-        l->setContentsMargins(15, 0, 10, 0);
-        l->setSpacing(12);
-        
-        QLabel *avatar = new QLabel();
-        avatar->setFixedSize(44, 44);
-        avatar->setCursor(Qt::PointingHandCursor);
-        avatar->setStyleSheet("border: none; background: transparent;"); // 移除可能存在的背景/边框
-        
-        // 设置头像并安装预览过滤器
+        // 第 0 列：员工信息 (复用或新建)
+        QWidget *staffWidget = m_table->cellWidget(i, 0);
+        if (!staffWidget) {
+            staffWidget = new QWidget();
+            QHBoxLayout *l = new QHBoxLayout(staffWidget);
+            l->setContentsMargins(15, 0, 10, 0);
+            l->setSpacing(12);
+            
+            QLabel *avatar = new QLabel();
+            avatar->setObjectName("avatar");
+            avatar->setFixedSize(44, 44);
+            avatar->setCursor(Qt::PointingHandCursor);
+            avatar->setStyleSheet("border: none; background: transparent;");
+            
+            QVBoxLayout *textL = new QVBoxLayout();
+            textL->setSpacing(1);
+            
+            QLabel *name = new QLabel();
+            name->setObjectName("name");
+            name->setStyleSheet("font-weight: bold; color: #334155; font-size: 14px; border: none; background: transparent;");
+            
+            QLabel *idRole = new QLabel();
+            idRole->setObjectName("idRole");
+            idRole->setStyleSheet("color: #94a3b8; font-size: 11px; border: none; background: transparent;");
+            
+            textL->addWidget(name);
+            textL->addWidget(idRole);
+            l->addWidget(avatar);
+            l->addLayout(textL);
+            l->addStretch();
+            m_table->setCellWidget(i, 0, staffWidget);
+        }
+
+        // 更新内容
+        staffWidget->findChild<QLabel*>("name")->setText(staff.name);
+        staffWidget->findChild<QLabel*>("idRole")->setText(QString("%1 | %2").arg(staff.id).arg(staff.role));
+        QLabel *avatar = staffWidget->findChild<QLabel*>("avatar");
         QPixmap srcPix = ImageUtils::loadPixmap(staff.imgPath);
         QPixmap pix = (staff.imgPath.isEmpty() || srcPix.isNull()) ? QPixmap(staff.gender == "女" ? ":/images/female.png" : ":/images/male.png") : srcPix;
         avatar->setPixmap(createCircularAvatar(pix, 44));
         avatar->setProperty("imgPath", staff.imgPath.isEmpty() ? (staff.gender == "女" ? ":/images/female.png" : ":/images/male.png") : staff.imgPath);
         avatar->installEventFilter(this);
-        
-        QVBoxLayout *textL = new QVBoxLayout();
-        textL->setSpacing(1);
-        
-        QLabel *name = new QLabel(staff.name);
-        name->setStyleSheet("font-weight: bold; color: #334155; font-size: 14px; border: none; background: transparent;");
-        
-        QLabel *idRole = new QLabel(QString("%1 | %2").arg(staff.id).arg(staff.role));
-        idRole->setStyleSheet("color: #94a3b8; font-size: 11px; border: none; background: transparent;");
-        
-        textL->addWidget(name);
-        textL->addWidget(idRole);
-        
-        l->addWidget(avatar);
-        l->addLayout(textL);
-        l->addStretch();
-        
-        m_table->setCellWidget(i, 0, staffWidget);
 
-        // 第 1-7 列：班次
+        // 第 1-7 列：班次 (复用或新建)
         for (int day = 0; day < 7; ++day) {
             QDate d = m_currentMonday.addDays(day);
             ScheduleInfo info = ScheduleDataManager::instance()->getSchedule(staff.id, d);
-            m_table->setCellWidget(i, day + 1, createShiftWidget(info));
+            
+            QWidget *oldWidget = m_table->cellWidget(i, day + 1);
+            if (oldWidget) {
+                // 更新现有部件的内容
+                QLabel *tag = oldWidget->findChild<QLabel*>("shiftTag");
+                if (tag) updateShiftTag(tag, info);
+            } else {
+                // 新建
+                m_table->setCellWidget(i, day + 1, createShiftWidget(info));
+            }
         }
     }
     
@@ -265,6 +292,31 @@ void ScheduleModule::updateTable()
     for (int i = 1; i < 8; ++i) {
         m_table->horizontalHeader()->setSectionResizeMode(i, QHeaderView::Stretch);
     }
+
+    // 恢复更新并触发重绘
+    m_table->setUpdatesEnabled(true);
+}
+
+void ScheduleModule::updateShiftTag(QLabel *tag, const ScheduleInfo &info)
+{
+    QString start = info.startTime.length() > 5 ? info.startTime.left(5) : info.startTime;
+    QString end = info.endTime.length() > 5 ? info.endTime.left(5) : info.endTime;
+
+    QString style = "border-radius: 8px; font-size: 12px; font-weight: bold; ";
+    if (info.type == SHIFT_MORNING) {
+        tag->setText(QString("☀️ 早班\n%1-%2").arg(start).arg(end));
+        style += "background: #fff7ed; color: #f59e0b; border: 1px solid #ffedd5;";
+    } else if (info.type == SHIFT_EVENING) {
+        tag->setText(QString("🌙 晚班\n%1-%2").arg(start).arg(end));
+        style += "background: #f5f3ff; color: #8b5cf6; border: 1px solid #ede9fe;";
+    } else if (info.type == SHIFT_CUSTOM) {
+        tag->setText(QString("⚙️ 自定义\n%1-%2").arg(start).arg(end));
+        style += "background: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe;";
+    } else {
+        tag->setText("🌿 休息");
+        style += "background: #f8fafc; color: #94a3b8; border: 1px solid #f1f5f9;";
+    }
+    tag->setStyleSheet(style);
 }
 
 QWidget* ScheduleModule::createShiftWidget(const ScheduleInfo &info)
@@ -274,24 +326,11 @@ QWidget* ScheduleModule::createShiftWidget(const ScheduleInfo &info)
     l->setContentsMargins(8, 8, 8, 8);
 
     QLabel *tag = new QLabel();
+    tag->setObjectName("shiftTag"); // 设置对象名称以便后续复用查找
     tag->setAlignment(Qt::AlignCenter);
-    QString style = "border-radius: 8px; font-size: 12px; font-weight: bold; ";
     
-    if (info.type == SHIFT_MORNING) {
-        tag->setText(QString("☀️ 早班\n%1-%2").arg(info.startTime).arg(info.endTime));
-        style += "background: #fff7ed; color: #f59e0b; border: 1px solid #ffedd5;";
-    } else if (info.type == SHIFT_EVENING) {
-        tag->setText(QString("🌙 晚班\n%1-%2").arg(info.startTime).arg(info.endTime));
-        style += "background: #f5f3ff; color: #8b5cf6; border: 1px solid #ede9fe;";
-    } else if (info.type == SHIFT_CUSTOM) {
-        tag->setText(QString("⚙️ 自定义\n%1-%2").arg(info.startTime).arg(info.endTime));
-        style += "background: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe;";
-    } else {
-        tag->setText("🌿 休息");
-        style += "background: #f8fafc; color: #94a3b8; border: 1px solid #f1f5f9;";
-    }
+    updateShiftTag(tag, info); // 使用统一的更新函数
     
-    tag->setStyleSheet(style);
     tag->setCursor(Qt::PointingHandCursor);
     l->addWidget(tag);
     
@@ -302,12 +341,23 @@ void ScheduleModule::onPrevWeek()
 {
     m_currentMonday = m_currentMonday.addDays(-7);
     updateTable();
+    
+    // 异步后台静默刷新
+    ScheduleDataManager::instance()->requestScheduleList(
+        m_currentMonday.toString("yyyy-MM-dd"),
+        m_currentMonday.addDays(7).toString("yyyy-MM-dd")
+    );
 }
 
 void ScheduleModule::onNextWeek()
 {
     m_currentMonday = m_currentMonday.addDays(7);
     updateTable();
+    
+    ScheduleDataManager::instance()->requestScheduleList(
+        m_currentMonday.toString("yyyy-MM-dd"),
+        m_currentMonday.addDays(7).toString("yyyy-MM-dd")
+    );
 }
 
 void ScheduleModule::onToday()

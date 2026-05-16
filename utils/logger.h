@@ -5,7 +5,7 @@
 #include <QMessageLogContext>
 
 namespace Logger {
-    void init();
+    void init(const QString &fileName);
     void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg);
 }
 

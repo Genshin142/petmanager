@@ -1,6 +1,8 @@
 #include "networkmanager.h"
 #include <QtCore/QDataStream>
 #include <QtCore/QThreadPool>
+#include <QtCore/QMutexLocker>
+#include <QtCore/QTimer>
 
 NetworkManager::NetworkManager(QObject *parent) : QObject(parent)
 {
@@ -32,26 +34,35 @@ void NetworkManager::connectToServer(const QString &host, quint16 port)
 
 void NetworkManager::sendRequest(int cmdId, const QJsonObject &body)
 {
-    if (m_socket->state() != QAbstractSocket::ConnectedState) {
-        qWarning() << "[NET] Cannot send request: Not connected.";
-        return;
-    }
-
     QByteArray jsonContent = QJsonDocument(body).toJson(QJsonDocument::Compact);
     QByteArray block;
     QDataStream ds(&block, QIODevice::WriteOnly);
     ds.setByteOrder(QDataStream::BigEndian);
 
     unsigned int totalLength = Protocol::HEADER_SIZE + jsonContent.size();
-    
-    // 写入 4字节总长度 + 4字节指令ID
     ds << totalLength;
-    ds << cmdId;
+    ds << (int)cmdId;
     block.append(jsonContent);
 
-    m_socket->write(block);
-    m_socket->flush();
-    qDebug() << "[NET] Sent CMD:" << cmdId << "Body Size:" << jsonContent.size();
+    // 确保异步写入，绝不阻塞当前线程
+    QMetaObject::invokeMethod(this, [=]() {
+        if (m_socket->state() == QAbstractSocket::ConnectedState) {
+            m_socket->write(block);
+            m_socket->flush();
+            qDebug() << "[NET] >>> SENT CMD:" << cmdId << "at" << QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+        } else {
+            qWarning() << "[NET] Cannot send: Socket not connected. CMD:" << cmdId;
+        }
+    }, Qt::QueuedConnection);
+}
+
+void NetworkManager::sendRequest(int cmdId, const QJsonObject &body, std::function<void(const QJsonObject&)> callback)
+{
+    {
+        QMutexLocker locker(&m_callbackMutex);
+        m_callbacks[cmdId].append(callback);
+    }
+    sendRequest(cmdId, body);
 }
 
 void NetworkManager::onReadyRead()
@@ -80,22 +91,37 @@ void NetworkManager::onReadyRead()
         packet.cmdId = cmdId;
         packet.data = bodyData;
 
-        // 在后台线程池中解析并发出信号
+        // 立即解析 JSON（在主线程或后台线程均可，这里为了防止卡顿选后台）
         m_threadPool->start([=]() {
-            // 后台解析超大 JSON
             QJsonDocument doc = QJsonDocument::fromJson(bodyData);
             Protocol::NetPacket parsedPacket = packet;
             parsedPacket.jsonObj = doc.object();
             
-            // 将解析好的数据发射出去，主线程只负责读取
-            emit packetReceived(parsedPacket);
+            // 回到主线程分发数据和回调
+            QMetaObject::invokeMethod(this, [=]() {
+                // 1. 触发回调
+                QList<std::function<void(const QJsonObject&)>> toCall;
+                {
+                    QMutexLocker locker(&m_callbackMutex);
+                    if (m_callbacks.contains(cmdId)) {
+                        toCall = m_callbacks.take(cmdId);
+                    }
+                }
+                
+                for (auto &cb : toCall) {
+                    cb(parsedPacket.jsonObj);
+                }
 
-            if (cmdId == Protocol::CMD_LOGIN) {
-                QJsonObject resp = parsedPacket.jsonObj;
-                emit loginResponse(resp["status"].toInt(), 
-                                   resp["message"].toString(), 
-                                   resp["user_info"].toObject());
-            }
+                // 2. 发射信号
+                emit packetReceived(parsedPacket);
+
+                if (cmdId == Protocol::CMD_LOGIN) {
+                    QJsonObject resp = parsedPacket.jsonObj;
+                    emit loginResponse(resp["status"].toInt(), 
+                                       resp["message"].toString(), 
+                                       resp["user_info"].toObject());
+                }
+            }, Qt::QueuedConnection);
         });
 
         m_buffer.remove(0, (int)totalLength);

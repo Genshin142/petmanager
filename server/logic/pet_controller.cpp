@@ -5,6 +5,8 @@
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlRecord>
 #include <QtSql/QSqlError>
+#include <QtSql/QSqlDriver>
+#include <QtCore/QThread>
 
 PetController::PetController(ServerCore* core, QObject* parent) 
     : QObject(parent), m_core(core) 
@@ -22,10 +24,18 @@ PetController::PetController(ServerCore* core, QObject* parent)
     m_core->registerHandler(Protocol::CMD_UPDATE_VACCINES, [this](ClientHandler* client, const QJsonObject& data) {
         handleUpdateVaccines(client, data);
     });
+    m_core->registerHandler(Protocol::CMD_UPDATE_PET_STATUS, [this](ClientHandler* client, const QJsonObject& data) {
+        handleUpdatePetStatus(client, data);
+    });
 }
 
 void PetController::handleUpdatePet(ClientHandler* client, const QJsonObject& data) {
-    int petId = data["pet_id"].toInt();
+    int petId = 0;
+    QString rawId = data["pet_id"].toString();
+    if (rawId.startsWith("P")) petId = rawId.mid(1).toInt();
+    else if (data["pet_id"].isDouble()) petId = data["pet_id"].toInt();
+    else petId = rawId.toInt();
+
     LOG_I("[PET] Updating pet ID: " << petId);
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
@@ -56,10 +66,11 @@ void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& d
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
     
-    // 联表查询：获取宠物信息及主人姓名、电话、性别
-    query.prepare("SELECT p.*, m.name as owner_name, m.phone as owner_phone, m.gender as owner_gender "
+    query.prepare("SELECT p.*, m.name as owner_name, m.phone as owner_phone, m.gender as owner_gender, "
+                  "br.room_no, br.check_in_time, br.expected_check_out_time, br.status as boarding_status "
                   "FROM pets p "
                   "LEFT JOIN members m ON p.member_id = m.member_id "
+                  "LEFT JOIN boarding_records br ON p.pet_id = br.pet_id AND (br.status = '入店中' OR br.status = '预约中') "
                   "WHERE p.is_deleted = 0 ORDER BY p.pet_id DESC");
 
     QJsonObject response;
@@ -136,7 +147,12 @@ void PetController::handleGetRoomList(ClientHandler* client, const QJsonObject& 
 }
 
 void PetController::handleGetVaccines(ClientHandler* client, const QJsonObject& data) {
-    int petId = data["pet_id"].toInt();
+    int petId = 0;
+    QString rawId = data["pet_id"].toString();
+    if (rawId.startsWith("P")) petId = rawId.mid(1).toInt();
+    else if (data["pet_id"].isDouble()) petId = data["pet_id"].toInt();
+    else petId = rawId.toInt();
+
     LOG_I("[VACCINE] Fetching vaccine records for pet_id: " << petId);
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
@@ -172,7 +188,12 @@ void PetController::handleGetVaccines(ClientHandler* client, const QJsonObject& 
 
 
 void PetController::handleUpdateVaccines(ClientHandler* client, const QJsonObject& data) {
-    int petId = data["pet_id"].toInt();
+    int petId = 0;
+    QString rawId = data["pet_id"].toString();
+    if (rawId.startsWith("P")) petId = rawId.mid(1).toInt();
+    else if (data["pet_id"].isDouble()) petId = data["pet_id"].toInt();
+    else petId = rawId.toInt();
+
     QJsonArray records = data["records"].toArray();
     LOG_I("[VACCINE] Updating vaccine records for pet_id: " << petId << ", count: " << records.size());
 
@@ -212,4 +233,151 @@ void PetController::handleUpdateVaccines(ClientHandler* client, const QJsonObjec
     response["status"] = Protocol::STATUS_OK;
     response["pet_id"] = petId;
     client->sendPacket(Protocol::CMD_UPDATE_VACCINES, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleUpdatePetStatus(ClientHandler* client, const QJsonObject& data) {
+    QString now = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    int petId = 0;
+    QString rawId = data["pet_id"].toString();
+    if (rawId.startsWith("P")) petId = rawId.mid(1).toInt();
+    else if (data["pet_id"].isDouble()) petId = data["pet_id"].toInt();
+    else petId = rawId.toInt();
+    
+    QString status = data["status"].toString();
+    QString roomNo = data["room_no"].toString();
+    QString startTime = data["start_time"].toString();
+    QString endTime = data["end_time"].toString();
+    
+    LOG(INFO) << "[PET] Updating status for Pet ID:" << petId << " Status:" << status.toStdString() << " Room:" << roomNo.toStdString();
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    if (!db.isOpen()) {
+        LOG(ERROR) << "[PET] Database is NOT open for thread:" << QThread::currentThreadId();
+        QJsonObject resp;
+        resp["status"] = Protocol::STATUS_ERROR;
+        resp["message"] = "Database connection lost";
+        client->sendPacket(Protocol::CMD_UPDATE_PET_STATUS, QJsonDocument(resp).toJson(QJsonDocument::Compact));
+        return;
+    }
+
+    bool useTransaction = db.driver()->hasFeature(QSqlDriver::Transactions);
+    if (useTransaction) {
+        if (!db.transaction()) {
+            QString err = db.lastError().text();
+            LOG(ERROR) << "[PET] Failed to start transaction: " << err.toStdString();
+            QJsonObject resp;
+            resp["status"] = Protocol::STATUS_ERROR;
+            resp["message"] = "Failed to start transaction: " + err;
+            client->sendPacket(Protocol::CMD_UPDATE_PET_STATUS, QJsonDocument(resp).toJson(QJsonDocument::Compact));
+            return;
+        }
+    } else {
+        LOG(WARNING) << "[PET] Database driver does NOT support transactions. Proceeding with auto-commit.";
+    }
+
+    QSqlQuery query(db);
+    
+    // 0. 先获取该宠物的 member_id (为了插入记录)
+    int memberId = 0;
+    query.prepare("SELECT member_id FROM pets WHERE pet_id = ?");
+    query.addBindValue(petId);
+    if (query.exec() && query.next()) {
+        memberId = query.value(0).toInt();
+    }
+
+    // 1. 更新宠物表的基本状态
+    query.prepare("UPDATE pets SET current_status = ? WHERE pet_id = ?");
+    query.addBindValue(status);
+    query.addBindValue(petId);
+    if (!query.exec()) {
+        QString err = query.lastError().text();
+        if (useTransaction) db.rollback();
+        LOG(ERROR) << "[PET] SQL Error (Update Pets): " << err.toStdString();
+        QJsonObject resp;
+        resp["status"] = Protocol::STATUS_ERROR;
+        resp["message"] = "Update pets failed: " + err;
+        client->sendPacket(Protocol::CMD_UPDATE_PET_STATUS, QJsonDocument(resp).toJson(QJsonDocument::Compact));
+        return;
+    }
+
+    // 2. 更新或插入寄养记录表
+    if (status == QString::fromUtf8("寄养中") || status == QString::fromUtf8("已预约")) {
+        QString dbStatus = (status == QString::fromUtf8("寄养中") ? QString::fromUtf8("入店中") : QString::fromUtf8("预约中"));
+        
+        // A. 更新记录表
+        query.prepare("UPDATE boarding_records SET status = ?, room_no = ?, check_in_time = ?, expected_check_out_time = ? "
+                      "WHERE pet_id = ? AND (status = '入店中' OR status = '预约中')");
+        query.addBindValue(dbStatus);
+        query.addBindValue(roomNo);
+        query.addBindValue(startTime.isEmpty() ? QVariant(QMetaType::fromType<QString>()) : startTime);
+        query.addBindValue(endTime.isEmpty() ? QVariant(QMetaType::fromType<QString>()) : endTime);
+        query.addBindValue(petId);
+        
+        if (!query.exec() || query.numRowsAffected() == 0) {
+            query.prepare("INSERT INTO boarding_records (pet_id, member_id, room_no, status, check_in_time, expected_check_out_time) "
+                          "VALUES (?, ?, ?, ?, ?, ?)");
+            query.addBindValue(petId);
+            query.addBindValue(memberId > 0 ? QVariant(memberId) : QVariant(QMetaType::fromType<int>()));
+            query.addBindValue(roomNo);
+            query.addBindValue(dbStatus);
+            query.addBindValue(startTime.isEmpty() ? QVariant(QMetaType::fromType<QString>()) : startTime);
+            query.addBindValue(endTime.isEmpty() ? QVariant(QMetaType::fromType<QString>()) : endTime);
+            if (!query.exec()) {
+                QString err = query.lastError().text();
+                if (useTransaction) db.rollback();
+                LOG(ERROR) << "[PET] SQL Error (Insert Boarding): " << err.toStdString();
+                QJsonObject resp; resp["status"] = Protocol::STATUS_ERROR; resp["message"] = "Insert record failed: " + err;
+                client->sendPacket(Protocol::CMD_UPDATE_PET_STATUS, QJsonDocument(resp).toJson(QJsonDocument::Compact));
+                return;
+            }
+        }
+
+        // B. 同步更新房间表：将宠物 ID 绑定到对应房间
+        if (!roomNo.isEmpty()) {
+            query.prepare("UPDATE boarding_rooms SET current_pet_id = ?, status = ? WHERE room_no = ?");
+            query.addBindValue(petId);
+            query.addBindValue(dbStatus);
+            query.addBindValue(roomNo);
+            if (!query.exec()) {
+                LOG(WARNING) << "[PET] Failed to link pet to room: " << query.lastError().text().toStdString();
+            }
+        }
+    } else if (status == QString::fromUtf8("在家") || status == QString::fromUtf8("待寄养")) {
+        // A. 结清记录表
+        query.prepare("UPDATE boarding_records SET status = '结清', actual_check_out_time = NOW() "
+                      "WHERE pet_id = ? AND (status = '入店中' OR status = '预约中')");
+        query.addBindValue(petId);
+        query.exec();
+
+        // B. 同步更新房间表：释放该宠物占用的所有房间
+        query.prepare("UPDATE boarding_rooms SET current_pet_id = NULL, status = '空闲' WHERE current_pet_id = ?");
+        query.addBindValue(petId);
+        if (!query.exec()) {
+            LOG(WARNING) << "[PET] Failed to release room: " << query.lastError().text().toStdString();
+        }
+    }
+
+    QJsonObject response;
+    bool success = true;
+    if (useTransaction) {
+        if (!db.commit()) {
+            QString err = db.lastError().text();
+            db.rollback();
+            response["status"] = Protocol::STATUS_ERROR;
+            response["message"] = "Commit failed: " + err;
+            LOG(ERROR) << "[PET] Commit failed: " << err.toStdString();
+            success = false;
+        }
+    }
+
+    if (success) {
+        response["status"] = Protocol::STATUS_OK;
+        LOG(INFO) << "[PET] Status update successful for pet:" << petId;
+        
+        // 成功后广播通知全网刷新
+        QJsonObject notify;
+        notify["module"] = "pet";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    }
+    client->sendPacket(Protocol::CMD_UPDATE_PET_STATUS, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }

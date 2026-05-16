@@ -47,6 +47,9 @@ private:
     explicit ScheduleDataManager(QObject *parent = nullptr);
     static ScheduleDataManager* m_instance;
 
+    void loadFromDisk();
+    void saveToDisk();
+
     // Key: employeeId_yyyy-MM-dd
     QMap<QString, ScheduleInfo> m_schedules;
 };

@@ -1,4 +1,5 @@
 #include "membermodule.h"
+#include "petdatamanager.h"
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -30,6 +31,7 @@
 #include "rechargedialog.h"
 #include "custommessagedialog.h"
 #include "memberdatamanager.h"
+#include "petdatamanager.h"
 
 // --- 复刻：全行圆角边框选中委托 ---
 class MemberRowDelegate : public QStyledItemDelegate {
@@ -456,19 +458,21 @@ void MemberModule::setupUI()
     // 禁用右键菜单
     memTable->setContextMenuPolicy(Qt::NoContextMenu);
 
-    // --- 联网：数据同步逻辑 ---
+    // 联网：数据同步逻辑
     connect(MemberDataManager::instance(), &MemberDataManager::dataChanged, this, [=](){
-        qDebug() << "[MEMBER] dataChanged signal received.";
-        addSampleData();
-        updateStatistics();
-        
-        // 数据回来后，如果表里有数据且当前没选中，则自动选中第一行
-        if (memTable->rowCount() > 0 && memTable->currentRow() < 0) {
-            qDebug() << "[MEMBER] Auto-selecting first row...";
-            memTable->selectRow(0);
-            onCellClicked(0, 0); // 触发抽屉展示
+        qDebug() << "[MEMBER] MemberDataManager::dataChanged signal received.";
+        refreshTable();
+    });
+
+    // 监听全局数据变化（如订单结算、预约完成等），同步更新详情页
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [=](){
+        qDebug() << "[MEMBER] PetDataManager::globalDataChanged received. Refreshing detail...";
+        if (m_detailDrawer && m_detailDrawer->isVisible()) {
+            int row = memTable->currentRow();
+            if (row >= 0) {
+                onCellClicked(row, 0); // 重新触发点击以刷新详情面板（包括足迹）
+            }
         }
-        qDebug() << "[MEMBER] member data refresh complete.";
     });
     
     // 初始请求数据
@@ -746,6 +750,17 @@ void MemberModule::refreshTable()
     });
     updateStatistics();
     updatePagination();
+
+    // 默认选中第一行并显示详情
+    if (memTable->rowCount() > 0) {
+        memTable->selectRow(0);
+        onCellClicked(0, 0); // 触发点击逻辑以更新右侧详情
+    } else {
+        if (m_detailDrawer) {
+            m_detailDrawer->showEmptyState(true);
+            m_detailDrawer->showDrawer(); // 确保抽屉是展开的
+        }
+    }
 }
 
 void MemberModule::updateStatistics()

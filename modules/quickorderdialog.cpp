@@ -19,6 +19,9 @@
 #include <QMouseEvent>
 #include <QLabel>
 #include <QPushButton>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include <functional>
 #include <QRandomGenerator>
 #include <QDebug>
@@ -485,13 +488,25 @@ void QuickOrderDialog::onCreateOrder()
     QString memberName = m_memberCombo->currentText().split(" (").first();
     
     double total = 0;
-    QString detailStr;
+    QJsonArray detailsArr;
     for (const auto &item : m_cart) {
         total += item.price * item.qty;
-        for (int k = 0; k < item.qty; ++k) {
-            detailStr += item.name + "+";
+        
+        QJsonObject obj;
+        obj["name"] = item.name;
+        obj["price"] = item.price;
+        obj["count"] = item.qty;
+        obj["barcode"] = item.id;
+        
+        // 如果是商品，注入照片路径
+        if (!item.isService) {
+            ProductInfo p = ProductDataManager::instance()->getProduct(item.id);
+            if (!p.images.isEmpty()) obj["photo"] = p.images[0];
         }
+        
+        detailsArr.append(obj);
     }
+    QString detailStr = QString::fromUtf8(QJsonDocument(detailsArr).toJson(QJsonDocument::Compact));
     
     QString orderId = "ORD" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss");
     qDebug() << "[POS] Creating order:" << orderId << "Total:" << total;

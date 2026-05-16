@@ -1,0 +1,2 @@
+﻿item_details
+[{"name": "鍏ㄦ墭鏅€氭埧闂?, "barcode": "S001", "price": 50.0, "count": 1}]

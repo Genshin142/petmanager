@@ -12,6 +12,7 @@
 
 class OrderDetailDrawer;
 class QPushButton;
+#include <QTimer>
 
 class CheckoutModule : public QWidget {
     Q_OBJECT
@@ -60,6 +61,9 @@ private slots:
     void onNextPage();
     void onJumpPage();
     void onOrderClicked(int row);
+
+private:
+    QTimer *m_refreshTimer;
 };
 
 #endif // CHECKOUTMODULE_H

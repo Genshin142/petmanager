@@ -73,6 +73,7 @@ private:
     int m_currentPage;
     int m_pageSize;
     QList<MemberInfo> m_allMembers; // 全量数据缓存
+    QTimer *m_refreshDebounce;
 };
 
 #endif // MEMBERMODULE_H

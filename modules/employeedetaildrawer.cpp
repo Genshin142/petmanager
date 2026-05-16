@@ -10,6 +10,9 @@
 #include <QEvent>
 #include <QTimer>
 #include <QSizePolicy>
+#include <QComboBox>
+#include <QGridLayout>
+#include "scheduledatamanager.h"
 
 EmployeeDetailDrawer::EmployeeDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(false)
 {
@@ -18,6 +21,9 @@ EmployeeDetailDrawer::EmployeeDetailDrawer(QWidget *parent) : QWidget(parent), m
     m_animation = new QPropertyAnimation(this, "sideWidth");
     m_animation->setDuration(300);
     m_animation->setEasingCurve(QEasingCurve::OutCubic);
+
+    // 自动刷新：当排班数据更新时，如果抽屉已打开且有员工信息，自动刷新日历
+    connect(ScheduleDataManager::instance(), &ScheduleDataManager::scheduleChanged, this, &EmployeeDetailDrawer::refreshCalendar);
 }
 
 void EmployeeDetailDrawer::setupUI()
@@ -276,11 +282,10 @@ QWidget* EmployeeDetailDrawer::createSchedulePage()
     tLayout->setContentsMargins(20, 20, 20, 20);
     QLabel *tTitle = new QLabel("今日排班 (实时)");
     tTitle->setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px; border: none; background: transparent;");
-    QLabel *tTime = new QLabel("09:00 - 18:00");
-    tTime->setStyleSheet("color: white; font-size: 24px; font-weight: bold; margin-top: 5px; border: none; background: transparent;");
-    
     tLayout->addWidget(tTitle);
-    tLayout->addWidget(tTime);
+    m_todayShiftLabel = new QLabel("加载中...");
+    m_todayShiftLabel->setStyleSheet("color: white; font-size: 24px; font-weight: bold; margin-top: 5px; border: none; background: transparent;");
+    tLayout->addWidget(m_todayShiftLabel);
 
     // 卡片 2: 本月考勤全景日历
     QFrame *monthCalendarCard = new QFrame();
@@ -314,63 +319,27 @@ QWidget* EmployeeDetailDrawer::createSchedulePage()
 
     QStringList years;
     for(int i=2023; i<=2026; ++i) years << QString::number(i) + "年";
-    QComboBox *yearCombo = createSimpleCombo(years, 75);
-    yearCombo->setCurrentText("2026年");
+    m_yearCombo = createSimpleCombo(years, 75);
+    m_yearCombo->setCurrentText(QString::number(QDate::currentDate().year()) + "年");
 
     QStringList months;
     for(int i=1; i<=12; ++i) months << QString::number(i) + "月";
-    QComboBox *monthCombo = createSimpleCombo(months, 65);
-    monthCombo->setCurrentText("4月");
+    m_monthCombo = createSimpleCombo(months, 65);
+    m_monthCombo->setCurrentText(QString::number(QDate::currentDate().month()) + "月");
 
-    selectorLayout->addWidget(yearCombo);
-    selectorLayout->addWidget(monthCombo);
+    selectorLayout->addWidget(m_yearCombo);
+    selectorLayout->addWidget(m_monthCombo);
     calHeader->addLayout(selectorLayout);
     calLayout->addLayout(calHeader);
 
     // 日历网格
-    QGridLayout *grid = new QGridLayout();
-    grid->setSpacing(4);
-    QStringList weekDays = {"日", "一", "二", "三", "四", "五", "六"};
-    for (int i = 0; i < 7; ++i) {
-        QLabel *w = new QLabel(weekDays[i]);
-        w->setAlignment(Qt::AlignCenter);
-        w->setStyleSheet("color: #C0C4CC; font-size: 11px; margin-bottom: 5px; border: none; background: transparent;");
-        grid->addWidget(w, 0, i);
-    }
-
-    // 填充日期 (以 4 月为例，1号是周三)
-    int startCol = 3; 
-    int daysInMonth = 30;
-    int today = 29;
-
-    for (int day = 1; day <= daysInMonth; ++day) {
-        int row = (day + startCol - 1) / 7 + 1;
-        int col = (day + startCol - 1) % 7;
-
-        QLabel *dayLabel = new QLabel(QString::number(day));
-        dayLabel->setFixedSize(32, 32);
-        dayLabel->setAlignment(Qt::AlignCenter);
-        
-        // 模拟排班数据
-        bool isWeekend = (col == 0 || col == 6);
-        bool isLeave = (day == 14 || day == 15); // 模拟 14-15 号请假
-        bool isWork = !isWeekend && !isLeave;
-
-        QString style = "font-size: 12px; border-radius: 16px; border: none; font-weight: 500; ";
-        if (day == today) {
-            style += "background: #3b82f6; color: white; font-weight: bold; ";
-        } else if (isLeave) {
-            style += "background: #ffedd5; color: #9a3412;"; // 警示橙
-        } else if (isWork) {
-            style += "background: #dcfce7; color: #166534;"; // 清新绿
-        } else {
-            style += "background: #f1f5f9; color: #64748b;"; // 极简灰
-        }
-        
-        dayLabel->setStyleSheet(style);
-        grid->addWidget(dayLabel, row, col);
-    }
-    calLayout->addLayout(grid);
+    m_calendarGrid = new QGridLayout();
+    m_calendarGrid->setSpacing(4);
+    calLayout->addLayout(m_calendarGrid);
+    
+    // 绑定信号
+    connect(m_yearCombo, &QComboBox::currentIndexChanged, this, &EmployeeDetailDrawer::refreshCalendar);
+    connect(m_monthCombo, &QComboBox::currentIndexChanged, this, &EmployeeDetailDrawer::refreshCalendar);
 
     // 图例
     QHBoxLayout *legend = new QHBoxLayout();
@@ -400,20 +369,20 @@ QWidget* EmployeeDetailDrawer::createSchedulePage()
     mTitle->setStyleSheet("color: #303133; font-size: 14px; font-weight: bold; margin-bottom: 8px; border: none; background: transparent;");
     mLayout->addWidget(mTitle);
     
-    auto addStat = [&](const QString &label, const QString &val, const QString &color) {
+    auto addStat = [&](const QString &label, const QString &val, const QString &color, QLabel* &valPtr) {
         QHBoxLayout *row = new QHBoxLayout();
         QLabel *l = new QLabel(label);
         l->setStyleSheet("color: #606266; font-size: 13px; border: none; background: transparent;");
-        QLabel *v = new QLabel(val);
-        v->setStyleSheet(QString("color: %1; font-size: 14px; font-weight: bold; border: none; background: transparent;").arg(color));
+        valPtr = new QLabel(val);
+        valPtr->setStyleSheet(QString("color: %1; font-size: 14px; font-weight: bold; border: none; background: transparent;").arg(color));
         row->addWidget(l);
         row->addStretch();
-        row->addWidget(v);
+        row->addWidget(valPtr);
         mLayout->addLayout(row);
     };
-    addStat("正常出勤", "18 天", "#67c23a");
-    addStat("迟到/早退", "1 次", "#e6a23c");
-    addStat("请假假天", "0 天", "#909399");
+    addStat("正常出勤", "0 天", "#67c23a", m_statWorkLabel);
+    addStat("迟到/早退", "0 次", "#e6a23c", m_statLeaveLabel); // 这里复用为请假天数展示，或者保留业务逻辑
+    addStat("休息天数", "0 天", "#909399", m_statRestLabel);
 
     contentLayout->addWidget(todayCard);
     contentLayout->addWidget(monthCalendarCard);
@@ -477,6 +446,9 @@ void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
     int y = (avatarSize.height() - scaled.height()) / 2;
     painter.drawPixmap(x, y, scaled);
     m_avatarLabel->setPixmap(target);
+
+    // 刷新动态日历
+    refreshCalendar();
 }
 
 void EmployeeDetailDrawer::showDrawer()
@@ -496,6 +468,91 @@ void EmployeeDetailDrawer::hideDrawer()
     m_animation->setStartValue(width());
     m_animation->setEndValue(0);
     m_animation->start();
+}
+
+void EmployeeDetailDrawer::refreshCalendar()
+{
+    if (!m_calendarGrid || !m_yearCombo || !m_monthCombo || m_currentEmployee.id.isEmpty()) return;
+
+    // 清空现有网格内容
+    QLayoutItem *child;
+    while ((child = m_calendarGrid->takeAt(0)) != nullptr) {
+        if (child->widget()) child->widget()->deleteLater();
+        delete child;
+    }
+
+    // 1. 计算日期基础
+    int year = m_yearCombo->currentText().left(4).toInt();
+    int month = m_monthCombo->currentText().left(m_monthCombo->currentText().size() - 1).toInt();
+    QDate startDate(year, month, 1);
+    int daysInMonth = startDate.daysInMonth();
+    int startCol = startDate.dayOfWeek() % 7; // 0 是周日
+
+    // 2. 添加表头
+    QStringList weekDays = {"日", "一", "二", "三", "四", "五", "六"};
+    for (int i = 0; i < 7; ++i) {
+        QLabel *w = new QLabel(weekDays[i]);
+        w->setAlignment(Qt::AlignCenter);
+        w->setStyleSheet("color: #C0C4CC; font-size: 11px; margin-bottom: 5px; border: none; background: transparent;");
+        m_calendarGrid->addWidget(w, 0, i);
+    }
+
+    // 3. 填充日期
+    QDate today = QDate::currentDate();
+    int workCount = 0, leaveCount = 0, restCount = 0;
+
+    for (int day = 1; day <= daysInMonth; ++day) {
+        QDate curr(year, month, day);
+        int row = (day + startCol - 1) / 7 + 1;
+        int col = (day + startCol - 1) % 7;
+
+        QLabel *dayLabel = new QLabel(QString::number(day));
+        dayLabel->setFixedSize(32, 32);
+        dayLabel->setAlignment(Qt::AlignCenter);
+
+        // 获取真实排班
+        ScheduleInfo info = ScheduleDataManager::instance()->getSchedule(m_currentEmployee.id, curr);
+        
+        bool isWork = (info.type == SHIFT_MORNING || info.type == SHIFT_EVENING || info.type == SHIFT_CUSTOM);
+        bool isLeave = (info.type == SHIFT_OFF && info.note.contains("假"));
+
+        if (isWork) workCount++;
+        else if (isLeave) leaveCount++;
+        else restCount++;
+
+        QString style = "font-size: 12px; border-radius: 16px; font-weight: 500; ";
+        if (isLeave) {
+            style += "background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa;"; 
+        } else if (isWork) {
+            style += "background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;";
+        } else {
+            style += "background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;";
+        }
+
+        // 如果是今天，添加显眼的蓝色边框，而不是覆盖背景
+        if (curr == today) {
+            style += "border: 2px solid #3b82f6; font-weight: bold;";
+            
+            // 同步更新顶部“今日排班”卡片
+            if (m_todayShiftLabel) {
+                if (isWork) {
+                    QString start = info.startTime.length() > 5 ? info.startTime.left(5) : info.startTime;
+                    QString end = info.endTime.length() > 5 ? info.endTime.left(5) : info.endTime;
+                    m_todayShiftLabel->setText(QString("%1 - %2").arg(start).arg(end));
+                } else {
+                    m_todayShiftLabel->setText(info.note.contains("假") ? "今日请假" : "今日休息");
+                }
+            }
+        }
+
+        dayLabel->setStyleSheet(style);
+        m_calendarGrid->addWidget(dayLabel, row, col);
+    }
+
+    // 4. 更新底部统计
+    m_statWorkLabel->setText(QString("%1 天").arg(workCount));
+    m_statLeaveLabel->setText(QString("%1 天").arg(leaveCount));
+    m_statRestLabel->setText(QString("%1 天").arg(restCount));
 }
 
 bool EmployeeDetailDrawer::eventFilter(QObject *obj, QEvent *event)

@@ -4,6 +4,7 @@
 #include <QRandomGenerator>
 #include "logisticsmanager.h"
 #include "memberdatamanager.h"
+#include "servicedatamanager.h"
 #include "../utils/networkmanager.h"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -12,6 +13,7 @@
 #include <QCoreApplication>
 #include <QFile>
 #include "../utils/imageutils.h"
+#include <QTimer>
 
 PetDataManager* PetDataManager::m_instance = nullptr;
 
@@ -39,19 +41,27 @@ PetDataManager::PetDataManager(QObject *parent)
     requestOrderList();
     requestPetList();
 
-    // 监听会员数据变化，一旦会员加载成功，尝试补全订单中的会员姓名
+    // 监听会员数据变化，一旦会员加载成功，尝试补全订单中的会员姓名 (增加防抖，避免启动时卡顿)
     connect(MemberDataManager::instance(), &MemberDataManager::dataChanged, this, [this](){
-        bool changed = false;
-        for (auto it = m_orders.begin(); it != m_orders.end(); ++it) {
-            if (it.value().memberName.isEmpty() && !it.value().memberId.isEmpty()) {
-                MemberInfo m = MemberDataManager::instance()->getMember(it.value().memberId);
-                if (!m.id.isEmpty()) {
-                    it.value().memberName = m.name;
-                    changed = true;
+        static bool isSyncing = false;
+        if (isSyncing) return;
+        isSyncing = true;
+        
+        QTimer::singleShot(300, this, [this](){
+            bool changed = false;
+            QMutexLocker locker(&m_mutex);
+            for (auto it = m_orders.begin(); it != m_orders.end(); ++it) {
+                if (it.value().memberName.isEmpty() && !it.value().memberId.isEmpty()) {
+                    MemberInfo m = MemberDataManager::instance()->getMember(it.value().memberId);
+                    if (!m.id.isEmpty()) {
+                        it.value().memberName = m.name;
+                        changed = true;
+                    }
                 }
             }
-        }
-        if (changed) emit globalDataChanged();
+            isSyncing = false;
+            if (changed) emit globalDataChanged();
+        });
     });
 }
 
@@ -64,21 +74,8 @@ void PetDataManager::initMockData()
 
 void PetDataManager::requestPetList()
 {
-    bool shouldEmit = false;
-    {
-        QMutexLocker locker(&m_mutex);
-        if (!m_pets.isEmpty()) {
-            shouldEmit = true;
-        }
-    }
-    
-    if (shouldEmit) {
-        emit globalDataChanged();
-        return;
-    }
-
     qDebug() << "[PET] Requesting pet list from server...";
-    NetworkManager::instance().sendRequest(2001, QJsonObject());
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_PET_LIST, QJsonObject());
 }
 
 void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
@@ -133,6 +130,13 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     QDateTime dt = QDateTime::fromString(rawTime, Qt::ISODate);
                     if (dt.isValid()) info.joinTime = dt.toString("yyyy-MM-dd HH:mm");
                     else info.joinTime = rawTime;
+                    
+                    // 解析寄养房号与时间信息 (从联表查询获得)
+                    info.roomNo = obj["room_no"].toString();
+                    info.fosterStartTime = obj["check_in_time"].toString();
+                    if (info.fosterStartTime.contains("T")) info.fosterStartTime = info.fosterStartTime.split("T").first();
+                    info.fosterEndTime = obj["expected_check_out_time"].toString();
+                    if (info.fosterEndTime.contains("T")) info.fosterEndTime = info.fosterEndTime.split("T").first();
                     
                     m_pets[info.id] = info;
                     
@@ -227,38 +231,42 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
     } else if (packet.cmdId == Protocol::CMD_GET_ORDER_LIST) {
         QJsonObject root = packet.jsonObj;
         if (root["status"].toInt() == Protocol::STATUS_OK) {
-            QJsonArray data = root["data"].toArray();
-            m_orders.clear();
-            for (int i = 0; i < data.size(); ++i) {
-                QJsonObject obj = data[i].toObject();
-                OrderInfo o;
-                o.id = obj["id"].toString();
-                o.sourceModule = obj["sourceModule"].toString();
-                o.relatedId = obj["relatedId"].toString();
-                // 尝试补全会员名称 (使用 5 位补全 ID: M1 -> M00001)
-                QString mid = obj["memberId"].toString();
-                if (!mid.isEmpty() && !mid.contains("M0")) {
-                    // 如果服务器发来的是 M1，手动修正为 M00001 兼容 MemberDataManager
-                    QString rawId = mid.mid(1);
-                    mid = QString("M%1").arg(rawId.toLongLong(), 5, 10, QChar('0'));
+            QJsonArray dataArr = root["data"].toArray();
+            {
+                QMutexLocker locker(&m_mutex);
+                m_orders.clear();
+                for (int i = 0; i < dataArr.size(); ++i) {
+                    QJsonObject obj = dataArr[i].toObject();
+                    OrderInfo o;
+                    o.id = obj["id"].toString();
+                    o.sourceModule = obj["sourceModule"].toString();
+                    o.relatedId = obj["relatedId"].toString();
+                    QString mid = obj["memberId"].toString();
+                    if (!mid.isEmpty() && !mid.contains("M0") && mid.startsWith("M")) {
+                        QString rawId = mid.mid(1);
+                        mid = QString("M%1").arg(rawId.toLongLong(), 5, 10, QChar('0'));
+                    }
+                    o.memberId = mid;
+                    o.totalAmount = obj["totalAmount"].toDouble();
+                    o.discount = obj["discount"].toDouble();
+                    o.finalAmount = obj["finalAmount"].toDouble();
+                    o.itemDetails = obj["itemDetails"].toString();
+                    o.payMethod = obj["payMethod"].toString();
+                    
+                    QString statusStr = obj["status"].toString();
+                    if (statusStr == "已支付" || statusStr == "Paid") o.status = "Paid";
+                    else if (statusStr == "待结算" || statusStr == "Unpaid") o.status = "Unpaid";
+                    else o.status = statusStr;
+
+                    o.createTime = obj["createTime"].toString();
+                    MemberInfo m = MemberDataManager::instance()->getMember(o.memberId);
+                    if (!m.id.isEmpty()) o.memberName = m.name;
+                    m_orders[o.id] = o;
                 }
-                o.memberId = mid;
-
-                o.totalAmount = obj["totalAmount"].toDouble();
-                o.discount = obj["discount"].toDouble();
-                o.finalAmount = obj["finalAmount"].toDouble();
-                o.itemDetails = obj["itemDetails"].toString();
-                o.payMethod = obj["payMethod"].toString();
-                o.status = obj["status"].toString();
-                o.createTime = obj["createTime"].toString();
-                o.cancelReason = obj["cancelReason"].toString();
-
-                MemberInfo m = MemberDataManager::instance()->getMember(o.memberId);
-                if (!m.id.isEmpty()) o.memberName = m.name;
-
-                m_orders[o.id] = o;
             }
-            qDebug() << "[ORDER] Order list updated from server. Count:" << m_orders.size();
+            qDebug() << "==========================================";
+            qDebug() << "[ORDER] DATA ARRIVED. Count:" << m_orders.size();
+            qDebug() << "==========================================";
             emit globalDataChanged();
         }
     } else if (packet.cmdId == Protocol::CMD_NOTIFY_REFRESH) {
@@ -574,97 +582,285 @@ QList<int> PetDataManager::getAvailableRooms(const QDate &start, const QDate &en
     return available;
 }
 
-void PetDataManager::executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note) {
+void PetDataManager::executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note, const QString &fosterType, std::function<void(bool)> callback) {
     Q_UNUSED(note);
-    if (!m_pets.contains(petId)) return;
+    if (!m_pets.contains(petId)) {
+        if (callback) callback(false);
+        return;
+    }
 
-    PetInfo &info = m_pets[petId];
-    info.status = "寄养中";
-    info.roomNo = QString::number(roomId);
-    info.fosterStartTime = start.toString("yyyy-MM-dd");
-    info.fosterEndTime = end.toString("yyyy-MM-dd");
-    info.weight = weight;
-
-    m_activityLogs[petId].clear();
-    FosterBatch batch{"B-CUR-" + QDateTime::currentDateTime().toString("yyyyMMdd"), start.toString("yyyy-MM-dd"), "至今", true};
-    m_historyBatches[petId].prepend(batch);
-
-    notifyGlobalDataChanged();
-    notifyPetDataChanged(petId);
+    // 移除本地预更新，改为等待服务器确认后再刷新
+    
+    // 2. 同步到服务器
+    QJsonObject body;
+    body["pet_id"] = petId;
+    body["status"] = "寄养中";
+    body["room_no"] = QString::number(roomId);
+    body["start_time"] = start.toString("yyyy-MM-dd");
+    body["end_time"] = end.toString("yyyy-MM-dd");
+    body["foster_type"] = fosterType;
+    body["weight"] = weight;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_PET_STATUS, body, [=](const QJsonObject &resp){
+        // 鲁棒性处理：兼容字符串和整数状态码
+        int status = resp.contains("status") ? resp["status"].toVariant().toInt() : -1;
+        bool success = (status == Protocol::STATUS_OK);
+        
+        if (success) {
+            qDebug() << "[PET] Server confirmed check-in for pet:" << petId;
+            
+            // --- 核心优化：收到确认后立即本地局部更新，消除 2-3s 延迟 ---
+            {
+                QMutexLocker locker(&m_mutex);
+                if (m_pets.contains(petId)) {
+                    m_pets[petId].status = "寄养中";
+                    m_pets[petId].roomNo = QString::number(roomId);
+                    m_pets[petId].fosterStartTime = start.toString("yyyy-MM-dd");
+                    m_pets[petId].fosterEndTime = end.toString("yyyy-MM-dd");
+                    m_pets[petId].fosterType = fosterType;
+                    m_pets[petId].weight = weight;
+                }
+                if (m_rooms.contains(roomId)) {
+                    m_rooms[roomId].status = "occupied";
+                }
+            }
+            
+            // 立即触发本地刷新
+            emit globalDataChanged();
+            
+            // 异步后台全量刷新，确保最终一致性
+            requestPetList();
+            requestRoomList();
+            
+            if (callback) callback(true);
+        } else {
+            QString errMsg = resp["message"].toString();
+            qWarning() << "[PET] Server failed to check-in pet:" << petId << "Error:" << errMsg;
+            if (callback) callback(false);
+        }
+    });
 }
 
-void PetDataManager::executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight) {
-    if (!m_pets.contains(petId)) return;
 
-    PetInfo &info = m_pets[petId];
-    info.status = "已预约";
-    info.roomNo = QString::number(roomId);
-    info.fosterStartTime = start.toString("yyyy-MM-dd");
-    info.fosterEndTime = end.toString("yyyy-MM-dd");
-    info.weight = weight;
+void PetDataManager::executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &fosterType, std::function<void(bool)> callback) {
+    if (!m_pets.contains(petId)) {
+        if (callback) callback(false);
+        return;
+    }
+
+    // 移除本地预更新
     
-    m_activityLogs[petId].clear();
-    notifyGlobalDataChanged();
-    notifyPetDataChanged(petId);
+    // 同步到服务器
+    QJsonObject body;
+    body["pet_id"] = petId;
+    body["status"] = "已预约";
+    body["room_no"] = QString::number(roomId);
+    body["start_time"] = start.toString("yyyy-MM-dd");
+    body["end_time"] = end.toString("yyyy-MM-dd");
+    body["foster_type"] = fosterType;
+    body["weight"] = weight;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_PET_STATUS, body, [=](const QJsonObject &resp){
+        int status = resp.contains("status") ? resp["status"].toVariant().toInt() : -1;
+        bool success = (status == Protocol::STATUS_OK);
+        
+        if (success) {
+            // 本地局部更新
+            {
+                QMutexLocker locker(&m_mutex);
+                if (m_pets.contains(petId)) {
+                    m_pets[petId].status = "已预约";
+                    m_pets[petId].roomNo = QString::number(roomId);
+                    m_pets[petId].fosterStartTime = start.toString("yyyy-MM-dd");
+                    m_pets[petId].fosterEndTime = end.toString("yyyy-MM-dd");
+                    m_pets[petId].weight = weight;
+                }
+                if (m_rooms.contains(roomId)) {
+                    m_rooms[roomId].status = "booked";
+                }
+            }
+            emit globalDataChanged();
+
+            requestPetList();
+            requestRoomList();
+            if (callback) callback(true);
+        } else {
+            qWarning() << "[PET] Server failed to book pet:" << petId << "Error:" << resp["message"].toString();
+            if (callback) callback(false);
+        }
+    });
 }
 
 void PetDataManager::executeCancelBooking(int roomId, const QString &petId) {
     Q_UNUSED(roomId);
     if (!m_pets.contains(petId)) return;
 
-    PetInfo &info = m_pets[petId];
-    info.status = "待寄养";
-    info.roomNo = "";
-    info.fosterStartTime = "";
-    info.fosterEndTime = "";
+    {
+        QMutexLocker locker(&m_mutex);
+        PetInfo &info = m_pets[petId];
+        info.status = "待寄养";
+        info.roomNo = "";
+        info.fosterStartTime = "";
+        info.fosterEndTime = "";
+    }
+    
+    emit globalDataChanged();
 
-    PetActivityLog log;
-    log.time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
-    log.type = "备注";
-    log.icon = "❌";
-    log.remark = "客户取消了本次寄养预约。";
-    log.operatorName = "系统管理员";
-    addActivityLog(petId, log);
-
-    notifyGlobalDataChanged();
-    notifyPetDataChanged(petId);
+    // 同步到服务器
+    QJsonObject body;
+    body["pet_id"] = petId;
+    body["status"] = "待寄养";
+    body["room_no"] = "";
+    body["start_time"] = "";
+    body["end_time"] = "";
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_PET_STATUS, body, [=](const QJsonObject &resp){
+        if (resp["status"].toInt() == Protocol::STATUS_OK) {
+            requestPetList();
+            requestRoomList();
+        }
+    });
 }
 
-void PetDataManager::executeCheckOut(int roomId, const QString &petId, const QDate &checkOutDate, double weight, double totalAmount, const QString &paymentMethod) {
-    QMutexLocker locker(&m_mutex);
-    if (!m_pets.contains(petId)) return;
-
-    PetInfo &info = m_pets[petId];
-    info.status = "空闲";
-    info.roomNo = "";
-    info.fosterEndTime = checkOutDate.toString("yyyy-MM-dd");
-    info.weight = weight;
-
-    // 更新历史批次
-    if (m_historyBatches.contains(petId) && !m_historyBatches[petId].isEmpty()) {
-        m_historyBatches[petId].first().isActive = false;
-        m_historyBatches[petId].first().endTime = info.fosterEndTime;
+void PetDataManager::executeCheckOut(int roomId, const QString &petId, const QDate &checkOutDate, double weight, double totalAmount, const QString &paymentMethod, std::function<void(bool, QString)> callback) {
+    qDebug() << "[DEBUG] CMD_CREATE_ORDER value:" << (int)Protocol::CMD_CREATE_ORDER;
+    Q_UNUSED(checkOutDate);
+    PetInfo info;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_pets.contains(petId)) {
+            if (callback) callback(false, "找不到宠物信息");
+            return;
+        }
+        info = m_pets[petId];
     }
 
-    // 创建账单
-    OrderInfo order;
-    order.id = "ORD-BO-" + QDateTime::currentDateTime().toString("yyyyMMddhhmmss");
-    order.sourceModule = "Boarding";
-    order.relatedId = QString::number(roomId);
-    order.petId = petId;
-    order.petName = info.name;
-    order.memberId = info.ownerId;
-    order.memberName = info.ownerName;
-    order.totalAmount = totalAmount;
-    order.finalAmount = totalAmount;
-    order.status = "Paid";
-    order.payMethod = paymentMethod;
-    order.createTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    // 1. 同步到服务器：发送宠物状态更新
+    QJsonObject petStatus;
+    petStatus["pet_id"] = petId;
+    petStatus["status"] = "在家";
+    petStatus["room_no"] = "";
+    petStatus["start_time"] = "";
+    petStatus["end_time"] = "";
     
-    m_orders[order.id] = order;
+    QString now = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    qDebug() << "[" << now << "] [CHECKOUT] Step 1: Sending CMD_UPDATE_PET_STATUS for pet:" << petId;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_PET_STATUS, petStatus, [=](const QJsonObject &response){
+        QString t1 = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+        qDebug() << "[" << t1 << "] [CHECKOUT] Step 1 Response received:" << response["status"].toInt();
+        
+        if (response["status"].toInt() != Protocol::STATUS_OK) {
+            if (callback) callback(false, "更新宠物状态失败: " + response["message"].toString());
+            return;
+        }
 
-    notifyGlobalDataChanged();
-    notifyPetDataChanged(petId);
+        // 2. 同步到服务器：创建正式订单
+        QString t2 = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+        qDebug() << "[" << t2 << "] [CHECKOUT] Step 2: Preparing CMD_CREATE_ORDER...";
+        
+        // 动态构建服务名称和查找编号
+        QString fType = info.fosterType.isEmpty() ? "全托" : info.fosterType;
+        QString rType = "普通房间";
+        {
+            QMutexLocker locker(&m_mutex);
+            QString rawType = m_rooms.contains(roomId) ? m_rooms[roomId].type : "标准房";
+            if (rawType == "豪华房") rType = "豪华房间";
+            else if (rawType == "多宠房") rType = "多宠家庭房间";
+        }
+        
+        QString serviceName = fType + rType;
+        QString barcode = "S001"; // 默认兜底
+        
+        // 查找对应的服务编号
+        QList<ServiceInfo> services = ServiceDataManager::instance()->allServices();
+        for (const auto& svc : services) {
+            if (svc.name == serviceName) {
+                barcode = svc.id;
+                break;
+            }
+        }
+
+        QJsonObject orderObj;
+        orderObj["id"] = "ORD-BO-" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss");
+        orderObj["sourceModule"] = "Boarding";
+        orderObj["relatedId"] = QString::number(roomId);
+        orderObj["memberId"] = info.ownerId;
+        orderObj["memberName"] = info.ownerName;
+        orderObj["totalAmount"] = totalAmount;
+        orderObj["discount"] = 0.0;
+        orderObj["finalAmount"] = totalAmount;
+        
+        // 构建明细 JSON
+        QJsonArray detailsArr;
+        QJsonObject detailItem;
+        detailItem["name"] = serviceName;
+        detailItem["barcode"] = barcode;
+        detailItem["price"] = totalAmount;
+        detailItem["count"] = 1;
+        
+        // 注入宠物相关元数据，用于详情界面显示
+        detailItem["petId"] = petId;
+        detailItem["petName"] = info.name;
+        detailItem["petBreed"] = info.breed;
+        // 注意：不存储 base64 头像数据，避免超出数据库 TEXT 列 65KB 限制
+        // 订单详情界面通过 petId 按需加载头像
+        detailItem["petPhoto"] = "";
+        detailItem["roomName"] = getRoom(roomId).roomNo;
+        
+        // 如果是寄养，增加天数显示
+        int days = 1;
+        QDateTime startDT = QDateTime::fromString(info.fosterStartTime, "yyyy-MM-dd HH:mm:ss");
+        if (!startDT.isValid()) startDT = QDateTime::fromString(info.fosterStartTime, "yyyy-MM-dd");
+        
+        QDateTime actualEnd = QDateTime(checkOutDate, QTime(12, 0)); // 默认中午离店
+        if (startDT.isValid()) {
+            days = startDT.daysTo(actualEnd);
+            if (days <= 0) days = 1;
+        }
+        detailItem["duration"] = days;
+
+        detailsArr.append(detailItem);
+        orderObj["itemDetails"] = QString::fromUtf8(QJsonDocument(detailsArr).toJson(QJsonDocument::Compact));
+        
+        orderObj["payMethod"] = paymentMethod;
+        orderObj["status"] = "Paid";
+        orderObj["operator_id"] = 1;
+
+        NetworkManager::instance().sendRequest(Protocol::CMD_CREATE_ORDER, orderObj, [=](const QJsonObject &resp2){
+            QString t4 = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+            int status = resp2["status"].toInt();
+            qDebug() << "[" << t4 << "] [CHECKOUT] Step 2 Response received:" << status;
+            
+            if (status == Protocol::STATUS_OK) {
+                // 本地更新内存状态
+                {
+                    QMutexLocker locker(&m_mutex);
+                    if (m_pets.contains(petId)) {
+                        m_pets[petId].status = "在家";
+                        m_pets[petId].roomNo = "";
+                        m_pets[petId].weight = weight;
+                    }
+                    removeRoomStatusPeriod(roomId, "寄养");
+                }
+                
+                notifyGlobalDataChanged();
+                notifyPetDataChanged(petId);
+                requestOrderList(); // 立即刷新订单列表
+                
+                // 延迟 500ms 再次刷新，确保数据库索引已更新并可见
+                QTimer::singleShot(500, this, [this](){
+                    requestOrderList();
+                });
+
+                if (callback) callback(true, "");
+            } else {
+                QString errMsg = resp2["message"].toString();
+                if (errMsg.isEmpty()) errMsg = "数据库写入失败或连接超时";
+                if (callback) callback(false, "创建订单失败: " + errMsg);
+            }
+        });
+    });
 }
 
 std::pair<QList<AppointmentInfo>, int> PetDataManager::getAppointments(int page, int pageSize, const QString &filter, const QString &statusFilter)
@@ -856,30 +1052,45 @@ void PetDataManager::updateOrder(const OrderInfo &info) {
         bool wasUnpaid = (m_orders[info.id].status == "Unpaid");
         m_orders[info.id] = info;
         
-        // 发送更新请求
+        // 1. 发送更新请求到服务器
         QJsonObject body;
         body["order_id"] = info.id;
-        body["status"] = info.status;
+        body["status"] = info.status; // 这里的状态是 "Paid" 或 "Unpaid"
         body["final_amount"] = info.finalAmount;
         body["pay_method"] = info.payMethod;
         NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_ORDER, body);
-        // 核心释放逻辑：寄养结算完成后自动退房
-        if (wasUnpaid && info.status == "Paid" && info.sourceModule == "Boarding") {
-            PetInfo pet = getPet(info.petId);
-            if (!pet.id.isEmpty()) {
-                pet.status = "已离店";
-                pet.roomNo = ""; // 物理清空房位占用
-                updatePet(pet);
-                
-                // 同步更新预约状态为完成
-                for (auto &appt : m_appointments) {
-                    if (appt.petId == info.petId && appt.type == "Boarding" && 
-                       (appt.status == "CheckedIn" || appt.status == "Pending")) {
-                        appt.status = "Completed";
+
+        // 2. 业务状态闭环：支付成功后的后续处理
+        if (wasUnpaid && info.status == "Paid") {
+            // A. 寄养业务闭环：结算完成后自动退房
+            if (info.sourceModule == "Boarding") {
+                PetInfo pet = getPet(info.petId);
+                if (!pet.id.isEmpty()) {
+                    pet.status = "在家"; // 恢复为在家状态
+                    pet.roomNo = "";    // 释放房位
+                    updatePet(pet);
+                    
+                    // 同步更新寄养预约单状态
+                    for (auto &appt : m_appointments) {
+                        if (appt.petId == info.petId && appt.type == "Boarding" && 
+                           (appt.status == "In-Service" || appt.status == "CheckedIn")) {
+                            updateAppointmentStatus(appt.id, "Completed");
+                            appt.status = "Completed";
+                        }
+                    }
+                }
+            }
+            // B. 洗护/美容业务闭环：结算完成后将预约单设为已完成
+            else if (info.sourceModule == "Appointment") {
+                if (!info.relatedId.isEmpty()) {
+                    updateAppointmentStatus(info.relatedId, "Completed");
+                    if (m_appointments.contains(info.relatedId)) {
+                        m_appointments[info.relatedId].status = "Completed";
                     }
                 }
             }
         }
+        
         emit globalDataChanged();
     }
 }
@@ -981,13 +1192,6 @@ void PetDataManager::updateAppointmentStatus(const QString &apptId, const QStrin
 
 void PetDataManager::requestOrderList()
 {
-    {
-        QMutexLocker locker(&m_mutex);
-        if (!m_orders.isEmpty()) {
-            qDebug() << "[ORDER] Order list already loaded, skipping.";
-            return;
-        }
-    }
     qDebug() << "[ORDER] Requesting order list from server...";
     NetworkManager::instance().sendRequest(Protocol::CMD_GET_ORDER_LIST, QJsonObject());
 }

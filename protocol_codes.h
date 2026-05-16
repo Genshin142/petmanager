@@ -34,6 +34,7 @@ namespace Protocol {
         CMD_GET_ROOM_LIST   = 2007,
         CMD_GET_VACCINES    = 2012, // 获取疫苗记录明细
         CMD_UPDATE_VACCINES = 2013, // 更新疫苗记录明细
+        CMD_UPDATE_PET_STATUS = 2020, // 更新宠物在店状态(入住/预约等)
 
         // 业务与订单类 (3000-3999)
         CMD_CREATE_ORDER    = 3001,
@@ -41,6 +42,8 @@ namespace Protocol {
         CMD_GET_ORDER_LIST  = 3003, // 获取订单列表
         CMD_UPDATE_ORDER    = 3004, // 更新订单
         CMD_CANCEL_ORDER    = 3005, // 作废订单
+        CMD_ADD_BATCH       = 3101, // 新增库存批次
+        CMD_GET_BATCHES     = 3102, // 获取商品批次明细
 
         // 员工管理类 (4000-4999)
         CMD_GET_STAFF_LIST = 4001,

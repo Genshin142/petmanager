@@ -3,7 +3,7 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QVariant>
-#include <glog/logging.h>
+#include "../logger_compat.h"
 #include <QJsonDocument>
 
 ScheduleController::ScheduleController(ServerCore *core, QObject *parent)

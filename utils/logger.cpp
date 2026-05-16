@@ -6,13 +6,45 @@
 #include <QMutex>
 #include <iostream>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <dbghelp.h>
+
+namespace {
+    LONG WINAPI unhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) {
+        QString dumpName = QString("logs/crash_%1.dmp").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
+        HANDLE hFile = CreateFileW((LPCWSTR)dumpName.utf16(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile != INVALID_HANDLE_VALUE) {
+            MINIDUMP_EXCEPTION_INFORMATION exInfo;
+            exInfo.ThreadId = GetCurrentThreadId();
+            exInfo.ExceptionPointers = exceptionInfo;
+            exInfo.ClientPointers = FALSE;
+            MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile, MiniDumpNormal, &exInfo, NULL, NULL);
+            CloseHandle(hFile);
+        }
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+}
+#endif
+
 namespace Logger {
     QMutex mutex;
     QString logFilePath;
 
-    void init() {
+    void init(const QString &fileName) {
         QDir().mkpath("logs");
-        logFilePath = "logs/app_" + QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss") + ".log";
+        logFilePath = "logs/" + fileName;
+        
+        // 启动时清空旧日志
+        QFile file(logFilePath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            file.close();
+        }
+
+#ifdef Q_OS_WIN
+        SetUnhandledExceptionFilter(unhandledExceptionFilter);
+#endif
+
         qInstallMessageHandler(messageHandler);
         qDebug() << "Logger initialized. Logging to:" << logFilePath;
     }

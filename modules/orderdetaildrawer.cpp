@@ -6,10 +6,17 @@
 #include <QGraphicsDropShadowEffect>
 #include <QPropertyAnimation>
 #include <QApplication>
-#include <QLineEdit>
-#include <QDateTime>
+#include <QMenu>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QAction>
 #include <QMouseEvent>
 #include <QPainterPath>
+#include <QJsonDocument>
+#include <QByteArray>
+#include <QJsonArray>
+#include <QJsonObject>
 
 OrderDetailDrawer::OrderDetailDrawer(QWidget *parent) : QWidget(parent)
 {
@@ -26,7 +33,7 @@ OrderDetailDrawer::OrderDetailDrawer(QWidget *parent) : QWidget(parent)
 
 void OrderDetailDrawer::setupUI()
 {
-    setFixedWidth(420); // 适度减小总宽度，使其更紧凑
+    setFixedWidth(450); // 增加宽度防止溢出
     // 父容器保持透明
     setStyleSheet("background: transparent; border: none;");
 
@@ -58,32 +65,28 @@ void OrderDetailDrawer::setupUI()
 
     // --- Header (Pet/Customer Profile) ---
     QWidget *header = new QWidget();
-    header->setFixedHeight(100); // 降低高度，给列表留更多空间
+    header->setFixedHeight(120); // 增加高度确保文字完整显示
     header->setStyleSheet("background: transparent; border: none;");
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(15, 20, 100, 15); // Large right margin for button area
-    headerLayout->setSpacing(12);
-
-    m_petAvatar = new QLabel();
-    m_petAvatar->setFixedSize(70, 70); // Slightly smaller to gain width
-    m_petAvatar->setCursor(Qt::PointingHandCursor);
-    m_petAvatar->setStyleSheet("background: transparent; border: none;"); // Styling via painter
-    m_petAvatar->setAlignment(Qt::AlignCenter);
-    m_petAvatar->installEventFilter(this);
-    headerLayout->addWidget(m_petAvatar);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    headerLayout->setSpacing(0);
 
     QVBoxLayout *infoLayout = new QVBoxLayout();
-    infoLayout->setSpacing(8); // More breathing room
-    infoLayout->setAlignment(Qt::AlignVCenter);
+    infoLayout->setSpacing(8);
+    infoLayout->setContentsMargins(30, 20, 20, 20); // 增加上下边距
+    
+    m_memberNameLabel = new QLabel("收银订单详情");
+    m_memberNameLabel->setStyleSheet("font-size: 14px; color: #64748b; font-weight: 800; border: none; font-family: 'Microsoft YaHei'; text-transform: uppercase; letter-spacing: 1px;");
+    m_memberNameLabel->setAlignment(Qt::AlignLeft);
     
     m_petInfoLabel = new QLabel("加载中...");
-    m_petInfoLabel->setStyleSheet("font-size: 20px; font-weight: 800; color: #0f172a; border: none; font-family: 'Microsoft YaHei';");
+    m_petInfoLabel->setStyleSheet("font-size: 26px; font-weight: 800; color: #1e293b; border: none; font-family: 'Microsoft YaHei';");
+    m_petInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     
-    m_memberNameLabel = new QLabel("会员: --");
-    m_memberNameLabel->setStyleSheet("font-size: 15px; color: #1e293b; font-weight: 600; border: none; font-family: 'Microsoft YaHei';");
-    
-    infoLayout->addWidget(m_petInfoLabel);
     infoLayout->addWidget(m_memberNameLabel);
+    infoLayout->addSpacing(5);
+    infoLayout->addWidget(m_petInfoLabel);
+    infoLayout->setContentsMargins(30, 15, 20, 0); // 增加左边距，使其与列表项对齐
     headerLayout->addLayout(infoLayout, 1);
 
     m_cancelOrderBtn = new QPushButton("作废订单");
@@ -252,88 +255,18 @@ void OrderDetailDrawer::showEmptyState()
 
 void OrderDetailDrawer::updateUI()
 {
-    qDebug() << "[DRAWER] updateUI started for sourceModule:" << m_order.sourceModule;
-    bool isProduct = (m_order.sourceModule == "Product" || m_order.sourceModule == "RetailPOS");
-    
-    if (!m_petAvatar) {
-        qWarning() << "[DRAWER] m_petAvatar is NULL!";
-        return;
-    }
+    if (m_order.id.isEmpty()) return;
 
-    int avatarSize = m_petAvatar->width();
-    if (avatarSize <= 0) avatarSize = 70; // 兜底
-    
-    QPixmap target(avatarSize, avatarSize);
-    target.fill(Qt::transparent);
-    QPainter painter(&target);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform);
-    
-    // 主标题：会员信息
+    // 1. 设置头部信息：居中显示会员姓名和ID，顶部固定标题
     QString displayName = m_order.memberName.isEmpty() ? "临时客" : m_order.memberName;
-    QString memberTitle = QString("%1 %2").arg(displayName).arg(m_order.memberId);
-    m_petInfoLabel->setText(memberTitle);
-
-    if (isProduct) {
-        // 商品订单：极致简化，隐藏副标题，仅保留主标题（会员名）
-        m_memberNameLabel->setVisible(false);
-        m_avatarPathForPreview = "C:\\Users\\任坤\\.gemini\\antigravity\\brain\\bb7984ab-9f62-43f3-aed8-a8540dde0c4b\\generic_product_placeholder_1777719930887.png";
-        
-        QPixmap pix(m_avatarPathForPreview);
-        if (!pix.isNull()) {
-            QPainterPath path;
-            path.addEllipse(2, 2, avatarSize - 4, avatarSize - 4);
-            painter.setClipPath(path);
-            painter.drawPixmap(2, 2, avatarSize - 4, avatarSize - 4, pix);
-            
-            painter.setClipping(false);
-            painter.setPen(QPen(QColor("#e2e8f0"), 2));
-            painter.drawEllipse(1, 1, avatarSize - 2, avatarSize - 2);
-        } else {
-            painter.setBrush(QBrush(QColor("#fff7ed")));
-            painter.setPen(QPen(QColor("#ffedd5"), 1));
-            painter.drawEllipse(2, 2, avatarSize - 4, avatarSize - 4);
-            painter.setPen(Qt::black);
-            QFont f = painter.font(); f.setPixelSize(36); painter.setFont(f);
-            painter.drawText(target.rect(), Qt::AlignCenter, "📦");
-        }
-    } else {
-        // 宠物服务：恢复并显示宠物信息
-        m_memberNameLabel->setVisible(true);
-        PetInfo pet = PetDataManager::instance()->getPet(m_order.petId);
-        m_memberNameLabel->setText(QString("宠物: %1 %2 | %3")
-            .arg(m_order.petName)
-            .arg(m_order.petId)
-            .arg(pet.breed.isEmpty() ? "未知品种" : pet.breed));
-        m_memberNameLabel->setStyleSheet("font-size: 15px; color: #1e293b; font-weight: 600; border: none; font-family: 'Microsoft YaHei';");
-        
-        m_avatarPathForPreview = pet.avatarPath;
-        if (!pet.avatarPath.isEmpty()) {
-            QPixmap pix(pet.avatarPath);
-            if (!pix.isNull()) {
-                QPainterPath path;
-                path.addEllipse(2, 2, avatarSize - 4, avatarSize - 4);
-                painter.setClipPath(path);
-                QPixmap scaled = pix.scaled(avatarSize - 4, avatarSize - 4, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-                painter.drawPixmap(2 + (avatarSize - 4 - scaled.width())/2, 2 + (avatarSize - 4 - scaled.height())/2, scaled);
-                
-                painter.setClipping(false);
-                painter.setPen(QPen(QColor("#e2e8f0"), 2));
-                painter.drawEllipse(1, 1, avatarSize - 2, avatarSize - 2);
-            }
-        } else {
-            painter.setBrush(QBrush(Qt::white));
-            painter.setPen(QPen(QColor("#e2e8f0"), 1));
-            painter.drawEllipse(2, 2, avatarSize - 4, avatarSize - 4);
-            
-            painter.setPen(Qt::black);
-            QFont f = painter.font(); f.setPixelSize(32); painter.setFont(f);
-            painter.drawText(target.rect(), Qt::AlignCenter, "🐾");
-        }
+    QString memberTitle = displayName;
+    if (!m_order.memberId.isEmpty() && m_order.memberId != "Temporary") {
+        memberTitle += " " + m_order.memberId;
     }
-    m_petAvatar->setPixmap(target);
-    
-    // Clear items
+    m_petInfoLabel->setText(memberTitle);
+    m_memberNameLabel->setText("收银订单详情");
+
+    // 2. 清理旧项目
     QLayoutItem *child;
     while ((child = m_itemsLayout->takeAt(0)) != nullptr) {
         if (child->widget()) {
@@ -343,114 +276,200 @@ void OrderDetailDrawer::updateUI()
         delete child;
     }
 
-    // Add items helper (增加图片参数)
-    auto addItem = [&](const QString &name, const QString &subtitle, double price, const QString &extra = "", const QString &iconPath = "") {
-        qDebug() << "  [DRAWER] addItem start:" << name;
+    // 3. 定义统一的 addItem 助手
+    auto addItem = [&](const QJsonObject &itemObj, bool isPetService) {
         QWidget *itemW = new QWidget();
         itemW->setObjectName("OrderItem");
-        itemW->setStyleSheet("QWidget#OrderItem { background: white; border-bottom: 1px solid #f8fafc; }");
+        itemW->setStyleSheet("QWidget#OrderItem { background: white; border-bottom: 1px solid #f1f5f9; }");
         QHBoxLayout *rowLayout = new QHBoxLayout(itemW);
-        rowLayout->setContentsMargins(10, 12, 10, 12);
-        rowLayout->setSpacing(12);
+        rowLayout->setContentsMargins(10, 15, 10, 15);
+        rowLayout->setSpacing(15);
 
-        if (isProduct) {
-            QLabel *img = new QLabel();
-            img->setFixedSize(48, 48);
-            img->setStyleSheet("background: #f8fafc; border-radius: 6px; border: 1px solid #f1f5f9;");
-            img->setAlignment(Qt::AlignCenter);
-            if (isProduct) {
-                // 优化：从缓存获取图片，避免重复解码
-                ProductInfo pInfo = ProductDataManager::instance()->getProductByName(name);
-                QPixmap pix = ProductDataManager::instance()->getProductPixmap(pInfo.barcode);
-                
-                if (!pix.isNull()) {
-                    img->setPixmap(pix.scaled(44, 44, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-                } else {
-                    img->setText("📦");
-                }
+        // 左侧：头像/图片 (48x48)
+        QLabel *iconLabel = new QLabel();
+        iconLabel->setFixedSize(48, 48);
+        iconLabel->setAlignment(Qt::AlignCenter);
+        
+        QString iconPath;
+        if (isPetService) {
+            QString petId = itemObj["petId"].toString();
+            iconPath = itemObj["petPhoto"].toString();
+            
+            QPixmap pix = PetDataManager::instance()->getPetPixmap(petId);
+            iconLabel->setStyleSheet("background: #f8fafc; border-radius: 24px; border: 1px solid #e2e8f0;");
+            
+            if (!pix.isNull()) {
+                QPixmap target(48, 48);
+                target.fill(Qt::transparent);
+                QPainter painter(&target);
+                painter.setRenderHint(QPainter::Antialiasing);
+                QPainterPath path;
+                path.addEllipse(0, 0, 48, 48);
+                painter.setClipPath(path);
+                painter.drawPixmap(0, 0, 48, 48, pix.scaled(48, 48, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                iconLabel->setPixmap(target);
+            } else {
+                iconLabel->setText("🐾");
+                iconLabel->setStyleSheet("font-size: 20px; background: #f8fafc; border-radius: 24px; border: 1px solid #e2e8f0;");
             }
-            img->setCursor(Qt::PointingHandCursor);
-            img->installEventFilter(this);
-            img->setProperty("isProductIcon", true);
-            img->setProperty("iconPath", iconPath);
-            rowLayout->addWidget(img);
+        } else {
+            iconPath = itemObj["photo"].toString();
+            if (iconPath.isEmpty()) {
+                ProductInfo p = ProductDataManager::instance()->getProduct(itemObj["barcode"].toString());
+                if (!p.images.isEmpty()) iconPath = p.images[0];
+            }
+            iconLabel->setStyleSheet("background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9;");
+            
+            QPixmap pix = ProductDataManager::instance()->getProductPixmap(itemObj["barcode"].toString());
+            if (!pix.isNull()) {
+                iconLabel->setPixmap(pix.scaled(44, 44, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            } else {
+                iconLabel->setText("📦");
+            }
         }
+        
+        iconLabel->setCursor(Qt::PointingHandCursor);
+        iconLabel->installEventFilter(this);
+        iconLabel->setProperty("isOrderIcon", true); // 用于 eventFilter 识别
+        iconLabel->setProperty("iconPath", iconPath);
+        rowLayout->addWidget(iconLabel);
+
+        // 右侧：信息展示
         QVBoxLayout *textLayout = new QVBoxLayout();
         textLayout->setSpacing(4);
 
-        QHBoxLayout *topRow = new QHBoxLayout();
-        QLabel *nameLbl = new QLabel(name);
-        nameLbl->setStyleSheet("font-size: 15px; font-weight: 700; color: #1e293b; font-family: 'Microsoft YaHei';");
-        QLabel *priceLbl = new QLabel(QString("¥ %1").arg(price, 0, 'f', 2));
-        priceLbl->setStyleSheet("font-size: 18px; font-weight: 800; color: #0f172a; font-family: 'Microsoft YaHei';");
-        topRow->addWidget(nameLbl);
-        topRow->addStretch();
-        topRow->addWidget(priceLbl);
+        if (isPetService) {
+            // 第一行：宠物名称
+            QString petName = itemObj["petName"].toString();
+            QString petId = itemObj["petId"].toString();
+            QString breed = itemObj["petBreed"].toString();
+            QString room = itemObj["roomName"].toString();
+            
+            QLabel *petNameLbl = new QLabel(petName);
+            petNameLbl->setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b; font-family: 'Microsoft YaHei';");
+            
+            // 第二行：ID | 品种 | 房间
+            QString metaStr = QString("ID: %1 | 品种: %2").arg(petId).arg(breed.isEmpty() ? "未知" : breed);
+            if (!room.isEmpty()) metaStr += " | 房间: " + room;
+            
+            QLabel *petMetaLbl = new QLabel(metaStr);
+            petMetaLbl->setStyleSheet("font-size: 12px; color: #64748b; font-family: 'Microsoft YaHei';");
+            
+            QHBoxLayout *topRow = new QHBoxLayout();
+            topRow->addWidget(petNameLbl);
+            topRow->addStretch();
+            
+            // 金额显示在右侧
+            double price = itemObj["price"].toDouble();
+            QLabel *priceLbl = new QLabel(QString("¥ %1").arg(price, 0, 'f', 2));
+            priceLbl->setStyleSheet("font-size: 18px; font-weight: 800; color: #0f172a; font-family: 'Microsoft YaHei';");
+            topRow->addWidget(priceLbl);
+            
+            textLayout->addLayout(topRow);
+            textLayout->addWidget(petMetaLbl);
 
-        QLabel *subLbl = new QLabel(subtitle);
-        subLbl->setStyleSheet("font-size: 12px; color: #64748b; font-weight: 500; font-family: 'Microsoft YaHei';");
+            // 第三行：服务名称 + 时长
+            QString svcName = itemObj["name"].toString();
+            int duration = itemObj.contains("duration") ? itemObj["duration"].toInt() : 0;
+            if (duration > 0 && m_order.sourceModule == "Boarding") {
+                svcName += QString(" (%1 天)").arg(duration);
+            }
+            
+            QLabel *svcNameLbl = new QLabel(svcName);
+            svcNameLbl->setStyleSheet("font-size: 13px; color: #475569; font-weight: 600; font-family: 'Microsoft YaHei';");
+            textLayout->addWidget(svcNameLbl);
+        } else {
+            // 商品展示
+            double price = itemObj["price"].toDouble();
+            int count = itemObj["count"].toInt();
+            QString nameStr = itemObj["name"].toString();
+            if (count > 1) nameStr += QString(" ×%1").arg(count);
+            
+            QLabel *nameLbl = new QLabel(nameStr);
+            nameLbl->setWordWrap(true); // 允许长名称换行
+            nameLbl->setStyleSheet("font-size: 15px; font-weight: 700; color: #1e293b; font-family: 'Microsoft YaHei';");
+            
+            QLabel *priceLbl = new QLabel(QString("¥ %1").arg(price * count, 0, 'f', 2));
+            priceLbl->setFixedWidth(100); // 固定宽度确保金额不被切掉
+            priceLbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            priceLbl->setStyleSheet("font-size: 18px; font-weight: 800; color: #0f172a; font-family: 'Microsoft YaHei';");
+            
+            QHBoxLayout *topRow = new QHBoxLayout();
+            topRow->addWidget(nameLbl);
+            topRow->addStretch();
+            topRow->addWidget(priceLbl);
+            textLayout->addLayout(topRow);
 
-        textLayout->addLayout(topRow);
-        textLayout->addWidget(subLbl);
-        
-        if (!extra.isEmpty()) {
-            QLabel *exLbl = new QLabel(extra);
-            exLbl->setStyleSheet("font-size: 11px; color: #94a3b8; font-family: 'Consolas', 'Microsoft YaHei';");
-            textLayout->addWidget(exLbl);
+            QString qtyStr = (count > 1) ? QString("数量: %1").arg(count) : "单品零售";
+            QLabel *subLbl = new QLabel(qtyStr);
+            subLbl->setStyleSheet("font-size: 12px; color: #64748b; font-weight: 500; font-family: 'Microsoft YaHei';");
+            textLayout->addWidget(subLbl);
+
+            QString barcode = itemObj["barcode"].toString();
+            if (!barcode.isEmpty()) {
+                QLabel *bcLbl = new QLabel("条形码: " + barcode);
+                bcLbl->setStyleSheet("font-size: 11px; color: #94a3b8; font-family: 'Consolas';");
+                textLayout->addWidget(bcLbl);
+            }
         }
 
         rowLayout->addLayout(textLayout, 1);
-
         m_itemsLayout->addWidget(itemW);
     };
 
-    if (isProduct) {
-        // 智能合并与计价逻辑
-        QStringList rawItems = m_order.itemDetails.split("+", Qt::SkipEmptyParts);
-        QMap<QString, int> itemGroups;
-        for (const QString &raw : rawItems) {
-            QString name = raw.trimmed();
-            itemGroups[name]++;
-        }
-
-        for (auto it = itemGroups.begin(); it != itemGroups.end(); ++it) {
-            QString name = it.key();
-            int count = it.value();
-            
-            // 优化：直接通过名称查找，避免全量循环
-            ProductInfo p = ProductDataManager::instance()->getProductByName(name);
-            double unitPrice = p.barcode.isEmpty() ? 0.0 : p.price;
-            QString imgPath = p.images.isEmpty() ? "" : p.images[0];
-            
-            if (unitPrice <= 0 && itemGroups.size() == 1) {
-                unitPrice = m_order.totalAmount / count;
-            }
-
-            double lineTotal = unitPrice * count;
-            QString displayName = (count > 1) ? QString("%1 × %2").arg(name).arg(count) : name;
-            
-            addItem(displayName, "", lineTotal, "", imgPath);
+    // 4. 解析 JSON 并填充
+    QString detailsRaw = m_order.itemDetails;
+    QJsonDocument doc = QJsonDocument::fromJson(detailsRaw.toUtf8());
+    bool isPetService = (m_order.sourceModule == "Boarding" || m_order.sourceModule == "Appointment" || m_order.sourceModule == "Direct");
+    
+    if (!doc.isNull() && doc.isArray()) {
+        QJsonArray arr = doc.array();
+        
+        for (int i = 0; i < arr.size(); ++i) {
+            addItem(arr[i].toObject(), isPetService);
         }
     } else {
-        addItem(m_order.itemDetails, "业务项目结算", m_order.totalAmount);
+        // 兜底处理旧格式 (例如 "项目A + 项目A + 项目B")
+        QStringList rawItems = detailsRaw.split("+", Qt::SkipEmptyParts);
+        QMap<QString, int> counts;
+        for (const QString &s : rawItems) counts[s.trimmed()]++;
+        
+        for (auto it = counts.begin(); it != counts.end(); ++it) {
+            QJsonObject dummy;
+            dummy["name"] = it.key();
+            dummy["count"] = it.value();
+            
+            // 尝试找一下对应的价格
+            double unitPrice = m_order.totalAmount / qMax(1, rawItems.size());
+            dummy["price"] = unitPrice;
+            
+            // 注入兜底元数据，用于老订单显示
+            if (isPetService && !m_order.petId.isEmpty()) {
+                dummy["petId"] = m_order.petId;
+                dummy["petName"] = m_order.petName;
+                PetInfo pi = PetDataManager::instance()->getPet(m_order.petId);
+                if (!pi.id.isEmpty()) {
+                    dummy["petBreed"] = pi.breed;
+                    dummy["petPhoto"] = pi.avatarPath;
+                }
+            }
+            
+            addItem(dummy, isPetService);
+        }
     }
-    
+
     m_itemsLayout->addStretch();
     m_finalAmountLabel->setText(QString("¥ %1").arg(m_order.totalAmount, 0, 'f', 2));
-    
-    // 支付状态处理
+
+    // 5. 支付状态处理
     bool isUnpaid = (m_order.status == "Unpaid");
     m_confirmBtn->setEnabled(isUnpaid);
     m_cancelOrderBtn->setVisible(isUnpaid);
 
-    // 处理支付方式按钮的状态
     for (auto b : m_payMethodButtons) {
         b->setChecked(false);
-        // 如果已支付，选中记录中的支付方式，并禁用按钮防止修改
-        if (!isUnpaid && b->text() == m_order.payMethod) {
-            b->setChecked(true);
-        }
-        b->setEnabled(isUnpaid); // 只有未支付时才能选择
+        if (!isUnpaid && b->text() == m_order.payMethod) b->setChecked(true);
+        b->setEnabled(isUnpaid);
     }
     
     if (!isUnpaid) {
@@ -458,23 +477,18 @@ void OrderDetailDrawer::updateUI()
         m_confirmBtn->setStyleSheet("QPushButton { background: #dcfce7; color: #166534; border-radius: 10px; font-size: 16px; font-weight: 800; border: none; font-family: 'Microsoft YaHei'; }");
     } else {
         m_confirmBtn->setText("确认结算");
-        m_confirmBtn->setStyleSheet(
-            "QPushButton { background: #3b82f6; color: white; border-radius: 10px; font-size: 16px; font-weight: 800; border: none; font-family: 'Microsoft YaHei'; } "
-            "QPushButton:hover { background: #2563eb; }"
-        );
+        m_confirmBtn->setStyleSheet("QPushButton { background: #3b82f6; color: white; border-radius: 10px; font-size: 16px; font-weight: 800; border: none; font-family: 'Microsoft YaHei'; } QPushButton:hover { background: #2563eb; }");
     }
 }
 
 bool OrderDetailDrawer::eventFilter(QObject *obj, QEvent *event)
 {
-    // 处理头像或商品图标点击放大
-    bool isAvatar = (obj == m_petAvatar);
-    bool isProdIcon = obj->property("isProductIcon").toBool();
+    // 处理列表图标点击放大
+    bool isIcon = obj->property("isOrderIcon").toBool();
 
-    if ((isAvatar || isProdIcon) && event->type() == QEvent::MouseButtonRelease) {
-        QString pathToShow = isAvatar ? m_avatarPathForPreview : obj->property("iconPath").toString();
-        // 如果路径为空（例如默认包裹图标），则不放大或显示占位
-        if (pathToShow.isEmpty() && isProdIcon) pathToShow = m_avatarPathForPreview; 
+    if (isIcon && event->type() == QEvent::MouseButtonRelease) {
+        QString pathToShow = obj->property("iconPath").toString();
+        if (pathToShow.isEmpty()) return true;
 
         QWidget *mainWin = nullptr;
         for (QWidget *w : QApplication::topLevelWidgets()) {
@@ -502,34 +516,21 @@ bool OrderDetailDrawer::eventFilter(QObject *obj, QEvent *event)
         QLabel *imgLabel = new QLabel();
         int maxDim = qMin(mainWin->width(), mainWin->height()) * 0.8;
         
-        if (!pathToShow.isEmpty()) {
-            QPixmap pix;
-            if (pathToShow.startsWith("/9j/") || pathToShow.length() > 512) {
-                QByteArray data = QByteArray::fromBase64(pathToShow.toLatin1());
-                pix.loadFromData(data);
-            } else {
-                pix.load(pathToShow);
-            }
-
-            if (!pix.isNull()) {
-                imgLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            }
+        QPixmap pix;
+        if (pathToShow.startsWith("/9j/") || pathToShow.length() > 512) {
+            QByteArray data = QByteArray::fromBase64(pathToShow.toLatin1());
+            pix.loadFromData(data);
         } else {
-            // Emoji or Placeholder
-            QPixmap pix(maxDim, maxDim);
-            pix.fill(Qt::white);
-            QPainter p(&pix);
-            p.setRenderHint(QPainter::Antialiasing);
-            QFont f = p.font();
-            f.setPixelSize(maxDim * 0.5);
-            p.setFont(f);
-            p.drawText(pix.rect(), Qt::AlignCenter, m_petAvatar->text());
-            p.end();
-            imgLabel->setPixmap(pix);
+            pix.load(pathToShow);
+        }
+
+        if (!pix.isNull()) {
+            imgLabel->setPixmap(pix.scaled(maxDim, maxDim, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        } else {
+            return true;
         }
         
         bgLayout->addWidget(imgLabel);
-        
         bg->setCursor(Qt::PointingHandCursor);
         bg->installEventFilter(this);
         bg->setProperty("isPreviewBg", true);
@@ -539,7 +540,7 @@ bool OrderDetailDrawer::eventFilter(QObject *obj, QEvent *event)
         preview->show();
         return true;
     }
-    
+
     if (obj->property("isPreviewBg").toBool()) {
         if (event->type() == QEvent::MouseButtonPress) {
             void* ptr = qvariant_cast<void*>(obj->property("previewDlg"));

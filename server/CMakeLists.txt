@@ -13,23 +13,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-# 1. 自动化获取 glog 库
-include(FetchContent)
-FetchContent_Declare(
-  glog
-  GIT_REPOSITORY https://github.com/google/glog.git
-  GIT_TAG v0.7.0
-)
-
-# 针对 Windows MinGW 环境优化配置，关闭不兼容的特性
-set(WITH_GFLAGS OFF CACHE BOOL "" FORCE)
-set(WITH_GTEST OFF CACHE BOOL "" FORCE)
-set(WITH_SYMBOLIZE OFF CACHE BOOL "" FORCE)
-set(WITH_UNWIND OFF CACHE BOOL "" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE) 
-
-FetchContent_MakeAvailable(glog)
-
 # 2. 自动查找 Qt 6 组件
 find_package(Qt6 REQUIRED COMPONENTS Core Network Sql)
 
@@ -42,6 +25,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/logic)
 # 3. 定义源文件
 set(SOURCES
     main.cpp
+    ../utils/logger.cpp
     database/connectionpool.cpp
     network/client_handler.cpp
     network/server_core.cpp
@@ -66,10 +50,9 @@ target_link_libraries(PetServer PRIVATE
     Qt6::Core 
     Qt6::Network 
     Qt6::Sql
-    glog::glog
 )
 
-# 6. 控制台输出配置
 if(WIN32)
+    target_link_libraries(PetServer PRIVATE dbghelp)
     set_target_properties(PetServer PROPERTIES WIN32_EXECUTABLE FALSE)
 endif()

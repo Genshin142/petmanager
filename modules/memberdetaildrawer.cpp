@@ -7,6 +7,9 @@
 #include <QPainterPath>
 #include "petdatamanager.h"
 #include "custommessagedialog.h"
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 
 MemberDetailDrawer::MemberDetailDrawer(QWidget *parent) : QWidget(parent), m_imagePreviewOverlay(nullptr), m_previewLabel(nullptr), m_isOpened(false)
 
@@ -40,6 +43,31 @@ void MemberDetailDrawer::setupUI()
     QVBoxLayout *mainLayout = new QVBoxLayout(container);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
+
+    // --- 占位界面 ---
+    m_emptyWidget = new QWidget();
+    QVBoxLayout *emptyLayout = new QVBoxLayout(m_emptyWidget);
+    emptyLayout->setAlignment(Qt::AlignCenter);
+    QLabel *emptyIcon = new QLabel("👤");
+    emptyIcon->setStyleSheet("font-size: 48px; color: #dcdfe6;");
+    emptyIcon->setAlignment(Qt::AlignCenter);
+    QLabel *emptyText = new QLabel("暂无会员数据\n请在左侧列表选择或录入新会员");
+    emptyText->setStyleSheet("color: #909399; font-size: 14px; line-height: 1.5;");
+    emptyText->setAlignment(Qt::AlignCenter);
+    emptyLayout->addStretch();
+    emptyLayout->addWidget(emptyIcon);
+    emptyLayout->addSpacing(20);
+    emptyLayout->addWidget(emptyText);
+    emptyLayout->addStretch();
+    mainLayout->addWidget(m_emptyWidget);
+
+    // --- 内容界面 ---
+    m_contentWidget = new QWidget();
+    QVBoxLayout *contentLayout = new QVBoxLayout(m_contentWidget);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
+    mainLayout->addWidget(m_contentWidget);
+    
     outerLayout->addWidget(container);
 
     // --- 1. 头部 (Avatar & Base Info) ---
@@ -157,8 +185,8 @@ void MemberDetailDrawer::setupUI()
     tabContainerLayout->addWidget(tabWidget);
     tabContainerLayout->addStretch();
 
-    mainLayout->addWidget(header);
-    mainLayout->addWidget(tabContainer);
+    contentLayout->addWidget(header);
+    contentLayout->addWidget(tabContainer);
 
     // --- 3. 内容区 (Stacked Widget) ---
     m_stackedWidget = new QStackedWidget();
@@ -167,7 +195,7 @@ void MemberDetailDrawer::setupUI()
     m_stackedWidget->addWidget(createPetPage());     // Index 1
     m_stackedWidget->addWidget(createOrderPage());   // Index 2
 
-    mainLayout->addWidget(m_stackedWidget);
+    contentLayout->addWidget(m_stackedWidget);
 
     connect(m_tabGroup, &QButtonGroup::idClicked, m_stackedWidget, &QStackedWidget::setCurrentIndex);
     
@@ -179,12 +207,25 @@ void MemberDetailDrawer::setupUI()
         emit sig_editMemberRequested(m_currentMember);
     });
 
+    connect(m_viewMoreVisitBtn, &QPushButton::clicked, this, [this](){
+        m_stackedWidget->setCurrentIndex(2); // 切换到“消费”标签页
+        m_tabGroup->button(2)->setChecked(true);
+    });
+
     m_tabGroup->button(0)->setChecked(true);
-    
-    // 采用绝对定位固定位置 (297, 21) 确保全系统对齐
+
     m_editBtn->setParent(container);
     m_editBtn->move(297, 21);
     m_editBtn->raise();
+
+    showEmptyState(true);
+}
+
+void MemberDetailDrawer::showEmptyState(bool empty)
+{
+    m_emptyWidget->setVisible(empty);
+    m_contentWidget->setVisible(!empty);
+    m_editBtn->setVisible(!empty);
 }
 
 QWidget* MemberDetailDrawer::createProfilePage()
@@ -331,16 +372,26 @@ QWidget* MemberDetailDrawer::createPetPage()
 
 QWidget* MemberDetailDrawer::createOrderPage()
 {
-    QWidget *w = new QWidget();
-    w->setStyleSheet("background: white; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;");
-    QVBoxLayout *l = new QVBoxLayout(w);
-    l->setContentsMargins(24, 32, 24, 16);
+    QScrollArea *scroll = new QScrollArea();
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setStyleSheet("QScrollArea { background: white; border: none; }");
+
+    QWidget *content = new QWidget();
+    content->setObjectName("OrderPageContent");
+    content->setStyleSheet("QWidget#OrderPageContent { background: white; border: none; }");
+    m_orderListLayout = new QVBoxLayout(content);
+    m_orderListLayout->setContentsMargins(24, 16, 24, 16);
+    m_orderListLayout->setSpacing(15);
     
-    QLabel *empty = new QLabel("暂无消费记录");
-    empty->setAlignment(Qt::AlignCenter);
-    empty->setStyleSheet("color: #909399; font-size: 13px;");
-    l->addWidget(empty);
-    return w;
+    m_orderEmptyLabel = new QLabel("暂无消费记录");
+    m_orderEmptyLabel->setAlignment(Qt::AlignCenter);
+    m_orderEmptyLabel->setStyleSheet("color: #94a3b8; font-size: 13px; margin-top: 50px;");
+    m_orderListLayout->addWidget(m_orderEmptyLabel);
+    m_orderListLayout->addStretch();
+    
+    scroll->setWidget(content);
+    return scroll;
 }
 
 void MemberDetailDrawer::setMemberInfo(const MemberInfo &info)
@@ -368,6 +419,8 @@ void MemberDetailDrawer::setMemberInfo(const MemberInfo &info)
 
 void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVisit, const QString &pets)
 {
+    showEmptyState(false);
+    Q_UNUSED(lastVisit);
     Q_UNUSED(pets);
     m_currentMember = info;
     m_nameLabel->setText(info.name);
@@ -410,8 +463,6 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
         m_petCountLabel->setStyleSheet("QLabel#PetBadge { background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 10px; border: 1px solid #ffedd5; }");
     }
 
-    m_valGender->setText(info.gender);
-    m_valBirthday->setText(info.birthday);
     m_valGender->setText(info.gender.isEmpty() ? "未知" : info.gender);
     m_valBirthday->setText(info.birthday.isEmpty() ? "未填写" : info.birthday);
     m_valPhone->setText(info.phone);
@@ -420,27 +471,178 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
     m_valPoints->setText(QString::number(info.points));
     m_valTotalConsume->setText(QString("¥ %1").arg(info.consume_amt, 0, 'f', 2));
 
-    // --- 模拟生成历史到店记录 (基于最后到店日期进行回溯) ---
-    QDate lastDate = QDate::fromString(lastVisit, "yyyy-MM-dd");
-    if (!lastDate.isValid()) lastDate = QDate::currentDate();
+    // --- 真实到店记录 (从 PetDataManager 获取该会员的所有已支付订单) ---
+    QList<OrderInfo> allOrders = PetDataManager::instance()->getOrders(QDate(2020, 1, 1), QDate::currentDate(), "", "全部");
+    QList<OrderInfo> memberOrders;
+    for (const auto &o : allOrders) {
+        if (o.memberId == info.id && o.status == "Paid") {
+            memberOrders.append(o);
+        }
+    }
 
     QString historyHtml = "";
-    for (int i = 0; i < 4; ++i) {
-        QDate historicalDate = lastDate.addDays(- (int)QRandomGenerator::global()->bounded(30) - (i * 30));
-        QString color = (i == 0) ? "#409eff" : "#606266"; // 调深历史记录颜色，增强对比
-        QString weight = (i == 0) ? "bold" : "normal";
-        QString label = (i == 0) ? " <span style='font-size: 10px; background: #ecf5ff; padding: 1px 4px; border-radius: 2px;'>[最新]</span>" : "";
-        
-        historyHtml += QString("<div style='margin-bottom: 10px; color: %1;'> "
-                               "<span style='font-weight: %2;'>• %3</span>%4"
-                               "</div>")
-                       .arg(color, weight, historicalDate.toString("yyyy-MM-dd"), label);
-        
-        if (i == 0) m_valLastVisit->setText(lastVisit);
+    if (memberOrders.isEmpty()) {
+        historyHtml = "<div style='color: #94a3b8; font-style: italic; margin-top: 15px; text-align: center;'>暂无到店足迹</div>";
+    } else {
+        // 取最近的 5 条记录
+        int displayCount = qMin(5, (int)memberOrders.size());
+        for (int i = 0; i < displayCount; ++i) {
+            const auto &o = memberOrders[i];
+            QString dateStr = o.createTime.left(10);
+            QString timeStr = o.createTime.mid(11, 5);
+            
+            // 1. 确定业务类型与图标
+            QString accentColor = "#94a3b8"; // 默认灰色
+            QString typeName = "其他消费";
+            if (o.sourceModule == "Boarding") {
+                accentColor = "#f59e0b"; // 琥珀色
+                typeName = "寄养服务";
+            } else if (o.sourceModule == "Appointment") {
+                accentColor = "#3b82f6"; // 蓝色
+                typeName = "洗护/美容";
+            } else if (o.sourceModule == "Product") {
+                accentColor = "#10b981"; // 绿色
+                typeName = "商品零售";
+            } else if (o.sourceModule == "Transport") {
+                accentColor = "#8b5cf6"; // 紫色
+                typeName = "接送服务";
+            }
+            
+            // 2. 解析明细摘要 (统一处理 JSON 或 纯文本)
+            QString summary = "";
+            QJsonDocument itemDoc = QJsonDocument::fromJson(o.itemDetails.toUtf8());
+            if (itemDoc.isArray()) {
+                QJsonArray items = itemDoc.array();
+                QStringList itemNames;
+                for (int j = 0; j < items.size(); ++j) {
+                    QJsonObject itemObj = items[j].toObject();
+                    QString name = itemObj["name"].toString();
+                    QString petName = itemObj["petName"].toString();
+                    if (!petName.isEmpty()) {
+                        itemNames << QString("%1 (%2)").arg(name, petName);
+                    } else {
+                        itemNames << name;
+                    }
+                }
+                summary = itemNames.join(", ");
+            } else {
+                summary = o.itemDetails;
+                if (summary.contains("+")) summary = summary.split("+").first();
+            }
+            if (summary.isEmpty()) summary = "业务结算";
+            if (summary.length() > 40) summary = summary.left(37) + "...";
+
+            // 3. 构造极简模版 HTML (去掉卡片、背景和边框)
+            QString itemHtml = QString(
+                "<div style='margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;'>"
+                "  <div style='margin-bottom: 4px;'>"
+                "    <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>%1</span>"
+                "    %2"
+                "  </div>"
+                "  <div style='color: #1e293b; font-size: 13px; font-weight: 600; line-height: 1.4;'>%3</div>"
+                "  <div style='margin-top: 6px;'>"
+                "    <span style='color: #94a3b8; font-size: 11px;'>%4 %5</span>"
+                "    <span style='float: right; color: #1e293b; font-weight: 800; font-size: 13px;'>¥ %6</span>"
+                "  </div>"
+                "  <div style='clear: both;'></div>"
+                "</div>"
+            ).arg(
+                typeName,
+                (i == 0 ? "<span style='float: right; font-size: 9px; color: #3b82f6; font-weight: 800;'>NEW</span>" : ""),
+                summary,
+                dateStr, timeStr,
+                QString::number(o.finalAmount, 'f', 2)
+            );
+            historyHtml += itemHtml;
+            if (i == 0) m_valLastVisit->setText(dateStr);
+        }
     }
+    
     m_valLastVisit->setText(historyHtml);
     m_valLastVisit->setTextFormat(Qt::RichText);
+
+    // --- 4. 更新“消费”标签页的完整列表 ---
+    // 清理旧项
+    QLayoutItem *orderChild;
+    while ((orderChild = m_orderListLayout->takeAt(0)) != nullptr) {
+        if (orderChild->widget()) delete orderChild->widget();
+        delete orderChild;
+    }
     
+    if (memberOrders.isEmpty()) {
+        m_orderEmptyLabel = new QLabel("暂无消费记录");
+        m_orderEmptyLabel->setAlignment(Qt::AlignCenter);
+        m_orderEmptyLabel->setStyleSheet("color: #94a3b8; font-size: 13px; margin-top: 50px;");
+        m_orderListLayout->addWidget(m_orderEmptyLabel);
+    } else {
+        // 显示所有订单
+        for (const auto &o : memberOrders) {
+            QString dateStr = o.createTime.left(10);
+            QString timeStr = o.createTime.mid(11, 5);
+            
+            QString accentColor = "#94a3b8";
+            QString typeName = "其他消费";
+            if (o.sourceModule == "Boarding") { accentColor = "#f59e0b"; typeName = "寄养服务"; }
+            else if (o.sourceModule == "Appointment") { accentColor = "#3b82f6"; typeName = "洗护/美容"; }
+            else if (o.sourceModule == "Product") { accentColor = "#10b981"; typeName = "商品零售"; }
+            
+            QFrame *oCard = new QFrame();
+            oCard->setStyleSheet("QFrame { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }");
+            QVBoxLayout *oL = new QVBoxLayout(oCard);
+            oL->setContentsMargins(16, 14, 16, 14);
+            oL->setSpacing(8);
+            
+            // 1. 顶部行：业务类型 + 金额 (金额放在右边)
+            QHBoxLayout *topRow = new QHBoxLayout();
+            QLabel *headL = new QLabel(QString("<span style='color: #1e3a8a; font-weight: 900; font-size: 14px;'>%1</span> <span style='color: #94a3b8; font-weight: normal; font-size: 11px; margin-left: 6px;'>#%2</span>")
+                .arg(typeName, o.id.right(8)));
+            headL->setStyleSheet("background: transparent; border: none;");
+            
+            QLabel *amtL = new QLabel(QString("¥ %1").arg(o.finalAmount, 0, 'f', 2));
+            amtL->setStyleSheet("color: #1d4ed8; font-weight: 900; font-size: 18px; background: transparent; border: none;");
+            
+            topRow->addWidget(headL);
+            topRow->addStretch();
+            topRow->addWidget(amtL);
+            oL->addLayout(topRow);
+            
+            // 2. 中间行：消费明细 (包含宠物名称)
+            QString detailText = "";
+            QJsonDocument doc = QJsonDocument::fromJson(o.itemDetails.toUtf8());
+            if (doc.isArray()) {
+                QStringList lines;
+                QJsonArray arr = doc.array();
+                for (int j=0; j<arr.size(); ++j) {
+                    QJsonObject obj = arr[j].toObject();
+                    QString name = obj["name"].toString();
+                    QString petName = obj["petName"].toString();
+                    if (!petName.isEmpty()) {
+                        lines << QString("• %1 <span style='color: #1e3a8a; font-weight: bold;'>(%2)</span> x%3")
+                            .arg(name, petName).arg(obj["count"].toInt());
+                    } else {
+                        lines << QString("• %1 x%2").arg(name).arg(obj["count"].toInt());
+                    }
+                }
+                detailText = lines.join("<br>");
+            } else {
+                detailText = o.itemDetails;
+            }
+
+            QLabel *bodyL = new QLabel(detailText);
+            bodyL->setStyleSheet("color: #475569; font-size: 13px; font-weight: 500; background: transparent; border: none;");
+            bodyL->setWordWrap(true);
+            oL->addWidget(bodyL);
+            
+            // 3. 底部行：日期与时间
+            QLabel *dateL = new QLabel(QString("%1 %2").arg(dateStr, timeStr));
+            dateL->setStyleSheet("color: #94a3b8; font-size: 11px; background: transparent; border: none;");
+            oL->addWidget(dateL);
+            
+            m_orderListLayout->addWidget(oCard);
+        }
+    }
+    m_orderListLayout->addStretch();
+
     // --- 更新宠物卡片列表 ---
     QLayoutItem *child;
     while ((child = m_petCardsLayout->takeAt(0)) != nullptr) {

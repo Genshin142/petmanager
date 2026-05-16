@@ -31,6 +31,7 @@ public slots:
     void updateBalance(double newBalance);
     void showDrawer();
     void hideDrawer();
+    void showEmptyState(bool empty);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -79,9 +80,15 @@ private:
     QLabel *m_petListLabel; // Keep for backward compatibility or placeholder
     QPushButton *m_addPetBtn;
 
+    // Detail labels for Orders
+    QVBoxLayout *m_orderListLayout;
+    QLabel *m_orderEmptyLabel;
+
     MemberInfo m_currentMember;
     bool m_isOpened;
     QPropertyAnimation *m_animation;
+    QWidget *m_emptyWidget;
+    QWidget *m_contentWidget;
 };
 
 #endif // MEMBERDETAILDRAWER_H

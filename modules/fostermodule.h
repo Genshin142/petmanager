@@ -26,7 +26,7 @@ class CompactCalendar;
 class FosterCard : public QFrame {
     Q_OBJECT
 public:
-    explicit FosterCard(int roomNo, const QString &status, const QString &roomType, const QString &petId, const QString &petName, const QString &petBreed = "", const QString &ownerName = "", QWidget *parent = nullptr);
+    explicit FosterCard(int roomNo, const QString &status, const QString &roomType, const QString &petId, const QString &petName, const QString &petBreed = "", const QString &ownerName = "", const QString &fosterType = "", QWidget *parent = nullptr);
     QString petId() const { return m_petId; }
     QString petName() const { return m_petName; }
     QString petBreed() const { return m_petBreed; }
@@ -54,6 +54,7 @@ private:
     QString m_petName;
     QString m_petBreed;
     QString m_ownerName;
+    QString m_fosterType;
     QGraphicsDropShadowEffect *m_shadow;
     QLabel *m_avatar = nullptr;
     bool m_isSelected = false;
@@ -324,6 +325,7 @@ private:
     QWidget *m_imagePreviewOverlay = nullptr;
     QLabel *m_previewLabel = nullptr;
     QTimer *m_refreshDebounce = nullptr;
+    QMap<int, FosterCard*> m_cardMap; // 持久化卡片映射，支持差量更新
 };
 
 #endif

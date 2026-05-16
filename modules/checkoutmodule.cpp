@@ -5,17 +5,21 @@
 #include "custommessagedialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QDateEdit>
+#include <QByteArray>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QHeaderView>
 #include <QGraphicsDropShadowEffect>
 #include <QPushButton>
 #include <QButtonGroup>
 #include <QIntValidator>
+#include <QDateEdit>
 #include <QDateTime>
 #include <QStyledItemDelegate>
+#include <QTimer>
 #include <QPainter>
 #include <QPainterPath>
-#include <QTimer>
 #include <QListView>
 
 // --- 自定义 Delegate 实现全行圆角边框选中效果 ---
@@ -93,10 +97,17 @@ public:
 
 CheckoutModule::CheckoutModule(QWidget *parent) : QWidget(parent)
 {
-    setupUI();
-    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [this](){
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setSingleShot(true);
+    m_refreshTimer->setInterval(200); // 200ms 内的多次信号只触发一次刷新
+    connect(m_refreshTimer, &QTimer::timeout, this, [this](){
         updateStats();
         refreshView();
+    });
+
+    setupUI();
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [this](){
+        m_refreshTimer->start();
     });
     m_currentModuleFilter = "全部";
     updateStats();
@@ -497,11 +508,30 @@ void CheckoutModule::updatePagination()
                            (order.sourceModule == "Direct" ? "到店服务" : "其他业务"))));
         setItem(3, sourceZh, "#3b82f6");
         
-        // 具体明细：如果包含多个商品（以+分隔），仅显示第一个并加省略号
-        QString displayDetails = order.itemDetails;
-        if (displayDetails.contains("+")) {
+        // 具体明细：解析 JSON 格式或处理旧版 + 分隔格式
+        QString displayDetails = order.itemDetails.trimmed();
+        if (displayDetails.startsWith("[") && displayDetails.endsWith("]")) {
+            // 尝试作为 JSON 解析
+            QJsonDocument doc = QJsonDocument::fromJson(displayDetails.toUtf8());
+            if (!doc.isNull() && doc.isArray()) {
+                QJsonArray arr = doc.array();
+                if (!arr.isEmpty()) {
+                    QJsonObject firstObj = arr[0].toObject();
+                    QString name = firstObj["name"].toString();
+                    if (name.isEmpty()) name = "未知服务";
+                    int count = firstObj["count"].toInt();
+                    
+                    displayDetails = name;
+                    if (count > 1) displayDetails += QString(" x%1").arg(count);
+                    if (arr.size() > 1) displayDetails += "...";
+                }
+            }
+        } else if (displayDetails.contains("+")) {
             displayDetails = displayDetails.split("+").first() + "...";
         }
+        
+        // 限制长度
+        if (displayDetails.length() > 40) displayDetails = displayDetails.left(37) + "...";
         setItem(4, displayDetails);
         
         QTableWidgetItem *amtIt = new QTableWidgetItem(QString("¥ %1").arg(order.totalAmount, 0, 'f', 2));
@@ -509,18 +539,21 @@ void CheckoutModule::updatePagination()
         amtIt->setTextAlignment(Qt::AlignCenter);
         orderTable->setItem(row, 5, amtIt);
 
-        QWidget *tagContainer = new QWidget();
-        QHBoxLayout *tagLayout = new QHBoxLayout(tagContainer);
-        tagLayout->setContentsMargins(0, 0, 0, 0);
-        tagLayout->setAlignment(Qt::AlignCenter);
-        QLabel *tag = new QLabel(order.status == "Paid" ? "已支付" : (order.status == "Unpaid" ? "待结算" : "已取消"));
-        QString tagStyle = "padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; ";
-        if (order.status == "Paid") tagStyle += "background: #dcfce7; color: #166534;";
-        else if (order.status == "Unpaid") tagStyle += "background: #ffedd5; color: #9a3412;";
-        else tagStyle += "background: #f1f5f9; color: #64748b;";
-        tag->setStyleSheet(tagStyle);
-        tagLayout->addWidget(tag);
-        orderTable->setCellWidget(row, 6, tagContainer);
+        QTableWidgetItem *statusIt = new QTableWidgetItem(order.status == "Paid" ? "已支付" : (order.status == "Unpaid" ? "待结算" : "已取消"));
+        statusIt->setTextAlignment(Qt::AlignCenter);
+        statusIt->setFont(QFont("Microsoft YaHei", 9, QFont::Bold));
+        
+        if (order.status == "Paid") {
+            statusIt->setForeground(QColor("#166534"));
+            statusIt->setBackground(QColor("#dcfce7"));
+        } else if (order.status == "Unpaid") {
+            statusIt->setForeground(QColor("#9a3412"));
+            statusIt->setBackground(QColor("#ffedd5"));
+        } else {
+            statusIt->setForeground(QColor("#64748b"));
+            statusIt->setBackground(QColor("#f1f5f9"));
+        }
+        orderTable->setItem(row, 6, statusIt);
     }
     orderTable->setUpdatesEnabled(true);
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));

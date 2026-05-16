@@ -5,7 +5,7 @@
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QtCore/QDebug>
-#include <glog/logging.h>
+#include "../logger_compat.h"
 #include <QtNetwork/QTcpSocket>
 #include "../logic/user_controller.h"
 #include "../logic/pet_controller.h"

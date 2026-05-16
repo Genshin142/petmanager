@@ -9,6 +9,9 @@
 #include <QPropertyAnimation>
 #include <QStackedWidget>
 #include <QButtonGroup>
+#include <QComboBox>
+#include <QGridLayout>
+#include "common_types.h"
 #include "addemployeedialog.h"
 
 class EmployeeDetailDrawer : public QWidget
@@ -64,6 +67,16 @@ private:
     
     QWidget* createProfilePage();
     QWidget* createSchedulePage();
+    void refreshCalendar();
+
+    // 动态日历组件
+    QComboBox *m_yearCombo = nullptr;
+    QComboBox *m_monthCombo = nullptr;
+    QGridLayout *m_calendarGrid = nullptr;
+    QLabel *m_todayShiftLabel = nullptr;
+    QLabel *m_statWorkLabel = nullptr;
+    QLabel *m_statLeaveLabel = nullptr;
+    QLabel *m_statRestLabel = nullptr;
 
     QPropertyAnimation *m_animation;
 };

@@ -95,6 +95,7 @@ struct PetInfo {
     QString roomNo;     // 当前寄养房号 (寄养中显示)
     QString fosterStartTime; // 寄养开始时间
     QString fosterEndTime;   // 寄养结束时间
+    QString fosterType;      // 寄养类型 (日托/全托)
     double weight = 0.0;     // 当前体重 (kg)
     bool isActive = true;    // 是否处于活跃状态 (逻辑删除)
     QString imgData;         // 新增：头像 Base64 数据 (用于本地缓存同步)

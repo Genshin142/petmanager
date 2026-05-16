@@ -59,10 +59,10 @@ public:
     bool isRoomAvailable(int roomId, const QDate &start, const QDate &end) const;
     QString getRoomType(int roomId) const;
     QList<int> getAvailableRooms(const QDate &start, const QDate &end, const QString &type = "") const;
-    void executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note = "");
-    void executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight);
+    void executeCheckIn(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &note = "", const QString &fosterType = "全托", std::function<void(bool)> callback = nullptr);
+    void executeBooking(int roomId, const QString &petId, const QDate &start, const QDate &end, double weight, const QString &fosterType = "全托", std::function<void(bool)> callback = nullptr);
     void executeCancelBooking(int roomId, const QString &petId);
-    void executeCheckOut(int roomId, const QString &petId, const QDate &checkOutDate, double weight, double totalAmount, const QString &paymentMethod);
+    void executeCheckOut(int roomId, const QString &petId, const QDate &checkOutDate, double weight, double totalAmount, const QString &paymentMethod, std::function<void(bool, QString)> callback = nullptr);
     
     // 房态管理
     void addRoomStatusPeriod(int roomId, const RoomStatusPeriod &period);

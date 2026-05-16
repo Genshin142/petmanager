@@ -17,6 +17,7 @@ public:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void onPrevWeek();
@@ -46,6 +47,7 @@ private:
 
     // 样式辅助
     QWidget* createShiftWidget(const ScheduleInfo &info);
+    void updateShiftTag(QLabel *tag, const ScheduleInfo &info);
 };
 
 #endif // SCHEDULEMODULE_H
