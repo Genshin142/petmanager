@@ -436,7 +436,7 @@ void MemberModule::setupUI()
                     break;
                 }
             }
-            CustomMessageDialog::showWarning(this, "成功", QString("已为会员 %1 添加新宠物：%2").arg(memberName, pet.name));
+            CustomMessageDialog::showSuccess(this, "成功", QString("已为会员 %1 添加新宠物：%2").arg(memberName, pet.name));
         }
     });
  
