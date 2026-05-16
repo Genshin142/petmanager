@@ -349,7 +349,32 @@ QList<PetInfo> PetDataManager::getPetsByOwner(const QString &ownerId) const
 
 void PetDataManager::addPet(const PetInfo &info)
 {
-    m_pets[info.id] = info;
+    // Generate temporary ID if needed
+    QString petId = info.id;
+    if (petId.isEmpty()) {
+        petId = QString("P_TEMP_%1").arg(QDateTime::currentMSecsSinceEpoch());
+    }
+    
+    PetInfo newPet = info;
+    newPet.id = petId;
+    m_pets[petId] = newPet;
+    
+    QJsonObject body;
+    body["owner_id"] = newPet.ownerId;
+    body["pet_name"] = newPet.name;
+    body["species"] = newPet.species;
+    body["breed"] = newPet.breed;
+    body["gender"] = newPet.gender;
+    body["age"] = newPet.age;
+    body["weight"] = newPet.weight;
+    body["avatar_path"] = newPet.avatarPath;
+    body["is_neutered"] = newPet.isNeutered;
+    body["medical_history"] = newPet.medicalHistory;
+    body["dietary_restrictions"] = newPet.dietaryRestrictions;
+    body["status"] = newPet.status;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_ADD_PET, body);
+    
     emit globalDataChanged();
 }
 

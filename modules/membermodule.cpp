@@ -418,6 +418,7 @@ void MemberModule::setupUI()
 
         if (dialog.exec() == QDialog::Accepted) {
             PetInfo pet = dialog.getPetInfo();
+            PetDataManager::instance()->addPet(pet); // <--- Added this line
             emit sig_petAdded(pet);
 
             // 定位表格中的行并更新宠物列（即使列已隐藏）

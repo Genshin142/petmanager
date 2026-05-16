@@ -17,6 +17,7 @@ public:
     // 获取宠物列表
     void handleGetPetList(ClientHandler* client, const QJsonObject& data);
     void handleGetRoomList(ClientHandler* client, const QJsonObject& data);
+    void handleAddPet(ClientHandler* client, const QJsonObject& data);
     void handleUpdatePet(ClientHandler* client, const QJsonObject& data);
     void handleGetVaccines(ClientHandler* client, const QJsonObject& data);
     void handleUpdateVaccines(ClientHandler* client, const QJsonObject& data);

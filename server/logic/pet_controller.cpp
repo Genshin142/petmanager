@@ -15,6 +15,9 @@ PetController::PetController(ServerCore* core, QObject* parent)
     m_core->registerHandler(Protocol::CMD_GET_PET_LIST, std::bind(&PetController::handleGetPetList, this, std::placeholders::_1, std::placeholders::_2));
     // 注册指令：2007 -> 获取房间列表
     m_core->registerHandler(Protocol::CMD_GET_ROOM_LIST, std::bind(&PetController::handleGetRoomList, this, std::placeholders::_1, std::placeholders::_2));
+    m_core->registerHandler(Protocol::CMD_ADD_PET, [this](ClientHandler* client, const QJsonObject& data) {
+        handleAddPet(client, data);
+    });
     m_core->registerHandler(Protocol::CMD_UPDATE_PET, [this](ClientHandler* client, const QJsonObject& data) {
         handleUpdatePet(client, data);
     });
@@ -58,6 +61,52 @@ void PetController::handleUpdatePet(ClientHandler* client, const QJsonObject& da
         response["message"] = query.lastError().text();
     }
     client->sendPacket(Protocol::CMD_UPDATE_PET, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleAddPet(ClientHandler* client, const QJsonObject& data) {
+    LOG_I("[PET] Adding new pet: " << data["pet_name"].toString().toStdString());
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    // member_id 需要根据传上来的 owner_id 解析 (比如 M00001 -> 1)
+    int memberId = 0;
+    QString rawOwnerId = data["owner_id"].toString();
+    if (rawOwnerId.startsWith("M")) memberId = rawOwnerId.mid(1).toInt();
+    else memberId = rawOwnerId.toInt();
+
+    query.prepare("INSERT INTO pets (member_id, pet_name, species, breed, gender, age, weight, avatar_path, "
+                  "is_neutered, medical_history, dietary_restrictions, current_status, is_deleted) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
+    
+    query.addBindValue(memberId);
+    query.addBindValue(data["pet_name"].toString());
+    query.addBindValue(data["species"].toString());
+    query.addBindValue(data["breed"].toString());
+    query.addBindValue(data["gender"].toString());
+    query.addBindValue(data["age"].toString());
+    query.addBindValue(data["weight"].toDouble());
+    query.addBindValue(data["avatar_path"].toString());
+    query.addBindValue(data["is_neutered"].toBool() ? 1 : 0);
+    query.addBindValue(data["medical_history"].toString());
+    query.addBindValue(data["dietary_restrictions"].toString());
+    query.addBindValue(data["status"].toString().isEmpty() ? "在家" : data["status"].toString());
+
+    QJsonObject response;
+    if (query.exec()) {
+        int newId = query.lastInsertId().toInt();
+        QString newPetIdStr = QString("P%1").arg(newId, 5, 10, QChar('0'));
+        response["status"] = Protocol::STATUS_OK;
+        response["pet_id"] = newPetIdStr;
+        
+        QJsonObject notify;
+        notify["module"] = "pet";
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    } else {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+    }
+    client->sendPacket(Protocol::CMD_ADD_PET, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
 void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& data) {
