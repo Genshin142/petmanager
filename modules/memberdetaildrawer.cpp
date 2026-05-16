@@ -518,6 +518,12 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
                     QJsonObject itemObj = items[j].toObject();
                     QString name = itemObj["name"].toString();
                     QString petName = itemObj["petName"].toString();
+                    
+                    if (o.sourceModule == "Product") {
+                        int count = itemObj.contains("count") ? itemObj["count"].toInt() : 1;
+                        name = QString("%1 <span style='color:#94a3b8;font-size:11px;'>x%2</span>").arg(name).arg(count);
+                    }
+                    
                     if (!petName.isEmpty()) {
                         itemNames << QString("%1 <span style='color:#94a3b8;font-weight:normal;'>(%2)</span>").arg(name, petName);
                     } else {
@@ -667,9 +673,12 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
                     
                     itemRow->addStretch();
                     
-                    QLabel *countL = new QLabel(QString("x%1").arg(count));
-                    countL->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: bold; background: transparent; border: none;");
-                    itemRow->addWidget(countL);
+                    if (o.sourceModule == "Product") {
+                        int displayCount = (count > 0) ? count : 1;
+                        QLabel *countL = new QLabel(QString("x%1").arg(displayCount));
+                        countL->setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: bold; background: transparent; border: none;");
+                        itemRow->addWidget(countL);
+                    }
                     
                     oL->addLayout(itemRow);
                 }
