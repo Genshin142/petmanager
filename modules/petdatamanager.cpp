@@ -368,9 +368,9 @@ void PetDataManager::addPet(const PetInfo &info)
     body["age"] = newPet.age;
     body["weight"] = newPet.weight;
     body["avatar_path"] = newPet.avatarPath;
-    body["is_neutered"] = newPet.isNeutered;
+    body["is_neutered"] = (newPet.health == "已绝育");
     body["medical_history"] = newPet.medicalHistory;
-    body["dietary_restrictions"] = newPet.dietaryRestrictions;
+    body["dietary_restrictions"] = newPet.dietary;
     body["status"] = newPet.status;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_PET, body);
