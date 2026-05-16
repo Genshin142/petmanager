@@ -1101,6 +1101,12 @@ void PetDataManager::cancelOrder(const QString &orderId, const QString &reason)
     OrderInfo &order = m_orders[orderId];
     order.status = "Cancelled"; order.cancelReason = reason;
     order.operationLog += QString("[%1] 订单被作废: %2\n").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm"), reason);
+    
+    QJsonObject body;
+    body["order_id"] = orderId;
+    body["reason"] = reason;
+    NetworkManager::instance().sendRequest(Protocol::CMD_CANCEL_ORDER, body);
+
     if (order.sourceModule == "Appointment") {
         AppointmentInfo info = getAppointment(order.relatedId);
         if (!info.id.isEmpty()) { info.status = "Pending"; updateAppointment(info); }

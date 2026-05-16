@@ -116,5 +116,65 @@ void OrderController::handleGetOrderList(ClientHandler *client, const QJsonObjec
     client->sendPacket(Protocol::CMD_GET_ORDER_LIST, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
-void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject &data) { /* ... */ }
-void OrderController::handleCancelOrder(ClientHandler *client, const QJsonObject &data) { /* ... */ }
+void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject &data) {
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QJsonObject response;
+
+    if (!db.isOpen() && !db.open()) {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = "DB Open Error: " + db.lastError().text();
+        client->sendPacket(Protocol::CMD_UPDATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
+        return;
+    }
+
+    QSqlQuery query(db);
+    query.prepare("UPDATE orders SET status = ?, actual_pay = ?, payment_method = ? WHERE order_no = ?");
+    query.addBindValue(data["status"].toString());
+    query.addBindValue(data["final_amount"].toDouble());
+    query.addBindValue(data["pay_method"].toString());
+    query.addBindValue(data["order_id"].toString());
+
+    if (!query.exec()) {
+        LOG_E("[ORDER] SQL Error on Update: " << query.lastError().text().toStdString());
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+    } else {
+        response["status"] = Protocol::STATUS_OK;
+        response["message"] = "Success";
+        
+        QJsonObject notify;
+        notify["module"] = "order";
+        m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    }
+    client->sendPacket(Protocol::CMD_UPDATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void OrderController::handleCancelOrder(ClientHandler *client, const QJsonObject &data) {
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QJsonObject response;
+
+    if (!db.isOpen() && !db.open()) {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = "DB Open Error: " + db.lastError().text();
+        client->sendPacket(Protocol::CMD_CANCEL_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
+        return;
+    }
+
+    QSqlQuery query(db);
+    query.prepare("UPDATE orders SET status = 'Cancelled' WHERE order_no = ?");
+    query.addBindValue(data["order_id"].toString());
+
+    if (!query.exec()) {
+        LOG_E("[ORDER] SQL Error on Cancel: " << query.lastError().text().toStdString());
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+    } else {
+        response["status"] = Protocol::STATUS_OK;
+        response["message"] = "Success";
+        
+        QJsonObject notify;
+        notify["module"] = "order";
+        m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+    }
+    client->sendPacket(Protocol::CMD_CANCEL_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
