@@ -539,23 +539,29 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             if (summary.length() > 40) summary = summary.left(37) + "...";
 
             // 3. 构造极简模版 HTML
-            // Qt 富文本对 colspan 和 float 支持极差。解决方案：使用 div 排版标题和内容，仅用无 colspan 的 table 来做左右对齐
+            // 第一行：业务类型(左) + 金额(右) 保证对角线平衡
+            // 第二行：明细内容 (缩进)
+            // 第三行：日期时间 (缩进，最弱化)
             QString itemHtml = QString(
                 "<div style='margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;'>"
-                "  <div style='padding-bottom: 6px;'>"
-                "    <span style='color: %1;'>●</span>"
-                "    <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
-                "    %3"
-                "  </div>"
-                "  <div style='color: #1e293b; font-size: 13px; font-weight: 600; padding-left: 14px; padding-bottom: 6px;'>"
-                "    %4"
-                "  </div>"
-                "  <table width='100%' cellpadding='0' cellspacing='0'>"
+                "  <table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 4px;'>"
                 "    <tr>"
-                "      <td style='color: #94a3b8; font-size: 11px; padding-left: 14px; white-space: pre;'>%5 %6</td>"
-                "      <td align='right' style='color: #1e293b; font-weight: 800; font-size: 13px;'>¥ %7</td>"
+                "      <td style='padding-bottom: 2px;'>"
+                "        <span style='color: %1;'>●</span>"
+                "        <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
+                "        %3"
+                "      </td>"
+                "      <td align='right' style='color: #1e293b; font-weight: 800; font-size: 14px; padding-bottom: 2px;'>"
+                "        ¥ %7"
+                "      </td>"
                 "    </tr>"
                 "  </table>"
+                "  <div style='color: #475569; font-size: 12px; font-weight: normal; padding-left: 14px; margin-bottom: 4px;'>"
+                "    %4"
+                "  </div>"
+                "  <div style='color: #94a3b8; font-size: 11px; padding-left: 14px;'>"
+                "    %5 %6"
+                "  </div>"
                 "</div>"
             ).arg(
                 accentColor, typeName,
