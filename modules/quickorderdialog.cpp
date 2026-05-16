@@ -498,10 +498,15 @@ void QuickOrderDialog::onCreateOrder()
         obj["count"] = item.qty;
         obj["barcode"] = item.id;
         
-        // 如果是商品，注入照片路径
+        // 如果是商品，注入照片路径（避免存入base64导致超过数据库TEXT列65KB限制）
         if (!item.isService) {
             ProductInfo p = ProductDataManager::instance()->getProduct(item.id);
-            if (!p.images.isEmpty()) obj["photo"] = p.images[0];
+            if (!p.images.isEmpty()) {
+                QString photoPath = p.images[0];
+                if (!photoPath.startsWith("/9j/") && photoPath.length() < 512) {
+                    obj["photo"] = photoPath;
+                }
+            }
         }
         
         detailsArr.append(obj);
