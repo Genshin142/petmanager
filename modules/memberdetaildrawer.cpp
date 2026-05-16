@@ -494,18 +494,23 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             // 1. 确定业务类型与图标
             QString accentColor = "#94a3b8"; // 默认灰色
             QString typeName = "其他消费";
+            QString iconHtml = "";
             if (o.sourceModule == "Boarding") {
                 accentColor = "#f59e0b"; // 琥珀色
                 typeName = "寄养服务";
+                iconHtml = "🏠";
             } else if (o.sourceModule == "Appointment") {
                 accentColor = "#3b82f6"; // 蓝色
                 typeName = "洗护/美容";
+                iconHtml = "✂️";
             } else if (o.sourceModule == "Product") {
                 accentColor = "#10b981"; // 绿色
                 typeName = "商品零售";
+                iconHtml = "🛍️";
             } else if (o.sourceModule == "Transport") {
                 accentColor = "#8b5cf6"; // 紫色
                 typeName = "接送服务";
+                iconHtml = "🚗";
             }
             
             // 2. 解析明细摘要 (统一处理 JSON 或 纯文本)
@@ -519,7 +524,7 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
                     QString name = itemObj["name"].toString();
                     QString petName = itemObj["petName"].toString();
                     if (!petName.isEmpty()) {
-                        itemNames << QString("%1 (%2)").arg(name, petName);
+                        itemNames << QString("%1 <span style='color:#94a3b8;font-weight:normal;'>(%2)</span>").arg(name, petName);
                     } else {
                         itemNames << name;
                     }
@@ -536,18 +541,19 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             QString itemHtml = QString(
                 "<div style='margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;'>"
                 "  <div style='margin-bottom: 4px;'>"
-                "    <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>%1</span>"
-                "    %2"
+                "    <span style='font-size: 13px; margin-right: 4px;'>%1</span>"
+                "    <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>%2</span>"
+                "    %3"
                 "  </div>"
-                "  <div style='color: #1e293b; font-size: 13px; font-weight: 600; line-height: 1.4;'>%3</div>"
-                "  <div style='margin-top: 6px;'>"
-                "    <span style='color: #94a3b8; font-size: 11px;'>%4 %5</span>"
-                "    <span style='float: right; color: #1e293b; font-weight: 800; font-size: 13px;'>¥ %6</span>"
+                "  <div style='color: #1e293b; font-size: 13px; font-weight: 600; line-height: 1.4; padding-left: 22px;'>%4</div>"
+                "  <div style='margin-top: 6px; padding-left: 22px;'>"
+                "    <span style='color: #94a3b8; font-size: 11px;'>%5 %6</span>"
+                "    <span style='float: right; color: #1e293b; font-weight: 800; font-size: 13px;'>¥ %7</span>"
                 "  </div>"
                 "  <div style='clear: both;'></div>"
                 "</div>"
             ).arg(
-                typeName,
+                iconHtml, typeName,
                 (i == 0 ? "<span style='float: right; font-size: 9px; color: #3b82f6; font-weight: 800;'>NEW</span>" : ""),
                 summary,
                 dateStr, timeStr,
@@ -582,9 +588,11 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             
             QString accentColor = "#94a3b8";
             QString typeName = "其他消费";
-            if (o.sourceModule == "Boarding") { accentColor = "#f59e0b"; typeName = "寄养服务"; }
-            else if (o.sourceModule == "Appointment") { accentColor = "#3b82f6"; typeName = "洗护/美容"; }
-            else if (o.sourceModule == "Product") { accentColor = "#10b981"; typeName = "商品零售"; }
+            QString iconHtml = "";
+            if (o.sourceModule == "Boarding") { accentColor = "#f59e0b"; typeName = "寄养服务"; iconHtml = "🏠"; }
+            else if (o.sourceModule == "Appointment") { accentColor = "#3b82f6"; typeName = "洗护/美容"; iconHtml = "✂️"; }
+            else if (o.sourceModule == "Product") { accentColor = "#10b981"; typeName = "商品零售"; iconHtml = "🛍️"; }
+            else if (o.sourceModule == "Transport") { accentColor = "#8b5cf6"; typeName = "接送服务"; iconHtml = "🚗"; }
             
             QFrame *oCard = new QFrame();
             oCard->setStyleSheet("QFrame { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }");
@@ -592,23 +600,39 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             oL->setContentsMargins(16, 14, 16, 14);
             oL->setSpacing(8);
             
+            // 状态标签
+            QString statusHtml = "";
+            if (o.status == "Paid") {
+                statusHtml = "<span style='background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;'>已结清</span>";
+            } else if (o.status == "Unpaid") {
+                statusHtml = "<span style='background: #fef3c7; color: #b45309; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;'>待结算</span>";
+            } else {
+                statusHtml = "<span style='background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;'>已作废</span>";
+            }
+
             // 1. 顶部行：业务类型 + 金额 (金额放在右边)
             QHBoxLayout *topRow = new QHBoxLayout();
-            QLabel *headL = new QLabel(QString("<span style='color: #1e3a8a; font-weight: 900; font-size: 14px;'>%1</span> <span style='color: #94a3b8; font-weight: normal; font-size: 11px; margin-left: 6px;'>#%2</span>")
-                .arg(typeName, o.id.right(8)));
+            QLabel *headL = new QLabel(QString("<span style='font-size: 14px; margin-right: 4px;'>%1</span> <span style='color: #1e3a8a; font-weight: 900; font-size: 14px;'>%2</span> <span style='color: #94a3b8; font-weight: normal; font-size: 10px; margin-left: 12px;'>#%3</span>")
+                .arg(iconHtml, typeName, o.id.right(8)));
             headL->setStyleSheet("background: transparent; border: none;");
             
+            QLabel *statusL = new QLabel(statusHtml);
+            statusL->setStyleSheet("background: transparent; border: none;");
+
             QLabel *amtL = new QLabel(QString("¥ %1").arg(o.finalAmount, 0, 'f', 2));
             amtL->setStyleSheet("color: #1d4ed8; font-weight: 900; font-size: 18px; background: transparent; border: none;");
             
             topRow->addWidget(headL);
             topRow->addStretch();
+            topRow->addWidget(statusL);
+            topRow->addSpacing(8);
             topRow->addWidget(amtL);
             oL->addLayout(topRow);
             
             // 2. 中间行：消费明细 (包含宠物名称)
             QString detailText = "";
             QJsonDocument doc = QJsonDocument::fromJson(o.itemDetails.toUtf8());
+            int totalDays = 0;
             if (doc.isArray()) {
                 QStringList lines;
                 QJsonArray arr = doc.array();
@@ -616,16 +640,24 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
                     QJsonObject obj = arr[j].toObject();
                     QString name = obj["name"].toString();
                     QString petName = obj["petName"].toString();
-                    if (!petName.isEmpty()) {
-                        lines << QString("• %1 <span style='color: #1e3a8a; font-weight: bold;'>(%2)</span> x%3")
-                            .arg(name, petName).arg(obj["count"].toInt());
-                    } else {
-                        lines << QString("• %1 x%2").arg(name).arg(obj["count"].toInt());
+                    int count = obj["count"].toInt();
+                    if (obj.contains("duration")) {
+                        totalDays = qMax(totalDays, obj["duration"].toInt());
                     }
+                    
+                    QString petTag = "";
+                    if (!petName.isEmpty()) {
+                        petTag = QString("<span style='background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;'>%1</span>").arg(petName);
+                    }
+                    
+                    QString countTag = QString("<span style='background: #f1f5f9; color: #64748b; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;'>x%1</span>").arg(count);
+                    
+                    lines << QString("<div style='margin-bottom: 4px; padding-left: 24px;'>%1%2%3</div>")
+                        .arg(name, petTag, countTag);
                 }
-                detailText = lines.join("<br>");
+                detailText = lines.join("");
             } else {
-                detailText = o.itemDetails;
+                detailText = QString("<div style='padding-left: 24px;'>%1</div>").arg(o.itemDetails);
             }
 
             QLabel *bodyL = new QLabel(detailText);
@@ -634,8 +666,16 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             oL->addWidget(bodyL);
             
             // 3. 底部行：日期与时间
-            QLabel *dateL = new QLabel(QString("%1 %2").arg(dateStr, timeStr));
-            dateL->setStyleSheet("color: #94a3b8; font-size: 11px; background: transparent; border: none;");
+            QString dateInfo = QString("%1 %2").arg(dateStr, timeStr);
+            if (o.sourceModule == "Boarding" && totalDays > 0) {
+                QDateTime endDt = QDateTime::fromString(o.createTime, "yyyy-MM-dd HH:mm:ss");
+                QDateTime startDt = endDt.addDays(-totalDays);
+                dateInfo = QString("入店: %1 &nbsp;&nbsp; 离店: %2 &nbsp;&nbsp; 共 <span style='color: #f59e0b; font-weight: bold;'>%3</span> 天")
+                            .arg(startDt.toString("yyyy-MM-dd"), endDt.toString("yyyy-MM-dd")).arg(totalDays);
+            }
+
+            QLabel *dateL = new QLabel(dateInfo);
+            dateL->setStyleSheet("color: #94a3b8; font-size: 11px; background: transparent; border: none; margin-left: 24px;");
             oL->addWidget(dateL);
             
             m_orderListLayout->addWidget(oCard);
