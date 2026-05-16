@@ -12,6 +12,7 @@
 #include "boardingdatamanager.h"
 #include <QFrame>
 #include <QVBoxLayout>
+#include <QShowEvent>
 
 // --- 自定义商品/服务磁贴组件 ---
 class ItemTile : public QFrame {
@@ -99,6 +100,9 @@ private:
     
     QList<CartItem> m_cart;
     QString m_currentCategory;
+
+protected:
+    void showEvent(QShowEvent *event) override;
 };
 
 #endif // QUICKORDERDIALOG_H

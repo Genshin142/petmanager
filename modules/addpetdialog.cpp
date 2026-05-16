@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QTextEdit>
+#include <QShowEvent>
 
 AddPetDialog::AddPetDialog(QWidget *parent) :
     QDialog(parent),
@@ -393,4 +394,20 @@ PetInfo AddPetDialog::getPetInfo() const
         info.id = m_currentId;
     }
     return info;
+}
+
+void AddPetDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    adjustSize();
+    
+    QWidget *topLevel = parentWidget();
+    while (topLevel && topLevel->parentWidget()) {
+        topLevel = topLevel->parentWidget();
+    }
+    
+    if (topLevel) {
+        QPoint center = topLevel->mapToGlobal(topLevel->rect().center());
+        move(center.x() - width() / 2, center.y() - height() / 2);
+    }
 }

@@ -22,6 +22,9 @@ public:
 
 private:
     void setupUI(const QString &title, const QString &content, DialogType type);
+
+protected:
+    void showEvent(QShowEvent *event) override;
 };
 
 #endif // CUSTOMMESSAGEDIALOG_H

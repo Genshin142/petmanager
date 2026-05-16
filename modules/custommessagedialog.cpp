@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QGraphicsDropShadowEffect>
 #include <QFrame>
+#include <QShowEvent>
 
 CustomMessageDialog::CustomMessageDialog(const QString &title, const QString &content, DialogType type, QWidget *parent)
     : QDialog(parent)
@@ -39,17 +40,7 @@ void CustomMessageDialog::setupUI(const QString &title, const QString &content, 
     // 隐藏边框，背景透明，确保它作为子弹窗存在
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
-
-    // 自动居中父窗口
-    if (parentWidget()) {
-        // 先确保布局计算完成
-        this->adjustSize();
-        
-        QRect parentGeom = parentWidget()->geometry();
-        int x = parentGeom.center().x() - this->width() / 2;
-        int y = parentGeom.center().y() - this->height() / 2;
-        this->move(x, y);
-    }
+    // 居中逻辑移至 showEvent，确保布局完成后再计算位置
 
     // 主布局，留出阴影边距
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -158,4 +149,22 @@ void CustomMessageDialog::setupUI(const QString &title, const QString &content, 
 
     // 固定宽度
     setFixedWidth(420);
+}
+
+void CustomMessageDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    // 布局已完成，现在才能获取到正确的尺寸
+    adjustSize();
+    
+    // 获取顶层主窗口并居中
+    QWidget *topLevel = parentWidget();
+    while (topLevel && topLevel->parentWidget()) {
+        topLevel = topLevel->parentWidget();
+    }
+    
+    if (topLevel) {
+        QPoint center = topLevel->mapToGlobal(topLevel->rect().center());
+        move(center.x() - width() / 2, center.y() - height() / 2);
+    }
 }

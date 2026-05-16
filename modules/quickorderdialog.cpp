@@ -23,6 +23,7 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <functional>
+#include <QShowEvent>
 #include <QRandomGenerator>
 #include <QDebug>
 
@@ -537,4 +538,19 @@ void QuickOrderDialog::onCreateOrder()
     
     emit orderCreated(orderId);
     accept();
+}
+
+void QuickOrderDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    
+    QWidget *topLevel = parentWidget();
+    while (topLevel && topLevel->parentWidget()) {
+        topLevel = topLevel->parentWidget();
+    }
+    
+    if (topLevel) {
+        QPoint center = topLevel->mapToGlobal(topLevel->rect().center());
+        move(center.x() - width() / 2, center.y() - height() / 2);
+    }
 }

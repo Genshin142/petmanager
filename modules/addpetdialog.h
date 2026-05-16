@@ -60,6 +60,9 @@ private:
 
     void setupBigImageOverlay();
     bool eventFilter(QObject *obj, QEvent *event) override;
+
+protected:
+    void showEvent(QShowEvent *event) override;
 };
 
 #endif // ADDPETDIALOG_H
