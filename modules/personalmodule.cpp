@@ -3,6 +3,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QDateTime>
 #include <QMessageBox>
+#include "custommessagedialog.h"
 #include "passwordchangedialog.h"
 #include "backupmanager.h"
 #include "backupprogressdialog.h"
@@ -266,12 +267,6 @@ void PersonalModule::onActionClicked(const QString &actionName) {
         return;
     }
 
-    // 模拟功能实现
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle(actionName);
-    msgBox.setStyleSheet("QMessageBox { background-color: #ffffff; }"
-                         "QLabel { color: #334155; font-size: 14px; min-width: 250px; }");
-
     if (actionName == "数据备份") {
         BackupProgressDialog *dialog = new BackupProgressDialog(this);
         dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -300,24 +295,20 @@ void PersonalModule::onActionClicked(const QString &actionName) {
         OperationLogDialog dialog(this);
         dialog.exec();
         return;
-    } else if (actionName == "我的排班") {
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setText("您本周的排班信息如下：\n\n• 周一至周三: 早班 (09:00 - 18:00)\n• 周四至周五: 晚班 (13:00 - 22:00)\n• 周末: 休息");
-    } else if (actionName == "我的提成") {
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setText("💰 本月提成概览：\n\n• 服务提成: ¥3,120 (完成 45 场服务)\n• 商品销售: ¥840 (销售额 ¥4,200)\n• 奖励金: ¥500 (全勤奖励)\n\n合计: ¥4,460\n*数据实时更新，最终以薪资单为准。");
-    } else if (actionName == "我的评价") {
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setText("🌟 客户评价摘要：\n\n• 综合评分: 4.9 / 5.0\n• 印象标签: '细心负责'、'手法纯熟'\n\n最新留言:\n'张三老师修剪得很细致，我家雪纳瑞非常帅气，下次还会再来！'");
-    } else if (actionName == "荣誉勋章") {
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setText("您的荣誉档案库：\n\n🏅 2026年4月 最佳销售冠军\n⭐ 五星级服务口碑奖章\n\n继续保持，下个目标就在眼前！");
-    } else {
-        msgBox.setText(actionName + " 模块正在加紧研发中...");
     }
-    
-    msgBox.setStandardButtons(QMessageBox::Ok);
-    msgBox.button(QMessageBox::Ok)->setStyleSheet("QPushButton { background-color: #3b82f6; color: white; font-weight: bold; padding: 6px 20px; border-radius: 4px; border: none; }"
-                                                  "QPushButton:hover { background-color: #2563eb; }");
-    msgBox.exec();
+
+    // 使用统一的居中弹窗组件
+    QString content;
+    if (actionName == "我的排班") {
+        content = "您本周的排班信息如下：\n\n• 周一至周三: 早班 (09:00 - 18:00)\n• 周四至周五: 晚班 (13:00 - 22:00)\n• 周末: 休息";
+    } else if (actionName == "我的提成") {
+        content = "本月提成概览：\n\n• 服务提成: ¥3,120 (完成 45 场服务)\n• 商品销售: ¥840 (销售额 ¥4,200)\n• 奖励金: ¥500 (全勤奖励)\n\n合计: ¥4,460\n*数据实时更新，最终以薪资单为准。";
+    } else if (actionName == "我的评价") {
+        content = "客户评价摘要：\n\n• 综合评分: 4.9 / 5.0\n• 印象标签: '细心负责'、'手法纯熟'\n\n最新留言：\n'张三老师修剪得很细致，我家雪纳瑞非常帅气，下次还会再来！'";
+    } else if (actionName == "荣誉勋章") {
+        content = "您的荣誉档案库：\n\n2026年4月 最佳销售冠军\n五星级服务口碑奖章\n\n继续保持，下个目标就在眼前！";
+    } else {
+        content = actionName + " 模块正在加紧研发中...";
+    }
+    CustomMessageDialog::showSuccess(this, actionName, content);
 }

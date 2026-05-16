@@ -26,6 +26,9 @@ private:
     QStackedWidget *m_stackedWidget;
     QPushButton *m_saveBtn;
     QPushButton *m_cancelBtn;
+
+protected:
+    void showEvent(QShowEvent *event) override;
 };
 
 #endif // SYSTEMSETTINGSDIALOG_H

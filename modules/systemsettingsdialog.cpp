@@ -10,6 +10,8 @@
 #include <QPushButton>
 #include <QPrinterInfo>
 #include <QMessageBox>
+#include <QShowEvent>
+#include "custommessagedialog.h"
 
 SystemSettingsDialog::SystemSettingsDialog(QWidget *parent) : QDialog(parent) {
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
@@ -332,6 +334,16 @@ void SystemSettingsDialog::applyStyles() {
 }
 
 void SystemSettingsDialog::onSaveClicked() {
-    QMessageBox::information(this, "保存成功", "系统高级参数配置已保存。\n\n打印机与网络参数可能需要在重新启动客户端后生效。");
+    CustomMessageDialog::showSuccess(this, "保存成功", "系统高级参数配置已保存。\n\n打印机与网络参数可能需要在重新启动客户端后生效。");
     accept();
+}
+
+void SystemSettingsDialog::showEvent(QShowEvent *event) {
+    QDialog::showEvent(event);
+    QWidget *topLevel = parentWidget();
+    while (topLevel && topLevel->parentWidget()) topLevel = topLevel->parentWidget();
+    if (topLevel) {
+        QPoint center = topLevel->mapToGlobal(topLevel->rect().center());
+        move(center.x() - width() / 2, center.y() - height() / 2);
+    }
 }

@@ -483,7 +483,7 @@ void QuickOrderDialog::onSearchItems(const QString &text) {
 
 void QuickOrderDialog::onCreateOrder()
 {
-    if (m_cart.isEmpty()) { QMessageBox::warning(this, "提示", "购物车为空，请先选择项目！"); return; }
+    if (m_cart.isEmpty()) { CustomMessageDialog::showWarning(this, "提示", "购物车为空，请先选择项目！"); return; }
     
     QString memberId = m_memberCombo->currentData().toString();
     QString memberName = m_memberCombo->currentText().split(" (").first();

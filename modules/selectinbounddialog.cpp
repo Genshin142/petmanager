@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QTableWidgetItem>
 #include <QMessageBox>
+#include "custommessagedialog.h"
 #include <QPainter>
 #include <QStyledItemDelegate>
 #include <QEvent>
@@ -13,6 +14,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QFrame>
+#include <QShowEvent>
 
 // 自定义行代理，用于绘制漂亮的圆角选择效果
 class InboundRowDelegate : public QStyledItemDelegate {
@@ -119,10 +121,10 @@ SelectInboundDialog::SelectInboundDialog(QWidget *parent) : QDialog(parent) {
         m_confirmBtn->setEnabled(true);
         m_confirmBtn->setText("确认上架到档案");
         if (success) {
-            QMessageBox::information(this, "成功", "商品已成功上架到档案记录");
+            CustomMessageDialog::showSuccess(this, "成功", "商品已成功上架到档案记录");
             accept();
         } else {
-            QMessageBox::warning(this, "错误", "上架失败: " + msg);
+            CustomMessageDialog::showWarning(this, "错误", "上架失败: " + msg);
         }
     });
 
@@ -289,5 +291,15 @@ void SelectInboundDialog::showBigImage(const QPixmap &pix) {
 void SelectInboundDialog::hideBigImage() {
     if (m_overlay) {
         qobject_cast<QDialog*>(m_overlay)->hide();
+    }
+}
+
+void SelectInboundDialog::showEvent(QShowEvent *event) {
+    QDialog::showEvent(event);
+    QWidget *topLevel = parentWidget();
+    while (topLevel && topLevel->parentWidget()) topLevel = topLevel->parentWidget();
+    if (topLevel) {
+        QPoint center = topLevel->mapToGlobal(topLevel->rect().center());
+        move(center.x() - width() / 2, center.y() - height() / 2);
     }
 }
