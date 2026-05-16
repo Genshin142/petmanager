@@ -53,6 +53,8 @@ private:
     QLineEdit *searchEdit;
     QComboBox *levelFilterCombo;
     QString m_currentLevelFilter;
+    QString m_currentStatusFilter = "全部状态";
+    QWidget *statusFilterContainer;
     
     // 统计标签
     QLabel *totalMemberLabel;

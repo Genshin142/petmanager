@@ -19,6 +19,8 @@ private:
     void handleAddMember(ClientHandler *client, const QJsonObject &data);
     void handleUpdateMember(ClientHandler *client, const QJsonObject &data);
     void handleDeleteMember(ClientHandler *client, const QJsonObject &data);
+    void handleRestoreMember(ClientHandler *client, const QJsonObject &data);
+    void handleHardDeleteMember(ClientHandler *client, const QJsonObject &data);
 
     ServerCore *m_server;
 };

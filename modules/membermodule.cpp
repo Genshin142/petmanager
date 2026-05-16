@@ -228,9 +228,38 @@ void MemberModule::setupUI()
     );
     connect(levelFilterCombo, &QComboBox::currentTextChanged, this, [=](){ this->onSearchTextChanged(searchEdit->text()); });
 
+    statusFilterContainer = new QWidget();
+    QHBoxLayout *statusLayout = new QHBoxLayout(statusFilterContainer);
+    statusLayout->setContentsMargins(0, 0, 0, 0);
+    statusLayout->setSpacing(8);
+
+    QStringList statuses = {"全部状态", "正常", "已注销"};
+    for (const QString &st : statuses) {
+        QPushButton *btn = new QPushButton(st);
+        btn->setCheckable(true);
+        btn->setAutoExclusive(true);
+        btn->setFixedHeight(36);
+        btn->setCursor(Qt::PointingHandCursor);
+        if (st == m_currentStatusFilter) btn->setChecked(true);
+
+        btn->setStyleSheet(
+            "QPushButton { background: white; border: 1px solid #dcdfe6; border-radius: 16px; padding: 0 15px; color: #606266; font-size: 13px; } "
+            "QPushButton:hover { background: #ecf5ff; border-color: #409eff; color: #409eff; } "
+            "QPushButton:checked { background: #409eff; border-color: #409eff; color: white; font-weight: bold; } "
+        );
+
+        connect(btn, &QPushButton::clicked, this, [=](){
+            m_currentStatusFilter = st;
+            onSearchTextChanged(searchEdit->text());
+        });
+        statusLayout->addWidget(btn);
+    }
+
     operationLayout->addWidget(searchEdit);
     operationLayout->addSpacing(8);
     operationLayout->addWidget(levelFilterCombo);
+    operationLayout->addSpacing(8);
+    operationLayout->addWidget(statusFilterContainer);
     
     // 中间弹簧
     operationLayout->addStretch();
@@ -856,7 +885,9 @@ void MemberModule::updatePagination()
         bool textMatch = searchText.isEmpty() || 
                          (info.name.toLower().contains(searchText) || info.id.toLower().contains(searchText) || info.phone.contains(searchText));
         
-        if (levelMatch && textMatch) {
+        bool statusMatch = (m_currentStatusFilter == "全部状态" || info.status == m_currentStatusFilter);
+        
+        if (levelMatch && textMatch && statusMatch) {
             filtered.append(info);
         }
     }
