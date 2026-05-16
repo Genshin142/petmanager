@@ -8,6 +8,7 @@
 #include <QPainterPath>
 #include <QTextEdit>
 #include <QShowEvent>
+#include <QDoubleValidator>
 
 AddPetDialog::AddPetDialog(QWidget *parent) :
     QDialog(parent),
@@ -43,6 +44,9 @@ void AddPetDialog::setupUI()
     ownerNameEdit->setReadOnly(true);
     ownerPhoneEdit = new QLineEdit();
     ownerPhoneEdit->setReadOnly(true);
+    weightEdit = new QLineEdit();
+    weightEdit->setPlaceholderText("请输入宠物体重");
+    weightEdit->setValidator(new QDoubleValidator(0.0, 999.99, 2, this));
     statusCombo = new QComboBox();
     statusCombo->addItems({"在家", "已预约", "洗护中", "寄养中", "待接走", "接送中"});
     joinTimeEdit = new QLineEdit();
@@ -164,6 +168,14 @@ void AddPetDialog::setupUI()
     
     ui->formLayout->insertRow(3, "宠物年龄:", ageWidget);
     ui->formLayout->insertRow(4, "健康状态:", healthCombo);
+
+    QWidget *weightWidget = new QWidget();
+    QHBoxLayout *weightLayout = new QHBoxLayout(weightWidget);
+    weightLayout->setContentsMargins(0, 0, 0, 0);
+    weightLayout->addWidget(weightEdit);
+    weightLayout->addWidget(new QLabel("kg"));
+    weightLayout->addStretch();
+    ui->formLayout->insertRow(5, "宠物体重:", weightWidget);
 
     // 在原有布局的尾部，追加主人相关信息
     ui->formLayout->addRow("主人ID:", ownerIdEdit);
@@ -299,6 +311,7 @@ void AddPetDialog::setPetInfo(const PetInfo &info)
     if (ownerIdEdit) ownerIdEdit->setText(info.ownerId);
     if (ownerNameEdit) ownerNameEdit->setText(info.ownerName);
     if (ownerPhoneEdit) ownerPhoneEdit->setText(info.ownerPhone);
+    if (weightEdit && info.weight > 0) weightEdit->setText(QString::number(info.weight, 'f', 2));
     
 
     genderCombo->setCurrentText(info.gender);
@@ -384,6 +397,7 @@ PetInfo AddPetDialog::getPetInfo() const
     info.ownerId = ownerIdEdit->text();
     info.ownerName = ownerNameEdit->text();
     info.ownerPhone = ownerPhoneEdit->text();
+    info.weight = weightEdit->text().toDouble();
     info.avatarPath = m_avatarPath; // 保存照片路径
     
     // 简单生成一个 ID
