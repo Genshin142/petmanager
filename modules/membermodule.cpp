@@ -21,6 +21,7 @@
 #include <QBrush>
 #include <QTimer>
 #include <QColor>
+#include <QShowEvent>
 #include <QFont>
 #include <QGraphicsDropShadowEffect>
 #include <QIntValidator>
@@ -1165,4 +1166,18 @@ void MemberModule::onEditMemberFromDrawer(const MemberInfo &info)
         }
     }
 }
+
+void MemberModule::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    
+    // 当切换回当前界面时，自动刷新并保留原有的选中项，确保消费记录等最新数据能及时呈现
+    QString currentId;
+    auto items = memTable->selectedItems();
+    if (!items.isEmpty()) {
+        currentId = memTable->item(items.first()->row(), 0)->text();
+    }
+    refreshTablePreservingSelection(currentId);
+}
+
 

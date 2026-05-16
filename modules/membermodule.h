@@ -36,6 +36,9 @@ private slots:
     void onNextPage();
     void onJumpPage();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private:
     void setupUI();
     void addSampleData();
