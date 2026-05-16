@@ -143,8 +143,12 @@ void AddPetDialog::setupUI()
     ui->speciesCombo->addItems(m_breedData.keys());
 
 
-    // 5. 动态插入新字段
-    // 在最上方插入照片选择行
+    // 5. 改用双列网格布局，更紧凑美观
+    QGridLayout *gridLayout = new QGridLayout();
+    gridLayout->setVerticalSpacing(15);
+    gridLayout->setHorizontalSpacing(20);
+    gridLayout->setContentsMargins(0, 5, 0, 5);
+
     QWidget *avatarRow = new QWidget();
     QHBoxLayout *avatarLayout = new QHBoxLayout(avatarRow);
     avatarLayout->setContentsMargins(0, 0, 0, 0);
@@ -152,11 +156,23 @@ void AddPetDialog::setupUI()
     avatarLayout->addWidget(avatarLabel);
     avatarLayout->addWidget(selectImageBtn);
     avatarLayout->addStretch();
-    ui->formLayout->insertRow(0, "宠物照片:", avatarRow);
+    gridLayout->addWidget(new QLabel("宠物照片:"), 0, 0);
+    gridLayout->addWidget(avatarRow, 0, 1, 1, 3);
 
-    // 性别与年龄插入
-    ui->formLayout->insertRow(3, "性别选择:", genderCombo);
+    gridLayout->addWidget(new QLabel("宠物姓名:"), 1, 0);
+    gridLayout->addWidget(ui->nameEdit, 1, 1);
     
+    gridLayout->addWidget(new QLabel("性别选择:"), 1, 2);
+    gridLayout->addWidget(genderCombo, 1, 3);
+
+    gridLayout->addWidget(new QLabel("宠物种类:"), 2, 0);
+    QWidget *speciesWidget = new QWidget();
+    QHBoxLayout *speciesLayout = new QHBoxLayout(speciesWidget);
+    speciesLayout->setContentsMargins(0,0,0,0);
+    speciesLayout->addWidget(ui->speciesCombo);
+    speciesLayout->addWidget(ui->breedCombo);
+    gridLayout->addWidget(speciesWidget, 2, 1);
+
     QWidget *ageWidget = new QWidget();
     QHBoxLayout *ageLayout = new QHBoxLayout(ageWidget);
     ageLayout->setContentsMargins(0, 0, 0, 0);
@@ -165,9 +181,11 @@ void AddPetDialog::setupUI()
     ageLayout->addWidget(ageMonthCombo);
     ageLayout->addWidget(new QLabel("月"));
     ageLayout->addStretch();
-    
-    ui->formLayout->insertRow(3, "宠物年龄:", ageWidget);
-    ui->formLayout->insertRow(4, "健康状态:", healthCombo);
+    gridLayout->addWidget(new QLabel("宠物年龄:"), 2, 2);
+    gridLayout->addWidget(ageWidget, 2, 3);
+
+    gridLayout->addWidget(new QLabel("健康状态:"), 3, 0);
+    gridLayout->addWidget(healthCombo, 3, 1);
 
     QWidget *weightWidget = new QWidget();
     QHBoxLayout *weightLayout = new QHBoxLayout(weightWidget);
@@ -175,16 +193,44 @@ void AddPetDialog::setupUI()
     weightLayout->addWidget(weightEdit);
     weightLayout->addWidget(new QLabel("kg"));
     weightLayout->addStretch();
-    ui->formLayout->insertRow(5, "宠物体重:", weightWidget);
+    gridLayout->addWidget(new QLabel("宠物体重:"), 3, 2);
+    gridLayout->addWidget(weightWidget, 3, 3);
 
-    // 在原有布局的尾部，追加主人相关信息
-    ui->formLayout->addRow("主人ID:", ownerIdEdit);
-    ui->formLayout->addRow("主人姓名:", ownerNameEdit);
-    ui->formLayout->addRow("联系电话:", ownerPhoneEdit);
-    ui->formLayout->addRow("病史详情:", historyTextEdit);
-    ui->formLayout->addRow("饮食禁忌:", dietaryTextEdit);
-    ui->formLayout->addRow("在店状态:", statusCombo);
-    ui->formLayout->addRow("入店时间:", joinTimeEdit);
+    gridLayout->addWidget(new QLabel("在店状态:"), 4, 0);
+    gridLayout->addWidget(statusCombo, 4, 1);
+
+    gridLayout->addWidget(new QLabel("入店时间:"), 4, 2);
+    gridLayout->addWidget(joinTimeEdit, 4, 3);
+
+    gridLayout->addWidget(new QLabel("主人ID:"), 5, 0);
+    gridLayout->addWidget(ownerIdEdit, 5, 1);
+
+    gridLayout->addWidget(new QLabel("主人姓名:"), 5, 2);
+    gridLayout->addWidget(ownerNameEdit, 5, 3);
+
+    gridLayout->addWidget(new QLabel("联系电话:"), 6, 0);
+    gridLayout->addWidget(ownerPhoneEdit, 6, 1, 1, 3);
+
+    gridLayout->addWidget(new QLabel("病史详情:"), 7, 0);
+    gridLayout->addWidget(historyTextEdit, 7, 1, 1, 3);
+
+    gridLayout->addWidget(new QLabel("饮食禁忌:"), 8, 0);
+    gridLayout->addWidget(dietaryTextEdit, 8, 1, 1, 3);
+
+    ui->label->hide();
+    ui->label_2->hide();
+    ui->label_3->hide();
+    ui->historyEdit->hide();
+
+    for (int i = 0; i < ui->containerLayout->count(); ++i) {
+        if (ui->containerLayout->itemAt(i)->layout() == ui->formLayout) {
+            ui->containerLayout->takeAt(i);
+            break;
+        }
+    }
+    ui->containerLayout->insertLayout(1, gridLayout);
+    
+    this->setMinimumWidth(650);
 
     // 6. 信号连接
     connect(ui->speciesCombo, &QComboBox::currentTextChanged, this, &AddPetDialog::onSpeciesChanged);
