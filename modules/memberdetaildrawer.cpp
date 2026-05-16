@@ -538,32 +538,25 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             if (summary.isEmpty()) summary = "业务结算";
             if (summary.length() > 40) summary = summary.left(37) + "...";
 
-            // 3. 构造极简模版 HTML
-            // 解决 Qt QLabel 渲染连行 Bug：放弃纯 div，使用 table 控制行级排版并加入 <br> 强制换行
-            // 视觉结构：第一行 (业务/金额对立)；第二行 (明细缩进)；第三行 (时间缩进弱化)
+            // 3. 构造模版 HTML (使用带背景色的 table 形成卡片包裹视觉)
             QString itemHtml = QString(
-                "<div style='border-bottom: 1px solid #f1f5f9; margin-bottom: 16px; padding-bottom: 16px;'>"
-                "  <table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 6px;'>"
-                "    <tr>"
-                "      <td>"
-                "        <span style='color: %1;'>●</span>"
-                "        <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
-                "        %3"
-                "      </td>"
-                "      <td align='right' style='color: #1e293b; font-weight: 800; font-size: 14px;'>"
-                "        ¥ %7"
-                "      </td>"
-                "    </tr>"
-                "  </table>"
-                "  <table width='100%' cellpadding='0' cellspacing='0'>"
-                "    <tr>"
-                "      <td style='padding-left: 14px;'>"
-                "        <div style='color: #475569; font-size: 12px; font-weight: normal; margin-bottom: 4px;'>%4</div>"
-                "        <div style='color: #94a3b8; font-size: 11px;'>%5 %6</div>"
-                "      </td>"
-                "    </tr>"
-                "  </table>"
-                "</div>"
+                "<table width='100%' cellpadding='10' cellspacing='0' bgcolor='#f8fafc' style='border: 1px solid #f1f5f9;'>"
+                "  <tr>"
+                "    <td colspan='2' style='padding-bottom: 0px;'>"
+                "      <span style='color: %1;'>●</span>"
+                "      <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
+                "      %3"
+                "    </td>"
+                "  </tr>"
+                "  <tr>"
+                "    <td colspan='2' style='color: #1e293b; font-size: 13px; font-weight: 600; padding-top: 6px; padding-bottom: 8px;'>%4</td>"
+                "  </tr>"
+                "  <tr>"
+                "    <td style='color: #94a3b8; font-size: 11px;'>%5 &nbsp;%6</td>"
+                "    <td align='right' style='color: #1e293b; font-weight: 800; font-size: 13px;'>¥ %7</td>"
+                "  </tr>"
+                "</table>"
+                "<div style='height: 12px;'></div>" // 卡片之间的间隔
             ).arg(
                 accentColor, typeName,
                 (i == 0 ? "<span style='font-size: 9px; color: #3b82f6; font-weight: 800; margin-left: 8px;'>NEW</span>" : ""),
