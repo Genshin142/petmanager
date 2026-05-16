@@ -76,7 +76,7 @@ void MemberDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.pets = obj["pets"].toString();
                     info.imgData = obj["img_data"].toString();
                     
-                    qDebug() << "[DEBUG] Member ID:" << info.id << "Name:" << info.name << "Gender:" << info.gender;
+                    // qDebug() << "[DEBUG] Member ID:" << info.id << "Name:" << info.name << "Gender:" << info.gender;
                     
                     m_members[info.id] = info;
                 }
