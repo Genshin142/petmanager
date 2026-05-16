@@ -539,29 +539,30 @@ void MemberDetailDrawer::setMember(const MemberInfo &info, const QString &lastVi
             if (summary.length() > 40) summary = summary.left(37) + "...";
 
             // 3. 构造极简模版 HTML
-            // 第一行：业务类型(左) + 金额(右) 保证对角线平衡
-            // 第二行：明细内容 (缩进)
-            // 第三行：日期时间 (缩进，最弱化)
+            // 解决 Qt QLabel 渲染连行 Bug：放弃纯 div，使用 table 控制行级排版并加入 <br> 强制换行
+            // 视觉结构：第一行 (业务/金额对立)；第二行 (明细缩进)；第三行 (时间缩进弱化)
             QString itemHtml = QString(
-                "<div style='margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;'>"
-                "  <table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 4px;'>"
+                "<div style='border-bottom: 1px solid #f1f5f9; margin-bottom: 16px; padding-bottom: 16px;'>"
+                "  <table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 6px;'>"
                 "    <tr>"
-                "      <td style='padding-bottom: 2px;'>"
+                "      <td>"
                 "        <span style='color: %1;'>●</span>"
                 "        <span style='color: #64748b; font-weight: bold; font-size: 11px; text-transform: uppercase;'>&nbsp;%2</span>"
                 "        %3"
                 "      </td>"
-                "      <td align='right' style='color: #1e293b; font-weight: 800; font-size: 14px; padding-bottom: 2px;'>"
+                "      <td align='right' style='color: #1e293b; font-weight: 800; font-size: 14px;'>"
                 "        ¥ %7"
                 "      </td>"
                 "    </tr>"
                 "  </table>"
-                "  <div style='color: #475569; font-size: 12px; font-weight: normal; padding-left: 14px; margin-bottom: 4px;'>"
-                "    %4"
-                "  </div>"
-                "  <div style='color: #94a3b8; font-size: 11px; padding-left: 14px;'>"
-                "    %5 %6"
-                "  </div>"
+                "  <table width='100%' cellpadding='0' cellspacing='0'>"
+                "    <tr>"
+                "      <td style='padding-left: 14px;'>"
+                "        <div style='color: #475569; font-size: 12px; font-weight: normal; margin-bottom: 4px;'>%4</div>"
+                "        <div style='color: #94a3b8; font-size: 11px;'>%5 %6</div>"
+                "      </td>"
+                "    </tr>"
+                "  </table>"
                 "</div>"
             ).arg(
                 accentColor, typeName,
