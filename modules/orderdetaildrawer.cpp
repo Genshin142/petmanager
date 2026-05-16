@@ -164,7 +164,7 @@ void OrderDetailDrawer::setupUI()
 
     QGridLayout *payGrid = new QGridLayout();
     payGrid->setSpacing(12);
-    QStringList methods = {"银行卡", "现金", "支付宝", "微信支付", "会员卡余额", "其他"};
+    QStringList methods = {"银行卡", "现金", "支付宝", "微信支付", "会员卡余额"};
     for (int i = 0; i < methods.size(); ++i) {
         QPushButton *btn = new QPushButton(methods[i]);
         btn->setCheckable(true);
@@ -198,6 +198,28 @@ void OrderDetailDrawer::setupUI()
         if (method.isEmpty()) {
             CustomMessageDialog::showWarning(this, "收银操作", "请先选择支付方式！");
             return;
+        }
+
+        // --- 会员卡余额校验逻辑 ---
+        if (method == "会员卡余额") {
+            MemberInfo member = PetDataManager::instance()->getMember(m_order.memberId);
+            if (member.id.isEmpty() || member.id == "Temporary") {
+                CustomMessageDialog::showWarning(this, "支付失败", "该订单为散客/临时客订单，无法使用会员卡支付！");
+                return;
+            }
+            if (member.balance < m_order.totalAmount) {
+                CustomMessageDialog::showWarning(this, "余额不足", 
+                    QString("当前会员卡余额仅为 ¥ %1\n本次订单金额为 ¥ %2\n请充值后再进行支付。")
+                    .arg(member.balance, 0, 'f', 2).arg(m_order.totalAmount, 0, 'f', 2));
+                return;
+            }
+            
+            // 余额充足，执行预扣减（实际更新由 PetDataManager::updateOrder 同步触发或在此手动触发）
+            // 注意：PetDataManager::instance()->updateOrder 主要是更新订单状态
+            // 我们需要手动更新会员余额，或者确保后端/DataManager 有联动逻辑
+            member.balance -= m_order.totalAmount;
+            member.consume_amt += m_order.totalAmount;
+            PetDataManager::instance()->updateMember(member);
         }
         m_order.status = "Paid";
         m_order.payMethod = method;
