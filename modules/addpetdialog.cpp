@@ -338,7 +338,13 @@ void AddPetDialog::setPetInfo(const PetInfo &info)
     m_currentId = info.id;
     // 安全检查：只有当 titleLabel 存在时才设置文本，防止空指针崩溃
     if (ui->titleLabel) {
-        ui->titleLabel->setText("修改宠物档案信息");
+        if (m_currentId.isEmpty()) {
+            ui->titleLabel->setText("新增宠物档案");
+            if (ui->saveBtn) ui->saveBtn->setText("确认新增");
+        } else {
+            ui->titleLabel->setText("修改宠物档案信息");
+            if (ui->saveBtn) ui->saveBtn->setText("保存修改");
+        }
     }
     
     if (ui->nameEdit) ui->nameEdit->setText(info.name);
