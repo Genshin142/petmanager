@@ -783,12 +783,12 @@ void EmployeeDetailDrawer::refreshAttendCalendar()
         cellLayout->setAlignment(Qt::AlignCenter);
 
         QLabel *numLabel = new QLabel(QString::number(day));
-        numLabel->setStyleSheet("font-size: 11px; font-weight: 800; color: inherit; border: none; background: transparent;");
+        numLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 12px; font-weight: 600; color: inherit; border: none; background: transparent;");
         numLabel->setAlignment(Qt::AlignCenter);
         cellLayout->addWidget(numLabel);
 
         QLabel *badgeLabel = new QLabel();
-        badgeLabel->setStyleSheet("font-size: 8px; font-weight: bold; color: inherit; border: none; background: transparent;");
+        badgeLabel->setStyleSheet("font-family: 'Microsoft YaHei'; font-size: 10px; font-weight: bold; color: inherit; border: none; background: transparent;");
         badgeLabel->setAlignment(Qt::AlignCenter);
         cellLayout->addWidget(badgeLabel);
 
