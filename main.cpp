@@ -32,6 +32,11 @@ int main(int argc, char *argv[])
         "   color: black !important;"
         "}"
         
+        // 模块控件全局悬浮样式 (模仿宠物卡片)
+        "QTableView:hover, QTableWidget:hover, QPushButton:hover, QLabel:hover {"
+        "   border: 1px solid #409eff !important;"
+        "}"
+        
         // 全局 ComboBox 下拉列表美化 (同步薪资管理中心样式)
         "QComboBox QAbstractItemView {"
         "   border: 1px solid #e4e7ed;"
