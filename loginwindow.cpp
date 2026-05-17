@@ -103,7 +103,14 @@ void LoginWindow::onLoginResponse(int status, const QString &message, const QJso
     if (status == Protocol::STATUS_OK) {
         // 根据后端返回的角色进行转换
         UserRole role = (userInfo["role"].toString() == "店长") ? ADMIN : STAFF;
-        QString displayName = QString("%1 (%2)").arg(userInfo["name"].toString(), userInfo["role"].toString());
+        
+        // 兼容处理 real_name 和 name
+        QString actualName = userInfo.contains("real_name") ? userInfo["real_name"].toString() : userInfo["name"].toString();
+        if (actualName.isEmpty()) {
+            actualName = userInfo["username"].toString();
+        }
+        
+        QString displayName = QString("%1 (%2)").arg(actualName, userInfo["role"].toString());
         
         LogDataManager::setCurrentUser(displayName);
 

@@ -44,13 +44,42 @@ void PersonalModule::setupUI() {
     QLabel *avatar = new QLabel();
     avatar->setFixedSize(100, 100);
     
+    // 提取真实的姓名或用户名（去除括号后缀，如 "张震东 (店长)" -> "张震东"）
+    QString realName = m_userName;
+    int bracketIdx = m_userName.indexOf(" (");
+    if (bracketIdx != -1) {
+        realName = m_userName.left(bracketIdx).trimmed();
+    } else {
+        bracketIdx = m_userName.indexOf("(");
+        if (bracketIdx != -1) {
+            realName = m_userName.left(bracketIdx).trimmed();
+        }
+    }
+
     // 1. 查找当前登录用户对应的员工档案以加载其实时头像
     QPixmap originalPixmap;
     auto allStaff = StaffDataManager::instance()->allStaff();
+    bool found = false;
+    
+    // 优先通过真实的姓名或用户名匹配
     for (const auto &s : allStaff) {
-        if (s.name == m_userName || s.username == m_userName) {
+        if ((!realName.isEmpty() && (s.name == realName || s.username == realName)) || 
+            s.name == m_userName || s.username == m_userName) {
             originalPixmap = StaffDataManager::instance()->getStaffPixmap(s.id);
+            found = true;
             break;
+        }
+    }
+    
+    // 如果没有匹配到（比如之前登录传的名字为空），则根据角色/职位匹配
+    if (!found) {
+        QString targetRole = (m_role == ADMIN) ? "店长" : "";
+        for (const auto &s : allStaff) {
+            if (!targetRole.isEmpty() && s.role == targetRole) {
+                originalPixmap = StaffDataManager::instance()->getStaffPixmap(s.id);
+                found = true;
+                break;
+            }
         }
     }
 
@@ -75,7 +104,7 @@ void PersonalModule::setupUI() {
         avatar->setPixmap(roundedPixmap);
     } else {
         // 退回机制：如果图片资源未成功加载，显示字母占位头像
-        avatar->setText(m_userName.left(1).toUpper());
+        avatar->setText(realName.isEmpty() ? "P" : realName.left(1).toUpper());
         avatar->setAlignment(Qt::AlignCenter);
         avatar->setStyleSheet("background: rgba(255, 255, 255, 0.2); color: white; font-size: 40px; font-weight: bold;");
     }
@@ -88,7 +117,7 @@ void PersonalModule::setupUI() {
     infoVl->setAlignment(Qt::AlignCenter);
     QLabel *nameLabel = new QLabel(m_userName);
     nameLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 800; border: none; background: transparent;");
-    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员" : "门店营业专家");
+    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.2)" : "门店营业专家 (v1.1.2)");
     roleLabel->setStyleSheet("color: rgba(255, 255, 255, 0.8); font-size: 14px; font-weight: 600; border: none; background: transparent;");
     infoVl->addWidget(nameLabel);
     infoVl->addWidget(roleLabel);
@@ -96,7 +125,7 @@ void PersonalModule::setupUI() {
     hl->addStretch();
 
     // 加入时间
-    QLabel *joinDate = new QLabel("加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
+    QLabel *joinDate = new QLabel("版本: v1.1.2 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
     joinDate->setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 13px; border: none; background: transparent;");
     hl->addWidget(joinDate, 0, Qt::AlignBottom | Qt::AlignRight);
     hl->setContentsMargins(40, 40, 40, 20);

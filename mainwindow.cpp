@@ -31,6 +31,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
 
     ui->setupUi(this);
     this->setWindowState(Qt::WindowMaximized); // 默认启动最大化铺满全屏
+    this->setWindowTitle("PetManager - 智能宠物店管理系统 v1.1.2"); // 设置版本号！
     
     // Initialize module pointers to prevent garbage values
     memberMod = nullptr;
