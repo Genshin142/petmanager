@@ -43,6 +43,8 @@ void ScheduleDataManager::loadFromDisk()
             info.type = (ShiftType)obj["type"].toInt();
             info.startTime = obj["start"].toString();
             info.endTime = obj["end"].toString();
+            info.clockIn = obj["clock_in"].toString();
+            info.clockOut = obj["clock_out"].toString();
             info.note = obj["note"].toString();
             
             QString key = info.employeeId + "_" + info.date;
@@ -69,6 +71,8 @@ void ScheduleDataManager::saveToDisk()
             obj["type"] = (int)it.value().type;
             obj["start"] = it.value().startTime;
             obj["end"] = it.value().endTime;
+            obj["clock_in"] = it.value().clockIn;
+            obj["clock_out"] = it.value().clockOut;
             obj["note"] = it.value().note;
             arr.append(obj);
         }
@@ -125,6 +129,9 @@ void ScheduleDataManager::setSchedule(const ScheduleInfo &info)
     
     obj["plan_start"] = info.startTime;
     obj["plan_end"] = info.endTime;
+    obj["clock_in"] = info.clockIn;
+    obj["clock_out"] = info.clockOut;
+    obj["note"] = info.note;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_SCHEDULE, obj);
     saveToDisk();
@@ -160,6 +167,9 @@ void ScheduleDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 
                 info.startTime = obj["plan_start"].toString();
                 info.endTime = obj["plan_end"].toString();
+                info.clockIn = obj["clock_in"].toString();
+                info.clockOut = obj["clock_out"].toString();
+                info.note = obj["note"].toString();
                 
                 QString key = info.employeeId + "_" + info.date;
                 m_schedules[key] = info;
