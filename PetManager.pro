@@ -40,6 +40,7 @@ SOURCES += \
     modules/inboundregistrationdialog.cpp \
     modules/selectinbounddialog.cpp \
     modules/employeedetaildrawer.cpp \
+    modules/editattendancedialog.cpp \
     modules/memberdetaildrawer.cpp \
     modules/appointmentitemdelegate.cpp \
     modules/appointmentdetaildrawer.cpp \
@@ -107,6 +108,7 @@ HEADERS += \
     modules/inboundregistrationdialog.h \
     modules/selectinbounddialog.h \
     modules/employeedetaildrawer.h \
+    modules/editattendancedialog.h \
     modules/memberdetaildrawer.h \
     modules/appointmentitemdelegate.h \
     modules/appointmentdetaildrawer.h \

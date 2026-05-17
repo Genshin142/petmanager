@@ -70,9 +70,11 @@ private:
     
     QWidget* createProfilePage();
     QWidget* createSchedulePage();
+    QWidget* createAttendancePage();
     void refreshCalendar();
+    void refreshAttendCalendar();
 
-    // 动态日历组件
+    // 动态日历组件 (排班)
     QComboBox *m_yearCombo = nullptr;
     QComboBox *m_monthCombo = nullptr;
     QGridLayout *m_calendarGrid = nullptr;
@@ -80,6 +82,15 @@ private:
     QLabel *m_statWorkLabel = nullptr;
     QLabel *m_statLeaveLabel = nullptr;
     QLabel *m_statRestLabel = nullptr;
+
+    // 动态日历组件 (考勤)
+    QComboBox *m_attendYearCombo = nullptr;
+    QComboBox *m_attendMonthCombo = nullptr;
+    QGridLayout *m_attendCalendarGrid = nullptr;
+    QLabel *m_attendTodayShiftLabel = nullptr;
+    QLabel *m_statNormalLabel = nullptr;
+    QLabel *m_statLateLabel = nullptr;
+    QLabel *m_statAbsentLabel = nullptr;
 
     QPropertyAnimation *m_animation;
 };
