@@ -2,6 +2,7 @@
 #define EMPLOYEEDETAILDRAWER_H
 
 #include <QWidget>
+#include <QDate>
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -91,6 +92,7 @@ private:
     QLabel *m_statNormalLabel = nullptr;
     QLabel *m_statLateLabel = nullptr;
     QLabel *m_statAbsentLabel = nullptr;
+    QDate m_selectedAttendDate;
 
     QPropertyAnimation *m_animation;
 };

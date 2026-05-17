@@ -14,8 +14,9 @@
 #include <QGridLayout>
 #include "scheduledatamanager.h"
 #include "editattendancedialog.h"
+#include <QTime>
 
-EmployeeDetailDrawer::EmployeeDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(true)
+EmployeeDetailDrawer::EmployeeDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(true), m_selectedAttendDate(QDate::currentDate())
 {
     setupUI();
     setFixedWidth(450);
@@ -618,13 +619,37 @@ QWidget* EmployeeDetailDrawer::createAttendancePage()
     QFrame *todayCard = new QFrame();
     todayCard->setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6366f1, stop:1 #a855f7); border-radius: 8px;");
     QVBoxLayout *tLayout = new QVBoxLayout(todayCard);
-    tLayout->setContentsMargins(20, 20, 20, 20);
-    QLabel *tTitle = new QLabel("今日班次 (实时打卡)");
-    tTitle->setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px; border: none; background: transparent;");
-    tLayout->addWidget(tTitle);
+    tLayout->setContentsMargins(16, 16, 16, 16);
+    tLayout->setSpacing(8);
+
+    QHBoxLayout *tHeaderLayout = new QHBoxLayout();
+    QLabel *tTitle = new QLabel("当日考勤明细");
+    tTitle->setStyleSheet("color: rgba(255,255,255,0.85); font-size: 12px; font-weight: bold; border: none; background: transparent;");
+    tHeaderLayout->addWidget(tTitle);
+    tHeaderLayout->addStretch();
+    
+    QPushButton *editAttendBtn = new QPushButton("补签/微调");
+    editAttendBtn->setCursor(Qt::PointingHandCursor);
+    editAttendBtn->setStyleSheet("QPushButton { background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: bold; } "
+                                 "QPushButton:hover { background: rgba(255,255,255,0.3); } "
+                                 "QPushButton:pressed { background: rgba(255,255,255,0.1); }");
+    tHeaderLayout->addWidget(editAttendBtn);
+    tLayout->addLayout(tHeaderLayout);
+
     m_attendTodayShiftLabel = new QLabel("加载中...");
-    m_attendTodayShiftLabel->setStyleSheet("color: white; font-size: 20px; font-weight: bold; margin-top: 5px; border: none; background: transparent;");
+    m_attendTodayShiftLabel->setStyleSheet("color: white; font-size: 13px; border: none; background: transparent;");
+    m_attendTodayShiftLabel->setWordWrap(true);
     tLayout->addWidget(m_attendTodayShiftLabel);
+
+    connect(editAttendBtn, &QPushButton::clicked, this, [this]() {
+        if (!m_selectedAttendDate.isValid()) return;
+        ScheduleInfo info = ScheduleDataManager::instance()->getSchedule(m_currentEmployee.id, m_selectedAttendDate);
+        EditAttendanceDialog dlg(info, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            ScheduleInfo newInfo = dlg.getUpdatedInfo();
+            ScheduleDataManager::instance()->saveSchedule(newInfo);
+        }
+    });
 
     // 卡片 2: 本月考勤日历网格
     QFrame *monthCalendarCard = new QFrame();
@@ -773,53 +798,60 @@ void EmployeeDetailDrawer::refreshAttendCalendar()
         bool isWork = (info.type == SHIFT_MORNING || info.type == SHIFT_EVENING || info.type == SHIFT_CUSTOM);
         bool isLeave = (info.type == SHIFT_OFF && info.note.contains("假"));
 
+        // 确保选中的日期在当前月份内，如果不在，智能更新为该月1号（或今天，如果今天在当前月份内）
+        if (!m_selectedAttendDate.isValid() || m_selectedAttendDate.year() != year || m_selectedAttendDate.month() != month) {
+            QDate realToday = QDate::currentDate();
+            if (realToday.year() == year && realToday.month() == month) {
+                m_selectedAttendDate = realToday;
+            } else {
+                m_selectedAttendDate = QDate(year, month, 1);
+            }
+        }
+
         QPushButton *dayBtn = new QPushButton();
-        dayBtn->setFixedSize(50, 52);
+        dayBtn->setFixedSize(48, 48);
         dayBtn->setCursor(Qt::PointingHandCursor);
         
         QVBoxLayout *cellLayout = new QVBoxLayout(dayBtn);
-        cellLayout->setContentsMargins(1, 1, 1, 1);
+        cellLayout->setContentsMargins(1, 2, 1, 2);
         cellLayout->setSpacing(0);
         cellLayout->setAlignment(Qt::AlignCenter);
 
         QLabel *numLabel = new QLabel(QString::number(day));
-        numLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 11px; font-weight: bold; color: inherit; border: none; background: transparent;");
+        numLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 11px; font-weight: 600; color: inherit; border: none; background: transparent;");
         numLabel->setAlignment(Qt::AlignCenter);
         cellLayout->addWidget(numLabel);
 
         QLabel *inLabel = new QLabel();
-        inLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 9px; font-weight: 600; color: inherit; border: none; background: transparent;");
+        inLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 9px; font-weight: 500; color: inherit; border: none; background: transparent;");
         inLabel->setAlignment(Qt::AlignCenter);
         cellLayout->addWidget(inLabel);
 
         QLabel *outLabel = new QLabel();
-        outLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 9px; font-weight: 600; color: inherit; border: none; background: transparent;");
+        outLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 9px; font-weight: 500; color: inherit; border: none; background: transparent;");
         outLabel->setAlignment(Qt::AlignCenter);
         cellLayout->addWidget(outLabel);
 
         QString style = "QPushButton { border-radius: 8px; border: 1px solid transparent; } ";
         QString inText = "-";
-        QString outText = "-";
+        QString outText = "";
 
         if (isLeave) {
             style += "QPushButton { background: #ffedd5; color: #9a3412; border-color: #fed7aa; }";
             inText = "请假";
-            outText = "";
         } else if (info.type == SHIFT_OFF) {
             style += "QPushButton { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }";
             inText = "休息";
-            outText = "";
         } else if (isWork) {
             if (info.clockIn.isEmpty() && info.clockOut.isEmpty()) {
                 if (curr < today) {
                     style += "QPushButton { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }";
-                    inText = "缺卡";
-                    outText = "缺卡";
+                    inText = "上: 缺卡";
+                    outText = "下: 缺卡";
                     absentCount++;
                 } else {
                     style += "QPushButton { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }";
-                    inText = "在岗";
-                    outText = "";
+                    inText = "上: 在岗";
                 }
             } else {
                 bool isLate = false;
@@ -836,34 +868,77 @@ void EmployeeDetailDrawer::refreshAttendCalendar()
                     if (actualOut < planEnd) isEarly = true;
                 }
                 
-                inText = info.clockIn.isEmpty() ? "缺卡" : info.clockIn;
-                outText = info.clockOut.isEmpty() ? "缺卡" : info.clockOut;
-
                 if (isLate || isEarly) {
                     style += "QPushButton { background: #fef3c7; color: #b45309; border-color: #fde68a; }";
                     lateCount++;
-                } else if (info.clockIn.isEmpty() || info.clockOut.isEmpty()) {
-                    style += "QPushButton { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }";
-                    absentCount++;
                 } else {
                     style += "QPushButton { background: #dcfce7; color: #166534; border-color: #bbf7d0; }";
                     normalCount++;
                 }
+                
+                inText = QString("上: %1").arg(info.clockIn.isEmpty() ? (curr < today ? "缺卡" : "-") : info.clockIn);
+                outText = QString("下: %1").arg(info.clockOut.isEmpty() ? (curr < today ? "缺卡" : "-") : info.clockOut);
             }
         }
 
-        if (curr == today) {
+        // 选中样式和顶卡更新
+        if (curr == m_selectedAttendDate) {
             style += "QPushButton { border: 2px solid #3b82f6; }";
             if (m_attendTodayShiftLabel) {
+                QString dateStr = curr.toString("yyyy-MM-dd");
+                QString html = QString("<div style='line-height: 1.4; font-size: 13px; color: rgba(255,255,255,0.95);'>"
+                                       "<span style='font-size: 15px; font-weight: bold; color: #ffffff;'>%1 %2</span><br/>").arg(dateStr).arg(curr == today ? " (今天)" : "");
                 if (isWork) {
-                    QString realIn = info.clockIn.isEmpty() ? "未打卡" : info.clockIn;
-                    QString realOut = info.clockOut.isEmpty() ? "未打卡" : info.clockOut;
-                    m_attendTodayShiftLabel->setText(QString("%1 - %2 (签到: %3 / 签退: %4)")
-                                                     .arg(info.startTime).arg(info.endTime).arg(realIn).arg(realOut));
+                    html += QString("<span style='font-weight: 600;'>排班班次：</span>%1 - %2<br/>").arg(info.startTime).arg(info.endTime);
+                    
+                    // 上班打卡
+                    if (info.clockIn.isEmpty()) {
+                        html += QString("<span style='font-weight: 600;'>上班打卡：</span><span style='color: #fca5a5; font-weight: bold;'>缺卡</span><br/>");
+                    } else {
+                        bool late = false;
+                        if (!info.startTime.isEmpty()) {
+                            QTime plan = QTime::fromString(info.startTime, "HH:mm");
+                            QTime act = QTime::fromString(info.clockIn, "HH:mm");
+                            if (act > plan) late = true;
+                        }
+                        if (late) {
+                            html += QString("<span style='font-weight: 600;'>上班打卡：</span><span style='color: #fcd34d; font-weight: bold;'>%1 (迟到)</span><br/>").arg(info.clockIn);
+                        } else {
+                            html += QString("<span style='font-weight: 600;'>上班打卡：</span><span style='color: #4ade80; font-weight: bold;'>%1 (正常)</span><br/>").arg(info.clockIn);
+                        }
+                    }
+                    
+                    // 下班打卡
+                    if (info.clockOut.isEmpty()) {
+                        html += QString("<span style='font-weight: 600;'>下班打卡：</span><span style='color: #fca5a5; font-weight: bold;'>缺卡</span><br/>");
+                    } else {
+                        bool early = false;
+                        if (!info.endTime.isEmpty()) {
+                            QTime plan = QTime::fromString(info.endTime, "HH:mm");
+                            QTime act = QTime::fromString(info.clockOut, "HH:mm");
+                            if (act < plan) early = true;
+                        }
+                        if (early) {
+                            html += QString("<span style='font-weight: 600;'>下班打卡：</span><span style='color: #fcd34d; font-weight: bold;'>%1 (早退)</span><br/>").arg(info.clockOut);
+                        } else {
+                            html += QString("<span style='font-weight: 600;'>下班打卡：</span><span style='color: #4ade80; font-weight: bold;'>%1 (正常)</span><br/>").arg(info.clockOut);
+                        }
+                    }
                 } else {
-                    m_attendTodayShiftLabel->setText(info.note.contains("假") ? "今日请假" : "今日休息");
+                    html += QString("<span style='font-weight: 600;'>排班班次：</span>%1<br/>").arg(isLeave ? "请假" : "休息");
+                    html += QString("<span style='font-weight: 600;'>上班打卡：</span>-<br/>");
+                    html += QString("<span style='font-weight: 600;'>下班打卡：</span>-<br/>");
                 }
+                
+                QString noteText = info.note.isEmpty() ? "无" : info.note;
+                html += QString("<span style='font-weight: 600;'>考勤备注：</span>%1"
+                                "</div>").arg(noteText);
+                
+                m_attendTodayShiftLabel->setText(html);
             }
+        } else if (curr == today) {
+            // 今天但未被选中，显示虚线边框以作区分
+            style += "QPushButton { border: 1px dashed #3b82f6; }";
         }
 
         inLabel->setText(inText);
@@ -871,12 +946,17 @@ void EmployeeDetailDrawer::refreshAttendCalendar()
         dayBtn->setStyleSheet(style);
         m_attendCalendarGrid->addWidget(dayBtn, row, col);
 
-        // 点击事件：店长可进行排班考勤补签调整
-        connect(dayBtn, &QPushButton::clicked, this, [this, info]() {
-            EditAttendanceDialog dlg(info, this);
-            if (dlg.exec() == QDialog::Accepted) {
-                ScheduleInfo newInfo = dlg.getUpdatedInfo();
-                ScheduleDataManager::instance()->saveSchedule(newInfo); // 同步下发并在成功后广播！
+        // 点击事件：单击选中并更新卡片详情，再次点击选中项或点击“补签/微调”按钮唤起弹窗
+        connect(dayBtn, &QPushButton::clicked, this, [this, curr, info]() {
+            if (m_selectedAttendDate == curr) {
+                EditAttendanceDialog dlg(info, this);
+                if (dlg.exec() == QDialog::Accepted) {
+                    ScheduleInfo newInfo = dlg.getUpdatedInfo();
+                    ScheduleDataManager::instance()->saveSchedule(newInfo);
+                }
+            } else {
+                m_selectedAttendDate = curr;
+                refreshAttendCalendar();
             }
         });
     }
