@@ -40,11 +40,25 @@ void PersonalModule::setupUI() {
     hl->setContentsMargins(40, 0, 40, 0);
     hl->setSpacing(25);
 
-    // 头像 - 智能绘制完美的圆角多平台高质量头像图片
+    // 头像 - 智能绘制完美的圆角多平台高质量头像图片 (支持当前登录用户的员工头像)
     QLabel *avatar = new QLabel();
     avatar->setFixedSize(100, 100);
     
-    QPixmap originalPixmap(m_role == ADMIN ? ":/images/avatar_admin.png" : ":/images/avatar_staff.png");
+    // 1. 查找当前登录用户对应的员工档案以加载其实时头像
+    QPixmap originalPixmap;
+    auto allStaff = StaffDataManager::instance()->allStaff();
+    for (const auto &s : allStaff) {
+        if (s.name == m_userName || s.username == m_userName) {
+            originalPixmap = StaffDataManager::instance()->getStaffPixmap(s.id);
+            break;
+        }
+    }
+
+    // 2. 如果未设置自定义头像，则根据角色使用高清扁平插画头像作为默认头像
+    if (originalPixmap.isNull()) {
+        originalPixmap = QPixmap(m_role == ADMIN ? ":/images/avatar_admin.png" : ":/images/avatar_staff.png");
+    }
+    
     if (!originalPixmap.isNull()) {
         QPixmap roundedPixmap(100, 100);
         roundedPixmap.fill(Qt::transparent);
