@@ -14,7 +14,7 @@ EditAttendanceDialog::EditAttendanceDialog(const ScheduleInfo &info, QWidget *pa
         "QLabel { color: #475569; font-size: 13px; font-weight: 500; } "
         "QLineEdit { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; font-size: 13px; color: #1e293b; background: #ffffff; } "
         "QLineEdit:focus { border-color: #3b82f6; } "
-        "QComboBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; background: white; font-size: 13px; color: #1e293b; height: 32px; } "
+        "QComboBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; background: white; font-size: 13px; color: #1e293b; } "
         "QComboBox:hover { border-color: #3b82f6; } "
         "QComboBox::drop-down { border: none; width: 24px; } "
         "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
