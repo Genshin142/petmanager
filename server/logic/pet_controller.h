@@ -22,6 +22,9 @@ public:
     void handleGetVaccines(ClientHandler* client, const QJsonObject& data);
     void handleUpdateVaccines(ClientHandler* client, const QJsonObject& data);
     void handleUpdatePetStatus(ClientHandler* client, const QJsonObject& data);
+    void handleDeletePet(ClientHandler* client, const QJsonObject& data);
+    void handleRestorePet(ClientHandler* client, const QJsonObject& data);
+    void handleHardDeletePet(ClientHandler* client, const QJsonObject& data);
 
 private:
     ServerCore* m_core;

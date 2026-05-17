@@ -30,6 +30,15 @@ PetController::PetController(ServerCore* core, QObject* parent)
     m_core->registerHandler(Protocol::CMD_UPDATE_PET_STATUS, [this](ClientHandler* client, const QJsonObject& data) {
         handleUpdatePetStatus(client, data);
     });
+    m_core->registerHandler(Protocol::CMD_DELETE_PET, [this](ClientHandler* client, const QJsonObject& data) {
+        handleDeletePet(client, data);
+    });
+    m_core->registerHandler(Protocol::CMD_RESTORE_PET, [this](ClientHandler* client, const QJsonObject& data) {
+        handleRestorePet(client, data);
+    });
+    m_core->registerHandler(Protocol::CMD_HARD_DELETE_PET, [this](ClientHandler* client, const QJsonObject& data) {
+        handleHardDeletePet(client, data);
+    });
 }
 
 void PetController::handleUpdatePet(ClientHandler* client, const QJsonObject& data) {
@@ -120,7 +129,7 @@ void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& d
                   "FROM pets p "
                   "LEFT JOIN members m ON p.member_id = m.member_id "
                   "LEFT JOIN boarding_records br ON p.pet_id = br.pet_id AND (br.status = '入店中' OR br.status = '预约中') "
-                  "WHERE p.is_deleted = 0 ORDER BY p.pet_id DESC");
+                  "ORDER BY p.pet_id DESC");
 
     QJsonObject response;
     QJsonArray petList;

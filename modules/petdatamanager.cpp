@@ -119,6 +119,9 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.vaccine = obj["vaccine_status"].toString();
                     info.dietary = obj["dietary_habit"].toString();
                     info.status = obj["current_status"].toString();
+                    
+                    bool isDeleted = obj["is_deleted"].toBool();
+                    info.isActive = !isDeleted;
                     info.ownerId = QString("M%1").arg(obj["member_id"].toVariant().toLongLong(), 5, 10, QChar('0'));
                     info.ownerName = obj["owner_name"].toString(); 
                     info.ownerPhone = obj["owner_phone"].toString(); 
@@ -396,6 +399,11 @@ void PetDataManager::removePet(const QString &id)
     if (m_pets.contains(id)) {
         m_pets[id].isActive = false;
         m_pets[id].status = "已注销";
+        
+        QJsonObject body;
+        body["pet_id"] = id.mid(1).toInt();
+        NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_PET, body);
+        
         notifyGlobalDataChanged();
         notifyPetDataChanged(id);
     }
@@ -406,6 +414,11 @@ void PetDataManager::restorePet(const QString &id)
     if (m_pets.contains(id)) {
         m_pets[id].isActive = true;
         m_pets[id].status = "在家"; // 恢复后默认为在家
+        
+        QJsonObject body;
+        body["pet_id"] = id.mid(1).toInt();
+        NetworkManager::instance().sendRequest(Protocol::CMD_RESTORE_PET, body);
+        
         notifyGlobalDataChanged();
         notifyPetDataChanged(id);
     }
@@ -1206,6 +1219,10 @@ void PetDataManager::hardDeletePet(const QString &id)
         PetInfo info = m_pets[id];
         // 同步从会员档案中移除
         MemberDataManager::instance()->removePetFromMember(info.ownerId, info.name);
+        
+        QJsonObject body;
+        body["pet_id"] = id.mid(1).toInt();
+        NetworkManager::instance().sendRequest(Protocol::CMD_HARD_DELETE_PET, body);
         
         m_pets.remove(id);
         m_activityLogs.remove(id);
