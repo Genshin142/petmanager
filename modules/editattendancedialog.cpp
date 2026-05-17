@@ -12,8 +12,13 @@ EditAttendanceDialog::EditAttendanceDialog(const ScheduleInfo &info, QWidget *pa
     setStyleSheet(
         "QDialog { background: #ffffff; border-radius: 12px; } "
         "QLabel { color: #475569; font-size: 13px; font-weight: 500; } "
-        "QLineEdit, QTimeEdit, QComboBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 8px; font-size: 13px; color: #1e293b; background: #ffffff; } "
-        "QLineEdit:focus, QTimeEdit:focus, QComboBox:focus { border-color: #3b82f6; } "
+        "QLineEdit { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; font-size: 13px; color: #1e293b; background: #ffffff; } "
+        "QLineEdit:focus { border-color: #3b82f6; } "
+        "QComboBox { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; background: white; font-size: 13px; color: #1e293b; height: 32px; } "
+        "QComboBox:hover { border-color: #3b82f6; } "
+        "QComboBox::drop-down { border: none; width: 24px; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; } "
         "QPushButton { font-size: 13px; padding: 6px 14px; border-radius: 6px; font-weight: 600; } "
     );
 
@@ -37,10 +42,10 @@ EditAttendanceDialog::EditAttendanceDialog(const ScheduleInfo &info, QWidget *pa
     QFormLayout *timeForm = new QFormLayout(m_timeContainer);
     timeForm->setContentsMargins(0, 0, 0, 0);
     timeForm->setSpacing(10);
-    m_planStartEdit = new QTimeEdit(QTime::fromString(info.startTime.isEmpty() ? "09:00" : info.startTime, "HH:mm"));
-    m_planStartEdit->setDisplayFormat("HH:mm");
-    m_planEndEdit = new QTimeEdit(QTime::fromString(info.endTime.isEmpty() ? "18:00" : info.endTime, "HH:mm"));
-    m_planEndEdit->setDisplayFormat("HH:mm");
+    m_planStartEdit = new QLineEdit(info.startTime.isEmpty() ? "09:00" : info.startTime);
+    m_planStartEdit->setPlaceholderText("格式: HH:mm (如 09:00)");
+    m_planEndEdit = new QLineEdit(info.endTime.isEmpty() ? "18:00" : info.endTime);
+    m_planEndEdit->setPlaceholderText("格式: HH:mm (如 18:00)");
     timeForm->addRow("计划上班:", m_planStartEdit);
     timeForm->addRow("计划下班:", m_planEndEdit);
     formLayout->addRow(m_timeContainer);
@@ -104,8 +109,8 @@ ScheduleInfo EditAttendanceDialog::getUpdatedInfo() const {
     else info.type = SHIFT_OFF;
 
     if (info.type != SHIFT_OFF) {
-        info.startTime = m_planStartEdit->time().toString("HH:mm");
-        info.endTime = m_planEndEdit->time().toString("HH:mm");
+        info.startTime = m_planStartEdit->text().trimmed();
+        info.endTime = m_planEndEdit->text().trimmed();
         info.clockIn = m_clockInEdit->text().trimmed();
         info.clockOut = m_clockOutEdit->text().trimmed();
     } else {

@@ -4,7 +4,6 @@
 #include <QDialog>
 #include <QComboBox>
 #include <QLineEdit>
-#include <QTimeEdit>
 #include <QLabel>
 #include "common_types.h"
 
@@ -15,8 +14,8 @@ public:
     ScheduleInfo getUpdatedInfo() const;
 private:
     QComboBox *m_typeCombo;
-    QTimeEdit *m_planStartEdit;
-    QTimeEdit *m_planEndEdit;
+    QLineEdit *m_planStartEdit;
+    QLineEdit *m_planEndEdit;
     QLineEdit *m_clockInEdit;
     QLineEdit *m_clockOutEdit;
     QLineEdit *m_noteEdit;
