@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QDebug>
 #include "../utils/networkmanager.h"
+#include "../utils/imageutils.h"
 
 #include <QDir>
 #include <QCoreApplication>
@@ -218,11 +219,16 @@ QPixmap StaffDataManager::getStaffPixmap(const QString &id) const
     }
 
     EmployeeInfo info = getStaff(id);
-    if (info.imgData.isEmpty()) return QPixmap();
-
     QPixmap pix;
-    QByteArray ba = QByteArray::fromBase64(info.imgData.toUtf8());
-    if (pix.loadFromData(ba)) {
+    if (!info.imgData.isEmpty()) {
+        QByteArray ba = QByteArray::fromBase64(info.imgData.toUtf8());
+        pix.loadFromData(ba);
+    } else if (!info.imgPath.isEmpty()) {
+        // imgPath contains the raw base64 data (or file path) returned by the server
+        pix = ImageUtils::loadPixmap(info.imgPath);
+    }
+
+    if (!pix.isNull()) {
         m_pixmapCache.insert(id, new QPixmap(pix));
         const_cast<StaffDataManager*>(this)->saveToLocalCache(id, pix);
     }
