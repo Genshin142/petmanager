@@ -406,7 +406,36 @@ void AddPetDialog::onSaveClicked()
         CustomMessageDialog::showWarning(this, "校验失败", "请输入宠物姓名");
         return;
     }
-
+    
+    if (ageYearEdit->text().trimmed().isEmpty() && ageMonthCombo->currentText().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "校验失败", "请输入宠物年龄");
+        return;
+    }
+    
+    if (weightEdit->text().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "校验失败", "请输入宠物体重");
+        return;
+    }
+    
+    if (joinTimeEdit->text().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "校验失败", "请输入入店时间");
+        return;
+    }
+    
+    if (ownerIdEdit->text().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "校验失败", "请输入主人ID");
+        return;
+    }
+    
+    if (ownerNameEdit->text().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "校验失败", "请输入主人姓名");
+        return;
+    }
+    
+    if (ownerPhoneEdit->text().trimmed().isEmpty()) {
+        CustomMessageDialog::showWarning(this, "校验失败", "请输入联系电话");
+        return;
+    }
 
     accept();
 }

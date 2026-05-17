@@ -414,6 +414,7 @@ void MemberModule::setupUI()
         PetInfo initialInfo;
         initialInfo.ownerId = memberId;
         initialInfo.ownerName = memberName;
+        initialInfo.ownerPhone = MemberDataManager::instance()->getMember(memberId).phone;
         dialog.setPetInfo(initialInfo);
 
         if (dialog.exec() == QDialog::Accepted) {
