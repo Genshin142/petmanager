@@ -17,6 +17,7 @@
 #include <QDateEdit>
 #include <QDateTime>
 #include <QStyledItemDelegate>
+#include <QEvent>
 #include <QTimer>
 #include <QPainter>
 #include <QPainterPath>
@@ -25,7 +26,31 @@
 // --- 自定义 Delegate 实现全行圆角边框选中效果 ---
 class RowDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    private:
+    mutable int m_hoveredRow = -1;
+public:
+    RowDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+        QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent);
+        if (view) {
+            view->setMouseTracking(true);
+            connect(view, &QAbstractItemView::entered, this, [this, view](const QModelIndex &index) {
+                m_hoveredRow = index.row();
+                view->viewport()->update();
+            });
+            view->viewport()->installEventFilter(this);
+        }
+    }
+    
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Leave) {
+            m_hoveredRow = -1;
+            QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent());
+            if (view) {
+                view->viewport()->update();
+            }
+        }
+        return QStyledItemDelegate::eventFilter(watched, event);
+    }
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         QStyleOptionViewItem opt = option;
@@ -34,7 +59,7 @@ public:
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
 
-        if (opt.state & QStyle::State_MouseOver) {
+        if (index.row() == m_hoveredRow) {
             painter->fillRect(opt.rect, QColor("#ecf5ff"));
         } else {
             painter->fillRect(opt.rect, Qt::white);

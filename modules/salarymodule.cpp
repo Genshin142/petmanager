@@ -15,20 +15,45 @@
 #include <QComboBox>
 #include <QApplication>
 #include <QStyledItemDelegate>
+#include <QEvent>
 #include <QPainter>
 #include <QPainterPath>
 
 // --- 复刻：全行圆角选中委托 ---
 class SalaryRowDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    private:
+    mutable int m_hoveredRow = -1;
+public:
+    SalaryRowDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+        QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent);
+        if (view) {
+            view->setMouseTracking(true);
+            connect(view, &QAbstractItemView::entered, this, [this, view](const QModelIndex &index) {
+                m_hoveredRow = index.row();
+                view->viewport()->update();
+            });
+            view->viewport()->installEventFilter(this);
+        }
+    }
+    
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Leave) {
+            m_hoveredRow = -1;
+            QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent());
+            if (view) {
+                view->viewport()->update();
+            }
+        }
+        return QStyledItemDelegate::eventFilter(watched, event);
+    }
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         QStyleOptionViewItem opt = option;
         initStyleOption(&opt, index);
 
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        if (opt.state & QStyle::State_MouseOver) {
+        if (index.row() == m_hoveredRow) {
             painter->fillRect(opt.rect, QColor("#ecf5ff"));
         } else {
             painter->fillRect(opt.rect, Qt::white);

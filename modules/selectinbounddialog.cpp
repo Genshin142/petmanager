@@ -19,7 +19,31 @@
 // 自定义行代理，用于绘制漂亮的圆角选择效果
 class InboundRowDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    private:
+    mutable int m_hoveredRow = -1;
+public:
+    InboundRowDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+        QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent);
+        if (view) {
+            view->setMouseTracking(true);
+            connect(view, &QAbstractItemView::entered, this, [this, view](const QModelIndex &index) {
+                m_hoveredRow = index.row();
+                view->viewport()->update();
+            });
+            view->viewport()->installEventFilter(this);
+        }
+    }
+    
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Leave) {
+            m_hoveredRow = -1;
+            QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent());
+            if (view) {
+                view->viewport()->update();
+            }
+        }
+        return QStyledItemDelegate::eventFilter(watched, event);
+    }
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         QStyleOptionViewItem opt = option;
@@ -38,6 +62,12 @@ public:
             // 绘制文字
             painter->setPen(QColor(30, 58, 138));
             opt.state &= ~QStyle::State_Selected; // 禁用默认选择绘制
+        } else if (index.row() == m_hoveredRow) {
+            // 悬浮行背景绘制
+            QRect rect = opt.rect.adjusted(2, 2, -2, -2);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(QColor(236, 245, 255)); // 浅蓝背景
+            painter->drawRoundedRect(rect, 8, 8);
         }
 
         // 处理文字对齐

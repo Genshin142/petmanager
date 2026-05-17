@@ -11,13 +11,38 @@
 #include <QMouseEvent>
 #include <QGraphicsDropShadowEffect>
 #include <QStyledItemDelegate>
+#include <QEvent>
 #include <QPainter>
 #include <QPainterPath>
 
 // 复刻会员模块的圆角选中代理
 class LogListDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    private:
+    mutable int m_hoveredRow = -1;
+public:
+    LogListDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+        QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent);
+        if (view) {
+            view->setMouseTracking(true);
+            connect(view, &QAbstractItemView::entered, this, [this, view](const QModelIndex &index) {
+                m_hoveredRow = index.row();
+                view->viewport()->update();
+            });
+            view->viewport()->installEventFilter(this);
+        }
+    }
+    
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Leave) {
+            m_hoveredRow = -1;
+            QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent());
+            if (view) {
+                view->viewport()->update();
+            }
+        }
+        return QStyledItemDelegate::eventFilter(watched, event);
+    }
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         QStyleOptionViewItem opt = option;
         initStyleOption(&opt, index);
@@ -26,7 +51,7 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
 
         // 默认背景（白色）
-        if (opt.state & QStyle::State_MouseOver) {
+        if (index.row() == m_hoveredRow) {
             painter->fillRect(opt.rect, QColor("#ecf5ff"));
         } else {
             painter->fillRect(opt.rect, Qt::white);
@@ -47,7 +72,7 @@ public:
             // 绘制边框
             painter->setPen(QPen(borderColor, 1));
             painter->drawPath(path);
-        } else if (opt.state & QStyle::State_MouseOver) {
+        } else if (index.row() == m_hoveredRow) {
             // 悬停样式：非常浅的灰色背景
             QRect rect = opt.rect.adjusted(8, 4, -8, -4);
             painter->setBrush(QColor("#f8fafc"));

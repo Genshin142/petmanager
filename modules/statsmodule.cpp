@@ -38,18 +38,43 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QStyledItemDelegate>
+#include <QEvent>
 
 // 复刻会员界面的“全行圆角选中”效果
 class StatsRowDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    private:
+    mutable int m_hoveredRow = -1;
+public:
+    StatsRowDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+        QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent);
+        if (view) {
+            view->setMouseTracking(true);
+            connect(view, &QAbstractItemView::entered, this, [this, view](const QModelIndex &index) {
+                m_hoveredRow = index.row();
+                view->viewport()->update();
+            });
+            view->viewport()->installEventFilter(this);
+        }
+    }
+    
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Leave) {
+            m_hoveredRow = -1;
+            QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent());
+            if (view) {
+                view->viewport()->update();
+            }
+        }
+        return QStyledItemDelegate::eventFilter(watched, event);
+    }
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         QStyleOptionViewItem opt = option;
         initStyleOption(&opt, index);
 
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        if (opt.state & QStyle::State_MouseOver) {
+        if (index.row() == m_hoveredRow) {
             painter->fillRect(opt.rect, QColor("#ecf5ff"));
         } else {
             painter->fillRect(opt.rect, Qt::white);
