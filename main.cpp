@@ -32,9 +32,14 @@ int main(int argc, char *argv[])
         "   color: black !important;"
         "}"
         
-        // 模块控件全局悬浮样式 (模仿宠物卡片)
-        "QTableView:hover, QTableWidget:hover, QPushButton:hover, QLabel:hover {"
+        // 按钮悬浮发光样式
+        "QPushButton:hover {"
         "   border: 1px solid #409eff !important;"
+        "}"
+        
+        // 表格单元格悬浮高亮
+        "QTableView::item:hover, QTableWidget::item:hover {"
+        "   background-color: #ecf5ff !important;"
         "}"
         
         // 全局 ComboBox 下拉列表美化 (同步薪资管理中心样式)
