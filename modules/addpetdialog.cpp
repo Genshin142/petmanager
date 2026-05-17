@@ -219,7 +219,6 @@ void AddPetDialog::setupUI()
 
     ui->label->hide();
     ui->label_2->hide();
-    ui->label_3->hide();
 
     for (int i = 0; i < ui->containerLayout->count(); ++i) {
         if (ui->containerLayout->itemAt(i)->layout() == ui->formLayout) {

@@ -439,3 +439,93 @@ void PetController::handleUpdatePetStatus(ClientHandler* client, const QJsonObje
     }
     client->sendPacket(Protocol::CMD_UPDATE_PET_STATUS, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
+
+void PetController::handleDeletePet(ClientHandler* client, const QJsonObject& data) {
+    int petId = data["pet_id"].toInt();
+    LOG_I("[PET] Soft deleting pet ID: " << petId);
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    query.prepare("UPDATE pets SET is_deleted = 1, current_status = '已注销' WHERE pet_id = :id");
+    query.bindValue(":id", petId);
+    
+    QJsonObject response;
+    if (query.exec()) {
+        response["status"] = Protocol::STATUS_OK;
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, QJsonObject{{"module", "pet"}});
+    } else {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+        LOG_E("[PET] Soft delete failed: " << query.lastError().text().toStdString());
+    }
+    
+    ConnectionPool::instance().closeConnection(db);
+    client->sendPacket(Protocol::CMD_DELETE_PET, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleRestorePet(ClientHandler* client, const QJsonObject& data) {
+    int petId = data["pet_id"].toInt();
+    LOG_I("[PET] Restoring pet ID: " << petId);
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    query.prepare("UPDATE pets SET is_deleted = 0, current_status = '在家' WHERE pet_id = :id");
+    query.bindValue(":id", petId);
+    
+    QJsonObject response;
+    if (query.exec()) {
+        response["status"] = Protocol::STATUS_OK;
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, QJsonObject{{"module", "pet"}});
+    } else {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+        LOG_E("[PET] Restore failed: " << query.lastError().text().toStdString());
+    }
+    
+    ConnectionPool::instance().closeConnection(db);
+    client->sendPacket(Protocol::CMD_RESTORE_PET, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleHardDeletePet(ClientHandler* client, const QJsonObject& data) {
+    int petId = data["pet_id"].toInt();
+    LOG_I("[PET] Hard deleting pet ID: " << petId);
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    
+    // Begin transaction for safe cascade deletions
+    db.transaction();
+    bool ok = true;
+    
+    query.prepare("DELETE FROM pet_activity_logs WHERE pet_id = :id");
+    query.bindValue(":id", petId);
+    if (!query.exec()) ok = false;
+    
+    if (ok) {
+        query.prepare("DELETE FROM vaccine_records WHERE pet_id = :id");
+        query.bindValue(":id", petId);
+        if (!query.exec()) ok = false;
+    }
+    
+    if (ok) {
+        query.prepare("DELETE FROM pets WHERE pet_id = :id");
+        query.bindValue(":id", petId);
+        if (!query.exec()) ok = false;
+    }
+    
+    QJsonObject response;
+    if (ok && db.commit()) {
+        response["status"] = Protocol::STATUS_OK;
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, QJsonObject{{"module", "pet"}});
+    } else {
+        db.rollback();
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+        LOG_E("[PET] Hard delete failed: " << query.lastError().text().toStdString());
+    }
+    
+    ConnectionPool::instance().closeConnection(db);
+    client->sendPacket(Protocol::CMD_HARD_DELETE_PET, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
