@@ -778,17 +778,17 @@ void EmployeeDetailDrawer::refreshAttendCalendar()
         dayBtn->setCursor(Qt::PointingHandCursor);
         
         QVBoxLayout *cellLayout = new QVBoxLayout(dayBtn);
-        cellLayout->setContentsMargins(2, 2, 2, 2);
-        cellLayout->setSpacing(1);
+        cellLayout->setContentsMargins(1, 1, 1, 1);
+        cellLayout->setSpacing(0);
         cellLayout->setAlignment(Qt::AlignCenter);
 
         QLabel *numLabel = new QLabel(QString::number(day));
-        numLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 12px; font-weight: 600; color: inherit; border: none; background: transparent;");
+        numLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 11px; font-weight: bold; color: inherit; border: none; background: transparent;");
         numLabel->setAlignment(Qt::AlignCenter);
         cellLayout->addWidget(numLabel);
 
         QLabel *badgeLabel = new QLabel();
-        badgeLabel->setStyleSheet("font-family: 'Microsoft YaHei'; font-size: 10px; font-weight: bold; color: inherit; border: none; background: transparent;");
+        badgeLabel->setStyleSheet("font-family: 'Segoe UI', 'Microsoft YaHei'; font-size: 8px; font-weight: 600; line-height: 0.9; color: inherit; border: none; background: transparent;");
         badgeLabel->setAlignment(Qt::AlignCenter);
         cellLayout->addWidget(badgeLabel);
 
@@ -812,6 +812,11 @@ void EmployeeDetailDrawer::refreshAttendCalendar()
                     badgeText = "在岗";
                 }
             } else {
+                // 双行显示实际签到与签退时间
+                QString inStr = info.clockIn.isEmpty() ? "缺卡" : info.clockIn;
+                QString outStr = info.clockOut.isEmpty() ? "缺卡" : info.clockOut;
+                badgeText = QString("%1\n%2").arg(inStr, outStr);
+
                 bool isLate = false;
                 bool isEarly = false;
                 
@@ -819,20 +824,23 @@ void EmployeeDetailDrawer::refreshAttendCalendar()
                     QTime actualIn = QTime::fromString(info.clockIn, "HH:mm");
                     QTime planStart = QTime::fromString(info.startTime, "HH:mm");
                     if (actualIn > planStart) isLate = true;
+                } else if (info.clockIn.isEmpty()) {
+                    isLate = true; // 上班未打卡算异常
                 }
+                
                 if (!info.clockOut.isEmpty() && !info.endTime.isEmpty()) {
                     QTime actualOut = QTime::fromString(info.clockOut, "HH:mm");
                     QTime planEnd = QTime::fromString(info.endTime, "HH:mm");
                     if (actualOut < planEnd) isEarly = true;
+                } else if (info.clockOut.isEmpty()) {
+                    isEarly = true; // 下班未打卡算异常
                 }
                 
                 if (isLate || isEarly) {
                     style += "QPushButton { background: #fef3c7; color: #b45309; border-color: #fde68a; }";
-                    badgeText = isLate ? "迟到" : "早退";
                     lateCount++;
                 } else {
                     style += "QPushButton { background: #dcfce7; color: #166534; border-color: #bbf7d0; }";
-                    badgeText = info.clockIn;
                     normalCount++;
                 }
             }
