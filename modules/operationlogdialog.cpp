@@ -14,6 +14,7 @@
 #include <QEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QRegularExpression>
 
 // 复刻会员模块的圆角选中代理
 class LogListDelegate : public QStyledItemDelegate {
@@ -561,8 +562,21 @@ void OperationLogDialog::onLogsReceived(const QList<SysOperationLog> &logs, int 
     
     for (const auto &log : logs) {
         QListWidgetItem *item = new QListWidgetItem(m_listWidget);
+        
+        // 智能缩短长订单号以保证左侧列表展示的紧凑性与美观性
+        QString shortAction = log.action;
+        QRegularExpression orderIdRegex("ORD[A-Za-z0-9_-]+");
+        QRegularExpressionMatch match = orderIdRegex.match(shortAction);
+        if (match.hasMatch()) {
+            QString fullId = match.captured(0);
+            if (fullId.length() > 6) {
+                QString shortId = "..." + fullId.right(6);
+                shortAction.replace(fullId, shortId);
+            }
+        }
+
         // 格式: 时间 \n 操作人 · 动作  [模块]
-        QString displayText = QString("%1\n%2 · %3  [%4]").arg(log.timestamp, log.operatorName, log.action, log.module);
+        QString displayText = QString("%1\n%2 · %3  [%4]").arg(log.timestamp, log.operatorName, shortAction, log.module);
         item->setText(displayText);
 
         // 把完整信息存储到 UserRole 系列中
