@@ -120,7 +120,7 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.dietary = obj["dietary_habit"].toString();
                     info.status = obj["current_status"].toString();
                     
-                    bool isDeleted = obj["is_deleted"].toBool();
+                    bool isDeleted = (obj["is_deleted"].toInt() != 0) || obj["is_deleted"].toBool();
                     info.isActive = !isDeleted;
                     info.ownerId = QString("M%1").arg(obj["member_id"].toVariant().toLongLong(), 5, 10, QChar('0'));
                     info.ownerName = obj["owner_name"].toString(); 
