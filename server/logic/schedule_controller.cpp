@@ -27,7 +27,9 @@ void ScheduleController::handleGetSchedule(ClientHandler *client, const QJsonObj
     
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("SELECT s.emp_id, s.work_date, s.shift_type, s.plan_start, s.plan_end "
+    query.prepare("SELECT s.emp_id, s.work_date, s.shift_type, s.plan_start, s.plan_end, "
+                  "DATE_FORMAT(s.clock_in, '%H:%i') as clock_in_time, "
+                  "DATE_FORMAT(s.clock_out, '%H:%i') as clock_out_time, s.note "
                   "FROM sys_schedules s "
                   "WHERE s.work_date BETWEEN :start AND :end AND s.is_deleted = 0");
     query.bindValue(":start", startDate);
@@ -42,8 +44,11 @@ void ScheduleController::handleGetSchedule(ClientHandler *client, const QJsonObj
             item["emp_id"] = QString("E%1").arg(dbEmpId, 3, 10, QChar('0'));
             item["work_date"] = query.value("work_date").toString();
             item["shift_type"] = query.value("shift_type").toString();
-            item["plan_start"] = query.value("plan_start").isNull() ? "" : query.value("plan_start").toString();
-            item["plan_end"] = query.value("plan_end").isNull() ? "" : query.value("plan_end").toString();
+            item["plan_start"] = query.value("plan_start").isNull() ? "" : query.value("plan_start").toString().left(5);
+            item["plan_end"] = query.value("plan_end").isNull() ? "" : query.value("plan_end").toString().left(5);
+            item["clock_in"] = query.value("clock_in_time").toString();
+            item["clock_out"] = query.value("clock_out_time").toString();
+            item["note"] = query.value("note").toString();
             data.append(item);
         }
         response["status"] = Protocol::STATUS_OK;
@@ -65,14 +70,18 @@ bool ScheduleController::upsertSchedule(const QJsonObject &obj)
     QString shiftType = obj["shift_type"].toString();
     QString planStart = obj["plan_start"].toString();
     QString planEnd = obj["plan_end"].toString();
+    QString clockIn = obj["clock_in"].toString();
+    QString clockOut = obj["clock_out"].toString();
+    QString note = obj["note"].toString();
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
     
-    query.prepare("INSERT INTO sys_schedules (emp_id, work_date, shift_type, plan_start, plan_end) "
-                  "VALUES (:emp_id, :work_date, :shift_type, :plan_start, :plan_end) "
+    query.prepare("INSERT INTO sys_schedules (emp_id, work_date, shift_type, plan_start, plan_end, clock_in, clock_out, note) "
+                  "VALUES (:emp_id, :work_date, :shift_type, :plan_start, :plan_end, :clock_in, :clock_out, :note) "
                   "ON DUPLICATE KEY UPDATE "
-                  "shift_type = VALUES(shift_type), plan_start = VALUES(plan_start), plan_end = VALUES(plan_end)");
+                  "shift_type = VALUES(shift_type), plan_start = VALUES(plan_start), plan_end = VALUES(plan_end), "
+                  "clock_in = VALUES(clock_in), clock_out = VALUES(clock_out), note = VALUES(note)");
     
     query.bindValue(":emp_id", empId);
     query.bindValue(":work_date", workDate);
@@ -83,6 +92,24 @@ bool ScheduleController::upsertSchedule(const QJsonObject &obj)
     
     if (planEnd.isEmpty()) query.bindValue(":plan_end", QVariant(QMetaType::fromType<QString>()));
     else query.bindValue(":plan_end", planEnd);
+
+    // Process actual check-in time clock_in
+    if (clockIn.isEmpty()) {
+        query.bindValue(":clock_in", QVariant(QMetaType::fromType<QString>()));
+    } else {
+        QString fullClockIn = clockIn.contains("-") ? clockIn : (workDate + " " + clockIn + ":00");
+        query.bindValue(":clock_in", fullClockIn);
+    }
+
+    // Process actual check-out time clock_out
+    if (clockOut.isEmpty()) {
+        query.bindValue(":clock_out", QVariant(QMetaType::fromType<QString>()));
+    } else {
+        QString fullClockOut = clockOut.contains("-") ? clockOut : (workDate + " " + clockOut + ":00");
+        query.bindValue(":clock_out", fullClockOut);
+    }
+
+    query.bindValue(":note", note.isEmpty() ? QVariant(QMetaType::fromType<QString>()) : note);
 
     bool ok = query.exec();
     if (!ok) {

@@ -336,6 +336,8 @@ struct ScheduleInfo {
     ShiftType type;
     QString startTime;  // HH:mm
     QString endTime;    // HH:mm
+    QString clockIn;    // HH:mm
+    QString clockOut;   // HH:mm
     QString note;
 };
 
