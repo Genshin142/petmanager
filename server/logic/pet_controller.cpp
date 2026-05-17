@@ -504,7 +504,7 @@ void PetController::handleHardDeletePet(ClientHandler* client, const QJsonObject
     if (!query.exec()) ok = false;
     
     if (ok) {
-        query.prepare("DELETE FROM vaccine_records WHERE pet_id = :id");
+        query.prepare("DELETE FROM pet_vaccine_records WHERE pet_id = :id");
         query.bindValue(":id", petId);
         if (!query.exec()) ok = false;
     }
