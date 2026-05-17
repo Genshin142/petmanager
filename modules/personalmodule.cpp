@@ -148,7 +148,7 @@ void PersonalModule::setupUI() {
     infoVl->setAlignment(Qt::AlignCenter);
     QLabel *nameLabel = new QLabel(m_userName);
     nameLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 800; border: none; background: transparent;");
-    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.4)" : "门店营业专家 (v1.1.4)");
+    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.5)" : "门店营业专家 (v1.1.5)");
     roleLabel->setStyleSheet("color: rgba(255, 255, 255, 0.8); font-size: 14px; font-weight: 600; border: none; background: transparent;");
     infoVl->addWidget(nameLabel);
     infoVl->addWidget(roleLabel);
@@ -156,7 +156,7 @@ void PersonalModule::setupUI() {
     hl->addStretch();
 
     // 加入时间
-    QLabel *joinDate = new QLabel("版本: v1.1.4 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
+    QLabel *joinDate = new QLabel("版本: v1.1.5 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
     joinDate->setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 13px; border: none; background: transparent;");
     hl->addWidget(joinDate, 0, Qt::AlignBottom | Qt::AlignRight);
     hl->setContentsMargins(40, 40, 40, 20);
@@ -431,33 +431,14 @@ void PersonalModule::showEnlargedAvatar() {
     // 图片框 (大图)
     QLabel *largeLabel = new QLabel();
     
-    // 保持高分辨率的等比例大图 (限制在450x450，并保持比例)
-    QPixmap largePix = m_originalPixmap.scaled(450, 450, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    // 动态计算尺寸，使其恰好占到主窗口尺寸的 80% (等比例缩放)
+    QSize windowSize = this->window()->size();
+    int maxW = windowSize.width() * 0.8;
+    int maxH = windowSize.height() * 0.8;
     
-    // 给大图加上圆角和白色边框
-    QPixmap roundedLarge(largePix.size());
-    roundedLarge.fill(Qt::transparent);
-    QPainter painter(&roundedLarge);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    QPixmap largePix = m_originalPixmap.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     
-    QPainterPath path;
-    path.addRoundedRect(4, 4, largePix.width() - 8, largePix.height() - 8, 20, 20);
-    painter.save();
-    painter.setClipPath(path);
-    painter.drawPixmap(0, 0, largePix);
-    painter.restore();
-
-    // 绘制大图的白色描边
-    QPen pen(Qt::white);
-    pen.setWidth(8);
-    pen.setCapStyle(Qt::RoundCap);
-    pen.setJoinStyle(Qt::RoundJoin);
-    painter.setPen(pen);
-    painter.drawRoundedRect(QRectF(4, 4, largePix.width() - 8, largePix.height() - 8), 20, 20);
-    painter.end();
-
-    largeLabel->setPixmap(roundedLarge);
+    largeLabel->setPixmap(largePix);
     largeLabel->setFixedSize(largePix.size());
 
     // 强烈的阴影效果，体现高级感
