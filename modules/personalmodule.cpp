@@ -14,6 +14,7 @@
 #include <QThread>
 #include <QPainter>
 #include <QPainterPath>
+#include "../utils/imageutils.h"
 
 PersonalModule::PersonalModule(UserRole role, const QString &userName, QWidget *parent)
     : QWidget(parent), m_role(role), m_userName(userName) {
@@ -89,18 +90,7 @@ void PersonalModule::setupUI() {
     }
     
     if (!originalPixmap.isNull()) {
-        QPixmap roundedPixmap(100, 100);
-        roundedPixmap.fill(Qt::transparent);
-
-        QPainter painter(&roundedPixmap);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        QPainterPath path;
-        path.addEllipse(0, 0, 100, 100);
-        painter.setClipPath(path);
-        painter.drawPixmap(0, 0, 100, 100, originalPixmap);
-        painter.end();
-
+        QPixmap roundedPixmap = ImageUtils::getCircularPixmap(originalPixmap, 100);
         avatar->setPixmap(roundedPixmap);
     } else {
         // 退回机制：如果图片资源未成功加载，显示字母占位头像
