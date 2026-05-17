@@ -44,6 +44,9 @@ void PersonalModule::setupUI() {
     // 头像 - 智能绘制完美的圆角多平台高质量头像图片 (支持当前登录用户的员工头像)
     QLabel *avatar = new QLabel();
     avatar->setFixedSize(100, 100);
+    avatar->setCursor(Qt::PointingHandCursor);
+    avatar->installEventFilter(this);
+    m_avatarLabel = avatar;
     
     // 提取真实的姓名或用户名（去除括号后缀，如 "张震东 (店长)" -> "张震东"）
     QString realName = m_userName;
@@ -88,6 +91,7 @@ void PersonalModule::setupUI() {
     if (originalPixmap.isNull()) {
         originalPixmap = QPixmap(m_role == ADMIN ? ":/images/avatar_admin.png" : ":/images/avatar_staff.png");
     }
+    m_originalPixmap = originalPixmap;
     
     auto getPremiumCircularAvatar = [](const QPixmap &src, int size, int borderWidth, const QColor &borderColor) -> QPixmap {
         if (src.isNull()) return QPixmap();
@@ -144,7 +148,7 @@ void PersonalModule::setupUI() {
     infoVl->setAlignment(Qt::AlignCenter);
     QLabel *nameLabel = new QLabel(m_userName);
     nameLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 800; border: none; background: transparent;");
-    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.3)" : "门店营业专家 (v1.1.3)");
+    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.4)" : "门店营业专家 (v1.1.4)");
     roleLabel->setStyleSheet("color: rgba(255, 255, 255, 0.8); font-size: 14px; font-weight: 600; border: none; background: transparent;");
     infoVl->addWidget(nameLabel);
     infoVl->addWidget(roleLabel);
@@ -152,7 +156,7 @@ void PersonalModule::setupUI() {
     hl->addStretch();
 
     // 加入时间
-    QLabel *joinDate = new QLabel("版本: v1.1.3 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
+    QLabel *joinDate = new QLabel("版本: v1.1.4 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
     joinDate->setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 13px; border: none; background: transparent;");
     hl->addWidget(joinDate, 0, Qt::AlignBottom | Qt::AlignRight);
     hl->setContentsMargins(40, 40, 40, 20);
@@ -405,4 +409,88 @@ void PersonalModule::onActionClicked(const QString &actionName) {
         content = actionName + " 模块正在加紧研发中...";
     }
     CustomMessageDialog::showSuccess(this, actionName, content);
+}
+
+void PersonalModule::showEnlargedAvatar() {
+    if (m_originalPixmap.isNull()) return;
+
+    QDialog *dialog = new QDialog(this, Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
+    dialog->setAttribute(Qt::WA_TranslucentBackground);
+    dialog->setModal(true);
+
+    QVBoxLayout *layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    // 遮罩背景
+    QWidget *mask = new QWidget(dialog);
+    mask->setObjectName("mask");
+    mask->setStyleSheet("QWidget#mask { background-color: rgba(0, 0, 0, 0.75); }");
+    QVBoxLayout *maskLayout = new QVBoxLayout(mask);
+    maskLayout->setAlignment(Qt::AlignCenter);
+
+    // 图片框 (大图)
+    QLabel *largeLabel = new QLabel();
+    
+    // 保持高分辨率的等比例大图 (限制在450x450，并保持比例)
+    QPixmap largePix = m_originalPixmap.scaled(450, 450, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    
+    // 给大图加上圆角和白色边框
+    QPixmap roundedLarge(largePix.size());
+    roundedLarge.fill(Qt::transparent);
+    QPainter painter(&roundedLarge);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    
+    QPainterPath path;
+    path.addRoundedRect(4, 4, largePix.width() - 8, largePix.height() - 8, 20, 20);
+    painter.save();
+    painter.setClipPath(path);
+    painter.drawPixmap(0, 0, largePix);
+    painter.restore();
+
+    // 绘制大图的白色描边
+    QPen pen(Qt::white);
+    pen.setWidth(8);
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    painter.setPen(pen);
+    painter.drawRoundedRect(QRectF(4, 4, largePix.width() - 8, largePix.height() - 8), 20, 20);
+    painter.end();
+
+    largeLabel->setPixmap(roundedLarge);
+    largeLabel->setFixedSize(largePix.size());
+
+    // 强烈的阴影效果，体现高级感
+    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(largeLabel);
+    shadow->setBlurRadius(35);
+    shadow->setColor(QColor(0, 0, 0, 180));
+    shadow->setOffset(0, 12);
+    largeLabel->setGraphicsEffect(shadow);
+
+    maskLayout->addWidget(largeLabel);
+    layout->addWidget(mask);
+
+    // 保存大图dialog指针，方便eventFilter捕获并关闭
+    m_enlargedDialog = dialog;
+
+    // 点击大图或遮罩即可关闭
+    mask->installEventFilter(this);
+    largeLabel->installEventFilter(this);
+
+    dialog->resize(this->window()->size());
+    dialog->show();
+}
+
+bool PersonalModule::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == m_avatarLabel && event->type() == QEvent::MouseButtonRelease) {
+        showEnlargedAvatar();
+        return true;
+    }
+    if (m_enlargedDialog && (watched == m_enlargedDialog->findChild<QWidget*>("mask") || watched == m_enlargedDialog->findChild<QLabel*>()) && event->type() == QEvent::MouseButtonRelease) {
+        m_enlargedDialog->accept();
+        m_enlargedDialog->deleteLater();
+        m_enlargedDialog = nullptr;
+        return true;
+    }
+    return QWidget::eventFilter(watched, event);
 }
