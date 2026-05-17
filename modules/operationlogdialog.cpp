@@ -123,67 +123,11 @@ OperationLogDialog::OperationLogDialog(QWidget *parent)
     setFixedSize(960, 650);
 
     m_dataManager = new LogDataManager(this);
-    addMockDataIfNeeded();
+    connect(m_dataManager, &LogDataManager::logsReceived, this, &OperationLogDialog::onLogsReceived);
+
     setupUi();
     applyStyles();
     loadPage(1);
-
-    if (m_listWidget->count() > 0) {
-        m_listWidget->setCurrentRow(0);
-        onLogSelected(m_listWidget->item(0));
-    }
-}
-
-void OperationLogDialog::addMockDataIfNeeded() {
-    struct MockEntry {
-        QString id;
-        QString op;
-        QString mod;
-        QString act;
-        QString field;
-        QString oldVal;
-        QString newVal;
-        int secsAgo;
-    };
-
-    QList<MockEntry> mocks = {
-        {"m1", "管理员", "订单管理", "更新状态", "订单状态", "待接单", "已完成", 0},
-        {"m2", "张三",   "库存管理", "库存盘点", "当前库存量", "50", "48", 3600},
-        {"m3", "李四",   "寄养管理", "修改价格", "寄养单价(元/天)", "120.00", "150.00", 7200},
-        {"m4", "管理员", "会员管理", "删除会员", "会员状态", "活跃", "已注销", 10800},
-        {"m5", "王五",   "库存管理", "商品上架", "上架状态", "未上架", "已上架", 14400},
-        {"m6", "张三",   "服务管理", "修改价格", "洗护套餐价格(元)", "88.00", "98.00", 18000},
-        {"m7", "李四",   "预约管理", "取消预约", "预约状态", "待确认", "已取消", 21600},
-        {"m8", "管理员", "财务管理", "审核工资", "工资状态", "待审核", "已发放", 25200},
-        {"m9", "王五",   "寄养管理", "办理入住", "房位状态", "空闲", "已占用", 28800},
-        {"m10", "张三",   "会员管理", "会员充值", "卡余额(元)", "500.00", "1500.00", 32400},
-        {"m11", "管理员", "库存管理", "库存预警", "预警状态", "正常", "低于安全线", 36000},
-        {"m12", "李四",   "订单管理", "订单作废", "订单状态", "已支付", "已作废", 39600},
-        {"m13", "王五",   "商品资料", "新增商品", "商品状态", "空", "在售", 43200},
-        {"m14", "管理员", "系统配置", "修改费率", "服务提成比例", "20%", "25%", 46800},
-        {"m15", "赵六",   "库存管理", "商品入库", "库存数量", "10", "110", 50400}
-    };
-
-    qDebug() << "OperationLogDialog: Starting mock data generation...";
-    for (const auto &m : mocks) {
-        SysOperationLog log;
-        log.id = m.id;
-        log.timestamp = QDateTime::currentDateTime().addSecs(-m.secsAgo).toString("yyyy-MM-dd HH:mm:ss");
-        log.operatorName = m.op;
-        log.module = m.mod;
-        log.action = m.act;
-
-        QJsonObject diff;
-        diff["field"] = m.field;
-        diff["old"] = m.oldVal;
-        diff["new"] = m.newVal;
-        log.details = QJsonDocument(diff).toJson(QJsonDocument::Compact);
-        bool ok = m_dataManager->insertMockLog(log);
-        if (!ok) qDebug() << "OperationLogDialog: Failed to insert" << m.id;
-    }
-    
-    int finalCount = m_dataManager->getTotalCount();
-    qDebug() << "OperationLogDialog: Mock data generation finished. Total count in DB:" << finalCount;
 }
 
 void OperationLogDialog::setupUi() {
@@ -254,8 +198,7 @@ void OperationLogDialog::setupUi() {
     
     // 填充已有操作人
     m_operatorEdit->addItem("全部操作人", ""); 
-    QStringList operators = m_dataManager->fetchDistinctOperators();
-    m_operatorEdit->addItems(operators);
+    m_operatorEdit->addItem("管理员 (店长)");
     m_operatorEdit->setCurrentIndex(0);
 
     QLabel *modLbl = new QLabel("模块：");
@@ -263,7 +206,7 @@ void OperationLogDialog::setupUi() {
     m_moduleCombo = new QComboBox();
     m_moduleCombo->setFixedSize(130, 32);
     m_moduleCombo->addItem("全部模块", "");
-    QStringList modules = m_dataManager->fetchDistinctModules();
+    QStringList modules = {"会员管理", "宠物档案", "订单管理", "服务管理", "库存管理", "财务管理", "预约管理"};
     for (const QString &mod : modules) {
         m_moduleCombo->addItem(mod, mod);
     }
@@ -596,15 +539,25 @@ void OperationLogDialog::loadPage(int page) {
     if (op == "全部操作人") op = "";
     QString mod = m_moduleCombo->currentData().toString();
     
-    m_totalItems = m_dataManager->getTotalCount(start, end, op, mod);
+    int offset = (m_currentPage - 1) * m_itemsPerPage;
+    
+    // 显示加载提示状态
+    m_detailBrowser->setHtml(
+        "<div style='text-align:center; padding-top:120px; color:#64748b; font-size:14px;'>"
+        "正在加载日志数据，请稍候...</div>"
+    );
+    
+    m_dataManager->fetchLogs(m_itemsPerPage, offset, start, end, op, mod);
+}
+
+void OperationLogDialog::onLogsReceived(const QList<SysOperationLog> &logs, int totalCount) {
+    m_listWidget->clear();
+    m_totalItems = totalCount;
     int totalPages = qMax(1, (m_totalItems + m_itemsPerPage - 1) / m_itemsPerPage);
     
     m_pageLabel->setText(QString("第 %1 / %2 页 · 共 %3 条").arg(m_currentPage).arg(totalPages).arg(m_totalItems));
     m_prevBtn->setEnabled(m_currentPage > 1);
     m_nextBtn->setEnabled(m_currentPage < totalPages);
-    
-    int offset = (m_currentPage - 1) * m_itemsPerPage;
-    QList<SysOperationLog> logs = m_dataManager->fetchLogs(m_itemsPerPage, offset, start, end, op, mod);
     
     for (const auto &log : logs) {
         QListWidgetItem *item = new QListWidgetItem(m_listWidget);

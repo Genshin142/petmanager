@@ -4,6 +4,7 @@
 #include <QRandomGenerator>
 #include "logisticsmanager.h"
 #include "memberdatamanager.h"
+#include "logdatamanager.h"
 #include "servicedatamanager.h"
 #include "../utils/networkmanager.h"
 #include <QJsonArray>
@@ -390,6 +391,14 @@ void PetDataManager::addPet(const PetInfo &info)
     body["status"] = newPet.status;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_PET, body);
+
+    // 记录新增宠物日志
+    QJsonObject diff;
+    diff["field"] = "姓名, 品种, 性别, 年龄, 主人姓名";
+    diff["old"] = "空";
+    diff["new"] = QString("%1, %2, %3, %4, %5")
+                  .arg(newPet.name, newPet.breed, newPet.gender, newPet.age, newPet.ownerName);
+    LogDataManager::writeLog("宠物档案", "新增宠物档案: " + newPet.name, diff);
     
     emit globalDataChanged();
 }
@@ -397,12 +406,20 @@ void PetDataManager::addPet(const PetInfo &info)
 void PetDataManager::removePet(const QString &id)
 {
     if (m_pets.contains(id)) {
+        PetInfo info = m_pets[id];
         m_pets[id].isActive = false;
         m_pets[id].status = "已注销";
         
         QJsonObject body;
         body["pet_id"] = id.mid(1).toInt();
         NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_PET, body);
+
+        // 记录注销宠物日志
+        QJsonObject diff;
+        diff["field"] = "档案状态";
+        diff["old"] = "正常活跃";
+        diff["new"] = "已软删除注销";
+        LogDataManager::writeLog("宠物档案", "软删除宠物: " + info.name, diff);
         
         notifyGlobalDataChanged();
         notifyPetDataChanged(id);
@@ -412,12 +429,20 @@ void PetDataManager::removePet(const QString &id)
 void PetDataManager::restorePet(const QString &id)
 {
     if (m_pets.contains(id)) {
+        PetInfo info = m_pets[id];
         m_pets[id].isActive = true;
         m_pets[id].status = "在家"; // 恢复后默认为在家
         
         QJsonObject body;
         body["pet_id"] = id.mid(1).toInt();
         NetworkManager::instance().sendRequest(Protocol::CMD_RESTORE_PET, body);
+
+        // 记录恢复宠物日志
+        QJsonObject diff;
+        diff["field"] = "档案状态";
+        diff["old"] = "已软删除注销";
+        diff["new"] = "正常活跃 (在家)";
+        LogDataManager::writeLog("宠物档案", "恢复宠物档案: " + info.name, diff);
         
         notifyGlobalDataChanged();
         notifyPetDataChanged(id);
@@ -1103,6 +1128,16 @@ void PetDataManager::addOrder(const OrderInfo &info) {
     
     NetworkManager::instance().sendRequest(Protocol::CMD_CREATE_ORDER, body);
 
+    // 记录下单日志
+    QJsonObject diff;
+    diff["field"] = "订单号, 业务模块, 会员姓名, 总金额, 状态";
+    diff["old"] = "空";
+    diff["new"] = QString("%1, %2, %3, ¥%4, %5")
+                  .arg(info.id, info.sourceModule == "Product" ? "商品零售" : (info.sourceModule == "Boarding" ? "宠物寄养" : "服务预约"), info.memberName)
+                  .arg(QString::number(info.totalAmount, 'f', 2))
+                  .arg(info.status == "Paid" ? "已支付" : "待结算");
+    LogDataManager::writeLog("订单管理", "创建订单: " + info.id, diff);
+
     emit globalDataChanged();
 }
 
@@ -1119,7 +1154,24 @@ void PetDataManager::updateOrder(const OrderInfo &info) {
         body["pay_method"] = info.payMethod;
         NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_ORDER, body);
 
-        // 2. 业务状态闭环：支付成功后的后续处理
+        // 2. 记录收款/修改日志
+        if (wasUnpaid && info.status == "Paid") {
+            QJsonObject diff;
+            diff["field"] = "订单状态, 支付方式, 实付金额";
+            diff["old"] = "待结算, 未支付, ¥0.00";
+            diff["new"] = QString("已支付, %1, ¥%2")
+                          .arg(info.payMethod)
+                          .arg(QString::number(info.finalAmount, 'f', 2));
+            LogDataManager::writeLog("订单管理", "收款结算订单: " + info.id, diff);
+        } else {
+            QJsonObject diff;
+            diff["field"] = "订单状态, 实付金额";
+            diff["old"] = "待结算";
+            diff["new"] = QString("%1, ¥%2").arg(info.status == "Paid" ? "已支付" : "待结算").arg(QString::number(info.finalAmount, 'f', 2));
+            LogDataManager::writeLog("订单管理", "更新订单: " + info.id, diff);
+        }
+
+        // 3. 业务状态闭环：支付成功后的后续处理
         if (wasUnpaid && info.status == "Paid") {
             // A. 寄养业务闭环：结算完成后自动退房
             if (info.sourceModule == "Boarding") {
@@ -1165,6 +1217,13 @@ void PetDataManager::cancelOrder(const QString &orderId, const QString &reason)
     body["order_id"] = orderId;
     body["reason"] = reason;
     NetworkManager::instance().sendRequest(Protocol::CMD_CANCEL_ORDER, body);
+
+    // 记录订单作废日志
+    QJsonObject diff;
+    diff["field"] = "订单状态, 作废原因";
+    diff["old"] = "正常";
+    diff["new"] = QString("已作废, 原因: %1").arg(reason);
+    LogDataManager::writeLog("订单管理", "作废订单: " + orderId, diff);
 
     if (order.sourceModule == "Appointment") {
         AppointmentInfo info = getAppointment(order.relatedId);
@@ -1231,6 +1290,13 @@ void PetDataManager::hardDeletePet(const QString &id)
         QJsonObject body;
         body["pet_id"] = id.mid(1).toInt();
         NetworkManager::instance().sendRequest(Protocol::CMD_HARD_DELETE_PET, body);
+
+        // 记录彻底物理删除宠物日志
+        QJsonObject diff;
+        diff["field"] = "数据档案";
+        diff["old"] = "存在于数据库";
+        diff["new"] = "已永久物理删除";
+        LogDataManager::writeLog("宠物档案", "彻底删除宠物: " + info.name, diff);
         
         m_pets.remove(id);
         m_activityLogs.remove(id);

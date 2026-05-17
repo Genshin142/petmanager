@@ -24,6 +24,7 @@ private slots:
     void onResetClicked();
     void onPrevClicked();
     void onNextClicked();
+    void onLogsReceived(const QList<SysOperationLog> &logs, int totalCount);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -34,7 +35,6 @@ private:
     void setupUi();
     void applyStyles();
     QString renderDiffHtml(const QString &jsonStr);
-    void addMockDataIfNeeded();
 
     LogDataManager *m_dataManager;
     int m_currentPage;

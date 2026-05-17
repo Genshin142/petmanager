@@ -1,105 +1,76 @@
 #include "logdatamanager.h"
-#include <QVariant>
+#include "../utils/networkmanager.h"
+#include "../protocol_codes.h"
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QDebug>
 #include <QDateTime>
-#include <algorithm>
-#include <QSet>
+
+// 初始化静态成员
+QString LogDataManager::s_currentUser = "";
 
 LogDataManager::LogDataManager(QObject *parent) : QObject(parent) {
-    initTable();
+    connect(&NetworkManager::instance(), &NetworkManager::packetReceived,
+            this, &LogDataManager::onPacketReceived);
 }
 
-bool LogDataManager::initTable() {
-    // 内存模式下无需建表
-    return true;
+void LogDataManager::setCurrentUser(const QString &username) {
+    s_currentUser = username;
 }
 
-QList<SysOperationLog> LogDataManager::fetchLogs(int limit, int offset, const QString &startDate, const QString &endDate, const QString &operatorName, const QString &module) {
-    QList<SysOperationLog> filteredList;
+void LogDataManager::writeLog(const QString &module, const QString &action, const QString &details) {
+    QJsonObject body;
+    body["operatorName"] = s_currentUser.isEmpty() ? "未知操作人" : s_currentUser;
+    body["module"] = module;
+    body["action"] = action;
+    body["details"] = details;
     
-    for (const auto &log : m_mockLogs) {
-        bool match = true;
-        
-        // 1. 日期筛选
-        if (!startDate.isEmpty() && !endDate.isEmpty()) {
-            QString logDate = log.timestamp.left(10);
-            if (logDate < startDate || logDate > endDate) match = false;
-        }
-        
-        // 2. 操作人筛选
-        if (match && !operatorName.isEmpty()) {
-            if (!log.operatorName.contains(operatorName, Qt::CaseInsensitive)) match = false;
-        }
-        
-        // 3. 模块筛选
-        if (match && !module.isEmpty()) {
-            if (log.module != module) match = false;
-        }
-        
-        if (match) filteredList.append(log);
-    }
+    qDebug() << "[LOG] Sending log to server:" << s_currentUser << "->" << module << ":" << action;
+    NetworkManager::instance().sendRequest(Protocol::CMD_ADD_LOG, body);
+}
+
+void LogDataManager::writeLog(const QString &module, const QString &action, const QJsonObject &diffDetails) {
+    QJsonDocument doc(diffDetails);
+    QString jsonStr = doc.toJson(QJsonDocument::Compact);
+    writeLog(module, action, jsonStr);
+}
+
+void LogDataManager::fetchLogs(int limit, int offset, const QString &startDate, const QString &endDate, const QString &operatorName, const QString &module) {
+    QJsonObject body;
+    body["limit"] = limit;
+    body["offset"] = offset;
+    body["startDate"] = startDate;
+    body["endDate"] = endDate;
+    body["operatorName"] = operatorName;
+    body["module"] = module;
     
-    // 排序 (按时间降序)
-    std::sort(filteredList.begin(), filteredList.end(), [](const SysOperationLog &a, const SysOperationLog &b) {
-        return a.timestamp > b.timestamp;
-    });
-    
-    // 分页
-    QList<SysOperationLog> result;
-    for (int i = offset; i < filteredList.size() && result.size() < limit; ++i) {
-        result.append(filteredList[i]);
-    }
-    
-    return result;
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_LOG_LIST, body);
 }
 
-int LogDataManager::getTotalCount(const QString &startDate, const QString &endDate, const QString &operatorName, const QString &module) {
-    int count = 0;
-    for (const auto &log : m_mockLogs) {
-        bool match = true;
-        if (!startDate.isEmpty() && !endDate.isEmpty()) {
-            QString logDate = log.timestamp.left(10);
-            if (logDate < startDate || logDate > endDate) match = false;
+void LogDataManager::onPacketReceived(const Protocol::NetPacket &packet) {
+    if (packet.cmdId == Protocol::CMD_GET_LOG_LIST) {
+        QJsonObject root = packet.jsonObj;
+        
+        QList<SysOperationLog> logs;
+        int totalCount = 0;
+        
+        if (root["status"].toInt() == Protocol::STATUS_OK) {
+            QJsonArray arr = root["data"].toArray();
+            totalCount = root["totalCount"].toInt();
+            
+            for (int i = 0; i < arr.size(); ++i) {
+                QJsonObject obj = arr[i].toObject();
+                SysOperationLog log;
+                log.id = obj["id"].toString();
+                log.operatorName = obj["operatorName"].toString();
+                log.module = obj["module"].toString();
+                log.action = obj["action"].toString();
+                log.details = obj["details"].toString();
+                log.timestamp = obj["timestamp"].toString();
+                logs.append(log);
+            }
         }
-        if (match && !operatorName.isEmpty()) {
-            if (!log.operatorName.contains(operatorName, Qt::CaseInsensitive)) match = false;
-        }
-        if (match && !module.isEmpty()) {
-            if (log.module != module) match = false;
-        }
-        if (match) count++;
+        
+        emit logsReceived(logs, totalCount);
     }
-    return count;
-}
-
-QStringList LogDataManager::fetchDistinctModules() {
-    QSet<QString> moduleSet;
-    for (const auto &log : m_mockLogs) {
-        moduleSet.insert(log.module);
-    }
-    QStringList list = moduleSet.values();
-    std::sort(list.begin(), list.end());
-    return list;
-}
-
-QStringList LogDataManager::fetchDistinctOperators() {
-    QSet<QString> opSet;
-    for (const auto &log : m_mockLogs) {
-        opSet.insert(log.operatorName);
-    }
-    QStringList list = opSet.values();
-    std::sort(list.begin(), list.end());
-    return list;
-}
-
-bool LogDataManager::insertMockLog(const SysOperationLog &log) {
-    // 内存模式：如果是已存在的ID，先删除旧的实现“替换”
-    for (int i = 0; i < m_mockLogs.size(); ++i) {
-        if (m_mockLogs[i].id == log.id) {
-            m_mockLogs.removeAt(i);
-            break;
-        }
-    }
-    m_mockLogs.append(log);
-    return true;
 }

@@ -40,6 +40,7 @@ set(SOURCES
     logic/order_controller.cpp
     logic/finance_controller.cpp
     logic/report_controller.cpp
+    logic/log_controller.cpp
 )
 
 # 4. 生成可执行程序

@@ -92,6 +92,10 @@ namespace Protocol {
         CMD_GET_STATS_DASHBOARD = 8001, // 获取仪表盘核心指标
         CMD_GET_STATS_REVENUE   = 8002, // 获取营收趋势数据 (趋势图)
 
+        // 系统日志类 (9000-9999)
+        CMD_GET_LOG_LIST = 9001,
+        CMD_ADD_LOG      = 9002,
+
         // 错误/响应类
         CMD_ERROR_RESPONSE  = 9999
     };

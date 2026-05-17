@@ -1,6 +1,7 @@
 #include "memberdatamanager.h"
 #include "../utils/networkmanager.h"
 #include "../protocol_codes.h"
+#include "logdatamanager.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDebug>
@@ -166,10 +167,21 @@ void MemberDataManager::addMember(const MemberInfo &info)
     data["balance"] = info.balance;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_MEMBER, data);
+
+    // 记录新增日志
+    QJsonObject diff;
+    diff["field"] = "姓名, 电话, 性别, 生日, 会员等级, 卡余额";
+    diff["old"] = "空";
+    diff["new"] = QString("%1, %2, %3, %4, %5, %6")
+                  .arg(info.name, info.phone, info.gender, info.birthday, info.level)
+                  .arg(QString::number(info.balance, 'f', 2));
+    LogDataManager::writeLog("会员管理", "新增会员: " + info.name, diff);
 }
 
 void MemberDataManager::updateMember(const MemberInfo &info)
 {
+    MemberInfo oldInfo = getMember(info.id);
+
     QJsonObject data;
     // 解析 ID，M00001 -> 1
     int dbId = info.id.mid(1).toInt();
@@ -182,27 +194,82 @@ void MemberDataManager::updateMember(const MemberInfo &info)
     data["balance"] = info.balance;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_MEMBER, data);
+
+    // 记录修改日志 (Diff 对比)
+    QJsonArray diffs;
+    if (oldInfo.name != info.name) {
+        QJsonObject d; d["field"] = "姓名"; d["old"] = oldInfo.name; d["new"] = info.name;
+        diffs.append(d);
+    }
+    if (oldInfo.phone != info.phone) {
+        QJsonObject d; d["field"] = "电话"; d["old"] = oldInfo.phone; d["new"] = info.phone;
+        diffs.append(d);
+    }
+    if (oldInfo.gender != info.gender) {
+        QJsonObject d; d["field"] = "性别"; d["old"] = oldInfo.gender; d["new"] = info.gender;
+        diffs.append(d);
+    }
+    if (oldInfo.birthday != info.birthday) {
+        QJsonObject d; d["field"] = "生日"; d["old"] = oldInfo.birthday; d["new"] = info.birthday;
+        diffs.append(d);
+    }
+    if (oldInfo.level != info.level) {
+        QJsonObject d; d["field"] = "会员等级"; d["old"] = oldInfo.level; d["new"] = info.level;
+        diffs.append(d);
+    }
+    if (qAbs(oldInfo.balance - info.balance) > 0.001) {
+        QJsonObject d; d["field"] = "卡余额"; d["old"] = QString::number(oldInfo.balance, 'f', 2); d["new"] = QString::number(info.balance, 'f', 2);
+        diffs.append(d);
+    }
+
+    if (!diffs.isEmpty()) {
+        LogDataManager::writeLog("会员管理", "编辑会员: " + info.name, QJsonDocument(diffs).toJson(QJsonDocument::Compact));
+    }
 }
 
 void MemberDataManager::removeMember(const QString &id)
 {
+    MemberInfo m = getMember(id);
+
     QJsonObject data;
     data["member_id"] = id.mid(1).toInt();
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_MEMBER, data);
+
+    QJsonObject diff;
+    diff["field"] = "会员状态";
+    diff["old"] = "正常";
+    diff["new"] = "已软删除";
+    LogDataManager::writeLog("会员管理", "软删除会员: " + m.name, diff);
 }
 
 void MemberDataManager::restoreMember(const QString &id)
 {
+    MemberInfo m = getMember(id);
+
     QJsonObject data;
     data["member_id"] = id.mid(1).toInt();
     NetworkManager::instance().sendRequest(Protocol::CMD_RESTORE_MEMBER, data);
+
+    QJsonObject diff;
+    diff["field"] = "会员状态";
+    diff["old"] = "已软删除";
+    diff["new"] = "正常";
+    LogDataManager::writeLog("会员管理", "恢复会员: " + m.name, diff);
 }
 
 void MemberDataManager::hardDeleteMember(const QString &id)
 {
+    MemberInfo m = getMember(id);
+
     QJsonObject data;
     data["member_id"] = id.mid(1).toInt();
     NetworkManager::instance().sendRequest(Protocol::CMD_HARD_DELETE_MEMBER, data);
+
+    QJsonObject diff;
+    diff["field"] = "数据档案";
+    diff["old"] = "存在于数据库";
+    diff["new"] = "已永久物理删除";
+    LogDataManager::writeLog("会员管理", "彻底删除会员: " + m.name, diff);
 }
 
 void MemberDataManager::removePetFromMember(const QString &memberId, const QString &petName)

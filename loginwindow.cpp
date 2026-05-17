@@ -1,5 +1,6 @@
 #include "loginwindow.h"
 #include "ui_loginwindow.h"
+#include "modules/logdatamanager.h"
 #include "mainwindow.h"
 #include "loadingwindow.h"
 #include <QMessageBox>
@@ -104,6 +105,8 @@ void LoginWindow::onLoginResponse(int status, const QString &message, const QJso
         UserRole role = (userInfo["role"].toString() == "店长") ? ADMIN : STAFF;
         QString displayName = QString("%1 (%2)").arg(userInfo["name"].toString(), userInfo["role"].toString());
         
+        LogDataManager::setCurrentUser(displayName);
+
         LoadingWindow *lw = new LoadingWindow(role, displayName);
         lw->show();
         this->close();
