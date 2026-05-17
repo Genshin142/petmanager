@@ -41,6 +41,7 @@ protected:
 
 private:
     void setupUI();
+    void ensureDetailDrawerCreated();
     void addSampleData();
     void addRowAt(int r, const MemberInfo &info, const QString &lastVisit = "未知", const QString &pets = "无");
     void updateRowInPlace(int r, const MemberInfo &info, const QString &lastVisit, const QString &pets);

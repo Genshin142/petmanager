@@ -38,6 +38,9 @@ private:
 
     EmployeeInfo m_currentEmployee;
     bool m_isOpened;
+    QWidget *m_emptyWidget = nullptr;
+    QWidget *m_contentWidget = nullptr;
+    void showEmptyState(bool empty);
 
     // UI Elements
     QLabel *m_avatarLabel;

@@ -986,7 +986,7 @@ void RoleModule::onCurrentCellChanged(int currentRow, int currentColumn, int pre
     Q_UNUSED(previousColumn);
 
     if (currentRow < 0 || currentRow >= empTable->rowCount()) {
-        if (m_drawer) m_drawer->hideDrawer();
+        if (m_drawer) m_drawer->setEmployee(EmployeeInfo());
         return;
     }
 
@@ -1024,10 +1024,13 @@ void RoleModule::onEditEmployeeFromDrawer(const EmployeeInfo &info)
     if (dlg.exec() == QDialog::Accepted) {
         EmployeeInfo newInfo = dlg.employeeInfo();
         
-        // 3. 更新表格 UI
+        // 3. 同步将修改写入服务端数据库
+        StaffDataManager::instance()->updateStaff(newInfo);
+        
+        // 4. 更新表格 UI
         addEmployeeRowInPlace(row, newInfo);
         
-        // 4. 同步更新详情页 Drawer
+        // 5. 同步更新详情页 Drawer
         m_drawer->setEmployee(newInfo);
         
         updateStats();

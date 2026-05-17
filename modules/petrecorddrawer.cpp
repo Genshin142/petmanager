@@ -16,7 +16,7 @@
 #include <QButtonGroup>
 #include <QStackedWidget>
 
-PetRecordDrawer::PetRecordDrawer(QWidget *parent) : QWidget(parent), m_isOpened(false)
+PetRecordDrawer::PetRecordDrawer(QWidget *parent) : QWidget(parent), m_isOpened(true)
 {
     m_timelineWidget = new PetTimelineWidget(this);
     setupUI();
@@ -24,7 +24,7 @@ PetRecordDrawer::PetRecordDrawer(QWidget *parent) : QWidget(parent), m_isOpened(
     connect(m_timelineWidget->delegate(), &TimelineDelegate::editRequested, this, &PetRecordDrawer::onEditLog);
     connect(m_timelineWidget->delegate(), &TimelineDelegate::deleteRequested, this, &PetRecordDrawer::onDeleteLog);
 
-    setFixedWidth(0);
+    setFixedWidth(450);
     m_animation = new QPropertyAnimation(this, "sideWidth");
     m_animation->setDuration(300);
     m_animation->setEasingCurve(QEasingCurve::OutCubic);
@@ -49,6 +49,30 @@ void PetRecordDrawer::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
     outerLayout->addWidget(container);
+
+    // --- 占位部分 (m_emptyWidget) ---
+    m_emptyWidget = new QWidget();
+    QVBoxLayout *emptyLayout = new QVBoxLayout(m_emptyWidget);
+    emptyLayout->setAlignment(Qt::AlignCenter);
+    QLabel *emptyIcon = new QLabel("🐾");
+    emptyIcon->setStyleSheet("font-size: 48px; color: #dcdfe6;");
+    emptyIcon->setAlignment(Qt::AlignCenter);
+    QLabel *emptyText = new QLabel("暂无宠物信息\n请在左侧列表选择或录入新宠物");
+    emptyText->setStyleSheet("color: #909399; font-size: 14px; line-height: 1.5;");
+    emptyText->setAlignment(Qt::AlignCenter);
+    emptyLayout->addStretch();
+    emptyLayout->addWidget(emptyIcon);
+    emptyLayout->addSpacing(20);
+    emptyLayout->addWidget(emptyText);
+    emptyLayout->addStretch();
+    mainLayout->addWidget(m_emptyWidget);
+
+    // --- 内容部分 (m_contentWidget) ---
+    m_contentWidget = new QWidget();
+    QVBoxLayout *contentLayout = new QVBoxLayout(m_contentWidget);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
+    mainLayout->addWidget(m_contentWidget);
 
     // --- 1. 顶部：宠物名片 (常驻) ---
     QWidget *header = new QWidget();
@@ -125,7 +149,7 @@ void PetRecordDrawer::setupUI()
     headerLayout->addSpacing(15); // 增加间距
     headerLayout->addStretch();
 
-    mainLayout->addWidget(header);
+    contentLayout->addWidget(header);
 
        // --- 2. 导航栏 (Tab Bar - Segmented Control Style) ---
     QWidget *tabWidget = new QWidget();
@@ -165,7 +189,7 @@ void PetRecordDrawer::setupUI()
     tabContainerLayout->addWidget(tabWidget);
     tabContainerLayout->addStretch();
 
-    mainLayout->addWidget(tabContainer);
+    contentLayout->addWidget(tabContainer);
 
     // --- 3. 内容区 (Stacked Widget) ---
     m_stackedWidget = new QStackedWidget();
@@ -173,7 +197,7 @@ void PetRecordDrawer::setupUI()
     m_stackedWidget->addWidget(createArchivePage());        // Index 0
     m_stackedWidget->addWidget(createBoardingPage());       // Index 1
     m_stackedWidget->addWidget(createServiceHistoryPage());  // Index 2
-    mainLayout->addWidget(m_stackedWidget);
+    contentLayout->addWidget(m_stackedWidget);
 
     connect(m_tabGroup, &QButtonGroup::idClicked, m_stackedWidget, &QStackedWidget::setCurrentIndex);
     m_tabGroup->button(0)->setChecked(true);
@@ -182,10 +206,18 @@ void PetRecordDrawer::setupUI()
     m_editBtn->setParent(container);
     m_editBtn->move(297, 21);
     m_editBtn->raise();
+
+    showEmptyState(true); // 默认显示占位界面
 }
 
 void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &logs, const QList<PetMedia> &media, const QList<FosterBatch> &batches)
 {
+    if (info.id.isEmpty()) {
+        showEmptyState(true);
+        return;
+    }
+    showEmptyState(false);
+
     m_currentPet = info;
     m_allLogs = logs;
     m_currentMedia = media;
@@ -394,6 +426,12 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
 }
 
 void PetRecordDrawer::updateEmptyState() {}
+void PetRecordDrawer::showEmptyState(bool empty)
+{
+    if (m_emptyWidget) m_emptyWidget->setVisible(empty);
+    if (m_contentWidget) m_contentWidget->setVisible(!empty);
+    if (m_editBtn) m_editBtn->setVisible(!empty);
+}
 void PetRecordDrawer::updateBatchStatus(const QString &status) { Q_UNUSED(status); }
 
 void PetRecordDrawer::addLogItem(const PetActivityLog &log)

@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QButtonGroup>
+#include <QElapsedTimer>
 #include "common_types.h"
 
 QT_BEGIN_NAMESPACE
@@ -68,9 +69,18 @@ private:
     
     void initSidebar();
     void initModules(UserRole role);
+    QWidget* loadModule(int index, UserRole role);
+    void replacePlaceholder(int index, QWidget *newWidget);
+    void preloadNextModule(int index, UserRole role);
+    bool isModuleLoaded(int index) const;
+    QWidget* getModulePointer(int index) const;
     bool eventFilter(QObject *obj, QEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
 
     UserRole m_role;
     QString m_userName;
+    
+    QElapsedTimer m_startupTimer;
+    bool m_firstPaint = true;
 };
 #endif // MAINWINDOW_H

@@ -127,6 +127,21 @@ void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject
         return;
     }
 
+    db.transaction();
+
+    // 1. 获取原状态与关联的会员ID
+    QSqlQuery checkQuery(db);
+    checkQuery.prepare("SELECT member_id, status FROM orders WHERE order_no = ?");
+    checkQuery.addBindValue(data["order_id"].toString());
+    
+    int memberId = 0;
+    QString oldStatus = "Unpaid";
+    if (checkQuery.exec() && checkQuery.next()) {
+        memberId = checkQuery.value("member_id").toInt();
+        oldStatus = checkQuery.value("status").toString();
+    }
+
+    // 2. 执行订单更新
     QSqlQuery query(db);
     query.prepare("UPDATE orders SET status = ?, actual_pay = ?, payment_method = ? WHERE order_no = ?");
     query.addBindValue(data["status"].toString());
@@ -135,16 +150,48 @@ void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject
     query.addBindValue(data["order_id"].toString());
 
     if (!query.exec()) {
+        db.rollback();
         LOG_E("[ORDER] SQL Error on Update: " << query.lastError().text().toStdString());
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();
     } else {
+        // 3. 如果原订单不是 Paid，现在更新为 Paid，且存在有效的会员ID
+        if (oldStatus != "Paid" && data["status"].toString() == "Paid" && memberId > 0) {
+            double newPay = data["final_amount"].toDouble();
+            int pointsToGain = static_cast<int>(newPay); // 1元积1分
+            
+            QSqlQuery memberQuery(db);
+            memberQuery.prepare("UPDATE members SET consume_amt = consume_amt + ?, points = points + ? WHERE member_id = ?");
+            memberQuery.addBindValue(newPay);
+            memberQuery.addBindValue(pointsToGain);
+            memberQuery.addBindValue(memberId);
+            
+            if (!memberQuery.exec()) {
+                db.rollback();
+                LOG_E("[ORDER] Failed to update member stats: " << memberQuery.lastError().text().toStdString());
+                response["status"] = Protocol::STATUS_ERROR;
+                response["message"] = "Member stats update failed: " + memberQuery.lastError().text();
+                client->sendPacket(Protocol::CMD_UPDATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
+                return;
+            }
+            LOG_I("[ORDER] Member M" << memberId << " consume_amt increased by " << newPay << ", points by " << pointsToGain);
+        }
+
+        db.commit();
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Success";
         
+        // 广播订单和财务数据刷新通知
         QJsonObject notify;
         notify["module"] = "order";
         m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+
+        // 如果更新了会员，同时广播会员刷新通知
+        if (oldStatus != "Paid" && data["status"].toString() == "Paid" && memberId > 0) {
+            QJsonObject memberNotify;
+            memberNotify["module"] = "member";
+            m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, memberNotify);
+        }
     }
     client->sendPacket(Protocol::CMD_UPDATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }

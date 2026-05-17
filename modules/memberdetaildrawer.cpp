@@ -10,17 +10,23 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QDebug>
+#include <QElapsedTimer>
 
-MemberDetailDrawer::MemberDetailDrawer(QWidget *parent) : QWidget(parent), m_imagePreviewOverlay(nullptr), m_previewLabel(nullptr), m_isOpened(false)
+MemberDetailDrawer::MemberDetailDrawer(QWidget *parent) : QWidget(parent), m_imagePreviewOverlay(nullptr), m_previewLabel(nullptr), m_isOpened(true)
 
 {
+    QElapsedTimer drawerTimer;
+    drawerTimer.start();
+    qDebug() << "[PERF] [DRAWER] MemberDetailDrawer construction started...";
     setupUI();
     setupImagePreview();
-    setFixedWidth(0);
+    setFixedWidth(450);
     
     m_animation = new QPropertyAnimation(this, "sideWidth");
     m_animation->setDuration(300);
     m_animation->setEasingCurve(QEasingCurve::OutCubic);
+    qDebug() << "[PERF] [DRAWER] MemberDetailDrawer constructor completed. Took" << drawerTimer.elapsed() << "ms.";
 }
 
 void MemberDetailDrawer::setupUI()

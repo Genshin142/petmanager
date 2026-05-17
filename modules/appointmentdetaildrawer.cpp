@@ -258,10 +258,21 @@ void AppointmentDetailDrawer::setupUI()
     QWidget *emptyWidget = new QWidget();
     emptyWidget->setStyleSheet("background: white;");
     QVBoxLayout *emptyLayout = new QVBoxLayout(emptyWidget);
-    QLabel *emptyLabel = new QLabel("未选择预约订单");
-    emptyLabel->setStyleSheet("color: #909399; font-size: 15px;");
+    emptyLayout->setAlignment(Qt::AlignCenter);
+    
+    QLabel *emptyIcon = new QLabel("📅");
+    emptyIcon->setStyleSheet("font-size: 48px; color: #dcdfe6;");
+    emptyIcon->setAlignment(Qt::AlignCenter);
+    
+    QLabel *emptyLabel = new QLabel("暂无预约订单\n请在左侧列表选择或录入新订单");
+    emptyLabel->setStyleSheet("color: #909399; font-size: 14px; line-height: 1.5;");
     emptyLabel->setAlignment(Qt::AlignCenter);
+    
+    emptyLayout->addStretch();
+    emptyLayout->addWidget(emptyIcon);
+    emptyLayout->addSpacing(20);
     emptyLayout->addWidget(emptyLabel);
+    emptyLayout->addStretch();
     m_mainStack->addWidget(emptyWidget);
 }
 

@@ -820,7 +820,15 @@ void PetDataManager::executeCheckOut(int roomId, const QString &petId, const QDa
             else if (rawType == "多宠房") rType = "多宠家庭房间";
         }
         
-        QString serviceName = fType + rType;
+        QString rawServiceName = fType + rType;
+        QString serviceName = rawServiceName;
+        if (rawServiceName == QString::fromUtf8("全托普通房间")) serviceName = QString::fromUtf8("全托寄养 (普通房间)");
+        else if (rawServiceName == QString::fromUtf8("全托豪华房间")) serviceName = QString::fromUtf8("全托寄养 (豪华套房)");
+        else if (rawServiceName == QString::fromUtf8("全托多宠家庭房间")) serviceName = QString::fromUtf8("全托寄养 (多宠家庭房)");
+        else if (rawServiceName == QString::fromUtf8("日托普通房间")) serviceName = QString::fromUtf8("日托寄养 (普通房间)");
+        else if (rawServiceName == QString::fromUtf8("日托豪华房间")) serviceName = QString::fromUtf8("日托寄养 (豪华套房)");
+        else if (rawServiceName == QString::fromUtf8("日托多宠家庭房间")) serviceName = QString::fromUtf8("日托寄养 (多宠家庭房)");
+
         QString barcode = "S001"; // 默认兜底
         
         // 查找对应的服务编号

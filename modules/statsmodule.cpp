@@ -310,12 +310,12 @@ void StatsModule::setupDashboardCards() {
 
     for (int i = 0; i < 3; ++i) {
         QWidget *card = new QWidget();
-        card->setFixedSize(180, 180);
+        card->setFixedSize(190, 220);
         card->setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;");
         
         QVBoxLayout *vl = new QVBoxLayout(card);
-        vl->setContentsMargins(20, 20, 20, 20);
-        vl->setSpacing(15);
+        vl->setContentsMargins(15, 15, 15, 15);
+        vl->setSpacing(8);
         // 不再整体垂直居中，让内容从顶部开始排布
         vl->setAlignment(Qt::AlignTop);
 
@@ -1402,7 +1402,15 @@ QWidget* StatsModule::createInventoryView() {
         table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         table->setColumnCount(headers.size());
         table->setHorizontalHeaderLabels(headers);
-        table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        if (headers.size() > 0 && headers[0] == QString::fromUtf8("图片")) {
+            table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+            table->setColumnWidth(0, 50); // 图片列宽 50px
+            for (int k = 1; k < headers.size(); ++k) {
+                table->horizontalHeader()->setSectionResizeMode(k, QHeaderView::Stretch);
+            }
+        } else {
+            table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        }
         table->verticalHeader()->setVisible(false);
         table->verticalHeader()->setDefaultSectionSize(48);
         table->setShowGrid(false);
@@ -1446,7 +1454,7 @@ QWidget* StatsModule::createInventoryView() {
         return mainWrapper;
     };
 
-    rankLayout->addWidget(createRankPanel("商品销售单品排行", m_productRankTable, {"商品", "销量", "营收"}, true), 1);
+    rankLayout->addWidget(createRankPanel("商品销售单品排行", m_productRankTable, {"图片", "商品", "销量", "营收"}, true), 1);
     rankLayout->addWidget(createRankPanel("商品类目销售排行", m_categoryRankTable, {"类目", "销量", "营收"}, false), 1);
     
     layout->addLayout(rankLayout);
@@ -1472,6 +1480,7 @@ void StatsModule::refreshData() {
     
     m_dailyRevPage = 0; 
     updateDailyRevTable();
+    updateCards();
 }
 
 void StatsModule::updateCharts() {
@@ -1614,10 +1623,10 @@ void StatsModule::updateProductAnalysis() {
     QMap<QString, int> categoryIdxMap;
     
     for (const auto &p : products) {
-        m_allProductData.append({p.name, 0, 0.0});
+        m_allProductData.append({p.name, 0, 0.0, p.imgData});
         if (!p.category.isEmpty() && !categoryIdxMap.contains(p.category)) {
             categoryIdxMap[p.category] = m_allCategoryData.size();
-            m_allCategoryData.append({p.category, 0, 0.0});
+            m_allCategoryData.append({p.category, 0, 0.0, ""});
         }
     }
 
@@ -1683,13 +1692,61 @@ void StatsModule::updateProductTable() {
     for (int i = start; i < end; ++i) {
         const auto &d = m_allProductData[i];
         int r = m_productRankTable->rowCount(); m_productRankTable->insertRow(r);
-        auto *item0 = new QTableWidgetItem(d.name);
-        auto *item1 = new QTableWidgetItem(QString::number(d.count));
-        auto *item2 = new QTableWidgetItem(QString("¥ %1").arg(QString::number(d.rev, 'f', 2)));
-        item1->setTextAlignment(Qt::AlignCenter); item2->setTextAlignment(Qt::AlignCenter);
-        m_productRankTable->setItem(r, 0, item0);
+        
+        // 1. 生成并设置可点击缩放的图片列
+        QLabel *imgLabel = new QLabel();
+        imgLabel->setFixedSize(32, 32);
+        imgLabel->setAlignment(Qt::AlignCenter);
+        imgLabel->setCursor(Qt::PointingHandCursor);
+        imgLabel->setProperty("isAvatar", true);
+        imgLabel->installEventFilter(this);
+
+        if (!d.imgData.isEmpty()) {
+            QByteArray decoded = QByteArray::fromBase64(d.imgData.toUtf8());
+            QPixmap pix;
+            if (pix.loadFromData(decoded)) {
+                QPixmap scaled = pix.scaled(32, 32, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                
+                QImage target(32, 32, QImage::Format_ARGB32);
+                target.fill(Qt::transparent);
+                QPainter painter(&target);
+                painter.setRenderHint(QPainter::Antialiasing);
+                QPainterPath path;
+                path.addEllipse(0, 0, 32, 32);
+                painter.setClipPath(path);
+                painter.drawPixmap(0, 0, scaled);
+                painter.end();
+                
+                imgLabel->setPixmap(QPixmap::fromImage(target));
+                imgLabel->setProperty("rawImgData", d.imgData);
+            } else {
+                imgLabel->setText(d.name.left(1));
+                imgLabel->setStyleSheet("background: #3b82f6; color: white; border-radius: 16px; font-weight: bold; font-size: 13px; border: none;");
+            }
+        } else {
+            QStringList colors = {"#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#6366f1", "#ec4899", "#94a3b8"};
+            int colorIdx = qHash(d.name) % colors.size();
+            imgLabel->setText(d.name.left(1));
+            imgLabel->setStyleSheet(QString("background: %1; color: white; border-radius: 16px; font-weight: bold; font-size: 13px; border: none;").arg(colors[colorIdx]));
+        }
+
+        QWidget *imgWrapper = new QWidget();
+        imgWrapper->setStyleSheet("background: transparent;");
+        QHBoxLayout *imgLayout = new QHBoxLayout(imgWrapper);
+        imgLayout->setContentsMargins(0, 0, 0, 0); 
+        imgLayout->addWidget(imgLabel, 0, Qt::AlignCenter);
+        m_productRankTable->setCellWidget(r, 0, imgWrapper);
+
+        // 2. 设置其他数据列
+        auto *item1 = new QTableWidgetItem(d.name);
+        auto *item2 = new QTableWidgetItem(QString::number(d.count));
+        auto *item3 = new QTableWidgetItem(QString("¥ %1").arg(QString::number(d.rev, 'f', 2)));
+        item2->setTextAlignment(Qt::AlignCenter); 
+        item3->setTextAlignment(Qt::AlignCenter);
+        
         m_productRankTable->setItem(r, 1, item1);
         m_productRankTable->setItem(r, 2, item2);
+        m_productRankTable->setItem(r, 3, item3);
     }
     int maxP = (m_allProductData.size() + 8) / 9;
     m_productPageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_productPage + 1).arg(qMax(1, maxP)));
@@ -1768,7 +1825,15 @@ void StatsModule::updateServiceRankAnalysis() {
             QJsonArray items = doc.array();
             for (const auto &v : items) {
                 QJsonObject item = v.toObject();
-                QString name = item["name"].toString();
+                QString rawName = item["name"].toString();
+                QString name = rawName;
+                if (rawName == QString::fromUtf8("全托普通房间")) name = QString::fromUtf8("全托寄养 (普通房间)");
+                else if (rawName == QString::fromUtf8("全托豪华房间")) name = QString::fromUtf8("全托寄养 (豪华套房)");
+                else if (rawName == QString::fromUtf8("全托多宠家庭房间")) name = QString::fromUtf8("全托寄养 (多宠家庭房)");
+                else if (rawName == QString::fromUtf8("日托普通房间")) name = QString::fromUtf8("日托寄养 (普通房间)");
+                else if (rawName == QString::fromUtf8("日托豪华房间")) name = QString::fromUtf8("日托寄养 (豪华套房)");
+                else if (rawName == QString::fromUtf8("日托多宠家庭房间")) name = QString::fromUtf8("日托寄养 (多宠家庭房)");
+
                 int count = item["count"].toInt();
                 double price = item["price"].toDouble();
                 
@@ -1873,8 +1938,19 @@ void StatsModule::updateCards() {
     // 财务分类 (0) 的卡片更新已交由 onDashboardStatsReceived 异步处理
     if (m_currentCategory == 0) return;
 
-    auto updateCard = [&](int idx, const QString &val, double diff) {
+    auto updateCard = [&](int idx, const QString &val, double diff, const QString &imgDataStr = "", const QString &nameForFallback = "") {
         m_cardValues[idx]->setText(val);
+        m_cardValues[idx]->setWordWrap(true); // 开启自动换行支持
+        
+        // 动态调节字号，保证全称显示完整且优雅
+        int len = val.length();
+        int fontSize = 28;
+        if (len > 12) fontSize = 14;
+        else if (len > 8) fontSize = 18;
+        else if (len > 5) fontSize = 22;
+        
+        m_cardValues[idx]->setStyleSheet(QString("color: #0f172a; font-size: %1px; font-weight: 900; border: none;").arg(fontSize));
+
         if (diff != 0) {
             QString sign = diff >= 0 ? "↑" : "↓";
             QString color = diff >= 0 ? "#22c55e" : "#ef4444";
@@ -1884,6 +1960,69 @@ void StatsModule::updateCards() {
             m_cardTrends[idx]->setText("--");
             m_cardTrends[idx]->setStyleSheet("color: #94a3b8; font-size: 12px; border: none;");
         }
+
+        // --- 动态卡片图片渲染逻辑开始 ---
+        QWidget *card = qobject_cast<QWidget*>(m_cardValues[idx]->parentWidget());
+        if (card) {
+            QLabel *photoLabel = card->findChild<QLabel*>("cardPhoto");
+            
+            if (imgDataStr.isEmpty() && nameForFallback.isEmpty()) {
+                if (photoLabel) photoLabel->hide();
+            } else {
+                if (!photoLabel) {
+                    photoLabel = new QLabel(card);
+                    photoLabel->setObjectName("cardPhoto");
+                    photoLabel->setFixedSize(64, 64);
+                    photoLabel->setAlignment(Qt::AlignCenter);
+                    photoLabel->setStyleSheet("border: none; background: transparent;");
+                    photoLabel->setCursor(Qt::PointingHandCursor);
+                    photoLabel->setProperty("isAvatar", true);
+                    photoLabel->installEventFilter(this);
+                    
+                    QVBoxLayout *vl = qobject_cast<QVBoxLayout*>(card->layout());
+                    if (vl) {
+                        // 插入在 titleLabel 下方 (索引 2 处)
+                        vl->insertWidget(2, photoLabel, 0, Qt::AlignCenter);
+                    }
+                }
+                photoLabel->show();
+                photoLabel->setProperty("rawImgData", imgDataStr); // 动态绑定 base64 数据以支持点击放大！
+
+                if (!imgDataStr.isEmpty()) {
+                    QByteArray decoded = QByteArray::fromBase64(imgDataStr.toUtf8());
+                    QPixmap pix;
+                    if (pix.loadFromData(decoded)) {
+                        // 剪裁成高级的微圆角正方形 (border-radius: 10px)
+                        QPixmap scaled = pix.scaled(60, 60, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                        
+                        QImage target(60, 60, QImage::Format_ARGB32);
+                        target.fill(Qt::transparent);
+                        QPainter painter(&target);
+                        painter.setRenderHint(QPainter::Antialiasing);
+                        QPainterPath path;
+                        path.addRoundedRect(0, 0, 60, 60, 10, 10);
+                        painter.setClipPath(path);
+                        painter.drawPixmap(0, 0, scaled);
+                        painter.end();
+                        
+                        photoLabel->setPixmap(QPixmap::fromImage(target));
+                        photoLabel->setText("");
+                        photoLabel->setStyleSheet("border: 2px solid white; border-radius: 12px; background: white;");
+                    } else {
+                        photoLabel->setPixmap(QPixmap());
+                        photoLabel->setText("");
+                    }
+                } else if (!nameForFallback.isEmpty()) {
+                    // 兜底渲染彩色圆形徽章
+                    QStringList colors = {"#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#6366f1", "#ec4899", "#94a3b8"};
+                    int colorIdx = qHash(nameForFallback) % colors.size();
+                    photoLabel->setPixmap(QPixmap());
+                    photoLabel->setText(nameForFallback.left(1));
+                    photoLabel->setStyleSheet(QString("background: %1; color: white; border-radius: 32px; font-weight: bold; font-size: 24px; border: 2px solid white;").arg(colors[colorIdx]));
+                }
+            }
+        }
+        // --- 动态卡片图片渲染逻辑结束 ---
     };
 
     if (m_currentCategory == 1) { // 店员统计卡片
@@ -1896,8 +2035,8 @@ void StatsModule::updateCards() {
         double totalRev = 0; int totalOrders = 0;
         for(const auto &s : m_allStaffData) { totalRev += s.rev; totalOrders += s.count; }
         double avgEff = totalOrders > 0 ? totalRev / totalOrders : 0;
-        updateCard(0, topRevIt->name.left(6), 0);
-        updateCard(1, topOrderIt->name.left(6), 0);
+        updateCard(0, topRevIt->name, 0, "", topRevIt->name);
+        updateCard(1, topOrderIt->name, 0);
         updateCard(2, QString("¥%1").arg(QString::number(avgEff, 'f', 0)), 0);
         m_cardTrends[0]->setText(QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)));
         m_cardTrends[1]->setText(QString("%1 单").arg(topOrderIt->count));
@@ -1909,12 +2048,45 @@ void StatsModule::updateCards() {
         }
         auto topQtyIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){ return a.count < b.count; });
         auto topRevIt = std::max_element(m_allProductData.begin(), m_allProductData.end(), [](const ProductRankData &a, const ProductRankData &b){ return a.rev < b.rev; });
-        updateCard(0, topQtyIt->name.left(6), 0);
+        updateCard(0, topQtyIt->name, 0, topQtyIt->imgData, topQtyIt->name);
         updateCard(1, QString::number(topQtyIt->count), 0);
         updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0);
         m_cardTrends[0]->setText("最受宠爱单品");
         m_cardTrends[1]->setText("本期累计卖出");
-        m_cardTrends[2]->setText(topRevIt->name.left(6) + " 贡献");
+        m_cardTrends[2]->setText(topRevIt->name + " 贡献");
+
+        // 渲染商品占比饼图
+        if (m_productCategoryChart) {
+            QChart *chart = new QChart();
+            chart->setBackgroundVisible(false);
+            QPieSeries *series = new QPieSeries();
+            series->setHoleSize(0.4);
+            series->setPieSize(0.7);
+            
+            double total = 0.0;
+            for (const auto &d : m_allCategoryData) {
+                total += d.rev;
+            }
+            
+            QList<QColor> colors = {QColor("#3b82f6"), QColor("#8b5cf6"), QColor("#10b981"), QColor("#f59e0b"), QColor("#6366f1"), QColor("#ec4899")};
+            int colorIdx = 0;
+            for (const auto &d : m_allCategoryData) {
+                if (d.rev <= 0) continue;
+                double pct = (total > 0) ? (d.rev / total * 100.0) : 0.0;
+                QString labelText = QString("%1 %2%").arg(d.name).arg(QString::number(pct, 'f', 1));
+                QPieSlice *slice = series->append(labelText, d.rev);
+                slice->setBrush(colors[colorIdx % colors.size()]);
+                slice->setLabelVisible(true);
+                slice->setLabelPosition(QPieSlice::LabelOutside);
+                slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+                colorIdx++;
+            }
+            
+            chart->addSeries(series);
+            chart->setMargins(QMargins(0, 0, 0, 0));
+            chart->legend()->hide();
+            m_productCategoryChart->setChart(chart);
+        }
     } else if (m_currentCategory == 3) { // 服务排行卡片
         if (m_allServiceData.isEmpty()) {
             updateCard(0, "无", 0); updateCard(1, "0", 0); updateCard(2, "¥0", 0);
@@ -1922,12 +2094,45 @@ void StatsModule::updateCards() {
         }
         auto topQtyIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){ return a.count < b.count; });
         auto topRevIt = std::max_element(m_allServiceData.begin(), m_allServiceData.end(), [](const SvcRankData &a, const SvcRankData &b){ return a.rev < b.rev; });
-        updateCard(0, topQtyIt->name.left(6), 0);
+        updateCard(0, topQtyIt->name, 0, "", topQtyIt->name);
         updateCard(1, QString::number(topQtyIt->count), 0);
         updateCard(2, QString("¥%1").arg(QString::number(topRevIt->rev, 'f', 0)), 0);
         m_cardTrends[0]->setText("金牌服务项目");
         m_cardTrends[1]->setText("本期服务人次");
-        m_cardTrends[2]->setText(topRevIt->name.left(6) + " 贡献");
+        m_cardTrends[2]->setText(topRevIt->name + " 贡献");
+
+        // 渲染服务占比饼图
+        if (m_serviceHeatmapChart) {
+            QChart *chart = new QChart();
+            chart->setBackgroundVisible(false);
+            QPieSeries *series = new QPieSeries();
+            series->setHoleSize(0.4);
+            series->setPieSize(0.7);
+            
+            double total = 0.0;
+            for (const auto &d : m_allServiceCategoryData) {
+                total += d.rev;
+            }
+            
+            QList<QColor> colors = {QColor("#3b82f6"), QColor("#8b5cf6"), QColor("#10b981"), QColor("#f59e0b"), QColor("#6366f1"), QColor("#ec4899")};
+            int colorIdx = 0;
+            for (const auto &d : m_allServiceCategoryData) {
+                if (d.rev <= 0) continue;
+                double pct = (total > 0) ? (d.rev / total * 100.0) : 0.0;
+                QString labelText = QString("%1 %2%").arg(d.name).arg(QString::number(pct, 'f', 1));
+                QPieSlice *slice = series->append(labelText, d.rev);
+                slice->setBrush(colors[colorIdx % colors.size()]);
+                slice->setLabelVisible(true);
+                slice->setLabelPosition(QPieSlice::LabelOutside);
+                slice->setLabelFont(QFont("Microsoft YaHei", 10, QFont::Bold));
+                colorIdx++;
+            }
+            
+            chart->addSeries(series);
+            chart->setMargins(QMargins(0, 0, 0, 0));
+            chart->legend()->hide();
+            m_serviceHeatmapChart->setChart(chart);
+        }
     }
 }
 
@@ -1941,21 +2146,21 @@ void StatsModule::onCategoryChanged(int index) {
     // 动态更新卡片标题
     if (m_cardTitles.size() >= 3) {
         if (index == 0) {
-            m_cardTitles[0]->setText("总营收 (REVENUE)");
-            m_cardTitles[1]->setText("毛利润 (PROFIT)");
-            m_cardTitles[2]->setText("客单价 (AVG ORDER)");
+            m_cardTitles[0]->setText("总营收");
+            m_cardTitles[1]->setText("毛利润");
+            m_cardTitles[2]->setText("客单价");
         } else if (index == 1) {
-            m_cardTitles[0]->setText("营收冠军 (TOP REVENUE)");
-            m_cardTitles[1]->setText("单量冠军 (TOP ORDERS)");
-            m_cardTitles[2]->setText("人效均值 (EFFICIENCY)");
+            m_cardTitles[0]->setText("营收冠军");
+            m_cardTitles[1]->setText("单量冠军");
+            m_cardTitles[2]->setText("人效均值");
         } else if (index == 2) {
-            m_cardTitles[0]->setText("热销榜首 (BEST SELLER)");
-            m_cardTitles[1]->setText("冠军销量 (TOP SALES)");
-            m_cardTitles[2]->setText("冠军营收 (TOP REVENUE)");
+            m_cardTitles[0]->setText("热销榜首");
+            m_cardTitles[1]->setText("冠军销量");
+            m_cardTitles[2]->setText("冠军营收");
         } else if (index == 3) {
-            m_cardTitles[0]->setText("最受欢迎 (MOST POPULAR)");
-            m_cardTitles[1]->setText("服务单量 (SVC VOLUME)");
-            m_cardTitles[2]->setText("服务营收 (SVC REVENUE)");
+            m_cardTitles[0]->setText("最受欢迎");
+            m_cardTitles[1]->setText("服务单量");
+            m_cardTitles[2]->setText("服务营收");
         }
     }
 
@@ -1983,8 +2188,49 @@ bool StatsModule::eventFilter(QObject *watched, QEvent *event) {
     if (watched->property("isAvatar").toBool() && event->type() == QEvent::MouseButtonPress) {
         QLabel *small = qobject_cast<QLabel*>(watched);
         if (small) {
-            m_largePreviewLabel->setText(small->text());
-            m_largePreviewLabel->setStyleSheet(small->styleSheet() + "border-radius: 100px; font-size: 80px; border: 4px solid white;");
+            // 动态计算主界面 80% 的尺寸（取宽高的较小值）
+            int side = qMin(this->width(), this->height()) * 0.8;
+            m_largePreviewLabel->setFixedSize(side, side);
+
+            QString rawImgData = small->property("rawImgData").toString();
+            if (!rawImgData.isEmpty()) {
+                QByteArray decoded = QByteArray::fromBase64(rawImgData.toUtf8());
+                QPixmap pix;
+                if (pix.loadFromData(decoded)) {
+                    // 1. 商品大图采用正方形展示，保持原始宽高比缩放以确保商品包装和细节完整呈现
+                    QPixmap scaled = pix.scaled(side - 32, side - 32, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                    
+                    m_largePreviewLabel->setPixmap(scaled);
+                    m_largePreviewLabel->setText("");
+                    m_largePreviewLabel->setAlignment(Qt::AlignCenter);
+                    // 采用非常高级的微圆角正方形画廊卡片样式，白色背景与超大白边框，带优雅阴影感
+                    m_largePreviewLabel->setStyleSheet("background: #ffffff; border-radius: 16px; border: 8px solid white;");
+                } else {
+                    m_largePreviewLabel->setPixmap(QPixmap());
+                    m_largePreviewLabel->setText(small->text());
+                    m_largePreviewLabel->setStyleSheet(small->styleSheet() + QString("; border-radius: %1px; font-size: %2px; border: 8px solid white;").arg(side / 2).arg((int)(side * 0.4)));
+                }
+            } else {
+                // 员工文字头像的等比例超大化圆形显示
+                m_largePreviewLabel->setPixmap(QPixmap());
+                m_largePreviewLabel->setText(small->text());
+                
+                // 精准提取小头像的背景色
+                QString bgStyle = "";
+                QString origStyle = small->styleSheet();
+                int bgStart = origStyle.indexOf("background:");
+                if (bgStart != -1) {
+                    int bgEnd = origStyle.indexOf(";", bgStart);
+                    if (bgEnd != -1) {
+                        bgStyle = origStyle.mid(bgStart, bgEnd - bgStart + 1);
+                    } else {
+                        bgStyle = origStyle.mid(bgStart);
+                    }
+                }
+                if (bgStyle.isEmpty()) bgStyle = "background: #3b82f6;";
+
+                m_largePreviewLabel->setStyleSheet(QString("%1 color: white; border-radius: %2px; font-weight: bold; border: 8px solid white; font-size: %3px;").arg(bgStyle).arg(side / 2).arg((int)(side * 0.4)));
+            }
             m_backdrop->setGeometry(this->rect());
             m_backdrop->show();
             m_backdrop->raise();
@@ -2089,8 +2335,8 @@ void StatsModule::goToDailyRevPage(int delta) {
 }
 
 void StatsModule::onDashboardStatsReceived(const QJsonObject &data) {
-    // 1. 更新卡片 (KPI)
-    if (m_cardValues.size() >= 3) {
+    // 1. 更新卡片 (KPI) - 仅在财务总览 (0) 时使用该异步卡片数据
+    if (m_currentCategory == 0 && m_cardValues.size() >= 3) {
         m_cardValues[0]->setText(QString("¥%1").arg(QString::number(data["totalRevenue"].toDouble(), 'f', 0)));
         m_cardValues[1]->setText(QString::number(data["totalOrders"].toInt()));
         m_cardValues[2]->setText(QString("¥%1").arg(QString::number(data["avgOrder"].toDouble(), 'f', 0)));

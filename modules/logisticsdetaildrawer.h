@@ -41,6 +41,8 @@ private:
     
     QWidget *m_contentArea;
     QVBoxLayout *m_contentLayout;
+    QWidget *m_emptyWidget = nullptr;
+    QWidget *m_contentWidget = nullptr;
     
     QPropertyAnimation *m_anim;
     QPushButton *m_primaryBtn;

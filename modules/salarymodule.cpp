@@ -113,7 +113,6 @@ SalaryModule::SalaryModule(QWidget *parent) : QWidget(parent)
 {
     m_currentMonth = QDate::currentDate().toString("yyyy-MM");
     setupUI();
-    setupImagePreview();
     refreshData();
     
     if (m_salaryTable->rowCount() > 0) {
@@ -597,23 +596,14 @@ void SalaryModule::onEditSalary(const QString &salaryId)
 
 void SalaryModule::setupImagePreview()
 {
-    // 寻找真正的程序顶级窗口
-    QWidget *topWin = QApplication::activeWindow();
-    if (!topWin) {
-        topWin = this->window();
-        while (topWin && topWin->parentWidget()) {
-            topWin = topWin->parentWidget();
-        }
-    }
-    if (!topWin) return;
+    QWidget *win = this->window();
+    if (!win) return;
 
-    m_imagePreviewOverlay = new QWidget(topWin);
+    m_imagePreviewOverlay = new QWidget(win);
     m_imagePreviewOverlay->setObjectName("SalaryPreviewOverlay");
     m_imagePreviewOverlay->setStyleSheet("#SalaryPreviewOverlay { background-color: rgba(0, 0, 0, 215); }");
     m_imagePreviewOverlay->hide();
     m_imagePreviewOverlay->installEventFilter(this);
-    
-    topWin->installEventFilter(this);
     
     QVBoxLayout *previewL = new QVBoxLayout(m_imagePreviewOverlay);
     m_previewLabel = new QLabel();
@@ -646,9 +636,9 @@ void SalaryModule::showBigImage(const QString &path, const QString &text)
     
     if (!pix.isNull()) {
         m_previewLabel->setPixmap(pix.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        QWidget *topWin = m_imagePreviewOverlay->parentWidget();
-        if (topWin) {
-            m_imagePreviewOverlay->setGeometry(topWin->rect());
+        QWidget *win = this->window();
+        if (win) {
+            m_imagePreviewOverlay->setGeometry(win->rect());
             m_imagePreviewOverlay->show();
             m_imagePreviewOverlay->raise();
         }
@@ -676,14 +666,6 @@ bool SalaryModule::eventFilter(QObject *watched, QEvent *event)
         if (watched == m_imagePreviewOverlay) {
             hideBigImage();
             return true;
-        }
-    }
-    
-    // 处理父窗口大小变化 (同步遮罩层大小)
-    if (event->type() == QEvent::Resize && m_imagePreviewOverlay) {
-        QWidget *topWin = m_imagePreviewOverlay->parentWidget();
-        if (watched == topWin && m_imagePreviewOverlay->isVisible()) {
-            m_imagePreviewOverlay->setGeometry(topWin->rect());
         }
     }
     

@@ -274,7 +274,7 @@ void AppointmentModule::setupUI()
 
     // 4. 右侧详情页
     m_drawer = new AppointmentDetailDrawer(this);
-    m_drawer->setFixedWidth(420);
+    m_drawer->setFixedWidth(450);
     connect(m_drawer, &AppointmentDetailDrawer::confirmRequested, this, &AppointmentModule::handleConfirm);
     connect(m_drawer, &AppointmentDetailDrawer::startServiceRequested, this, &AppointmentModule::handleStartService);
     connect(m_drawer, &AppointmentDetailDrawer::completeRequested, this, &AppointmentModule::handleComplete); // 新增

@@ -45,7 +45,7 @@ private:
     QWidget* createSectionTitle(const QString &text);
     void addInfoRow(QGridLayout *grid, int row, const QString &label, const QString &value);
     
-    bool m_isOpened = false;
+    bool m_isOpened = true;
     QPropertyAnimation *m_animation;
     AppointmentInfo m_currentInfo;
 

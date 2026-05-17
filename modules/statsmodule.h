@@ -175,7 +175,7 @@ private:
     struct SvcRankData { QString name; int count; double rev; };
     QList<SvcRankData> m_allServiceData;
     QList<SvcRankData> m_allServiceCategoryData;
-    struct ProductRankData { QString name; int count; double rev; };
+    struct ProductRankData { QString name; int count; double rev; QString imgData; };
     QList<ProductRankData> m_allProductData;
     QList<ProductRankData> m_allCategoryData;
 };

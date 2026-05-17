@@ -9,8 +9,10 @@
 #include <QEvent>
 #include <QVariant>
 #include <QFile>
+#include <QFileInfo>
 #include <QPainter>
 #include <QPainterPath>
+#include "../utils/imageutils.h"
 
 AddEmployeeDialog::AddEmployeeDialog(QWidget *parent) : QDialog(parent)
 {
@@ -93,9 +95,15 @@ void AddEmployeeDialog::setupUI()
     connect(chooseBtn, &QPushButton::clicked, this, [this]() {
         QString path = QFileDialog::getOpenFileName(this, "选择员工照片", "E:/QT/work/PetManager/images", "Images (*.png *.jpg *.jpeg)");
         if (!path.isEmpty()) {
-            m_selectedImgPath = path;
-            // 实时更新并确保圆形显示
-            updateAvatarPreview(path);
+            QFile file(path);
+            if (file.open(QIODevice::ReadOnly)) {
+                QByteArray ba = file.readAll();
+                QString ext = QFileInfo(path).suffix().toLower();
+                if (ext == "jpg") ext = "jpeg";
+                QString base64Str = QString("data:image/%1;base64,%2").arg(ext).arg(QString(ba.toBase64()));
+                m_selectedImgPath = base64Str;
+                updateAvatarPreview(base64Str);
+            }
         }
     });
 
@@ -318,7 +326,7 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
 
     // 头像同步
     m_selectedImgPath = info.imgPath;
-    if (m_selectedImgPath.isEmpty() || !QFile(m_selectedImgPath).exists()) {
+    if (m_selectedImgPath.isEmpty() || (!m_selectedImgPath.startsWith("data:image/") && !m_selectedImgPath.contains(";base64,") && !QFile(m_selectedImgPath).exists())) {
         m_selectedImgPath = info.gender == "女" ? ":/images/female.png" : ":/images/male.png";
     }
     updateAvatarPreview(m_selectedImgPath);
@@ -326,20 +334,38 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
 
 void AddEmployeeDialog::updateAvatarPreview(const QString &path)
 {
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (pix.isNull()) return;
 
-    // 创建圆形头像逻辑
+    // 清除 stylesheet 中的 border 和 background，改由 QPainter 高清绘制，防止右侧被切
+    avatarPreview->setStyleSheet("border: none; background: transparent;");
+
     int size = 80;
     QPixmap target(size, size);
     target.fill(Qt::transparent);
+    
     QPainter painter(&target);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    
+    // 留出 2px 边距给边框，防止剪裁和锯齿截断
+    int borderThickness = 2;
+    int innerSize = size - borderThickness * 2; // 76
+    
+    // 1. 绘制圆形裁剪头像
     QPainterPath clipPath;
-    clipPath.addEllipse(0, 0, size, size);
+    clipPath.addEllipse(borderThickness, borderThickness, innerSize, innerSize);
+    painter.save();
     painter.setClipPath(clipPath);
-    painter.drawPixmap(0, 0, size, size, pix.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    painter.drawPixmap(borderThickness, borderThickness, innerSize, innerSize, 
+                       pix.scaled(innerSize, innerSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    painter.restore();
+    
+    // 2. 绘制精致的淡灰色圆形外边框 (配合 Antialiasing，极其圆润且永不剪裁)
+    QPen pen(QColor("#f0f2f5"), borderThickness);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(borderThickness / 2.0, borderThickness / 2.0, size - borderThickness, size - borderThickness);
     
     avatarPreview->setPixmap(target);
     avatarPreview->setProperty("imgPath", path);
@@ -423,7 +449,7 @@ void AddEmployeeDialog::showBigImage(const QString &path)
 {
     if (path.isEmpty()) return;
     
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (pix.isNull()) return;
     
     // 完全照搬宠物逻辑：给图片加白底，且白底大小严格跟随图片

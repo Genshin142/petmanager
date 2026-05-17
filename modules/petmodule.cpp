@@ -486,6 +486,13 @@ void PetModule::refreshTable()
 
     updateStats();
     m_isRefreshing = false;
+
+    if (petTable->rowCount() > 0) {
+        petTable->selectRow(0);
+        onCurrentCellChanged(0, 0, -1, -1);
+    } else {
+        onCurrentCellChanged(-1, -1, -1, -1);
+    }
 }
 
 void PetModule::refreshTablePreservingSelection()
@@ -1001,7 +1008,10 @@ void PetModule::hideBigImage()
 void PetModule::onCurrentCellChanged(int row, int column, int prevRow, int prevCol)
 {
     Q_UNUSED(prevRow); Q_UNUSED(prevCol); Q_UNUSED(column);
-    if (row < 0) return;
+    if (row < 0 || row >= petTable->rowCount()) {
+        if (m_drawer) m_drawer->setPet(PetInfo(), {});
+        return;
+    }
 
     QTableWidgetItem *idItem = petTable->item(row, 0);
     if (!idItem) return;

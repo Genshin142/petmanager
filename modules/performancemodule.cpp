@@ -113,7 +113,6 @@ public:
 PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent)
 {
     setupUI();
-    setupImagePreview();
     refreshData();
     
     if (m_perfTable->rowCount() > 0) {
@@ -581,23 +580,14 @@ void PerformanceModule::onFilterChanged()
 
 void PerformanceModule::setupImagePreview()
 {
-    // 寻找真正的程序顶级窗口
-    QWidget *topWin = QApplication::activeWindow();
-    if (!topWin) {
-        topWin = this->window();
-        while (topWin && topWin->parentWidget()) {
-            topWin = topWin->parentWidget();
-        }
-    }
-    if (!topWin) return;
+    QWidget *win = this->window();
+    if (!win) return;
 
-    m_imagePreviewOverlay = new QWidget(topWin);
+    m_imagePreviewOverlay = new QWidget(win);
     m_imagePreviewOverlay->setObjectName("PerfPreviewOverlay");
     m_imagePreviewOverlay->setStyleSheet("#PerfPreviewOverlay { background-color: rgba(0, 0, 0, 215); }");
     m_imagePreviewOverlay->hide();
     m_imagePreviewOverlay->installEventFilter(this);
-    
-    topWin->installEventFilter(this);
     
     QVBoxLayout *previewL = new QVBoxLayout(m_imagePreviewOverlay);
     m_previewLabel = new QLabel();
@@ -630,9 +620,9 @@ void PerformanceModule::showBigImage(const QString &path, const QString &text)
     
     if (!pix.isNull()) {
         m_previewLabel->setPixmap(pix.scaled(800, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        QWidget *topWin = m_imagePreviewOverlay->parentWidget();
-        if (topWin) {
-            m_imagePreviewOverlay->setGeometry(topWin->rect());
+        QWidget *win = this->window();
+        if (win) {
+            m_imagePreviewOverlay->setGeometry(win->rect());
             m_imagePreviewOverlay->show();
             m_imagePreviewOverlay->raise();
         }
@@ -660,14 +650,6 @@ bool PerformanceModule::eventFilter(QObject *watched, QEvent *event)
         if (watched == m_imagePreviewOverlay) {
             hideBigImage();
             return true;
-        }
-    }
-    
-    // 同步顶级窗口大小
-    if (event->type() == QEvent::Resize && m_imagePreviewOverlay) {
-        QWidget *topWin = m_imagePreviewOverlay->parentWidget();
-        if (watched == topWin && m_imagePreviewOverlay->isVisible()) {
-            m_imagePreviewOverlay->setGeometry(topWin->rect());
         }
     }
     

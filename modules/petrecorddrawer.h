@@ -62,6 +62,9 @@ private:
     QList<PetMedia> m_currentMedia;
     QList<FosterBatch> m_currentBatches;
     bool m_isOpened;
+    QWidget *m_emptyWidget = nullptr;
+    QWidget *m_contentWidget = nullptr;
+    void showEmptyState(bool empty);
 
     // Header Elements
     QLabel *m_avatarLabel;

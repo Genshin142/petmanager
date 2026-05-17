@@ -14,10 +14,10 @@
 #include <QGridLayout>
 #include "scheduledatamanager.h"
 
-EmployeeDetailDrawer::EmployeeDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(false)
+EmployeeDetailDrawer::EmployeeDetailDrawer(QWidget *parent) : QWidget(parent), m_isOpened(true)
 {
     setupUI();
-    setFixedWidth(0);
+    setFixedWidth(450);
     m_animation = new QPropertyAnimation(this, "sideWidth");
     m_animation->setDuration(300);
     m_animation->setEasingCurve(QEasingCurve::OutCubic);
@@ -45,6 +45,30 @@ void EmployeeDetailDrawer::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
     outerLayout->addWidget(container);
+
+    // --- 占位部分 (m_emptyWidget) ---
+    m_emptyWidget = new QWidget();
+    QVBoxLayout *emptyLayout = new QVBoxLayout(m_emptyWidget);
+    emptyLayout->setAlignment(Qt::AlignCenter);
+    QLabel *emptyIcon = new QLabel("👤");
+    emptyIcon->setStyleSheet("font-size: 48px; color: #dcdfe6;");
+    emptyIcon->setAlignment(Qt::AlignCenter);
+    QLabel *emptyText = new QLabel("暂无员工信息\n请在左侧列表选择或录入新员工");
+    emptyText->setStyleSheet("color: #909399; font-size: 14px; line-height: 1.5;");
+    emptyText->setAlignment(Qt::AlignCenter);
+    emptyLayout->addStretch();
+    emptyLayout->addWidget(emptyIcon);
+    emptyLayout->addSpacing(20);
+    emptyLayout->addWidget(emptyText);
+    emptyLayout->addStretch();
+    mainLayout->addWidget(m_emptyWidget);
+
+    // --- 内容部分 (m_contentWidget) ---
+    m_contentWidget = new QWidget();
+    QVBoxLayout *contentLayout = new QVBoxLayout(m_contentWidget);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
+    mainLayout->addWidget(m_contentWidget);
 
     // --- 1. 顶部：员工名片 ---
     QWidget *header = new QWidget();
@@ -160,8 +184,8 @@ void EmployeeDetailDrawer::setupUI()
     tabContainerLayout->addWidget(tabWidget);
     tabContainerLayout->addStretch();
 
-    mainLayout->addWidget(header);
-    mainLayout->addWidget(tabContainer);
+    contentLayout->addWidget(header);
+    contentLayout->addWidget(tabContainer);
 
     // --- 3. 堆叠内容区 ---
     m_stackedWidget = new QStackedWidget();
@@ -179,7 +203,7 @@ void EmployeeDetailDrawer::setupUI()
     logLayout->addWidget(logEmpty);
     m_stackedWidget->addWidget(logPage); // Index 2
 
-    mainLayout->addWidget(m_stackedWidget);
+    contentLayout->addWidget(m_stackedWidget);
 
     connect(m_tabGroup, &QButtonGroup::idClicked, m_stackedWidget, &QStackedWidget::setCurrentIndex);
     m_tabGroup->button(0)->setChecked(true); // 默认选中档案
@@ -188,6 +212,8 @@ void EmployeeDetailDrawer::setupUI()
     m_editBtn->setParent(container);
     m_editBtn->move(297, 21);
     m_editBtn->raise();
+
+    showEmptyState(true); // 默认显示占位界面
 }
 
 QWidget* EmployeeDetailDrawer::createProfilePage()
@@ -393,6 +419,12 @@ QWidget* EmployeeDetailDrawer::createSchedulePage()
 }
 void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
 {
+    if (info.id.isEmpty()) {
+        showEmptyState(true);
+        return;
+    }
+    showEmptyState(false);
+
     m_currentEmployee = info;
     m_editBtn->show();
     m_editBtn->raise();
@@ -449,6 +481,13 @@ void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
 
     // 刷新动态日历
     refreshCalendar();
+}
+
+void EmployeeDetailDrawer::showEmptyState(bool empty)
+{
+    if (m_emptyWidget) m_emptyWidget->setVisible(empty);
+    if (m_contentWidget) m_contentWidget->setVisible(!empty);
+    if (m_editBtn) m_editBtn->setVisible(!empty);
 }
 
 void EmployeeDetailDrawer::showDrawer()

@@ -30,6 +30,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QDebug>
+#include <QElapsedTimer>
 #include "rechargedialog.h"
 #include "custommessagedialog.h"
 #include "memberdatamanager.h"
@@ -148,6 +149,10 @@ MemberModule::MemberModule(UserRole role, QWidget *parent)
 
 void MemberModule::setupUI()
 {
+    QElapsedTimer setupTimer;
+    setupTimer.start();
+    qDebug() << "[PERF] [MEMBER] MemberModule::setupUI() started...";
+    
     // --- 全局水平布局 (左侧内容 + 右侧全高抽屉) ---
     QHBoxLayout *rootLayout = new QHBoxLayout(this);
     rootLayout->setContentsMargins(0, 0, 0, 0);
@@ -423,11 +428,8 @@ void MemberModule::setupUI()
     footerLayout->addSpacing(20);
     footerLayout->addWidget(nextBtn);
 
-    // --- 组装根布局 (左侧主体容器 + 右侧全高详情抽屉) ---
+    // --- 组装根布局 (左侧主体容器 only) ---
     rootLayout->addWidget(leftContainer, 1);
-    
-    m_detailDrawer = new MemberDetailDrawer(this);
-    rootLayout->addWidget(m_detailDrawer);
 
     // 绑定事件
     connect(prevBtn, &QPushButton::clicked, this, &MemberModule::onPrevPage);
@@ -435,6 +437,48 @@ void MemberModule::setupUI()
     connect(jumpBtn, &QPushButton::clicked, this, &MemberModule::onJumpPage);
     connect(jumpEdit, &QLineEdit::returnPressed, this, &MemberModule::onJumpPage);
     connect(memTable, &QTableWidget::cellClicked, this, &MemberModule::onCellClicked);
+ 
+    // 搜索联动
+    connect(searchEdit, &QLineEdit::textChanged, this, &MemberModule::onSearchTextChanged);
+
+    // 禁用右键菜单
+    memTable->setContextMenuPolicy(Qt::NoContextMenu);
+
+    // 联网：数据同步逻辑
+    connect(MemberDataManager::instance(), &MemberDataManager::dataChanged, this, [=](){
+        qDebug() << "[MEMBER] MemberDataManager::dataChanged signal received.";
+        refreshTable();
+    });
+
+    // 监听全局数据变化（如订单结算、预约完成等），同步更新详情页
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [=](){
+        qDebug() << "[MEMBER] PetDataManager::globalDataChanged received. Refreshing detail...";
+        if (m_detailDrawer && m_detailDrawer->isVisible()) {
+            int row = memTable->currentRow();
+            if (row >= 0) {
+                onCellClicked(row, 0); // 重新触发点击以刷新详情面板（包括足迹）
+            }
+        }
+    });
+    
+    // 初始请求数据
+    MemberDataManager::instance()->requestMemberList();
+    
+    qDebug() << "[PERF] [MEMBER] MemberModule::setupUI() completed. Took" << setupTimer.elapsed() << "ms.";
+}
+
+void MemberModule::ensureDetailDrawerCreated()
+{
+    if (m_detailDrawer) return;
+
+    QElapsedTimer drawerTimer;
+    drawerTimer.start();
+    qDebug() << "[PERF] Lazy-instantiating MemberDetailDrawer...";
+
+    m_detailDrawer = new MemberDetailDrawer(this);
+    if (layout()) {
+        layout()->addWidget(m_detailDrawer);
+    }
 
     // 处理详情页的新增宠物请求
     connect(m_detailDrawer, &MemberDetailDrawer::sig_jumpToPetRequested, this, &MemberModule::sig_jumpToPetModule);
@@ -448,7 +492,7 @@ void MemberModule::setupUI()
 
         if (dialog.exec() == QDialog::Accepted) {
             PetInfo pet = dialog.getPetInfo();
-            PetDataManager::instance()->addPet(pet); // <--- Added this line
+            PetDataManager::instance()->addPet(pet);
             emit sig_petAdded(pet);
 
             // 定位表格中的行并更新宠物列（即使列已隐藏）
@@ -469,7 +513,7 @@ void MemberModule::setupUI()
             CustomMessageDialog::showSuccess(this, "成功", QString("已为会员 %1 添加新宠物：%2").arg(memberName, pet.name));
         }
     });
- 
+
     // 处理详情页的修改资料请求
     connect(m_detailDrawer, &MemberDetailDrawer::sig_editMemberRequested, this, [=](const MemberInfo &info){
         AddMemberDialog dialog(this);
@@ -512,32 +556,8 @@ void MemberModule::setupUI()
             CustomMessageDialog::showWarning(this, "修改成功", QString("会员 %1 的资料已更新").arg(newInfo.name));
         }
     });
- 
-    // 搜索联动
-    connect(searchEdit, &QLineEdit::textChanged, this, &MemberModule::onSearchTextChanged);
 
-    // 禁用右键菜单
-    memTable->setContextMenuPolicy(Qt::NoContextMenu);
-
-    // 联网：数据同步逻辑
-    connect(MemberDataManager::instance(), &MemberDataManager::dataChanged, this, [=](){
-        qDebug() << "[MEMBER] MemberDataManager::dataChanged signal received.";
-        refreshTable();
-    });
-
-    // 监听全局数据变化（如订单结算、预约完成等），同步更新详情页
-    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, [=](){
-        qDebug() << "[MEMBER] PetDataManager::globalDataChanged received. Refreshing detail...";
-        if (m_detailDrawer && m_detailDrawer->isVisible()) {
-            int row = memTable->currentRow();
-            if (row >= 0) {
-                onCellClicked(row, 0); // 重新触发点击以刷新详情面板（包括足迹）
-            }
-        }
-    });
-    
-    // 初始请求数据
-    MemberDataManager::instance()->requestMemberList();
+    qDebug() << "[PERF] Lazy MemberDetailDrawer constructed in" << drawerTimer.elapsed() << "ms.";
 }
 
 void MemberModule::addRowAt(int r, const MemberInfo &info, const QString &lastVisit, const QString &pets)
@@ -815,7 +835,7 @@ void MemberModule::refreshTable()
     // 默认选中第一行并显示详情
     if (memTable->rowCount() > 0) {
         memTable->selectRow(0);
-        onCellClicked(0, 0); // 触发点击逻辑以更新右侧详情
+        QMetaObject::invokeMethod(this, [=](){ onCellClicked(0, 0); }, Qt::QueuedConnection);
     } else {
         if (m_detailDrawer) {
             m_detailDrawer->showEmptyState(true);
@@ -951,6 +971,12 @@ void MemberModule::updatePagination()
     nextBtn->setEnabled(m_currentPage < totalPages);
     if (totalVisible == 0) {
         pageLabel->setText("第 0 页 / 共 0 页");
+        if (m_detailDrawer) {
+            m_detailDrawer->showEmptyState(true);
+        }
+    } else {
+        memTable->selectRow(0);
+        QMetaObject::invokeMethod(this, [=](){ onCellClicked(0, 0); }, Qt::QueuedConnection);
     }
 }
 
@@ -1047,6 +1073,8 @@ void MemberModule::onCellClicked(int row, int column)
 {
     Q_UNUSED(column);
     if (row < 0 || row >= memTable->rowCount()) return;
+
+    ensureDetailDrawerCreated();
 
     MemberInfo info;
     auto item0 = memTable->item(row, 0);
@@ -1155,7 +1183,7 @@ void MemberModule::refreshTablePreservingSelection(const QString &targetId)
             m_currentPage = (k / m_pageSize) + 1;
             updatePagination();
             memTable->selectRow(targetIdx);
-            onCellClicked(targetIdx, 0);
+            QMetaObject::invokeMethod(this, [=](){ onCellClicked(targetIdx, 0); }, Qt::QueuedConnection);
         }
     } else {
         m_currentPage = savedPage;

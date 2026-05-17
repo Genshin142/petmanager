@@ -12,7 +12,7 @@
 
 LogisticsDetailDrawer::LogisticsDetailDrawer(QWidget *parent) : QWidget(parent)
 {
-    setFixedWidth(480); // 略微增加宽度以补偿边距
+    setFixedWidth(450); // 统一宽度为 450px
     setStyleSheet("LogisticsDetailDrawer { background: transparent; border: none; }");
     
     setupUI();
@@ -34,6 +34,33 @@ void LogisticsDetailDrawer::setupUI()
     QVBoxLayout *mainLayout = new QVBoxLayout(mainContainer);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
+
+    // --- 1. m_emptyWidget ---
+    m_emptyWidget = new QWidget();
+    QVBoxLayout *emptyLayout = new QVBoxLayout(m_emptyWidget);
+    emptyLayout->setAlignment(Qt::AlignCenter);
+    
+    QLabel *emptyIcon = new QLabel("🚚");
+    emptyIcon->setStyleSheet("font-size: 48px; color: #dcdfe6;");
+    emptyIcon->setAlignment(Qt::AlignCenter);
+    
+    QLabel *emptyLabel = new QLabel("暂无调度任务\n请在左侧列表选择或录入新任务");
+    emptyLabel->setStyleSheet("color: #909399; font-size: 14px; line-height: 1.5;");
+    emptyLabel->setAlignment(Qt::AlignCenter);
+    
+    emptyLayout->addStretch();
+    emptyLayout->addWidget(emptyIcon);
+    emptyLayout->addSpacing(20);
+    emptyLayout->addWidget(emptyLabel);
+    emptyLayout->addStretch();
+    mainLayout->addWidget(m_emptyWidget);
+
+    // --- 2. m_contentWidget ---
+    m_contentWidget = new QWidget();
+    QVBoxLayout *contentLayout = new QVBoxLayout(m_contentWidget);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
+    mainLayout->addWidget(m_contentWidget);
 
     // Header with pure white background
     QWidget *header = new QWidget();
@@ -73,7 +100,7 @@ void LogisticsDetailDrawer::setupUI()
     headerLayout->addLayout(nameCol);
     headerLayout->addStretch();
 
-    mainLayout->addWidget(header);
+    contentLayout->addWidget(header);
 
     // Scrollable Content
     QScrollArea *scroll = new QScrollArea();
@@ -92,7 +119,7 @@ void LogisticsDetailDrawer::setupUI()
     m_contentLayout->setAlignment(Qt::AlignTop);
     
     scroll->setWidget(m_contentArea);
-    mainLayout->addWidget(scroll);
+    contentLayout->addWidget(scroll);
 
     // Footer Actions
     m_footer = new QWidget();
@@ -168,11 +195,13 @@ void LogisticsDetailDrawer::setupUI()
 
     footerLayout->addWidget(m_primaryBtn);
     footerLayout->addLayout(minorBtns);
-    mainLayout->addWidget(m_footer);
+    contentLayout->addWidget(m_footer);
 }
 
 void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
 {
+    if (m_emptyWidget) m_emptyWidget->hide();
+    if (m_contentWidget) m_contentWidget->show();
     m_currentTask = task;
     PetInfo pet = PetDataManager::instance()->getPet(task.petId);
 
@@ -278,33 +307,8 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
 
 void LogisticsDetailDrawer::showEmpty()
 {
-    m_avatarLabel->clear();
-    m_nameLabel->setText("未选择任务");
-    m_statusTag->setVisible(false);
-    m_footer->setVisible(false);
-    
-    QLayoutItem *child;
-    while ((child = m_contentLayout->takeAt(0)) != nullptr) {
-        if (child->widget()) child->widget()->deleteLater();
-        delete child;
-    }
-    
-    QWidget *emptyWidget = new QWidget();
-    QVBoxLayout *emptyLayout = new QVBoxLayout(emptyWidget);
-    emptyLayout->setAlignment(Qt::AlignCenter);
-    emptyLayout->setContentsMargins(0, 60, 0, 0);
-    
-    QLabel *iconLabel = new QLabel();
-    iconLabel->setStyleSheet("font-size: 40px; color: #e4e7ed;");
-    iconLabel->setAlignment(Qt::AlignCenter);
-    
-    QLabel *textLabel = new QLabel("请在左侧选择要查看的调度任务");
-    textLabel->setStyleSheet("color: #c0c4cc; font-size: 13px; line-height: 1.5; margin-top: 15px;");
-    textLabel->setAlignment(Qt::AlignCenter);
-    
-    emptyLayout->addWidget(iconLabel);
-    emptyLayout->addWidget(textLabel);
-    m_contentLayout->addWidget(emptyWidget);
+    if (m_emptyWidget) m_emptyWidget->show();
+    if (m_contentWidget) m_contentWidget->hide();
 }
 
 void LogisticsDetailDrawer::closeDrawer()
