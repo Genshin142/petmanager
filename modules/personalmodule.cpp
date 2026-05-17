@@ -89,17 +89,54 @@ void PersonalModule::setupUI() {
         originalPixmap = QPixmap(m_role == ADMIN ? ":/images/avatar_admin.png" : ":/images/avatar_staff.png");
     }
     
+    auto getPremiumCircularAvatar = [](const QPixmap &src, int size, int borderWidth, const QColor &borderColor) -> QPixmap {
+        if (src.isNull()) return QPixmap();
+        
+        QPixmap target(size, size);
+        target.fill(Qt::transparent);
+        
+        QPainter painter(&target);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        
+        // 1. 计算图片绘制区域 (缩小以腾出边框空间，防止图片溢出或被遮挡)
+        int innerSize = size - borderWidth * 2;
+        QPixmap scaled = src.scaled(innerSize, innerSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        
+        // 2. 剪裁内部圆形
+        QPainterPath path;
+        path.addEllipse(borderWidth, borderWidth, innerSize, innerSize);
+        painter.save();
+        painter.setClipPath(path);
+        int x = borderWidth + (innerSize - scaled.width()) / 2;
+        int y = borderWidth + (innerSize - scaled.height()) / 2;
+        painter.drawPixmap(x, y, scaled);
+        painter.restore();
+        
+        // 3. 绘制完美的圆形外圈 (描边)
+        if (borderWidth > 0) {
+            QPen pen(borderColor);
+            pen.setWidth(borderWidth);
+            pen.setCapStyle(Qt::RoundCap);
+            pen.setJoinStyle(Qt::RoundJoin);
+            painter.setPen(pen);
+            double offset = borderWidth / 2.0;
+            painter.drawEllipse(QRectF(offset, offset, size - borderWidth, size - borderWidth));
+        }
+        
+        return target;
+    };
+
     if (!originalPixmap.isNull()) {
-        QPixmap roundedPixmap = ImageUtils::getCircularPixmap(originalPixmap, 100);
+        QPixmap roundedPixmap = getPremiumCircularAvatar(originalPixmap, 100, 4, Qt::white);
         avatar->setPixmap(roundedPixmap);
     } else {
         // 退回机制：如果图片资源未成功加载，显示字母占位头像
         avatar->setText(realName.isEmpty() ? "P" : realName.left(1).toUpper());
         avatar->setAlignment(Qt::AlignCenter);
-        avatar->setStyleSheet("background: rgba(255, 255, 255, 0.2); color: white; font-size: 40px; font-weight: bold;");
+        avatar->setStyleSheet("background: rgba(255, 255, 255, 0.2); color: white; font-size: 40px; font-weight: bold; border: 4px solid white; border-radius: 50px;");
     }
     
-    avatar->setStyleSheet(avatar->styleSheet() + "border: 4px solid white; border-radius: 50px;");
     hl->addWidget(avatar);
 
     // 用户信息
@@ -107,7 +144,7 @@ void PersonalModule::setupUI() {
     infoVl->setAlignment(Qt::AlignCenter);
     QLabel *nameLabel = new QLabel(m_userName);
     nameLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 800; border: none; background: transparent;");
-    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.2)" : "门店营业专家 (v1.1.2)");
+    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.3)" : "门店营业专家 (v1.1.3)");
     roleLabel->setStyleSheet("color: rgba(255, 255, 255, 0.8); font-size: 14px; font-weight: 600; border: none; background: transparent;");
     infoVl->addWidget(nameLabel);
     infoVl->addWidget(roleLabel);
@@ -115,7 +152,7 @@ void PersonalModule::setupUI() {
     hl->addStretch();
 
     // 加入时间
-    QLabel *joinDate = new QLabel("版本: v1.1.2 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
+    QLabel *joinDate = new QLabel("版本: v1.1.3 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
     joinDate->setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 13px; border: none; background: transparent;");
     hl->addWidget(joinDate, 0, Qt::AlignBottom | Qt::AlignRight);
     hl->setContentsMargins(40, 40, 40, 20);
