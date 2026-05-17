@@ -29,7 +29,11 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
 
         // 默认背景
-        painter->fillRect(opt.rect, Qt::white);
+        if (opt.state & QStyle::State_MouseOver) {
+            painter->fillRect(opt.rect, QColor("#ecf5ff"));
+        } else {
+            painter->fillRect(opt.rect, Qt::white);
+        }
 
         if (opt.state & QStyle::State_Selected) {
             bool isFirst = (index.column() == 0);

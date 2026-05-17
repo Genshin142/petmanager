@@ -26,7 +26,11 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
 
         // 默认背景（白色）
-        painter->fillRect(opt.rect, Qt::white);
+        if (opt.state & QStyle::State_MouseOver) {
+            painter->fillRect(opt.rect, QColor("#ecf5ff"));
+        } else {
+            painter->fillRect(opt.rect, Qt::white);
+        }
 
         if (opt.state & QStyle::State_Selected) {
             // 选中样式：浅蓝背景 + 蓝边框 + 左右圆角

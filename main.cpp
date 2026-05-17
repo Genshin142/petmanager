@@ -7,7 +7,7 @@
 int main(int argc, char *argv[])
 {
     qDebug() << "==========================================";
-    qDebug() << "   PetManager Client Application v2.1   ";
+    qDebug() << "   PetManager Client Application v2.2   ";
     qDebug() << "==========================================";
 
     Logger::init("client.log");
