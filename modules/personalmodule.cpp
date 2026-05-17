@@ -12,6 +12,8 @@
 #include "scheduledatamanager.h"
 #include "staffdatamanager.h"
 #include <QThread>
+#include <QPainter>
+#include <QPainterPath>
 
 PersonalModule::PersonalModule(UserRole role, const QString &userName, QWidget *parent)
     : QWidget(parent), m_role(role), m_userName(userName) {
@@ -38,11 +40,33 @@ void PersonalModule::setupUI() {
     hl->setContentsMargins(40, 0, 40, 0);
     hl->setSpacing(25);
 
-    // 头像
-    QLabel *avatar = new QLabel(m_userName.left(1).toUpper());
+    // 头像 - 智能绘制完美的圆角多平台高质量头像图片
+    QLabel *avatar = new QLabel();
     avatar->setFixedSize(100, 100);
-    avatar->setAlignment(Qt::AlignCenter);
-    avatar->setStyleSheet("background: rgba(255, 255, 255, 0.2); border: 4px solid white; border-radius: 50px; color: white; font-size: 40px; font-weight: bold;");
+    
+    QPixmap originalPixmap(m_role == ADMIN ? ":/images/avatar_admin.png" : ":/images/avatar_staff.png");
+    if (!originalPixmap.isNull()) {
+        QPixmap roundedPixmap(100, 100);
+        roundedPixmap.fill(Qt::transparent);
+
+        QPainter painter(&roundedPixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        QPainterPath path;
+        path.addEllipse(0, 0, 100, 100);
+        painter.setClipPath(path);
+        painter.drawPixmap(0, 0, 100, 100, originalPixmap);
+        painter.end();
+
+        avatar->setPixmap(roundedPixmap);
+    } else {
+        // 退回机制：如果图片资源未成功加载，显示字母占位头像
+        avatar->setText(m_userName.left(1).toUpper());
+        avatar->setAlignment(Qt::AlignCenter);
+        avatar->setStyleSheet("background: rgba(255, 255, 255, 0.2); color: white; font-size: 40px; font-weight: bold;");
+    }
+    
+    avatar->setStyleSheet(avatar->styleSheet() + "border: 4px solid white; border-radius: 50px;");
     hl->addWidget(avatar);
 
     // 用户信息

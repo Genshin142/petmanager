@@ -34,5 +34,7 @@
         <file>images/foster_sleep_new.png</file>
         <file>images/mock_service_1.png</file>
         <file>images/mock_service_2.png</file>
+        <file>images/avatar_admin.png</file>
+        <file>images/avatar_staff.png</file>
     </qresource>
 </RCC>
