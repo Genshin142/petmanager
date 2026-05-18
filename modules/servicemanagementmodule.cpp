@@ -183,6 +183,25 @@ ServiceManagementModule::ServiceManagementModule(UserRole role, QWidget *parent)
     m_searchEdit->setFixedWidth(280);
     m_searchEdit->setStyleSheet("QLineEdit { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; }");
     toolbar->addWidget(m_searchEdit);
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &ServiceManagementModule::onSearchChanged);
+
+    m_statusCombo = new QComboBox();
+    m_statusCombo->setFixedHeight(36);
+    m_statusCombo->setFixedWidth(120);
+    m_statusCombo->addItem("全部状态", "all");
+    m_statusCombo->addItem("已启用", "active");
+    m_statusCombo->addItem("已停用", "inactive");
+    m_statusCombo->setCursor(Qt::PointingHandCursor);
+    m_statusCombo->setStyleSheet(
+        "QComboBox { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; background: #f8fafc; font-size: 13px; color: #475569; } "
+        "QComboBox:hover { border-color: #cbd5e1; } "
+        "QComboBox:focus { border-color: #3b82f6; background: white; } "
+        "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: center right; width: 24px; border: none; background: transparent; } "
+        "QComboBox::down-arrow { image: url(:/images/chevron-down.svg); width: 12px; height: 12px; } "
+        "QComboBox QAbstractItemView { border: 1px solid #e2e8f0; border-radius: 8px; background: white; selection-background-color: #f1f5f9; selection-color: #3b82f6; outline: none; padding: 5px; }"
+    );
+    connect(m_statusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ServiceManagementModule::updateTableData);
+    toolbar->addWidget(m_statusCombo);
 
     m_categoryContainer = new QWidget();
     QHBoxLayout *catLayout = new QHBoxLayout(m_categoryContainer);
@@ -520,8 +539,11 @@ void ServiceManagementModule::updateTableData()
     // 1. 过滤
     QList<ServiceInfo> filtered;
     QString kw = m_searchEdit->text().trimmed().toLower();
+    QString statusFilter = m_statusCombo->currentData().toString();
     for (const auto &info : allServices) {
         if (activeCat != "全部" && info.category != activeCat) continue;
+        if (statusFilter == "active" && !info.isActive) continue;
+        if (statusFilter == "inactive" && info.isActive) continue;
         if (!kw.isEmpty() && !info.name.toLower().contains(kw)) continue;
         filtered.append(info);
     }

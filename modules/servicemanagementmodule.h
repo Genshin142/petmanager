@@ -10,6 +10,7 @@
 #include <QScrollArea>
 #include <QPropertyAnimation>
 #include <QListWidget>
+#include <QComboBox>
 #include "../common_types.h"
 
 class ServiceManagementModule : public QWidget
@@ -38,6 +39,7 @@ private slots:
 private:
     UserRole m_role;
     QLineEdit *m_searchEdit;
+    QComboBox *m_statusCombo;
     QWidget *m_categoryContainer;
     QTableWidget *m_serviceTable; // 恢复为表格模式
     
