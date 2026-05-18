@@ -15,6 +15,8 @@
 #include <QFile>
 #include "../utils/imageutils.h"
 #include <QTimer>
+#include <QThreadPool>
+#include <QImage>
 
 PetDataManager* PetDataManager::m_instance = nullptr;
 
@@ -1376,7 +1378,11 @@ void PetDataManager::saveToLocalCache(const QString &id, const QPixmap &pix)
     if (pix.isNull()) return;
     QString localPath = m_cachePath + "/" + id + ".png";
     if (!QFile::exists(localPath)) {
-        pix.save(localPath, "PNG");
+        QImage img = pix.toImage();
+        QThreadPool::globalInstance()->start([localPath, img]() {
+            img.save(localPath, "PNG");
+            qDebug() << "[PET CACHE] Saved image to local asynchronously:" << localPath;
+        });
     }
 }
 

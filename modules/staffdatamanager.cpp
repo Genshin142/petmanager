@@ -11,6 +11,8 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QMutexLocker>
+#include <QThreadPool>
+#include <QImage>
 
 StaffDataManager* StaffDataManager::m_instance = nullptr;
 
@@ -246,6 +248,10 @@ void StaffDataManager::saveToLocalCache(const QString &id, const QPixmap &pix)
     if (pix.isNull()) return;
     QString localPath = m_cachePath + "/" + id + ".png";
     if (!QFile::exists(localPath)) {
-        pix.save(localPath, "PNG");
+        QImage img = pix.toImage();
+        QThreadPool::globalInstance()->start([localPath, img]() {
+            img.save(localPath, "PNG");
+            qDebug() << "[STAFF CACHE] Saved image to local asynchronously:" << localPath;
+        });
     }
 }
