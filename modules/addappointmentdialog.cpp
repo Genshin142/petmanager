@@ -954,6 +954,7 @@ void AddAppointmentDialog::onAddServiceRow()
         QList<ServiceInfo> allServices = ServiceDataManager::instance()->allServices();
         
         for (const auto &info : allServices) {
+            if (!info.isActive) continue; // 过滤已下架的服务项目
             if (info.category == cat) {
                 QPushButton *tagBtn = new QPushButton(info.name);
                 tagBtn->setCheckable(true);
