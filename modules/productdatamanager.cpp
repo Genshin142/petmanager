@@ -210,6 +210,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 rec.supplierPhone = obj["supplier_phone"].toString();
                 rec.operatorName = obj["operator_name"].toString();
                 rec.isShelved = obj["is_shelved"].toBool();
+                rec.isActive = obj["is_active"].toBool(true);
                 rec.salePrice = obj["sale_price"].toDouble(); // 新增：解析拟定售价
                 
                 QString imgRaw = obj["img_data"].toString();
@@ -732,15 +733,17 @@ void ProductDataManager::removeRecord(const QString &dateTime, const QString &ba
     obj["dateTime"] = dateTime;
     obj["barcode"] = barcode;
     obj["hard"] = false;
+    obj["restore"] = false;
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
 }
 
 void ProductDataManager::restoreRecord(const QString &dateTime, const QString &barcode) {
-    Q_UNUSED(dateTime);
-    Q_UNUSED(barcode);
-    // 恢复操作暂时逻辑上等同于取消删除，目前服务端使用 is_deleted 标记
-    // 为了简单，我们先实现 hard delete 和 add，或者扩展服务端接口
-    // 这里暂时留空或发送一个逻辑恢复指令
+    QJsonObject obj;
+    obj["dateTime"] = dateTime;
+    obj["barcode"] = barcode;
+    obj["hard"] = false;
+    obj["restore"] = true;
+    NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
 }
 
 void ProductDataManager::hardDeleteRecord(const QString &dateTime, const QString &barcode) {
@@ -748,5 +751,6 @@ void ProductDataManager::hardDeleteRecord(const QString &dateTime, const QString
     obj["dateTime"] = dateTime;
     obj["barcode"] = barcode;
     obj["hard"] = true;
+    obj["restore"] = false;
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
 }

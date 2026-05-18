@@ -143,7 +143,7 @@ void ProductController::handleGetInboundList(ClientHandler* client, const QJsonO
             item["supplier_phone"] = query.value("supplier_phone").toString();
             item["operator_name"] = query.value("operator_name").toString();
             item["is_shelved"] = query.value("is_shelved").toInt() == 1;
-            item["is_active"] = true; // 确保客户端不过滤掉
+            item["is_active"] = query.value("is_deleted").toInt() == 0;
             item["img_data"] = query.value("img_data").toString();
             item["created_at"] = query.value("created_at").toDateTime().toString("yyyy-MM-dd HH:mm:ss");
             inboundList.append(item);
@@ -428,14 +428,17 @@ void ProductController::handleDeleteInboundRecord(ClientHandler* client, const Q
     QString dateTime = data["dateTime"].toString();
     QString barcode = data["barcode"].toString();
     bool isHard = data["hard"].toBool();
+    bool isRestore = data["restore"].toBool();
     
-    LOG_I("[PRODUCT] Deleting inbound record. Barcode: " << barcode.toStdString() << " Date: " << dateTime.toStdString());
+    LOG_I("[PRODUCT] Delete/Restore inbound record. Barcode: " << barcode.toStdString() << " Date: " << dateTime.toStdString() << " Restore: " << isRestore);
     
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
     
     if (isHard) {
         query.prepare("DELETE FROM product_inbound WHERE barcode = ? AND created_at = ?");
+    } else if (isRestore) {
+        query.prepare("UPDATE product_inbound SET is_deleted = 0 WHERE barcode = ? AND created_at = ?");
     } else {
         query.prepare("UPDATE product_inbound SET is_deleted = 1 WHERE barcode = ? AND created_at = ?");
     }
