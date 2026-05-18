@@ -183,6 +183,14 @@ void PetController::handleGetRoomList(ClientHandler* client, const QJsonObject& 
             for (int i = 0; i < rec.count(); ++i) {
                 QString colName = rec.fieldName(i);
                 QVariant val = query.value(i);
+                
+                if (colName == "room_id") {
+                    colName = "id";
+                } else if (colName == "is_deleted") {
+                    colName = "is_active";
+                    val = !val.toBool();
+                }
+
                 if (val.typeId() == QMetaType::Int || val.typeId() == QMetaType::LongLong)
                     room[colName] = val.toLongLong();
                 else if (val.typeId() == QMetaType::Double)
