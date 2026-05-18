@@ -1550,7 +1550,7 @@ MediaDetailDialog::MediaDetailDialog(const QString &petId, const PetMedia &media
 
         ClickableLabel *imgL = new ClickableLabel();
         imgL->setFixedSize(350, 260); // 强制固定尺寸，防止布局拉伸
-        QPixmap pix(media.urls[i]);
+        QPixmap pix = ImageUtils::loadPixmap(media.urls[i]);
         if (!pix.isNull()) {
             imgL->setPixmap(pix.scaled(350, 260, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         }
@@ -1859,7 +1859,7 @@ void PetMediaArchiveDialog::setupDetailUI(const PetMedia &media) {
 
         ClickableLabel *imgL = new ClickableLabel();
         imgL->setFixedSize(350, 260);
-        QPixmap pix(media.urls[i]);
+        QPixmap pix = ImageUtils::loadPixmap(media.urls[i]);
         if (pix.isNull()) pix.load(":/images/load_img.jpg");
         imgL->setPixmap(pix.scaled(350, 260, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         imgL->setStyleSheet("background: white; border-top-left-radius: 12px; border-top-right-radius: 12px; border: 1px solid #ebeef5; padding: 0px; border-bottom: none;");

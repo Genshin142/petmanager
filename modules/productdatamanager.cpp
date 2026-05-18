@@ -12,6 +12,8 @@
 #include <QStandardPaths>
 #include <QBuffer>
 #include <QCoreApplication>
+#include <QThreadPool>
+#include <QImage>
 
 ProductDataManager* ProductDataManager::m_instance = nullptr;
 
@@ -86,27 +88,25 @@ void ProductDataManager::unshelveProduct(int inboundId)
     NetworkManager::instance().sendRequest(Protocol::CMD_UNSHELVE_PRODUCT, obj);
 }
 
-void ProductDataManager::requestProductList()
+void ProductDataManager::requestProductList(bool force)
 {
     bool shouldEmit = false;
     {
         QMutexLocker locker(&m_mutex);
-        if (!m_products.isEmpty() || m_isLoading) {
+        if (!force && (!m_products.isEmpty() || m_isLoading)) {
             if (!m_products.isEmpty()) shouldEmit = true;
         } else {
             m_isLoading = true;
         }
     }
 
-    if (shouldEmit) {
+    if (!force && shouldEmit) {
         emit productDataChanged();
         return;
     }
 
-    if (m_isLoading) {
-        qDebug() << "[PRODUCT] Requesting product list from server...";
-        NetworkManager::instance().sendRequest(Protocol::CMD_GET_PRODUCT_LIST, QJsonObject());
-    }
+    qDebug() << "[PRODUCT] Requesting product list from server (force:" << force << ")...";
+    NetworkManager::instance().sendRequest(Protocol::CMD_GET_PRODUCT_LIST, QJsonObject());
 }
 
 void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
@@ -138,7 +138,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.stock = obj["stock_curr"].toInt();
                     info.minStock = obj["stock_min"].toInt();
                     info.productionDate = obj["production_date"].toString();
-                    info.shelfLifeDays = obj["shelf_life_days"].toInt();
+                    info.shelfLifeDays = obj.contains("shelf_life_days") ? obj["shelf_life_days"].toInt() : obj["shelf_life"].toInt();
                     info.supplier = obj["supplier"].toString();
                     info.supplierPhone = obj["supplier_phone"].toString();
                     info.description = obj["description"].toString();
@@ -243,7 +243,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         QString msg = root["message"].toString();
         
         if (success) {
-            requestProductList(); // 状态变更，刷新商品列表
+            requestProductList(true); // 状态变更，强制刷新商品列表
             requestInboundList(); // 刷新入库记录列表以更新状态位
         }
         emit shelveResult(success, msg);
@@ -252,7 +252,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         QJsonObject root = packet.jsonObj;
         if (root["module"].toString() == "product") {
             qDebug() << "[PRODUCT] Refresh notification received from server.";
-            requestProductList();
+            requestProductList(true); // 强制刷新商品列表
             requestInboundList();
         }
     }
@@ -486,6 +486,7 @@ void ProductDataManager::addProduct(const ProductInfo &info)
     obj["barcode"] = info.barcode;
     obj["name"] = info.name;
     obj["brand"] = info.brand;
+    obj["origin"] = info.origin;
     obj["category"] = info.category;
     obj["spec"] = info.spec;
     obj["unit"] = info.unit;
@@ -572,9 +573,12 @@ void ProductDataManager::saveToLocalCache(const QString &barcode, const QPixmap 
     if (pix.isNull()) return;
     QString localFilePath = m_cachePath + "/" + barcode + ".png";
     if (!QFile::exists(localFilePath)) {
-        // 使用异步或直接保存，PNG 格式无损
-        pix.save(localFilePath, "PNG");
-        qDebug() << "[CACHE] Saved image to local:" << localFilePath;
+        // 将 QPixmap 转换为 QImage，因为 QImage 在后台线程写入文件是完全线程安全的
+        QImage img = pix.toImage();
+        QThreadPool::globalInstance()->start([localFilePath, img]() {
+            img.save(localFilePath, "PNG");
+            qDebug() << "[CACHE] Saved image to local asynchronously:" << localFilePath;
+        });
     }
 }
 
@@ -596,6 +600,13 @@ QList<StockInRecord> ProductDataManager::getAllRecords() const {
 }
 
 void ProductDataManager::addRecord(const StockInRecord &rec) {
+    {
+        QMutexLocker locker(&m_mutex);
+        m_records.append(rec);
+    }
+    emit inboundListReceived(m_records);
+    emit productDataChanged();
+
     QJsonObject obj;
     obj["barcode"] = rec.barcode;
     obj["productName"] = rec.productName;
@@ -607,7 +618,7 @@ void ProductDataManager::addRecord(const StockInRecord &rec) {
     obj["productionDate"] = rec.productionDate;
     obj["shelfLifeDays"] = rec.shelfLifeDays;
     obj["supplier"] = rec.supplier;
-    obj["supplier_phone"] = rec.supplierPhone;
+    obj["supplierPhone"] = rec.supplierPhone; // 修复：匹配服务端的 camelCase 命名
     obj["operatorName"] = rec.operatorName;
     obj["imgData"] = rec.imgData;
 
@@ -615,8 +626,18 @@ void ProductDataManager::addRecord(const StockInRecord &rec) {
 }
 
 void ProductDataManager::updateRecord(const QString &oldDateTime, const QString &barcode, const StockInRecord &newRec) {
-    Q_UNUSED(oldDateTime);
-    Q_UNUSED(barcode);
+    {
+        QMutexLocker locker(&m_mutex);
+        for (auto &r : m_records) {
+            if (r.id == newRec.id || (r.barcode == barcode && r.dateTime == oldDateTime)) {
+                r = newRec; // 立即同步本地缓存中的整条记录，实现 0ms 延迟响应
+                break;
+            }
+        }
+    }
+    emit inboundListReceived(m_records); // 立即通知 UI 刷新，不等待网络循环广播
+    emit productDataChanged();
+
     QJsonObject obj;
     obj["id"] = newRec.id;
     obj["barcode"] = newRec.barcode;
@@ -629,7 +650,7 @@ void ProductDataManager::updateRecord(const QString &oldDateTime, const QString 
     obj["productionDate"] = newRec.productionDate;
     obj["shelfLifeDays"] = newRec.shelfLifeDays;
     obj["supplier"] = newRec.supplier;
-    obj["supplier_phone"] = newRec.supplierPhone;
+    obj["supplierPhone"] = newRec.supplierPhone; // 修复：匹配服务端的 camelCase 命名
     obj["operatorName"] = newRec.operatorName;
     obj["imgData"] = newRec.imgData;
 

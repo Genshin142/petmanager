@@ -128,7 +128,7 @@ void AddEmployeeDialog::setupUI()
     // 第二行：岗位 / 部门
     addLabel("所属岗位:", 1, 0);
     roleCombo = new QComboBox();
-    roleCombo->addItems({"店员", "高级美容师", "宠物医生", "实习生", "店长"});
+    roleCombo->addItems({"店长", "店员", "美容师", "高级美容师", "收银", "司机", "宠物医生", "实习生"});
     formLayout->addWidget(roleCombo, 1, 1);
 
     addLabel("所属部门:", 1, 2);

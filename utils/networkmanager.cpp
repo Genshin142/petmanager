@@ -48,7 +48,7 @@ void NetworkManager::sendRequest(int cmdId, const QJsonObject &body)
     QMetaObject::invokeMethod(this, [=]() {
         if (m_socket->state() == QAbstractSocket::ConnectedState) {
             m_socket->write(block);
-            m_socket->flush();
+            // 移除 m_socket->flush(); 避免在发送大图片时同步阻塞主线程导致卡顿几秒！
             qDebug() << "[NET] >>> SENT CMD:" << cmdId << "at" << QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
         } else {
             qWarning() << "[NET] Cannot send: Socket not connected. CMD:" << cmdId;

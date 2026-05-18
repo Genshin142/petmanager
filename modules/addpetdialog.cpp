@@ -9,6 +9,7 @@
 #include <QTextEdit>
 #include <QShowEvent>
 #include <QDoubleValidator>
+#include "../utils/imageutils.h"
 
 AddPetDialog::AddPetDialog(QWidget *parent) :
     QDialog(parent),
@@ -268,7 +269,7 @@ bool AddPetDialog::eventFilter(QObject *obj, QEvent *event)
 
 void AddPetDialog::showBigImage()
 {
-    QPixmap pix(m_avatarPath);
+    QPixmap pix = ImageUtils::loadPixmap(m_avatarPath);
     if (pix.isNull()) pix.load(":/images/load_img.jpg");
     
     // 确保遮罩覆盖整个对话框区域 (考虑到整体边框阴影)
@@ -389,7 +390,7 @@ void AddPetDialog::setPetInfo(const PetInfo &info)
 
     // 处理头像显示
     m_avatarPath = info.avatarPath;
-    QPixmap pixmap(m_avatarPath);
+    QPixmap pixmap = ImageUtils::loadPixmap(m_avatarPath);
     if (pixmap.isNull()) pixmap.load(":/images/load_img.jpg");
     
     QSize size(90, 90);

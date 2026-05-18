@@ -14,7 +14,7 @@ public:
     static QPixmap loadPixmap(const QString &source) {
         if (source.isEmpty()) return QPixmap();
         
-        // 检查是否为 Data URI 格式 (data:image/xxx;base64,...)
+        // 1. 检查是否为 Data URI 格式 (data:image/xxx;base64,...)
         if (source.startsWith("data:image")) {
             int commaIndex = source.indexOf(',');
             if (commaIndex != -1) {
@@ -24,17 +24,27 @@ public:
                     return pix;
                 }
             }
+            return QPixmap(); // 若以 data:image 开头但加载失败，避免退回文件系统尝试
         }
         
-        // 检查是否为纯 Base64 (没有 prefix)
-        if (source.length() > 100 && !source.contains('/') && !source.contains('\\') && !source.contains(':')) {
-             QByteArray ba = QByteArray::fromBase64(source.toLatin1());
-             QPixmap pix;
-             if (pix.loadFromData(ba)) {
-                 return pix;
-             }
+        // 2. 检查是否为 Base64 (纯 Base64，没有 prefix，可能包含 Base64 字符如 '/' 或 '+')
+        // 如果长度较长且成功用 Base64 加载，直接返回
+        if (source.length() > 64) {
+            QByteArray ba = QByteArray::fromBase64(source.toLatin1());
+            QPixmap pix;
+            if (pix.loadFromData(ba)) {
+                return pix;
+            }
         }
         
+        // 3. 安全防护：如果字符串过长，绝对不可能是一个合法的 Windows 本地文件路径
+        // 直接传入 QPixmap 会导致 Qt 底层 QFileSystemEngine 调用 Win32 API 解析超长路径时发生段错误 (SIGSEGV)
+        if (source.length() > 1024) {
+            qWarning() << "[ImageUtils] Ignored abnormally long path to prevent SIGSEGV, length:" << source.length();
+            return QPixmap();
+        }
+        
+        // 4. 正常文件路径加载
         return QPixmap(source);
     }
 

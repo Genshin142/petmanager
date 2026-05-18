@@ -385,6 +385,12 @@ void ScheduleModule::onCellClicked(int row, int col)
     QString staffId = allStaff[row].id;
     QDate date = m_currentMonday.addDays(col - 1);
     
+    // 限制：不能修改过去日期的排班
+    if (date < QDate::currentDate()) {
+        CustomMessageDialog::showWarning(this, "操作受限", "不能修改过去日期的排班！");
+        return;
+    }
+    
     ScheduleInfo info = ScheduleDataManager::instance()->getSchedule(staffId, date);
     
     // 简单的循环切换逻辑：休息 -> 早班 -> 晚班 -> 休息
@@ -421,8 +427,11 @@ void ScheduleModule::onApplyTemplate()
         for (const auto &staff : allStaff) {
             auto weeklyTpl = ScheduleDataManager::instance()->getTemplateSchedule(staff.id);
             for (int i = 0; i < 7; ++i) {
+                QDate date = m_currentMonday.addDays(i);
+                if (date < QDate::currentDate()) continue; // 过去日期的排班保持不变，不允许被覆盖
+                
                 ScheduleInfo info = weeklyTpl[i];
-                info.date = m_currentMonday.addDays(i).toString("yyyy-MM-dd");
+                info.date = date.toString("yyyy-MM-dd");
                 batchInfos.append(info);
             }
         }

@@ -148,7 +148,7 @@ void PersonalModule::setupUI() {
     infoVl->setAlignment(Qt::AlignCenter);
     QLabel *nameLabel = new QLabel(m_userName);
     nameLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 800; border: none; background: transparent;");
-    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.5)" : "门店营业专家 (v1.1.5)");
+    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.6)" : "门店营业专家 (v1.1.6)");
     roleLabel->setStyleSheet("color: rgba(255, 255, 255, 0.8); font-size: 14px; font-weight: 600; border: none; background: transparent;");
     infoVl->addWidget(nameLabel);
     infoVl->addWidget(roleLabel);
@@ -156,7 +156,7 @@ void PersonalModule::setupUI() {
     hl->addStretch();
 
     // 加入时间
-    QLabel *joinDate = new QLabel("版本: v1.1.5 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
+    QLabel *joinDate = new QLabel("版本: v1.1.6 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
     joinDate->setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 13px; border: none; background: transparent;");
     hl->addWidget(joinDate, 0, Qt::AlignBottom | Qt::AlignRight);
     hl->setContentsMargins(40, 40, 40, 20);

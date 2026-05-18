@@ -7,7 +7,7 @@
 #include <QJsonDocument>
 
 ScheduleController::ScheduleController(ServerCore *core, QObject *parent)
-    : QObject(parent)
+    : QObject(parent), m_core(core)
 {
     core->registerHandler(Protocol::CMD_GET_SCHEDULE, [this](ClientHandler *client, const QJsonObject &body) {
         handleGetSchedule(client, body);

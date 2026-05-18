@@ -7,6 +7,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QPainterPath>
 #include "pettimelinemodel.h"
+#include "../utils/imageutils.h"
 
 class TimelineDelegate : public QStyledItemDelegate
 {
@@ -147,7 +148,7 @@ private:
 
         // 绘制经办人头像 (小圆头像)
         if (!opAvatar.isEmpty()) {
-            QPixmap opPix(opAvatar);
+            QPixmap opPix = ImageUtils::loadPixmap(opAvatar);
             if (!opPix.isNull()) {
                 painter->save();
                 QRect avatarRect(bubbleRect.right() - 22, bubbleRect.bottom() - 22, 16, 16);

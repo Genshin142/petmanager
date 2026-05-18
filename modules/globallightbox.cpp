@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QScreen>
 #include <QDateTime>
+#include "../utils/imageutils.h"
 
 void GlobalLightbox::showImages(QWidget *parent, const QStringList &paths, int startIndex)
 {
@@ -105,7 +106,7 @@ void GlobalLightbox::updateImage(int index, bool forward)
     if (index < 0 || index >= m_imagePaths.size()) return;
     m_currentIndex = index;
 
-    QPixmap pix(m_imagePaths[m_currentIndex]);
+    QPixmap pix = ImageUtils::loadPixmap(m_imagePaths[m_currentIndex]);
     if (pix.isNull()) pix.load(":/images/load_img.jpg");
 
     applyCrossFade(pix);

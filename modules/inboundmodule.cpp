@@ -231,7 +231,7 @@ void InboundModule::setupUI()
 
     m_startDateEdit = new CustomCalendarEdit();
     m_endDateEdit = new CustomCalendarEdit();
-    m_startDateEdit->setText(QDate::currentDate().addDays(-7).toString("yyyy-MM-dd"));
+    m_startDateEdit->setText(QDate::currentDate().addDays(-30).toString("yyyy-MM-dd"));
     m_endDateEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
     m_startDateEdit->setFixedHeight(36);
     m_endDateEdit->setFixedHeight(36);
@@ -242,7 +242,7 @@ void InboundModule::setupUI()
     m_startDateEdit->setMaximumDate(QDate::currentDate());
     m_endDateEdit->setMaximumDate(QDate::currentDate());
     // 联动限制：结束日期不能小于开始日期
-    m_endDateEdit->setMinimumDate(QDate::currentDate().addDays(-7));
+    m_endDateEdit->setMinimumDate(QDate::currentDate().addDays(-30));
     
     QString dateStyle = "CustomCalendarEdit { background: white; border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; color: #606266; } "
                         "CustomCalendarEdit:hover { border-color: #c0c4cc; } "
@@ -554,7 +554,11 @@ void InboundModule::updateRecordList()
         m_recordTable->item(row, 0)->setData(Qt::UserRole + 1, true);
 
         m_recordTable->setItem(row, 1, createItem(displayDt.toString("yyyy-MM-dd HH:mm")));
-        QTableWidgetItem *nameItem = createItem(rec.productName);
+        
+        ProductInfo pInfo = ProductDataManager::instance()->getProduct(rec.barcode);
+        bool isLowStock = !pInfo.barcode.isEmpty() && pInfo.stock <= pInfo.minStock;
+
+        QTableWidgetItem *nameItem = createItem(isLowStock ? "⚠️ " + rec.productName : rec.productName);
         nameItem->setData(Qt::UserRole, rec.id); // 存储 ID 用于精准操作
         m_recordTable->setItem(row, 2, nameItem);
         m_recordTable->setItem(row, 3, createItem(rec.barcode));
@@ -564,7 +568,6 @@ void InboundModule::updateRecordList()
         
         // 如果入库单没价格，再尝试找商品档案
         if (priceStr == "-") {
-            ProductInfo pInfo = ProductDataManager::instance()->getProduct(rec.barcode);
             if (!pInfo.barcode.isEmpty() && pInfo.price > 0) {
                 priceStr = QString("¥%1").arg(pInfo.price, 0, 'f', 2);
             }
@@ -574,12 +577,6 @@ void InboundModule::updateRecordList()
         priceItem->setForeground(QBrush(QColor("#3b82f6")));
         priceItem->setFont(QFont("Segoe UI", 10, QFont::Bold));
         m_recordTable->setItem(row, 4, priceItem);
-
-        ProductInfo pInfo = ProductDataManager::instance()->getProduct(rec.barcode);
-        bool isLowStock = !pInfo.barcode.isEmpty() && pInfo.stock <= pInfo.minStock;
-
-        m_recordTable->setItem(row, 2, createItem(isLowStock ? "⚠️ " + rec.productName : rec.productName));
-        m_recordTable->setItem(row, 3, createItem(rec.barcode));
 
         // ... (Price handled above)
 
@@ -915,7 +912,10 @@ void InboundModule::onNewRegistration()
 void InboundModule::onRecordSelected()
 {
     int row = m_recordTable->currentRow();
-    if (row < 0) return;
+    if (row < 0) {
+        m_editBtn->hide();
+        return;
+    }
 
     // 清除现有内容
     // 使用递归函数彻底清理布局，防止子布局残留导致重叠
@@ -991,13 +991,13 @@ void InboundModule::onRecordSelected()
     // Text Info
     QVBoxLayout *textInfo = new QVBoxLayout();
     textInfo->setSpacing(6);
-    textInfo->setAlignment(Qt::AlignVCenter);
+    textInfo->setContentsMargins(0, 5, 0, 5);
     
     QLabel *nameLabel = new QLabel(prodName);
-    // 关键修复：增加行高和显示完整性
-    nameLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #1e293b; border: none; line-height: 1.4;");
+    // 关键修复：增加右内边距（95px）腾出按钮空间，增加上下内边距（2px）防止字体顶端底端被切边，并移除无效的 line-height
+    nameLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #1e293b; border: none; padding: 2px 95px 2px 0px;");
     nameLabel->setWordWrap(true);
-    nameLabel->setMinimumHeight(50); // 确保多行显示时不会被挤压
+    nameLabel->setMinimumHeight(75); // 确保多行显示时拥有充足的垂直高度空间，防止切边！
     
     QLabel *barcodeLabel = new QLabel("条码：" + barcode);
     barcodeLabel->setStyleSheet("font-size: 12px; color: #94a3b8; border: none;");
@@ -1032,6 +1032,7 @@ void InboundModule::onRecordSelected()
     
     // 控制操作按钮显示
     if (rec.isActive) {
+        m_editBtn->show();
         if (!rec.isShelved) {
             m_shelveBtn->show();
             m_unshelveBtn->hide();
@@ -1040,6 +1041,7 @@ void InboundModule::onRecordSelected()
             m_unshelveBtn->show();
         }
     } else {
+        m_editBtn->hide();
         m_shelveBtn->hide();
         m_unshelveBtn->hide();
     }
@@ -1123,6 +1125,21 @@ void InboundModule::onRecordSelected()
 
     addSupRow("供应商", rec.supplier.isEmpty() ? "未知" : rec.supplier);
     addSupRow("供应商电话", rec.supplierPhone.isEmpty() ? "-" : rec.supplierPhone);
+    
+    // 品牌与产地展示
+    QString originBrandCombined = pInfo.origin;
+    if (!pInfo.brand.isEmpty()) {
+        if (!originBrandCombined.isEmpty()) {
+            originBrandCombined = pInfo.brand + " / " + originBrandCombined;
+        } else {
+            originBrandCombined = pInfo.brand;
+        }
+    }
+    if (originBrandCombined.isEmpty()) {
+        originBrandCombined = rec.origin;
+    }
+    addSupRow("品牌/产地", originBrandCombined.isEmpty() ? "-" : originBrandCombined);
+    
     addSupRow("生产日期", rec.productionDate.isEmpty() ? "-" : rec.productionDate);
     addSupRow("保质期", QString::number(lifeDays) + " 天");
     addSupRow("到期日期", expiryDate.isValid() ? expiryDate.toString("yyyy-MM-dd") : "未设定");

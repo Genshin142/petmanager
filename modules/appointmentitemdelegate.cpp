@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QPainter>
+#include "../utils/imageutils.h"
 
 AppointmentItemDelegate::AppointmentItemDelegate(QObject *parent)
     : QStyledItemDelegate(parent)
@@ -180,7 +181,7 @@ void AppointmentItemDelegate::drawAvatar(QPainter *painter, const QRect &rect, c
     QString key = path.isEmpty() ? ":/images/load_img.jpg" : path;
     QPixmap *cached = m_avatarCache.object(key);
     if (!cached) {
-        QPixmap pix(key);
+        QPixmap pix = ImageUtils::loadPixmap(key);
         if (pix.isNull()) { pix.load(":/images/load_img.jpg"); key = ":/images/load_img.jpg"; }
         
         int sz = 48;

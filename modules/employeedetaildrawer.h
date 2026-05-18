@@ -88,7 +88,8 @@ private:
     QComboBox *m_attendYearCombo = nullptr;
     QComboBox *m_attendMonthCombo = nullptr;
     QGridLayout *m_attendCalendarGrid = nullptr;
-    QLabel *m_attendTodayShiftLabel = nullptr;
+    QLabel *m_attendTodayTitleLabel = nullptr;
+    QWidget *m_attendTodayShiftWidget = nullptr;
     QLabel *m_statNormalLabel = nullptr;
     QLabel *m_statLateLabel = nullptr;
     QLabel *m_statAbsentLabel = nullptr;

@@ -14,6 +14,7 @@
 #include "../logic/member_controller.h"
 #include "../logic/product_controller.h"
 #include <QtCore/QDebug>
+#include <QtCore/QMutex>
 #include "client_handler.h"
 
 // 兼容性日志宏：如果 glog 沉默，通过 qDebug 强制输出
@@ -44,6 +45,7 @@ private:
     QList<ClientHandler*> m_clients;
     QMap<int, HandlerFunc> m_handlers;
     QThreadPool *m_threadPool;
+    mutable QMutex m_clientsMutex;
 };
 
 #endif // SERVER_CORE_H

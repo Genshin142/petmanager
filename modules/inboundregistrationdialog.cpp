@@ -7,6 +7,7 @@
 #include <QIntValidator>
 #include <QDoubleValidator>
 #include "custom_calendar_edit.h"
+#include "../utils/imageutils.h"
 
 InboundRegistrationDialog::InboundRegistrationDialog(QWidget *parent)
     : QDialog(parent)
@@ -189,9 +190,10 @@ void InboundRegistrationDialog::setupUI()
 
     // Confirm Button
     m_confirmBtn = new QPushButton("确认入库并同步资料");
-    m_confirmBtn->setFixedHeight(44);
-    m_confirmBtn->setStyleSheet("QPushButton { background: white; border: 1px solid #3b82f6; color: #3b82f6; font-size: 15px; font-weight: 800; border-radius: 8px; } "
-                               "QPushButton:hover { background: #eff6ff; } ");
+    m_confirmBtn->setFixedHeight(48);
+    m_confirmBtn->setStyleSheet("QPushButton { background: white; border: 1.5px solid #3b82f6; color: #3b82f6; font-size: 15px; font-weight: 800; border-radius: 8px; text-align: center; padding: 12px 0; } "
+                               "QPushButton:hover { background: #eff6ff; border-color: #2563eb; color: #2563eb; } "
+                               "QPushButton:pressed { background: #dbeafe; } ");
     mainLayout->addWidget(m_confirmBtn);
 
     connect(m_barcodeEdit, &QLineEdit::returnPressed, this, &InboundRegistrationDialog::onBarcodeEntered);
@@ -226,12 +228,23 @@ void InboundRegistrationDialog::updatePreviewCard(const QString &barcode)
         m_nameEdit->setText(info.name);
         m_categoryCombo->setCurrentText(info.category);
         m_specEdit->setText(info.spec);
-        m_originEdit->setText(info.origin);
+        
+        // 品牌/产地结合显示
+        QString originBrandCombined = info.origin;
+        if (!info.brand.isEmpty()) {
+            if (!originBrandCombined.isEmpty()) {
+                originBrandCombined = info.brand + "/" + originBrandCombined;
+            } else {
+                originBrandCombined = info.brand;
+            }
+        }
+        m_originEdit->setText(originBrandCombined);
+        
         m_costEdit->setText(QString::number(info.costPrice, 'f', 2));
         m_priceEdit->setText(QString::number(info.price, 'f', 2));
         m_supplierEdit->setText(info.supplier);
         m_supplierPhoneEdit->setText(info.supplierPhone);
-        m_shelfLifeEdit->setText(QString::number(info.shelfLifeDays));
+        m_shelfLifeEdit->setText(QString::number(info.shelfLifeDays > 0 ? info.shelfLifeDays : 365));
         m_minStockEdit->setText(QString::number(info.minStock));
         
         // 数量和生产日期不回填，保持默认或手动输入
@@ -252,27 +265,54 @@ void InboundRegistrationDialog::setEditMode(const StockInRecord &rec, const Prod
     setWindowTitle("修改入库资料");
     m_confirmBtn->setText("保存资料修改");
     
-    // 填入数据
+    // 1. 先加载上方卡片预览和图片
+    updatePreviewCard(rec.barcode);
+    
+    // 2. 然后用具体记录和档案的最新值覆盖表单字段，确保回填数据绝对正确
     m_barcodeEdit->setText(rec.barcode);
     m_barcodeEdit->setEnabled(false); // 条码不可改
     
     m_nameEdit->setText(rec.productName);
     m_categoryCombo->setCurrentText(pInfo.category.isEmpty() ? rec.category : pInfo.category);
     m_specEdit->setText(rec.spec);
-    m_originEdit->setText(pInfo.origin);
+    
+    // 产地/品牌结合回填
+    QString originBrandCombined = pInfo.origin;
+    if (!pInfo.brand.isEmpty()) {
+        if (!originBrandCombined.isEmpty()) {
+            originBrandCombined = pInfo.brand + "/" + originBrandCombined;
+        } else {
+            originBrandCombined = pInfo.brand;
+        }
+    }
+    if (originBrandCombined.isEmpty()) {
+        originBrandCombined = rec.origin;
+    }
+    m_originEdit->setText(originBrandCombined);
+    
     m_qtyEdit->setText(QString::number(rec.quantity));
     m_costEdit->setText(QString::number(rec.costPrice, 'f', 2));
+    
+    // 售价回填：如果编辑记录有售价则用记录的，否则用商品库的
+    double salePrice = rec.salePrice > 0 ? rec.salePrice : pInfo.price;
+    m_priceEdit->setText(QString::number(salePrice, 'f', 2));
+    
     m_supplierEdit->setText(rec.supplier);
     m_supplierPhoneEdit->setText(rec.supplierPhone);
     m_dateEdit->setText(rec.productionDate);
-    m_shelfLifeEdit->setText(QString::number(rec.shelfLifeDays));
-    m_minStockEdit->setText(QString::number(pInfo.minStock));
+    
+    // 保质期回填：如果 rec 里的保质期有效则用，否则用商品档案的，兜底 365
+    int shelfLife = rec.shelfLifeDays > 0 ? rec.shelfLifeDays : pInfo.shelfLifeDays;
+    if (shelfLife <= 0) shelfLife = 365;
+    m_shelfLifeEdit->setText(QString::number(shelfLife));
+    
+    m_minStockEdit->setText(QString::number(pInfo.minStock > 0 ? pInfo.minStock : 10));
     m_operatorCombo->setCurrentText(rec.operatorName);
     
-    m_imagePaths = rec.imgPaths;
+    // 图片集回填
+    m_imagePaths = rec.imgPaths.isEmpty() ? pInfo.images : rec.imgPaths;
     m_currentImgIndex = 0;
-    
-    updatePreviewCard(rec.barcode);
+    switchImage(false);
 }
 
 void InboundRegistrationDialog::onConfirmInbound()
@@ -284,18 +324,29 @@ void InboundRegistrationDialog::onConfirmInbound()
     }
 
     StockInRecord rec;
+    if (m_isEditMode) {
+        rec.id = m_currentRecord.id;
+        rec.dateTime = m_currentRecord.dateTime; // 保持原有入库时间不改变，保证查询唯一性
+        rec.isShelved = m_currentRecord.isShelved; // 关键修复：保留原有上架状态，防止被覆写为未上架！
+    } else {
+        rec.id = 0;
+        rec.dateTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+        rec.isShelved = false; // 新记录默认未上架
+    }
     rec.barcode = barcode;
     rec.productName = m_nameEdit->text();
+    rec.spec = m_specEdit->text().trimmed(); // 必须回填，防止 spec 被清空！
     rec.quantity = m_qtyEdit->text().toInt();
     rec.costPrice = m_costEdit->text().toDouble();
+    rec.salePrice = m_priceEdit->text().toDouble(); // 必须回填，防止售价无法保存！
     rec.supplier = m_supplierEdit->text();
     rec.supplierPhone = m_supplierPhoneEdit->text(); // 保存联系方式
     rec.productionDate = m_dateEdit->text();
-    rec.dateTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     rec.operatorName = m_operatorCombo->currentText(); // 保存选择的经办人
     rec.imgPaths = m_imagePaths;
     if (!m_imagePaths.isEmpty()) rec.imgData = m_imagePaths.first(); // 设置主图
     rec.shelfLifeDays = m_shelfLifeEdit->text().toInt();
+    rec.category = m_categoryCombo->currentText(); // 修复：必须给 rec.category 赋值，防止入库记录表里的商品分类被写成 NULL！
 
     // --- 同步更新商品档案库 ---
     ProductInfo info = ProductDataManager::instance()->getProduct(barcode);
@@ -303,7 +354,19 @@ void InboundRegistrationDialog::onConfirmInbound()
     info.name = rec.productName;
     info.category = m_categoryCombo->currentText();
     info.spec = rec.spec;
-    info.origin = m_originEdit->text();
+    
+    // 解析 产地/品牌 为单独的 brand 和 origin 存储
+    QString brandOrOrigin = m_originEdit->text().trimmed();
+    if (brandOrOrigin.contains("/")) {
+        QStringList parts = brandOrOrigin.split("/", Qt::SkipEmptyParts);
+        info.brand = parts.first().trimmed();
+        info.origin = parts.last().trimmed();
+    } else {
+        info.brand = brandOrOrigin;
+        info.origin = "";
+    }
+    rec.origin = brandOrOrigin; // 入库记录中也同步记录该组合值
+    
     info.costPrice = rec.costPrice;
     info.price = m_priceEdit->text().toDouble();
     info.shelfLifeDays = rec.shelfLifeDays;
@@ -346,7 +409,7 @@ void InboundRegistrationDialog::switchImage(bool next)
     if (m_imagePaths.isEmpty()) return;
     if (next) m_currentImgIndex = (m_currentImgIndex + 1) % m_imagePaths.size();
     
-    QPixmap pix(m_imagePaths[m_currentImgIndex]);
+    QPixmap pix = ImageUtils::loadPixmap(m_imagePaths[m_currentImgIndex]);
     m_previewImg->setPixmap(pix.scaled(m_previewImg->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
     m_previewImg->setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 12px;");
     updateDots();

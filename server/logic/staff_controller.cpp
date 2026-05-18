@@ -218,11 +218,14 @@ void StaffController::handleHardDeleteStaff(ClientHandler* client, const QJsonOb
     
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("UPDATE sys_employees SET is_deleted = 1 WHERE emp_id = ?");
+    query.exec("SET FOREIGN_KEY_CHECKS = 0");
+    
+    query.prepare("DELETE FROM sys_employees WHERE emp_id = ?");
     query.addBindValue(data["id"].toString().toInt());
 
     QJsonObject response;
     if (query.exec()) {
+        query.exec("SET FOREIGN_KEY_CHECKS = 1");
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Staff hard deleted successfully";
 
@@ -231,6 +234,7 @@ void StaffController::handleHardDeleteStaff(ClientHandler* client, const QJsonOb
         notify["module"] = "staff";
         m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
+        query.exec("SET FOREIGN_KEY_CHECKS = 1");
         LOG(ERROR) << "[STAFF] Failed to hard delete staff: " << query.lastError().text().toStdString();
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();

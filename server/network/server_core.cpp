@@ -20,6 +20,7 @@
 #include "../logic/finance_controller.h"
 #include "../logic/report_controller.h"
 #include "../logic/log_controller.h"
+#include <QtCore/QMutexLocker>
 
 ServerCore::ServerCore(QObject *parent) : QObject(parent)
 {
@@ -58,7 +59,10 @@ void ServerCore::onNewConnection()
         connect(handler, &ClientHandler::packetReady, this, &ServerCore::onPacketReady);
         connect(handler, &ClientHandler::disconnected, this, &ServerCore::onClientDisconnected);
         
-        m_clients.append(handler);
+        {
+            QMutexLocker locker(&m_clientsMutex);
+            m_clients.append(handler);
+        }
         LOG_I("[NET] New client connected from " << socket->peerAddress().toString().toStdString() 
                  << ". Total clients: " << m_clients.size());
     }
@@ -67,7 +71,8 @@ void ServerCore::onNewConnection()
 void ServerCore::broadcastPacket(int cmdId, const QJsonObject &data)
 {
     QByteArray bytes = QJsonDocument(data).toJson(QJsonDocument::Compact);
-    for (auto client : m_clients) {
+    QMutexLocker locker(&m_clientsMutex);
+    for (const auto &client : m_clients) {
         client->sendPacket(cmdId, bytes);
     }
 }
@@ -109,7 +114,10 @@ void ServerCore::onClientDisconnected()
 {
     ClientHandler *handler = qobject_cast<ClientHandler*>(sender());
     if (handler) {
-        m_clients.removeAll(handler);
+        {
+            QMutexLocker locker(&m_clientsMutex);
+            m_clients.removeAll(handler);
+        }
         handler->deleteLater();
         LOG_I("[NET] Client disconnected. Remaining clients: " << m_clients.size());
     }

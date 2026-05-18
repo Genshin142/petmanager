@@ -320,7 +320,7 @@ void LogisticsDetailDrawer::closeDrawer()
 void LogisticsDetailDrawer::showBigImage(const QString &path)
 {
     if (path.isEmpty()) return;
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (pix.isNull()) pix.load(":/images/load_img.jpg");
 
     QDialog *preview = new QDialog(this, Qt::FramelessWindowHint);

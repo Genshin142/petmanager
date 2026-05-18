@@ -495,6 +495,8 @@ void PetController::handleHardDeletePet(ClientHandler* client, const QJsonObject
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
     
+    query.exec("SET FOREIGN_KEY_CHECKS = 0");
+    
     // Begin transaction for safe cascade deletions
     db.transaction();
     bool ok = true;
@@ -517,10 +519,12 @@ void PetController::handleHardDeletePet(ClientHandler* client, const QJsonObject
     
     QJsonObject response;
     if (ok && db.commit()) {
+        query.exec("SET FOREIGN_KEY_CHECKS = 1");
         response["status"] = Protocol::STATUS_OK;
         m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, QJsonObject{{"module", "pet"}});
     } else {
         db.rollback();
+        query.exec("SET FOREIGN_KEY_CHECKS = 1");
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();
         LOG_E("[PET] Hard delete failed: " << query.lastError().text().toStdString());

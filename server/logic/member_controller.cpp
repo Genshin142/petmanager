@@ -111,16 +111,26 @@ void MemberController::handleRestoreMember(ClientHandler *client, const QJsonObj
 void MemberController::handleHardDeleteMember(ClientHandler *client, const QJsonObject &data) {
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
+    query.exec("SET FOREIGN_KEY_CHECKS = 0");
+    
+    // Also delete their pets
+    QSqlQuery petQuery(db);
+    petQuery.prepare("DELETE FROM pets WHERE member_id = ?");
+    petQuery.addBindValue(data["member_id"].toInt());
+    petQuery.exec();
+
     query.prepare("DELETE FROM members WHERE member_id = ?");
     query.addBindValue(data["member_id"].toInt());
 
     QJsonObject response;
     if (query.exec()) {
+        query.exec("SET FOREIGN_KEY_CHECKS = 1");
         response["status"] = Protocol::STATUS_OK;
         QJsonObject notify;
         notify["module"] = "member";
         m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
+        query.exec("SET FOREIGN_KEY_CHECKS = 1");
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();
     }

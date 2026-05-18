@@ -535,7 +535,7 @@ void AppointmentDetailDrawer::updateCarousel() {
     if (m_photoIndex >= m_photos.size()) m_photoIndex = 0;
 
     QString path = m_photos[m_photoIndex];
-    QPixmap pix(path);
+    QPixmap pix = ImageUtils::loadPixmap(path);
     if (pix.isNull()) pix.load(":/images/load_img.jpg");
 
     // 绘制主图 + 底部指示点

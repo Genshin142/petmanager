@@ -315,7 +315,7 @@ void RoleModule::setupUI()
     roleFilterCombo = new QComboBox();
     roleFilterCombo->setFixedWidth(110);
     roleFilterCombo->setFixedHeight(36);
-    roleFilterCombo->addItems({"全部职位", "店员", "高级美容师", "宠物医生", "实习生", "店长"});
+    roleFilterCombo->addItems({"全部职位", "店长", "店员", "美容师", "高级美容师", "收银", "司机", "宠物医生", "实习生"});
     roleFilterCombo->setStyleSheet(
         "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
         "QComboBox:hover { border-color: #409eff; } "
