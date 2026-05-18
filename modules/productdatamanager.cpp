@@ -38,12 +38,12 @@ ProductDataManager::ProductDataManager(QObject *parent) : QObject(parent)
     requestProductList(); 
 }
 
-void ProductDataManager::requestInboundList(bool onlyUnshelved)
+void ProductDataManager::requestInboundList(bool onlyUnshelved, bool force)
 {
     {
         QMutexLocker locker(&m_mutex);
-        if (!m_records.isEmpty()) {
-            emit inboundListReceived(); // 如果已经有数据，直接通知 UI
+        if (!force && !m_records.isEmpty()) {
+            emit inboundListReceived(m_records);
             return;
         }
     }
@@ -245,7 +245,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         
         if (success) {
             requestProductList(true); // 状态变更，强制刷新商品列表
-            requestInboundList(); // 刷新入库记录列表以更新状态位
+            requestInboundList(false, true); // 刷新入库记录列表以更新状态位
         }
         emit shelveResult(success, msg);
     }
@@ -254,7 +254,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         if (root["module"].toString() == "product") {
             qDebug() << "[PRODUCT] Refresh notification received from server.";
             requestProductList(true); // 强制刷新商品列表
-            requestInboundList();
+            requestInboundList(false, true);
         }
     }
 }

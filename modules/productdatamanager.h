@@ -16,7 +16,7 @@ public:
     static ProductDataManager* instance();
     
     void requestProductList(bool force = false); // 从服务器拉取商品列表（支持强制刷新）
-    void requestInboundList(bool onlyUnshelved = false); // 从服务器拉取入库记录
+    void requestInboundList(bool onlyUnshelved = false, bool force = false); // 从服务器拉取入库记录
     void shelveProduct(int inboundId); // 执行上架操作
     void unshelveProduct(int inboundId); // 执行下架操作
     QList<ProductInfo> allProducts() const;
