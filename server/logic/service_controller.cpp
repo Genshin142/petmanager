@@ -25,7 +25,7 @@ void ServiceController::handleGetServiceList(ClientHandler* client, const QJsonO
                   "  (SELECT COUNT(*) FROM appointments a "
                   "   INNER JOIN orders o ON o.source_module = 'Appointment' AND o.related_id = a.appt_id "
                   "   WHERE a.service_id = s.service_id "
-                  "     AND a.status = '已完成' "
+                  "     AND a.status = 'Completed' "
                   "     AND o.status = 'Paid' "
                   "     AND a.is_deleted = 0) as sales_count "
                   "FROM services s "
