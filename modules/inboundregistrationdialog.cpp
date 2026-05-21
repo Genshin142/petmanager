@@ -1,5 +1,6 @@
 #include "inboundregistrationdialog.h"
 #include "productdatamanager.h"
+#include "staffdatamanager.h"
 #include <QDateTime>
 #include <QWheelEvent>
 #include "custommessagedialog.h"
@@ -155,8 +156,18 @@ void InboundRegistrationDialog::setupUI()
     priceValidator->setNotation(QDoubleValidator::StandardNotation);
     m_priceEdit->setValidator(priceValidator);
     
-    m_operatorCombo = new QComboBox(); // 新增
-    m_operatorCombo->addItems({"系统管理员", "店长admin", "营业员staff", "仓库主管"});
+    m_operatorCombo = new QComboBox(); // 动态加载所有在职员工
+    {
+        QList<EmployeeInfo> allStaff = StaffDataManager::instance()->allStaff();
+        for (const EmployeeInfo &emp : allStaff) {
+            if (emp.status == "离职") continue; // 跳过已离职员工
+            QString displayText = QString("%1 (%2)").arg(emp.name, emp.id);
+            m_operatorCombo->addItem(displayText, emp.id); // UserRole 存储员工ID
+        }
+        if (m_operatorCombo->count() == 0) {
+            m_operatorCombo->addItem("暂无在职员工");
+        }
+    }
     
     m_dateEdit = new CustomCalendarEdit();
     m_dateEdit->setText(QDate::currentDate().toString("yyyy-MM-dd"));
@@ -307,7 +318,13 @@ void InboundRegistrationDialog::setEditMode(const StockInRecord &rec, const Prod
     m_shelfLifeEdit->setText(QString::number(shelfLife));
     
     m_minStockEdit->setText(QString::number(pInfo.minStock > 0 ? pInfo.minStock : 10));
-    m_operatorCombo->setCurrentText(rec.operatorName);
+    // 回选经办人：优先按姓名前缀匹配，兼容旧数据格式
+    for (int i = 0; i < m_operatorCombo->count(); ++i) {
+        if (m_operatorCombo->itemText(i).startsWith(rec.operatorName)) {
+            m_operatorCombo->setCurrentIndex(i);
+            break;
+        }
+    }
     
     // 图片集回填
     m_imagePaths = rec.imgPaths.isEmpty() ? pInfo.images : rec.imgPaths;
@@ -342,7 +359,7 @@ void InboundRegistrationDialog::onConfirmInbound()
     rec.supplier = m_supplierEdit->text();
     rec.supplierPhone = m_supplierPhoneEdit->text(); // 保存联系方式
     rec.productionDate = m_dateEdit->text();
-    rec.operatorName = m_operatorCombo->currentText(); // 保存选择的经办人
+    rec.operatorName = m_operatorCombo->currentText(); // 保存格式：姓名 (ID)
     rec.imgPaths = m_imagePaths;
     if (!m_imagePaths.isEmpty()) rec.imgData = m_imagePaths.first(); // 设置主图
     rec.shelfLifeDays = m_shelfLifeEdit->text().toInt();
