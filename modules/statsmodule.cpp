@@ -509,6 +509,17 @@ QWidget* StatsModule::createFinanceView() {
     connect(m_yearPicker, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatsModule::refreshData);
     connect(m_monthPicker, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatsModule::refreshData);
     
+    // 默认显示本年本月走势
+    QDate today = QDate::currentDate();
+    int currentYear = today.year();
+    int currentMonth = today.month();
+    int yearIdx = 2026 - currentYear;
+    if (yearIdx >= 0 && yearIdx < m_yearPicker->count()) {
+        m_yearPicker->setCurrentIndex(yearIdx);
+    }
+    m_monthPicker->setCurrentIndex(currentMonth - 1);
+    m_trendRangeCombo->setCurrentIndex(2); // 本月走势
+
     updatePickerVisibility();
     return view;
 }

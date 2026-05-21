@@ -77,9 +77,9 @@ void ReportController::handleGetRevenueTrend(ClientHandler *client, const QJsonO
     if (range == "all_years") {
         sql = "SELECT DATE_FORMAT(created_at, '%Y年') as label, SUM(actual_pay) FROM orders WHERE status = 'Paid' GROUP BY label ORDER BY label DESC LIMIT 5";
     } else if (range == "year") {
-        sql = QString("SELECT DATE_FORMAT(created_at, '%%M月') as label, SUM(actual_pay) FROM orders WHERE status = 'Paid' AND YEAR(created_at) = %1 GROUP BY label ORDER BY MONTH(created_at)").arg(year);
+        sql = QString("SELECT DATE_FORMAT(created_at, '%c月') as label, SUM(actual_pay) FROM orders WHERE status = 'Paid' AND YEAR(created_at) = %1 GROUP BY label ORDER BY MONTH(created_at)").arg(year);
     } else { // month
-        sql = QString("SELECT DATE_FORMAT(created_at, '%%Y-%%m-%%d') as label, SUM(actual_pay) FROM orders WHERE status = 'Paid' AND YEAR(created_at) = %1 AND MONTH(created_at) = %2 GROUP BY label ORDER BY label").arg(year).arg(month);
+        sql = QString("SELECT DATE_FORMAT(created_at, '%Y-%m-%d') as label, SUM(actual_pay) FROM orders WHERE status = 'Paid' AND YEAR(created_at) = %1 AND MONTH(created_at) = %2 GROUP BY label ORDER BY label").arg(year).arg(month);
     }
 
     QJsonArray trendData;
