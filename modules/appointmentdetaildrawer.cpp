@@ -318,7 +318,7 @@ void AppointmentDetailDrawer::setAppointment(const QString &id)
         m_genderLabel->setStyleSheet("background: transparent;");
     }
 
-    m_idLabel->setText(QString("ID: %1").arg(m_currentInfo.petId));
+    m_idLabel->setText(QString("预约单号: %1 | 宠物 ID: %2").arg(m_currentInfo.id, m_currentInfo.petId));
     
     // 头像处理 (同步为 80x80 圆形，修复: 使用 ImageUtils 支持 Base64 加载)
     QPixmap pixmap = ImageUtils::loadPixmap(m_currentInfo.petAvatar);
@@ -447,17 +447,24 @@ void AppointmentDetailDrawer::setAppointment(const QString &id)
             details = fullService.mid(start + 1, fullService.length() - start - 2);
         }
         
-        addInfoRow(g, 0, "业务类型", category);
-        addInfoRow(g, 1, "预约时间", QString("%1 %2").arg(m_currentInfo.date, m_currentInfo.hour));
+        addInfoRow(g, 0, "预约编号", m_currentInfo.id);
+        addInfoRow(g, 1, "业务类型", category);
+        addInfoRow(g, 2, "预约时间", QString("%1 %2").arg(m_currentInfo.date, m_currentInfo.hour));
         
-        int currentRow = 2;
-        if (m_currentInfo.status == "In-Service" || m_currentInfo.status == "服务中") {
+        int currentRow = 3;
+        if (m_currentInfo.status == "In-Service" || m_currentInfo.status == "服务中" || 
+            m_currentInfo.status == "Completed" || m_currentInfo.status == "已完成") {
             addInfoRow(g, currentRow++, "服务人员", m_currentInfo.staff.isEmpty() ? "待分配" : m_currentInfo.staff);
         }
         
         addInfoRow(g, currentRow++, "项目明细", details);
         if (m_currentInfo.type == "Transport") addInfoRow(g, currentRow++, "接送地址", m_currentInfo.address);
-        else if (m_currentInfo.type == "Boarding") addInfoRow(g, currentRow++, "房间号", m_currentInfo.roomNo.isEmpty() ? "待分配" : m_currentInfo.roomNo);
+        else if (m_currentInfo.type == "Boarding") {
+            addInfoRow(g, currentRow++, "房间号", m_currentInfo.roomNo.isEmpty() ? "待分配" : (m_currentInfo.roomNo + "号房"));
+            addInfoRow(g, currentRow++, "入住日期", m_currentInfo.date.isEmpty() ? "--" : m_currentInfo.date);
+            addInfoRow(g, currentRow++, "离店日期", m_currentInfo.boardingEndDate.isEmpty() ? "--" : m_currentInfo.boardingEndDate);
+            addInfoRow(g, currentRow++, "总天数", m_currentInfo.duration > 0 ? (QString::number(m_currentInfo.duration) + " 天") : "--");
+        }
     });
 
     // --- D. 备注需求 ---
