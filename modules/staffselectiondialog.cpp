@@ -34,7 +34,6 @@ public:
     {
         setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
         setAttribute(Qt::WA_TranslucentBackground);
-        setAttribute(Qt::WA_DeleteOnClose);
         setModal(true);
         setCursor(Qt::PointingHandCursor);
         
