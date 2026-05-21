@@ -27,20 +27,20 @@ protected:
 };
 
 // --- 全屏图片查看遮罩 ---
-class FullscreenOverlay : public QWidget {
+class FullscreenOverlay : public QDialog {
 public:
     FullscreenOverlay(const QPixmap &photo, const QString &name, QWidget *parent = nullptr)
-        : QWidget(parent), m_photo(photo), m_name(name)
+        : QDialog(parent), m_photo(photo), m_name(name)
     {
-        setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_DeleteOnClose);
+        setModal(true);
         setCursor(Qt::PointingHandCursor);
         
         // 全屏覆盖
         QScreen *screen = QApplication::primaryScreen();
         setGeometry(screen->geometry());
-        showFullScreen();
     }
     
 protected:
@@ -84,14 +84,14 @@ protected:
     }
     
     void mousePressEvent(QMouseEvent *) override {
-        close();
+        accept();
     }
     
     void keyPressEvent(QKeyEvent *event) override {
         if (event->key() == Qt::Key_Escape) {
-            close();
+            accept();
         }
-        QWidget::keyPressEvent(event);
+        QDialog::keyPressEvent(event);
     }
     
 private:
@@ -293,9 +293,9 @@ void StaffSelectionDialog::onAvatarClicked(const QString &staffId)
 
 void StaffSelectionDialog::showEnlargedAvatar(const QPixmap &avatar, const QString &name)
 {
-    // 使用全屏覆盖窗口，效果类似图3——照片占满全屏
-    auto *overlay = new FullscreenOverlay(avatar, name, nullptr);
-    Q_UNUSED(overlay);
+    // 使用模态对话框全屏覆盖，避免与父级模态冲突产生系统提示音
+    FullscreenOverlay overlay(avatar, name, this);
+    overlay.exec();
 }
 
 void StaffSelectionDialog::onSearchChanged(const QString &text)
