@@ -26,6 +26,79 @@ protected:
     }
 };
 
+// --- 全屏图片查看遮罩 ---
+class FullscreenOverlay : public QWidget {
+public:
+    FullscreenOverlay(const QPixmap &photo, const QString &name, QWidget *parent = nullptr)
+        : QWidget(parent), m_photo(photo), m_name(name)
+    {
+        setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_DeleteOnClose);
+        setCursor(Qt::PointingHandCursor);
+        
+        // 全屏覆盖
+        QScreen *screen = QApplication::primaryScreen();
+        setGeometry(screen->geometry());
+        showFullScreen();
+    }
+    
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        
+        // 半透明黑色遮罩
+        painter.fillRect(rect(), QColor(0, 0, 0, 200));
+        
+        // 计算图片区域：留出上下边距，按比例缩放
+        int marginV = height() * 0.05; // 上下各5%边距
+        int marginH = width() * 0.15;  // 左右各15%边距
+        int availW = width() - marginH * 2;
+        int availH = height() - marginV * 2 - 60; // 底部留60px给名字
+        
+        QPixmap scaled = m_photo.scaled(availW, availH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        int x = (width() - scaled.width()) / 2;
+        int y = (height() - scaled.height() - 50) / 2; // 稍微上移，给底部名字留空
+        
+        // 绘制照片（带细圆角和轻微阴影感）
+        QPainterPath clipPath;
+        clipPath.addRoundedRect(QRectF(x, y, scaled.width(), scaled.height()), 6, 6);
+        painter.setClipPath(clipPath);
+        painter.drawPixmap(x, y, scaled);
+        painter.setClipping(false);
+        
+        // 底部姓名
+        QFont nameFont("Microsoft YaHei", 14, QFont::Bold);
+        painter.setFont(nameFont);
+        painter.setPen(QColor(255, 255, 255, 220));
+        QRect nameRect(0, y + scaled.height() + 12, width(), 40);
+        painter.drawText(nameRect, Qt::AlignCenter, m_name);
+        
+        // 关闭提示
+        QFont hintFont("Microsoft YaHei", 10);
+        painter.setFont(hintFont);
+        painter.setPen(QColor(255, 255, 255, 120));
+        QRect hintRect(0, height() - 40, width(), 30);
+        painter.drawText(hintRect, Qt::AlignCenter, "点击任意位置关闭");
+    }
+    
+    void mousePressEvent(QMouseEvent *) override {
+        close();
+    }
+    
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() == Qt::Key_Escape) {
+            close();
+        }
+        QWidget::keyPressEvent(event);
+    }
+    
+private:
+    QPixmap m_photo;
+    QString m_name;
+};
+
 StaffSelectionDialog::StaffSelectionDialog(QWidget *parent) : QDialog(parent)
 {
     setupUI();
@@ -141,7 +214,7 @@ void StaffSelectionDialog::renderStaffList(const QString &filter)
 
         // 头像 - 优先使用真实头像，无头像时按性别显示默认图标
         ClickableAvatarLabel *avatarLabel = new ClickableAvatarLabel();
-        avatarLabel->setFixedSize(44, 44);
+        avatarLabel->setFixedSize(48, 48);
         avatarLabel->setToolTip("点击查看大图");
         
         QPixmap realAvatar = StaffDataManager::instance()->getStaffPixmap(info.id);
@@ -151,12 +224,11 @@ void StaffSelectionDialog::renderStaffList(const QString &filter)
         } else {
             avatarPix = QPixmap(info.gender == "女" ? ":/images/female.png" : ":/images/male.png");
         }
-        avatarLabel->setPixmap(createCircularAvatar(avatarPix, 44));
+        avatarLabel->setPixmap(createCircularAvatar(avatarPix, 48));
         
         // 点击头像放大
         QString staffId = info.id;
-        QString staffName = info.name;
-        avatarLabel->onClick = [this, staffId, staffName]() {
+        avatarLabel->onClick = [this, staffId]() {
             onAvatarClicked(staffId);
         };
         
@@ -186,6 +258,17 @@ void StaffSelectionDialog::renderStaffList(const QString &filter)
 
 QPixmap StaffSelectionDialog::createCircularAvatar(const QPixmap &src, int size)
 {
+    // 先居中裁剪为正方形，避免非正方形图片被压扁
+    QPixmap squareSrc;
+    if (src.width() != src.height()) {
+        int side = qMin(src.width(), src.height());
+        int x = (src.width() - side) / 2;
+        int y = (src.height() - side) / 2;
+        squareSrc = src.copy(x, y, side, side);
+    } else {
+        squareSrc = src;
+    }
+    
     QPixmap target(size, size);
     target.fill(Qt::transparent);
     QPainter painter(&target);
@@ -194,7 +277,7 @@ QPixmap StaffSelectionDialog::createCircularAvatar(const QPixmap &src, int size)
     QPainterPath path;
     path.addEllipse(0, 0, size, size);
     painter.setClipPath(path);
-    painter.drawPixmap(0, 0, size, size, src.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    painter.drawPixmap(0, 0, size, size, squareSrc.scaled(size, size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     return target;
 }
 
@@ -210,71 +293,9 @@ void StaffSelectionDialog::onAvatarClicked(const QString &staffId)
 
 void StaffSelectionDialog::showEnlargedAvatar(const QPixmap &avatar, const QString &name)
 {
-    // 创建全屏半透明遮罩弹窗
-    QDialog *overlay = new QDialog(this);
-    overlay->setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
-    overlay->setAttribute(Qt::WA_TranslucentBackground);
-    overlay->setAttribute(Qt::WA_DeleteOnClose);
-    
-    // 获取屏幕尺寸，居中显示
-    QScreen *screen = QApplication::primaryScreen();
-    QRect screenRect = screen->availableGeometry();
-    overlay->setFixedSize(screenRect.width(), screenRect.height());
-    overlay->move(screenRect.topLeft());
-    
-    // 半透明黑色遮罩背景
-    QWidget *bgWidget = new QWidget(overlay);
-    bgWidget->setFixedSize(overlay->size());
-    bgWidget->setStyleSheet("background: rgba(0, 0, 0, 160);");
-    
-    QVBoxLayout *mainLayout = new QVBoxLayout(overlay);
-    mainLayout->setAlignment(Qt::AlignCenter);
-    
-    // 白色内容卡片
-    QFrame *card = new QFrame();
-    card->setFixedSize(340, 400);
-    card->setStyleSheet("QFrame { background: white; border-radius: 16px; }");
-    
-    QVBoxLayout *cardLayout = new QVBoxLayout(card);
-    cardLayout->setAlignment(Qt::AlignCenter);
-    cardLayout->setSpacing(16);
-    cardLayout->setContentsMargins(20, 24, 20, 24);
-    
-    // 大头像（圆形）
-    QLabel *bigAvatar = new QLabel();
-    int avatarSize = 220;
-    bigAvatar->setFixedSize(avatarSize, avatarSize);
-    bigAvatar->setAlignment(Qt::AlignCenter);
-    bigAvatar->setPixmap(createCircularAvatar(avatar, avatarSize));
-    cardLayout->addWidget(bigAvatar, 0, Qt::AlignCenter);
-    
-    // 姓名
-    QLabel *nameLabel = new QLabel(name);
-    nameLabel->setAlignment(Qt::AlignCenter);
-    nameLabel->setStyleSheet("font-size: 18px; font-weight: bold; color: #303133; background: transparent;");
-    cardLayout->addWidget(nameLabel);
-    
-    // 关闭提示
-    QLabel *hintLabel = new QLabel("点击任意位置关闭");
-    hintLabel->setAlignment(Qt::AlignCenter);
-    hintLabel->setStyleSheet("font-size: 12px; color: #909399; background: transparent;");
-    cardLayout->addWidget(hintLabel);
-    
-    mainLayout->addWidget(card);
-    
-    // 点击任意位置关闭
-    overlay->installEventFilter(overlay);
-    connect(overlay, &QDialog::finished, overlay, &QDialog::deleteLater);
-    
-    // 用一个透明按钮覆盖整个遮罩来实现点击关闭
-    QPushButton *closeOverlay = new QPushButton(overlay);
-    closeOverlay->setFixedSize(overlay->size());
-    closeOverlay->setStyleSheet("background: transparent; border: none;");
-    closeOverlay->lower(); // 放到最底层
-    bgWidget->lower();     // 遮罩在最底层
-    connect(closeOverlay, &QPushButton::clicked, overlay, &QDialog::close);
-    
-    overlay->exec();
+    // 使用全屏覆盖窗口，效果类似图3——照片占满全屏
+    auto *overlay = new FullscreenOverlay(avatar, name, nullptr);
+    Q_UNUSED(overlay);
 }
 
 void StaffSelectionDialog::onSearchChanged(const QString &text)
