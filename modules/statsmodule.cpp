@@ -13,6 +13,7 @@
 #include <QScrollBar>
 #include <QGraphicsLayout>
 #include <QDate>
+#include <QElapsedTimer>
 #include <QGraphicsDropShadowEffect>
 #include <QtCharts/QChartView>
 #include <QtCharts/QPieSeries>
@@ -200,7 +201,7 @@ void StatsModule::setupUI() {
     topSplitLayout->addWidget(m_cardContainer, 3); // 恢复卡片区域权重到 3，确保卡片比例协调
 
     // 扇形图容器组 (并列显示两个占比图)
-    auto createTopPie = [&](const QString &title, QChartView* &chart) {
+    auto createTopPie = [&](const QString &title, QWidget* &container) {
         QWidget *box = new QWidget();
         QVBoxLayout *vl = new QVBoxLayout(box);
         vl->setContentsMargins(0, 0, 0, 0);
@@ -208,11 +209,15 @@ void StatsModule::setupUI() {
         QLabel *l = new QLabel(title);
         l->setStyleSheet("font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 8px;"); // 放大标题字体
         vl->addWidget(l);
-        chart = new QChartView();
-        chart->setFixedHeight(240); // 缩小高度
-        chart->setRenderHint(QPainter::Antialiasing);
-        chart->setStyleSheet("background: transparent; border: none;");
-        vl->addWidget(chart);
+        
+        container = new QWidget();
+        container->setFixedHeight(240); // 缩小高度
+        container->setStyleSheet("background: transparent; border: none;");
+        QVBoxLayout *cl = new QVBoxLayout(container);
+        cl->setContentsMargins(0, 0, 0, 0);
+        cl->setSpacing(0);
+        
+        vl->addWidget(container);
         return box;
     };
 
@@ -227,22 +232,22 @@ void StatsModule::setupUI() {
     m_finPiesContainer = new QWidget();
     QHBoxLayout *fpl = new QHBoxLayout(m_finPiesContainer);
     fpl->setContentsMargins(0,0,0,0); fpl->setSpacing(20);
-    fpl->addWidget(createTopPie("营收项目构成", m_finCompChart), 1);
-    fpl->addWidget(createTopPie("支付渠道分布", m_finPayChart), 1);
+    fpl->addWidget(createTopPie("营收项目构成", m_finCompChartContainer), 1);
+    fpl->addWidget(createTopPie("支付渠道分布", m_finPayChartContainer), 1);
     tpcl->addWidget(m_finPiesContainer);
 
     // 2. 商品占比组
     m_prodPieContainer = new QWidget();
     QHBoxLayout *ppl = new QHBoxLayout(m_prodPieContainer);
     ppl->setContentsMargins(0,0,0,0);
-    ppl->addWidget(createTopPie("商品销售构成", m_productCategoryChart), 1);
+    ppl->addWidget(createTopPie("商品销售构成", m_productCategoryChartContainer), 1);
     tpcl->addWidget(m_prodPieContainer);
 
     // 3. 服务占比组
     m_svcPieContainer = new QWidget();
     QHBoxLayout *spl = new QHBoxLayout(m_svcPieContainer);
     spl->setContentsMargins(0,0,0,0);
-    spl->addWidget(createTopPie("服务类目分布", m_serviceHeatmapChart), 1);
+    spl->addWidget(createTopPie("服务类目分布", m_serviceHeatmapChartContainer), 1);
     tpcl->addWidget(m_svcPieContainer);
 
     topSplitLayout->addWidget(m_topPieContainer, 4); // 图表区域维持 4，保持总比例 3:4
@@ -432,11 +437,11 @@ QWidget* StatsModule::createFinanceView() {
     m_financeMainStack = new QStackedWidget();
     
     // Page 0: Chart
-    m_finTrendChart = new QChartView();
-    m_finTrendChart->setMinimumHeight(400); 
-    m_finTrendChart->setRenderHint(QPainter::Antialiasing);
-    m_finTrendChart->setStyleSheet("background: transparent;");
-    m_financeMainStack->addWidget(m_finTrendChart);
+    m_finTrendChartContainer = new QWidget();
+    m_finTrendChartContainer->setMinimumHeight(400);
+    QVBoxLayout *trendL = new QVBoxLayout(m_finTrendChartContainer);
+    trendL->setContentsMargins(0, 0, 0, 0);
+    m_financeMainStack->addWidget(m_finTrendChartContainer);
 
     // Page 1: Table Panel
     QWidget *tablePanel = new QWidget();
@@ -2335,6 +2340,8 @@ void StatsModule::goToDailyRevPage(int delta) {
 }
 
 void StatsModule::onDashboardStatsReceived(const QJsonObject &data) {
+    m_cachedDashboardStats = data;
+
     // 1. 更新卡片 (KPI) - 仅在财务总览 (0) 时使用该异步卡片数据
     if (m_currentCategory == 0 && m_cardValues.size() >= 3) {
         m_cardValues[0]->setText(QString("¥%1").arg(QString::number(data["totalRevenue"].toDouble(), 'f', 0)));
@@ -2345,6 +2352,8 @@ void StatsModule::onDashboardStatsReceived(const QJsonObject &data) {
         m_cardTrends[1]->setText("已支付总单数");
         m_cardTrends[2]->setText("全店客单均值");
     }
+
+    if (!m_chartsCreated) return;
 
     // 2. 更新饼图
     auto updatePie = [&](QChartView* view, const QJsonArray &arr, const QList<QColor> &colors) {
@@ -2358,6 +2367,19 @@ void StatsModule::onDashboardStatsReceived(const QJsonObject &data) {
         for (int i = 0; i < arr.size(); ++i) {
             QJsonObject obj = arr[i].toObject();
             QString name = obj["name"].toString();
+            
+            // 翻译模块和支付渠道的英文名称为中文
+            if (name == "Appointment") name = "服务预约";
+            else if (name == "Product") name = "商品零售";
+            else if (name == "Service") name = "服务项目";
+            else if (name == "Foster" || name == "Boarding") name = "宠物寄养";
+            else if (name == "Logistics") name = "宠物接送";
+            else if (name == "MemberCard" || name == "Balance") name = "会员卡余额";
+            else if (name == "Alipay") name = "支付宝";
+            else if (name == "Wechat" || name == "WeChat") name = "微信支付";
+            else if (name == "Cash") name = "现金";
+            else if (name == "Card") name = "银行卡";
+
             double val = obj["value"].toDouble();
             if (val <= 0) continue;
             
@@ -2381,7 +2403,8 @@ void StatsModule::onDashboardStatsReceived(const QJsonObject &data) {
 }
 
 void StatsModule::onRevenueTrendReceived(const QJsonArray &data) {
-    if (!m_finTrendChart) return;
+    m_cachedRevenueTrend = data;
+    if (!m_chartsCreated || !m_finTrendChart) return;
 
     QChart *chart = new QChart();
     chart->setBackgroundVisible(false);
@@ -2434,4 +2457,63 @@ void StatsModule::onRevenueTrendReceived(const QJsonArray &data) {
 
     chart->legend()->hide();
     m_finTrendChart->setChart(chart);
+}
+
+void StatsModule::showEvent(QShowEvent *event) {
+    QWidget::showEvent(event);
+    ensureChartsCreated();
+}
+
+void StatsModule::ensureChartsCreated() {
+    if (m_chartsCreated) return;
+    
+    QElapsedTimer timer;
+    timer.start();
+    qDebug() << "[PERF] Lazy-instantiating StatsModule charts...";
+
+    // 1. m_finCompChart
+    m_finCompChart = new QChartView();
+    m_finCompChart->setFixedHeight(240);
+    m_finCompChart->setRenderHint(QPainter::Antialiasing);
+    m_finCompChart->setStyleSheet("background: transparent; border: none;");
+    m_finCompChartContainer->layout()->addWidget(m_finCompChart);
+
+    // 2. m_finPayChart
+    m_finPayChart = new QChartView();
+    m_finPayChart->setFixedHeight(240);
+    m_finPayChart->setRenderHint(QPainter::Antialiasing);
+    m_finPayChart->setStyleSheet("background: transparent; border: none;");
+    m_finPayChartContainer->layout()->addWidget(m_finPayChart);
+
+    // 3. m_productCategoryChart
+    m_productCategoryChart = new QChartView();
+    m_productCategoryChart->setFixedHeight(240);
+    m_productCategoryChart->setRenderHint(QPainter::Antialiasing);
+    m_productCategoryChart->setStyleSheet("background: transparent; border: none;");
+    m_productCategoryChartContainer->layout()->addWidget(m_productCategoryChart);
+
+    // 4. m_serviceHeatmapChart
+    m_serviceHeatmapChart = new QChartView();
+    m_serviceHeatmapChart->setFixedHeight(240);
+    m_serviceHeatmapChart->setRenderHint(QPainter::Antialiasing);
+    m_serviceHeatmapChart->setStyleSheet("background: transparent; border: none;");
+    m_serviceHeatmapChartContainer->layout()->addWidget(m_serviceHeatmapChart);
+
+    // 5. m_finTrendChart
+    m_finTrendChart = new QChartView();
+    m_finTrendChart->setMinimumHeight(400);
+    m_finTrendChart->setRenderHint(QPainter::Antialiasing);
+    m_finTrendChart->setStyleSheet("background: transparent;");
+    m_finTrendChartContainer->layout()->addWidget(m_finTrendChart);
+
+    m_chartsCreated = true;
+    qDebug() << "[PERF] Lazy-instantiation of StatsModule charts completed in" << timer.elapsed() << "ms.";
+
+    // Trigger update with cached data
+    if (!m_cachedDashboardStats.isEmpty()) {
+        onDashboardStatsReceived(m_cachedDashboardStats);
+    }
+    if (!m_cachedRevenueTrend.isEmpty()) {
+        onRevenueTrendReceived(m_cachedRevenueTrend);
+    }
 }
