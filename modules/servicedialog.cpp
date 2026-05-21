@@ -205,7 +205,7 @@ QWidget* ServiceDialog::createGroupTitle(const QString &title)
 
 ServiceInfo ServiceDialog::getServiceInfo() const
 {
-    ServiceInfo info;
+    ServiceInfo info = m_originalServiceInfo;
     info.id = m_idEdit->text().isEmpty() ? m_currentId : m_idEdit->text();
     info.name = m_nameEdit->text();
     info.category = m_categoryCombo->currentText();
@@ -213,12 +213,12 @@ ServiceInfo ServiceDialog::getServiceInfo() const
     info.durationMinutes = m_durationEdit->text().toInt();
     info.commissionFixed = m_commAmountEdit->text().toDouble();
     info.description = m_descriptionEdit->toPlainText();
-    info.isActive = true;
     return info;
 }
 
 void ServiceDialog::setServiceInfo(const ServiceInfo &info)
 {
+    m_originalServiceInfo = info;
     m_currentId = info.id;
     m_titleLabel->setText("修改服务项目");
     

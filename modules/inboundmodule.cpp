@@ -536,6 +536,8 @@ void InboundModule::updateRecordList()
             QPixmap pix;
             if (pix.loadFromData(ba)) {
                 imgLabel->setPixmap(pix.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                // 缓存它，防止下次再次解码
+                ProductDataManager::instance()->saveProductPixmap(rec.barcode, pix);
             } else {
                 imgLabel->setText("损坏");
             }

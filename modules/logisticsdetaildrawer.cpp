@@ -146,6 +146,7 @@ void LogisticsDetailDrawer::setupUI()
                 order.relatedId = m_currentTask.taskId;
                 order.petId = m_currentTask.petId;
                 order.petName = info.name;
+                order.memberId = info.ownerId;
                 order.memberName = info.ownerName;
                 order.itemDetails = QString("接送服务 (%1)").arg(m_currentTask.type);
                 order.totalAmount = m_currentTask.amount;
@@ -221,7 +222,7 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
     m_avatarLabel->setPixmap(target);
 
     m_nameLabel->setText(pet.name.isEmpty() ? task.petId : pet.name);
-    m_idLabel->setText(QString("宠物 ID: %1").arg(task.petId));
+    m_idLabel->setText(QString("派单单号: %1 | 宠物 ID: %2").arg(task.taskId, task.petId));
     m_statusTag->setText(task.status);
     m_statusTag->setVisible(true);
     
@@ -298,10 +299,11 @@ void LogisticsDetailDrawer::showTask(const LogisticsTask &task)
         QString datePart = fullTime.left(10);
         QString slotPart = fullTime.mid(11);
 
-        addInfoRow(g, 0, "业务类型", task.type);
-        addInfoRow(g, 1, "预约日期", datePart);
-        addInfoRow(g, 2, "预约时段", slotPart);
-        addInfoRow(g, 3, "详细地址", task.address);
+        addInfoRow(g, 0, "派单单号", task.taskId);
+        addInfoRow(g, 1, "业务类型", task.type);
+        addInfoRow(g, 2, "预约日期", datePart);
+        addInfoRow(g, 3, "预约时段", slotPart);
+        addInfoRow(g, 4, "详细地址", task.address);
     });
 }
 

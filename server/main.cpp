@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     Logger::init("server.log");
     
     qDebug() << "==========================================";
-    qDebug() << "   PetManager Backend Server Engine v2.1  ";
+    qDebug() << "   PetManager Backend Server Engine v2.5-UIPersistence-Sync  ";
     qDebug() << "==========================================";
 
     ServerCore core;

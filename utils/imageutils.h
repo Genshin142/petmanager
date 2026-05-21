@@ -5,15 +5,24 @@
 #include <QByteArray>
 #include <QString>
 #include <QDebug>
-
 #include <QPainter>
 #include <QPainterPath>
+#include <QCache>
+#include <QMutex>
 
 class ImageUtils {
-public:
-    static QPixmap loadPixmap(const QString &source) {
-        if (source.isEmpty()) return QPixmap();
-        
+private:
+    static QCache<QString, QPixmap>& getCache() {
+        static QCache<QString, QPixmap> cache(500); // 缓存最多500张图片
+        return cache;
+    }
+    
+    static QMutex& getMutex() {
+        static QMutex mutex;
+        return mutex;
+    }
+
+    static QPixmap loadPixmapUncached(const QString &source) {
         // 1. 检查是否为 Data URI 格式 (data:image/xxx;base64,...)
         if (source.startsWith("data:image")) {
             int commaIndex = source.indexOf(',');
@@ -46,6 +55,27 @@ public:
         
         // 4. 正常文件路径加载
         return QPixmap(source);
+    }
+
+public:
+    static QPixmap loadPixmap(const QString &source) {
+        if (source.isEmpty()) return QPixmap();
+        
+        // L1 缓存检索
+        {
+            QMutexLocker locker(&getMutex());
+            if (getCache().contains(source)) {
+                return *getCache().object(source);
+            }
+        }
+        
+        QPixmap pix = loadPixmapUncached(source);
+        
+        if (!pix.isNull()) {
+            QMutexLocker locker(&getMutex());
+            getCache().insert(source, new QPixmap(pix));
+        }
+        return pix;
     }
 
     static QPixmap getCircularPixmap(const QPixmap &src, int size) {

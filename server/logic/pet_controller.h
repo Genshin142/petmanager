@@ -25,6 +25,8 @@ public:
     void handleDeletePet(ClientHandler* client, const QJsonObject& data);
     void handleRestorePet(ClientHandler* client, const QJsonObject& data);
     void handleHardDeletePet(ClientHandler* client, const QJsonObject& data);
+    void handleAddActivityLog(ClientHandler* client, const QJsonObject& data);
+    void handleAddPetMedia(ClientHandler* client, const QJsonObject& data);
 
 private:
     ServerCore* m_core;

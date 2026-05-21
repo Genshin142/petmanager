@@ -1,5 +1,6 @@
 #include "logisticsmanager.h"
 #include "petdatamanager.h"
+#include "logdatamanager.h"
 #include "../utils/networkmanager.h"
 #include <QUuid>
 #include <QJsonArray>
@@ -113,14 +114,46 @@ void LogisticsManager::addLogisticsTask(const LogisticsTask &task)
         t.taskId = "T" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
     }
     m_tasks.insert(t.taskId, t);
+
+    // 同步到服务端数据库
+    QJsonObject body;
+    body["task_id"] = t.taskId;
+    body["pet_id"] = t.petId.mid(1).toInt(); // "P001" -> 1
+    body["appt_id"] = t.relatedAppointmentId.toInt();
+    body["task_type"] = t.type;
+    body["status"] = t.status;
+    body["address"] = t.address;
+    // t.appointmentTime 可能是时间段格式 "2026-05-19 09:00 - 11:00"，提取开始时间
+    QString schedTime = t.appointmentTime;
+    if (schedTime.contains(" - ")) {
+        // 提取日期和开始时间: "2026-05-19 09:00 - 11:00" -> "2026-05-19 09:00"
+        int dashIdx = schedTime.indexOf(" - ");
+        schedTime = schedTime.left(dashIdx).trimmed();
+    }
+    body["schedule_time"] = schedTime;
+    body["amount"] = t.amount;
+    NetworkManager::instance().sendRequest(Protocol::CMD_ADD_LOGISTICS_TASK, body);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("车辆调度", "新增/编辑派单任务", 
+        QString("任务ID: %1, 宠物ID: %2, 类型: %3, 地址: %4, 状态: %5")
+        .arg(t.taskId, t.petId, t.type, t.address, t.status));
+
     emit logisticsDataChanged();
 }
 
 void LogisticsManager::cancelTask(const QString &taskId)
 {
     if (m_tasks.contains(taskId)) {
-        // 直接从本地列表中删除任务，实现“取消即删除”
         m_tasks.remove(taskId);
+
+        // 同步取消（设置已取消状态）到服务端
+        updateLogisticsStatusRemote(taskId, "已取消");
+
+        // 记录系统操作日志
+        LogDataManager::writeLog("车辆调度", "取消派单任务", 
+            QString("任务ID: %1").arg(taskId));
+
         emit logisticsDataChanged();
     }
 }
@@ -131,6 +164,9 @@ void LogisticsManager::updateTaskStatus(const QString &taskId, const QString &st
         LogisticsTask &task = m_tasks[taskId];
         task.status = status;
         
+        // 同步状态到服务端
+        updateLogisticsStatusRemote(taskId, status);
+
         // 同步更新关联的预约单状态
         if (!task.relatedAppointmentId.isEmpty()) {
             AppointmentInfo appt = PetDataManager::instance()->getAppointment(task.relatedAppointmentId);
@@ -140,6 +176,10 @@ void LogisticsManager::updateTaskStatus(const QString &taskId, const QString &st
                 PetDataManager::instance()->updateAppointment(appt);
             }
         }
+
+        // 记录系统操作日志
+        LogDataManager::writeLog("车辆调度", "更新任务状态", 
+            QString("任务ID: %1, 新状态: %2").arg(taskId, status));
         
         emit logisticsDataChanged();
     }
@@ -198,6 +238,9 @@ void LogisticsManager::cancelTaskByAppointmentId(const QString &apptId)
         if (it.value().relatedAppointmentId == apptId) {
             if (it.value().status != "已取消") {
                 it.value().status = "已取消";
+                
+                // 同步取消服务端任务
+                updateLogisticsStatusRemote(it.key(), "已取消");
                 changed = true;
             }
         }
@@ -231,15 +274,33 @@ void LogisticsManager::onPacketReceived(const Protocol::NetPacket &packet)
             QJsonArray data = root["data"].toArray();
             {
                 QMutexLocker locker(&m_mutex);
+                m_tasks.clear();
                 for (int i = 0; i < data.size(); ++i) {
                     QJsonObject obj = data[i].toObject();
                     LogisticsTask task;
                     task.taskId = obj["task_id"].toString();
-                    task.petId = QString("P%1").arg(obj["pet_id"].toInt(), 3, 10, QChar('0'));
+                    task.petId = QString("P%1").arg(obj["pet_id"].toInt(), 5, 10, QChar('0'));
                     task.type = obj["task_type"].toString();
                     task.status = obj["status"].toString();
                     task.address = obj["address"].toString();
-                    task.appointmentTime = obj["schedule_time"].toString();
+                    // 从数据库回来的 schedule_time 是精确时间 "2026-05-19 09:00:00"
+                    // 需要映射回时间段格式 "2026-05-19 09:00 - 11:00"
+                    QString rawTime = obj["schedule_time"].toString();
+                    if (rawTime.length() >= 16) {
+                        QString datePart = rawTime.left(10);
+                        QString timePart = rawTime.mid(11, 5); // "09:00"
+                        QStringList timeSlots = {"09:00 - 11:00", "11:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 21:00"};
+                        QString mappedSlot = timePart; // 默认
+                        for (const auto &slot : timeSlots) {
+                            if (timePart >= slot.left(5) && timePart < slot.right(5)) {
+                                mappedSlot = slot;
+                                break;
+                            }
+                        }
+                        task.appointmentTime = datePart + " " + mappedSlot;
+                    } else {
+                        task.appointmentTime = rawTime;
+                    }
                     task.amount = obj["amount"].toDouble();
                     task.relatedAppointmentId = QString::number(obj["appt_id"].toInt());
                     m_tasks[task.taskId] = task;

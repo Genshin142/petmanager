@@ -1,4 +1,5 @@
 #include "staffdatamanager.h"
+#include "logdatamanager.h"
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -82,6 +83,7 @@ void StaffDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 info.department = obj["department"].toString();
                 info.username = obj["username"].toString();
                 info.imgData = obj["img_data"].toString();
+                info.bankCard = obj["bankCard"].toString();
                 
                 m_staff[info.id] = info;
             }
@@ -141,8 +143,14 @@ void StaffDataManager::addStaff(const EmployeeInfo &info)
     obj["education"] = info.education;
     obj["status"] = info.status;
     obj["imgPath"] = info.imgPath;
+    obj["bankCard"] = info.bankCard;
 
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_STAFF, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("员工管理", "新增员工", 
+        QString("姓名: %1, 职位: %2, 部门: %3, 手机号: %4")
+        .arg(info.name, info.role, info.department, info.phone));
 }
 
 void StaffDataManager::updateStaff(const EmployeeInfo &info)
@@ -169,32 +177,53 @@ void StaffDataManager::updateStaff(const EmployeeInfo &info)
     obj["education"] = info.education;
     obj["status"] = info.status;
     obj["imgPath"] = info.imgPath;
+    obj["bankCard"] = info.bankCard;
 
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_STAFF, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("员工管理", "修改员工信息", 
+        QString("工号: %1, 姓名: %2, 职位: %3, 部门: %4, 状态: %5")
+        .arg(info.id, info.name, info.role, info.department, info.status));
 }
 
 void StaffDataManager::removeStaff(const QString &id)
 {
+    EmployeeInfo emp = getStaff(id);
     QJsonObject obj;
     int dbId = id.startsWith("E") ? id.mid(1).toInt() : id.toInt();
     obj["id"] = QString::number(dbId);
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_STAFF, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("员工管理", "注销员工（离职）", 
+        QString("工号: %1, 姓名: %2, 职位: %3").arg(id, emp.name, emp.role));
 }
 
 void StaffDataManager::restoreStaff(const QString &id)
 {
+    EmployeeInfo emp = getStaff(id);
     QJsonObject obj;
     int dbId = id.startsWith("E") ? id.mid(1).toInt() : id.toInt();
     obj["id"] = QString::number(dbId);
     NetworkManager::instance().sendRequest(Protocol::CMD_RESTORE_STAFF, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("员工管理", "恢复已离职员工", 
+        QString("工号: %1, 姓名: %2, 职位: %3").arg(id, emp.name, emp.role));
 }
 
 void StaffDataManager::hardDeleteStaff(const QString &id)
 {
+    EmployeeInfo emp = getStaff(id);
     QJsonObject obj;
     int dbId = id.startsWith("E") ? id.mid(1).toInt() : id.toInt();
     obj["id"] = QString::number(dbId);
     NetworkManager::instance().sendRequest(Protocol::CMD_HARD_DELETE_STAFF, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("员工管理", "彻底删除员工档案", 
+        QString("工号: %1, 姓名: %2, 职位: %3").arg(id, emp.name, emp.role));
 }
 
 QStringList StaffDataManager::activeStaffNames() const

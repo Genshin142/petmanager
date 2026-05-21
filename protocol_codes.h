@@ -28,6 +28,8 @@ namespace Protocol {
         CMD_DELETE_PET      = 2024,
         CMD_RESTORE_PET     = 2025,
         CMD_HARD_DELETE_PET = 2026,
+        CMD_ADD_ACTIVITY_LOG = 2027, // 增加宠物活动日志
+        CMD_ADD_PET_MEDIA   = 2028, // 增加宠物影像记录
         CMD_GET_PRODUCT_LIST = 2003, // 获取商品列表
         CMD_GET_INBOUND_LIST = 2004, // 获取入库单据列表
         CMD_ADD_INBOUND_RECORD = 2015, // 新增入库记录
@@ -77,6 +79,7 @@ namespace Protocol {
         
         CMD_GET_LOGISTICS_LIST        = 5201,
         CMD_UPDATE_LOGISTICS_STATUS   = 5202,
+        CMD_ADD_LOGISTICS_TASK        = 5203,
 
         // 系统通知 (6000+)
         CMD_NOTIFY_REFRESH = 6001, // 服务端通知客户端刷新数据

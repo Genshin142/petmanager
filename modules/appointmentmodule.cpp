@@ -6,6 +6,10 @@
 #include "fostermodule.h"
 #include "logisticsmanager.h"
 #include "custommessagedialog.h"
+#include "servicedatamanager.h"
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include "../utils/imageutils.h"
 #include <QFileDialog>
 #include <QVBoxLayout>
@@ -417,9 +421,27 @@ void AppointmentModule::renderGrid()
             body->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
             
             if (slotTasks.isEmpty()) {
-                QLabel *empty = new QLabel("暂无预约");
+                bool isPast = false;
+                if (date < QDate::currentDate()) {
+                    isPast = true;
+                } else if (date == QDate::currentDate()) {
+                    QTime startTime = QTime::fromString(slotName.left(5), "HH:mm");
+                    if (startTime.isValid() && QTime::currentTime() > startTime) {
+                        isPast = true;
+                    }
+                }
+
+                QLabel *empty = new QLabel(isPast ? QString::fromUtf8("暂无预约") : QString::fromUtf8("暂无任务，可快速预约"));
                 empty->setAlignment(Qt::AlignCenter);
-                empty->setStyleSheet("color: #dcdfe6; font-size: 13px; background: transparent;");
+                if (isPast) {
+                    empty->setStyleSheet("color: #dcdfe6; font-size: 13px; background: transparent;");
+                } else {
+                    empty->setStyleSheet("QLabel { color: #909399; font-size: 13px; background: transparent; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; } QLabel:hover { color: #409eff; background: #fafafa; }");
+                    empty->setCursor(Qt::PointingHandCursor);
+                    empty->setProperty("emptySlotTime", slotName);
+                    empty->setProperty("emptySlotDate", date.toString("yyyy-MM-dd"));
+                    empty->installEventFilter(this);
+                }
                 bl->addWidget(empty);
             } else {
                 for (int i = 0; i < slotTasks.size(); ++i) {
@@ -751,6 +773,7 @@ void AppointmentModule::handleConfirm(const QString &id)
     // 1. 更新预约状态为已确认
     info.status = "Confirmed";
     PetDataManager::instance()->updateAppointment(info);
+    PetDataManager::instance()->updateAppointmentStatus(info.id, "Confirmed");
 
     // 2. 根据业务类型执行下发逻辑
     if (info.type == "Transport") {
@@ -795,6 +818,7 @@ void AppointmentModule::handleStartService(const QString &id, const QString &sta
     info.status = "In-Service";
     info.staff = staff;
     PetDataManager::instance()->updateAppointment(info);
+    PetDataManager::instance()->updateAppointmentStatus(info.id, "In-Service");
     
     m_drawer->setAppointment(id);
     refreshView();
@@ -810,6 +834,7 @@ void AppointmentModule::handleComplete(const QString &id)
         // 1. 更新状态为已完成
         info.status = "Completed";
         PetDataManager::instance()->updateAppointment(info);
+        PetDataManager::instance()->updateAppointmentStatus(info.id, "Completed");
         
         // 2. 生成清结算订单 (核心闭环)
         OrderInfo order;
@@ -819,7 +844,41 @@ void AppointmentModule::handleComplete(const QString &id)
         order.petId = info.petId;
         order.petName = info.petName;
         order.memberName = info.memberName;
-        order.itemDetails = info.service;
+        
+        // 关键修复：正确赋值 memberId
+        order.memberId = info.memberId;
+        if (order.memberId.isEmpty() && !info.petId.isEmpty()) {
+            PetInfo pet = PetDataManager::instance()->getPet(info.petId);
+            if (!pet.ownerId.isEmpty()) {
+                order.memberId = pet.ownerId;
+            }
+        }
+
+        // 关键优化：将 itemDetails 序列化为规范的 JSON Array
+        QString barcode = "S001";
+        QList<ServiceInfo> services = ServiceDataManager::instance()->allServices();
+        for (const auto& svc : services) {
+            if (svc.name == info.service) {
+                barcode = svc.id;
+                break;
+            }
+        }
+
+        QJsonArray detailsArr;
+        QJsonObject detailItem;
+        detailItem["name"] = info.service;
+        detailItem["barcode"] = barcode;
+        detailItem["price"] = info.amount;
+        detailItem["count"] = 1;
+        detailItem["petId"] = info.petId;
+        detailItem["petName"] = info.petName;
+        detailItem["petBreed"] = info.breed;
+        detailItem["petPhoto"] = ""; // 动态通过 petId 加载
+        detailItem["staff"] = info.staff; // 👈 记录服务执行员工姓名
+
+        detailsArr.append(detailItem);
+        order.itemDetails = QString::fromUtf8(QJsonDocument(detailsArr).toJson(QJsonDocument::Compact));
+
         order.totalAmount = info.amount;
         order.finalAmount = info.amount; // 初始不打折
         order.status = "Unpaid";
@@ -873,6 +932,7 @@ void AppointmentModule::handleCancel(const QString &id)
             for (auto &grpInfo : relatedInfos) {
                 grpInfo.status = "Cancelled";
                 PetDataManager::instance()->updateAppointment(grpInfo);
+                PetDataManager::instance()->updateAppointmentStatus(grpInfo.id, "Cancelled");
             }
         } else if (box.clickedButton() == btnCancelSingle) {
             // 继续执行仅取消当前项，无额外操作
@@ -884,6 +944,7 @@ void AppointmentModule::handleCancel(const QString &id)
 
     info.status = "Cancelled";
     PetDataManager::instance()->updateAppointment(info);
+    PetDataManager::instance()->updateAppointmentStatus(info.id, "Cancelled");
     
     // 同步取消关联的物流任务
     LogisticsManager::instance()->cancelTaskByAppointmentId(info.id);
@@ -893,35 +954,50 @@ void AppointmentModule::handleCancel(const QString &id)
     
     m_drawer->clearSelection();
     refreshView();
+    
 }
-
 void AppointmentModule::handleModify(const AppointmentInfo &info)
 {
     AddAppointmentDialog dlg(this);
-    dlg.setWindowTitle("修改预约服务");
+    dlg.setWindowTitle("修改预约信息");
     dlg.setInitialData(info);
     
     if (dlg.exec() == QDialog::Accepted) {
         auto infos = dlg.getAppointmentInfos();
         if (!infos.isEmpty()) {
-            AppointmentInfo updatedInfo = infos.first();
-            // 保持原有的 ID 和状态
-            updatedInfo.id = info.id;
-            updatedInfo.status = info.status;
+            AppointmentInfo updatedInfo = info; // Copy original completely to preserve staff, station, photos, allergy, etc.
+            
+            // Overwrite modified form fields
+            AppointmentInfo formInfo = infos.first();
+            updatedInfo.petId = formInfo.petId;
+            updatedInfo.petName = formInfo.petName;
+            updatedInfo.petAvatar = formInfo.petAvatar;
+            updatedInfo.breed = formInfo.breed;
+            updatedInfo.memberName = formInfo.memberName;
+            updatedInfo.memberPhone = formInfo.memberPhone;
+            updatedInfo.service = formInfo.service;
+            updatedInfo.type = formInfo.type;
+            updatedInfo.date = formInfo.date;
+            updatedInfo.hour = formInfo.hour;
+            updatedInfo.notes = formInfo.notes;
+            updatedInfo.address = formInfo.address;
+            updatedInfo.amount = formInfo.amount;
+            updatedInfo.boardingEndDate = formInfo.boardingEndDate;
+            updatedInfo.duration = formInfo.duration;
+            updatedInfo.roomNo = formInfo.roomNo;
             
             PetDataManager::instance()->updateAppointment(updatedInfo);
             
-            // 如果用户在修改时勾选了生成返程单，则将多出来的作为新增
+            // 如果用户修改时新增了返程服务，则单独新增
             for (int i = 1; i < infos.size(); ++i) {
                 PetDataManager::instance()->addAppointment(infos[i]);
             }
             
             refreshView();
-            m_drawer->setAppointment(info.id); // 刷新右侧详情界面
+            m_drawer->setAppointment(info.id); // 刷新抽屉
         }
     }
 }
-
 void AppointmentModule::handleMediaUpload(const QString &id) {
     QStringList filePaths = QFileDialog::getOpenFileNames(
         this, "选择记录照片", "", "Images (*.png *.jpg *.jpeg *.webp)"
@@ -957,12 +1033,27 @@ bool AppointmentModule::eventFilter(QObject *obj, QEvent *event)
         
         QWidget *w = qobject_cast<QWidget*>(obj);
         while (w) {
+            if (w->property("emptySlotTime").isValid() && w->property("emptySlotDate").isValid()) {
+                QString slotTime = w->property("emptySlotTime").toString();
+                QString slotDate = w->property("emptySlotDate").toString();
+                
+                AddAppointmentDialog dlg(this);
+                dlg.setPreselectedSlot(slotDate, slotTime);
+                if (dlg.exec() == QDialog::Accepted) {
+                    auto infos = dlg.getAppointmentInfos();
+                    for (const auto &info : infos) {
+                        PetDataManager::instance()->addAppointment(info);
+                    }
+                    refreshView();
+                }
+                return true;
+            }
             if (w->property("taskId").isValid()) {
                 QString tid = w->property("taskId").toString();
-                m_selectedTaskId = tid; // 保存选中ID
+                m_selectedTaskId = tid;
                 m_drawer->setAppointment(tid);
                 m_drawer->showDrawer();
-                refreshView(); // 刷新以应用边框
+                refreshView();
                 return true;
             }
             w = w->parentWidget();

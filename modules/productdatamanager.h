@@ -27,6 +27,7 @@ public:
     QList<ProductInfo> getLowStockItems() const;
     ProductInfo getProductByName(const QString &name) const; // 根据名称查找商品
     QPixmap getProductPixmap(const QString &barcode) const; // 获取缓存的图片
+    void saveProductPixmap(const QString &barcode, const QPixmap &pix); // 缓存新图片到内存及磁盘
     
     // 记录管理
     QList<StockInRecord> getAllRecords() const;

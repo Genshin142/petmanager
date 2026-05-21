@@ -20,6 +20,7 @@
 #include "../logic/finance_controller.h"
 #include "../logic/report_controller.h"
 #include "../logic/log_controller.h"
+#include "../logic/logistics_controller.h"
 #include <QtCore/QMutexLocker>
 
 ServerCore::ServerCore(QObject *parent) : QObject(parent)
@@ -43,6 +44,7 @@ ServerCore::ServerCore(QObject *parent) : QObject(parent)
     new FinanceController(this, this);
     new ReportController(this, this);
     new LogController(this, this);
+    new LogisticsController(this, this);
 }
 
 bool ServerCore::start(quint16 port)

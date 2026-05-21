@@ -835,7 +835,7 @@ void MemberModule::refreshTable()
     // 默认选中第一行并显示详情
     if (memTable->rowCount() > 0) {
         memTable->selectRow(0);
-        QMetaObject::invokeMethod(this, [=](){ onCellClicked(0, 0); }, Qt::QueuedConnection);
+        QTimer::singleShot(200, this, [=](){ onCellClicked(0, 0); });
     } else {
         if (m_detailDrawer) {
             m_detailDrawer->showEmptyState(true);
@@ -976,7 +976,7 @@ void MemberModule::updatePagination()
         }
     } else {
         memTable->selectRow(0);
-        QMetaObject::invokeMethod(this, [=](){ onCellClicked(0, 0); }, Qt::QueuedConnection);
+        QTimer::singleShot(200, this, [=](){ onCellClicked(0, 0); });
     }
 }
 

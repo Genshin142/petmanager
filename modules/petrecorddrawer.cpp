@@ -328,12 +328,46 @@ void PetRecordDrawer::setPet(const PetInfo &info, const QList<PetActivityLog> &l
     }
 
     auto appointments = PetDataManager::instance()->getAppointmentsForPet(info.id);
-    if (appointments.isEmpty()) {
-        QLabel *emptyL = new QLabel("暂无服务历史记录");
+    if (appointments.isEmpty() && batches.isEmpty()) {
+        QLabel *emptyL = new QLabel(QString::fromUtf8("暂无服务历史记录"));
         emptyL->setAlignment(Qt::AlignCenter);
         emptyL->setStyleSheet("color: #909399; font-size: 13px; margin-top: 50px;");
         m_serviceHistoryLayout->addWidget(emptyL);
     } else {
+        // 1. 渲染寄养服务卡片 (首位展示，超轻量级紧凑，沉稳黑色字)
+        for (const auto &b : batches) {
+            QFrame *card = new QFrame();
+            card->setStyleSheet("QFrame { background: #fcfcfd; border-radius: 6px; border: 1px solid #ebeef5; padding: 8px 12px; } QLabel { border: none; }");
+            QVBoxLayout *cardL = new QVBoxLayout(card);
+            cardL->setContentsMargins(0, 0, 0, 0);
+            cardL->setSpacing(4);
+
+            QHBoxLayout *top = new QHBoxLayout();
+            top->setContentsMargins(0, 0, 0, 0);
+
+            QLabel *typeL = new QLabel(QString::fromUtf8("宠物寄养服务"));
+            typeL->setStyleSheet("color: #303133; font-weight: bold; font-size: 13px;"); // 墨黑色高端质感
+            
+            QLabel *statusL = new QLabel(b.isActive ? QString::fromUtf8("进行中") : QString::fromUtf8("已完成"));
+            QString statusStyle = "font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: bold; ";
+            if (!b.isActive) statusStyle += "background: #dcfce7; color: #166534;";
+            else statusStyle += "background: #e0f2fe; color: #0369a1;";
+            statusL->setStyleSheet(statusStyle);
+
+            top->addWidget(typeL);
+            top->addStretch();
+            top->addWidget(statusL);
+            cardL->addLayout(top);
+
+            QLabel *infoL = new QLabel(QString::fromUtf8("时间: %1 ~ %2   |   房间: %3")
+                .arg(b.startTime, b.isActive ? QString::fromUtf8("至今") : b.endTime, info.roomNo.isEmpty() ? QString::fromUtf8("B-102") : info.roomNo));
+            infoL->setStyleSheet("color: #909399; font-size: 12px;");
+            
+            cardL->addWidget(infoL);
+            m_serviceHistoryLayout->addWidget(card);
+        }
+
+        // 2. 渲染普通服务卡片
         for (const auto &appt : appointments) {
             QFrame *card = new QFrame();
             card->setStyleSheet("QFrame { background: #fcfcfd; border-radius: 8px; border: 1px solid #ebeef5; padding: 12px; } QLabel { border: none; }");

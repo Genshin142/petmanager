@@ -127,18 +127,20 @@ void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject
         return;
     }
 
-    db.transaction();
-
-    // 1. 获取原状态与关联的会员ID
+    // 1. 获取原状态、关联的会员ID、来源模块与关联单据ID
     QSqlQuery checkQuery(db);
-    checkQuery.prepare("SELECT member_id, status FROM orders WHERE order_no = ?");
+    checkQuery.prepare("SELECT member_id, status, source_module, related_id FROM orders WHERE order_no = ?");
     checkQuery.addBindValue(data["order_id"].toString());
     
     int memberId = 0;
     QString oldStatus = "Unpaid";
+    QString sourceModule = "";
+    QString relatedId = "";
     if (checkQuery.exec() && checkQuery.next()) {
         memberId = checkQuery.value("member_id").toInt();
         oldStatus = checkQuery.value("status").toString();
+        sourceModule = checkQuery.value("source_module").toString();
+        relatedId = checkQuery.value("related_id").toString();
     }
 
     // 2. 执行订单更新
@@ -150,34 +152,124 @@ void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject
     query.addBindValue(data["order_id"].toString());
 
     if (!query.exec()) {
-        db.rollback();
         LOG_E("[ORDER] SQL Error on Update: " << query.lastError().text().toStdString());
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();
     } else {
-        // 3. 如果原订单不是 Paid，现在更新为 Paid，且存在有效的会员ID
-        if (oldStatus != "Paid" && data["status"].toString() == "Paid" && memberId > 0) {
+        // 3. 如果原订单不是 Paid，现在更新为 Paid
+        if (oldStatus != "Paid" && data["status"].toString() == "Paid") {
             double newPay = data["final_amount"].toDouble();
-            int pointsToGain = static_cast<int>(newPay); // 1元积1分
             
-            QSqlQuery memberQuery(db);
-            memberQuery.prepare("UPDATE members SET consume_amt = consume_amt + ?, points = points + ? WHERE member_id = ?");
-            memberQuery.addBindValue(newPay);
-            memberQuery.addBindValue(pointsToGain);
-            memberQuery.addBindValue(memberId);
-            
-            if (!memberQuery.exec()) {
-                db.rollback();
-                LOG_E("[ORDER] Failed to update member stats: " << memberQuery.lastError().text().toStdString());
-                response["status"] = Protocol::STATUS_ERROR;
-                response["message"] = "Member stats update failed: " + memberQuery.lastError().text();
-                client->sendPacket(Protocol::CMD_UPDATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
-                return;
+            // A. 更新会员积分和消费额
+            if (memberId > 0) {
+                int pointsToGain = static_cast<int>(newPay); // 1元积1分
+                QSqlQuery memberQuery(db);
+                memberQuery.prepare("UPDATE members SET consume_amt = consume_amt + ?, points = points + ? WHERE member_id = ?");
+                memberQuery.addBindValue(newPay);
+                memberQuery.addBindValue(pointsToGain);
+                memberQuery.addBindValue(memberId);
+                
+                if (!memberQuery.exec()) {
+                    LOG_E("[ORDER] Failed to update member stats: " << memberQuery.lastError().text().toStdString());
+                    response["status"] = Protocol::STATUS_ERROR;
+                    response["message"] = "Member stats update failed: " + memberQuery.lastError().text();
+                    client->sendPacket(Protocol::CMD_UPDATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
+                    return;
+                }
+                LOG_I("[ORDER] Member M" << memberId << " consume_amt increased by " << newPay << ", points by " << pointsToGain);
             }
-            LOG_I("[ORDER] Member M" << memberId << " consume_amt increased by " << newPay << ", points by " << pointsToGain);
+            
+            // B. 👈 智能联运：若此订单来源于洗护预约，则自动为执行员工计算并创建提绩效记录
+            if (sourceModule == "Appointment" && !relatedId.isEmpty()) {
+                QSqlQuery apptQuery(db);
+                apptQuery.prepare("SELECT staff_id, service_id, member_id, pet_id FROM appointments WHERE appt_id = ?");
+                apptQuery.addBindValue(relatedId.toInt());
+                if (apptQuery.exec() && apptQuery.next()) {
+                    int staffId = apptQuery.value("staff_id").toInt();
+                    int serviceId = apptQuery.value("service_id").toInt();
+                    int memberId = apptQuery.value("member_id").toInt();
+                    int petId = apptQuery.value("pet_id").toInt();
+                    
+                    if (staffId > 0) {
+                        // 1. 查询会员姓名
+                        QString customerName = "";
+                        QSqlQuery memQuery(db);
+                        memQuery.prepare("SELECT name FROM members WHERE member_id = ?");
+                        memQuery.addBindValue(memberId);
+                        if (memQuery.exec() && memQuery.next()) {
+                            customerName = memQuery.value("name").toString();
+                        }
+                        
+                        // 2. 查询宠物姓名和品种
+                        QString petName = "";
+                        QString petBreed = "";
+                        QSqlQuery petQuery(db);
+                        petQuery.prepare("SELECT pet_name, breed FROM pets WHERE pet_id = ?");
+                        petQuery.addBindValue(petId);
+                        if (petQuery.exec() && petQuery.next()) {
+                            petName = petQuery.value("pet_name").toString();
+                            petBreed = petQuery.value("breed").toString();
+                        }
+                        
+                        // 3. 获取支付方式与实付金额
+                        QString payMethod = data["pay_method"].toString();
+                        double orderAmount = data["final_amount"].toDouble();
+                        
+                        // 4. 查询服务项目的提成比和项目名称
+                        QString serviceName = "未知服务";
+                        double commissionVal = 0.0;
+                        QSqlQuery svcQuery(db);
+                        svcQuery.prepare("SELECT name, commission_value FROM services WHERE service_id = ?");
+                        svcQuery.addBindValue(serviceId);
+                        if (svcQuery.exec() && svcQuery.next()) {
+                            serviceName = svcQuery.value("name").toString();
+                            commissionVal = svcQuery.value("commission_value").toDouble();
+                        }
+                        
+                        double commissionAmt = commissionVal;
+                        
+                        // 若服务项目本身未配置固定提成，则兜底采用员工提成比例
+                        if (commissionAmt <= 0) {
+                            double commRate = 0.10; // 默认 10%
+                            QSqlQuery rateQuery(db);
+                            rateQuery.prepare("SELECT commission_rate FROM sys_employees WHERE emp_id = ?");
+                            rateQuery.addBindValue(staffId);
+                            if (rateQuery.exec() && rateQuery.next()) {
+                                commRate = rateQuery.value("commission_rate").toDouble();
+                            }
+                            commissionAmt = orderAmount * commRate;
+                        }
+                        
+                        // 5. 写入 sys_performance_records 提成明细表，自动进入提成计算模块
+                        QSqlQuery perfQuery(db);
+                        perfQuery.prepare("INSERT INTO sys_performance_records (emp_id, order_id, service_date, service_name, order_amount, commission_amt, status, customer_name, pay_method, pet_name, pet_breed) "
+                                          "VALUES (?, ?, ?, ?, ?, ?, '待核销', ?, ?, ?, ?)");
+                        perfQuery.addBindValue(staffId);
+                        perfQuery.addBindValue(data["order_id"].toString());
+                        perfQuery.addBindValue(QDate::currentDate().toString("yyyy-MM-dd"));
+                        perfQuery.addBindValue(serviceName);
+                        perfQuery.addBindValue(orderAmount);
+                        perfQuery.addBindValue(commissionAmt);
+                        perfQuery.addBindValue(customerName);
+                        perfQuery.addBindValue(payMethod);
+                        perfQuery.addBindValue(petName);
+                        perfQuery.addBindValue(petBreed);
+                        
+                        if (perfQuery.exec()) {
+                            LOG_I("[ORDER] Performance record created successfully for emp ID " << staffId << ", amt: " << commissionAmt);
+                            
+                            // 👈 智能向全网广播财务业绩已刷新
+                            QJsonObject finNotify;
+                            finNotify["module"] = "finance";
+                            m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, finNotify);
+                        } else {
+                            LOG_E("[ORDER] Failed to insert performance record: " << perfQuery.lastError().text().toStdString());
+                        }
+                    }
+                }
+            }
         }
 
-        db.commit();
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Success";
         

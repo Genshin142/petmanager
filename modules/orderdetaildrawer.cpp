@@ -402,6 +402,14 @@ void OrderDetailDrawer::updateUI()
             QLabel *svcNameLbl = new QLabel(svcName);
             svcNameLbl->setStyleSheet("font-size: 13px; color: #475569; font-weight: 600; font-family: 'Microsoft YaHei';");
             textLayout->addWidget(svcNameLbl);
+
+            // 显示服务人员信息
+            QString staffName = itemObj["staff"].toString();
+            if (!staffName.isEmpty() && staffName != "待分配") {
+                QLabel *staffLbl = new QLabel("服务人员: " + staffName);
+                staffLbl->setStyleSheet("font-size: 12px; color: #64748b; font-family: 'Microsoft YaHei'; font-weight: bold;");
+                textLayout->addWidget(staffLbl);
+            }
         } else {
             // 商品展示
             double price = itemObj["price"].toDouble();

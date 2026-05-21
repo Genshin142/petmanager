@@ -35,6 +35,7 @@ void AddPetDialog::setupUI()
     ageYearEdit = new QLineEdit();
     ageYearEdit->setFixedWidth(80);
     ageMonthCombo = new QComboBox();
+    ageMonthCombo->addItem(""); // 空白选项作为默认
     for (int i = 1; i <= 12; ++i) ageMonthCombo->addItem(QString::number(i));
     ageMonthCombo->setFixedWidth(80);
     healthCombo = new QComboBox();
@@ -336,6 +337,7 @@ void AddPetDialog::onSpeciesChanged(const QString &species)
 
 void AddPetDialog::setPetInfo(const PetInfo &info)
 {
+    m_originalPetInfo = info;
     m_currentId = info.id;
     // 安全检查：只有当 titleLabel 存在时才设置文本，防止空指针崩溃
     if (ui->titleLabel) {
@@ -378,11 +380,17 @@ void AddPetDialog::setPetInfo(const PetInfo &info)
             QString monthStr = yearParts[1];
             monthStr.replace("零", "").replace("个月", "").replace("月", "");
             ageMonthCombo->setCurrentText(monthStr.trimmed());
+        } else {
+            ageMonthCombo->setCurrentIndex(0);
         }
     } else if (ageStr.contains("月")) {
         QString monthStr = ageStr;
         monthStr.replace("个月", "").replace("月", "");
         ageMonthCombo->setCurrentText(monthStr.trimmed());
+        ageYearEdit->clear();
+    } else {
+        ageYearEdit->clear();
+        ageMonthCombo->setCurrentIndex(0);
     }
 
     statusCombo->setCurrentText(info.status);
@@ -449,7 +457,7 @@ void AddPetDialog::onSaveClicked()
 
 PetInfo AddPetDialog::getPetInfo() const
 {
-    PetInfo info;
+    PetInfo info = m_originalPetInfo;
     info.name = ui->nameEdit->text();
     info.species = ui->speciesCombo->currentText();
     info.breed = ui->breedCombo->currentText();
@@ -483,7 +491,7 @@ PetInfo AddPetDialog::getPetInfo() const
     // 简单生成一个 ID
     if (m_currentId.isEmpty()) {
         static int idCounter = 1010;
-        info.id = QString("P%1").arg(++idCounter);
+        info.id = QString("P%1").arg(++idCounter, 5, 10, QChar('0'));
     } else {
         info.id = m_currentId;
     }

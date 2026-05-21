@@ -1,5 +1,6 @@
 #include "scheduledatamanager.h"
 #include "staffdatamanager.h"
+#include "logdatamanager.h"
 #include "utils/networkmanager.h"
 #include <QJsonArray>
 #include <QJsonObject>
@@ -122,10 +123,11 @@ void ScheduleDataManager::setSchedule(const ScheduleInfo &info)
     obj["emp_id"] = info.employeeId;
     obj["work_date"] = info.date;
     
-    if (info.type == SHIFT_MORNING) obj["shift_type"] = "早班";
-    else if (info.type == SHIFT_EVENING) obj["shift_type"] = "晚班";
-    else if (info.type == SHIFT_CUSTOM) obj["shift_type"] = "自定义";
-    else obj["shift_type"] = "休息";
+    QString shiftStr = "休息";
+    if (info.type == SHIFT_MORNING) shiftStr = "早班";
+    else if (info.type == SHIFT_EVENING) shiftStr = "晚班";
+    else if (info.type == SHIFT_CUSTOM) shiftStr = "自定义";
+    obj["shift_type"] = shiftStr;
     
     obj["plan_start"] = info.startTime;
     obj["plan_end"] = info.endTime;
@@ -134,6 +136,12 @@ void ScheduleDataManager::setSchedule(const ScheduleInfo &info)
     obj["note"] = info.note;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_SCHEDULE, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("员工排班", "更新排班", 
+        QString("工号: %1, 日期: %2, 班次: %3, 时间: %4-%5")
+        .arg(info.employeeId, info.date, shiftStr, info.startTime, info.endTime));
+
     saveToDisk();
     emit scheduleChanged();
 }
@@ -230,6 +238,10 @@ void ScheduleDataManager::setSchedules(const QList<ScheduleInfo> &infos)
     QJsonObject body;
     body["schedules"] = arr;
     NetworkManager::instance().sendRequest(Protocol::CMD_BATCH_UPDATE_SCHEDULE, body);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("员工排班", "批量更新排班", 
+        QString("批量更新排班条数: %1").arg(QString::number(infos.size())));
 
     saveToDisk();
     emit scheduleChanged();

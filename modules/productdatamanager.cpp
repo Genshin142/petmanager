@@ -1,4 +1,5 @@
 #include "productdatamanager.h"
+#include "logdatamanager.h"
 #include "../utils/networkmanager.h"
 #include "../protocol_codes.h"
 #include <QJsonArray>
@@ -54,11 +55,13 @@ void ProductDataManager::requestInboundList(bool onlyUnshelved, bool force)
 
 void ProductDataManager::shelveProduct(int inboundId)
 {
+    QString prodName;
     {
         QMutexLocker locker(&m_mutex);
         for (auto &r : m_records) {
             if (r.id == inboundId) {
                 r.isShelved = true;
+                prodName = r.productName;
                 break;
             }
         }
@@ -68,15 +71,21 @@ void ProductDataManager::shelveProduct(int inboundId)
     QJsonObject obj;
     obj["id"] = inboundId;
     NetworkManager::instance().sendRequest(Protocol::CMD_SHELVE_PRODUCT, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "商品上架", 
+        QString("入库ID: %1, 商品名称: %2").arg(QString::number(inboundId), prodName));
 }
 
 void ProductDataManager::unshelveProduct(int inboundId)
 {
+    QString prodName;
     {
         QMutexLocker locker(&m_mutex);
         for (auto &r : m_records) {
             if (r.id == inboundId) {
                 r.isShelved = false;
+                prodName = r.productName;
                 break;
             }
         }
@@ -86,6 +95,10 @@ void ProductDataManager::unshelveProduct(int inboundId)
     QJsonObject obj;
     obj["id"] = inboundId;
     NetworkManager::instance().sendRequest(Protocol::CMD_UNSHELVE_PRODUCT, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "商品下架", 
+        QString("入库ID: %1, 商品名称: %2").arg(QString::number(inboundId), prodName));
 }
 
 void ProductDataManager::requestProductList(bool force)
@@ -501,11 +514,37 @@ void ProductDataManager::addProduct(const ProductInfo &info)
     
     // 我们发送 UPDATE_PRODUCT 指令，服务端会自动处理新增或修改
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_PRODUCT, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "录入商品档案", 
+        QString("条码: %1, 商品名称: %2, 价格: %3 元, 品牌: %4")
+        .arg(info.barcode, info.name, QString::number(info.price, 'f', 2), info.brand));
 }
 
 void ProductDataManager::updateProduct(const ProductInfo &info)
 {
-    addProduct(info); // 逻辑一致，都是 upsert
+    QJsonObject obj;
+    obj["barcode"] = info.barcode;
+    obj["name"] = info.name;
+    obj["brand"] = info.brand;
+    obj["origin"] = info.origin;
+    obj["category"] = info.category;
+    obj["spec"] = info.spec;
+    obj["unit"] = info.unit;
+    obj["sale_price"] = info.price;
+    obj["stock_min"] = info.minStock;
+    obj["cost_price"] = info.costPrice;
+    obj["supplier"] = info.supplier;
+    obj["supplier_phone"] = info.supplierPhone;
+    obj["description"] = info.description;
+    obj["img_data"] = info.imgData;
+    
+    NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_PRODUCT, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "修改商品档案", 
+        QString("条码: %1, 商品名称: %2, 价格: %3 元, 库存下限: %4")
+        .arg(info.barcode, info.name, QString::number(info.price, 'f', 2), QString::number(info.minStock)));
 }
 
 void ProductDataManager::removeProduct(const QString &barcode)
@@ -559,6 +598,13 @@ QPixmap ProductDataManager::getProductPixmap(const QString &barcode) const
         const_cast<ProductDataManager*>(this)->saveToLocalCache(barcode, pix);
     }
     return pix;
+}
+
+void ProductDataManager::saveProductPixmap(const QString &barcode, const QPixmap &pix)
+{
+    if (pix.isNull()) return;
+    m_pixmapCache.insert(barcode, new QPixmap(pix));
+    saveToLocalCache(barcode, pix);
 }
 
 void ProductDataManager::ensureCacheDir()
@@ -624,6 +670,11 @@ void ProductDataManager::addRecord(const StockInRecord &rec) {
     obj["imgData"] = rec.imgData;
 
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_INBOUND_RECORD, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "商品采购入库", 
+        QString("商品: %1, 数量: %2, 进价: %3 元, 经办人: %4")
+        .arg(rec.productName, QString::number(rec.quantity), QString::number(rec.costPrice, 'f', 2), rec.operatorName));
 }
 
 void ProductDataManager::updateRecord(const QString &oldDateTime, const QString &barcode, const StockInRecord &newRec) {
@@ -656,6 +707,11 @@ void ProductDataManager::updateRecord(const QString &oldDateTime, const QString 
     obj["imgData"] = newRec.imgData;
 
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_INBOUND_RECORD, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "修改入库单记录", 
+        QString("入库ID: %1, 商品: %2, 新数量: %3, 新进价: %4 元")
+        .arg(QString::number(newRec.id), newRec.productName, QString::number(newRec.quantity), QString::number(newRec.costPrice, 'f', 2)));
 }
 
 QList<StockInRecord> ProductDataManager::getUnlistedInboundItems() const {
@@ -735,6 +791,10 @@ void ProductDataManager::removeRecord(const QString &dateTime, const QString &ba
     obj["hard"] = false;
     obj["restore"] = false;
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "软删除入库单", 
+        QString("条码: %1, 入库时间: %2").arg(barcode, dateTime));
 }
 
 void ProductDataManager::restoreRecord(const QString &dateTime, const QString &barcode) {
@@ -744,6 +804,10 @@ void ProductDataManager::restoreRecord(const QString &dateTime, const QString &b
     obj["hard"] = false;
     obj["restore"] = true;
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "恢复软删除入库单", 
+        QString("条码: %1, 入库时间: %2").arg(barcode, dateTime));
 }
 
 void ProductDataManager::hardDeleteRecord(const QString &dateTime, const QString &barcode) {
@@ -753,4 +817,8 @@ void ProductDataManager::hardDeleteRecord(const QString &dateTime, const QString
     obj["hard"] = true;
     obj["restore"] = false;
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_INBOUND_RECORD, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("商品库存", "物理彻底删除入库单", 
+        QString("条码: %1, 入库时间: %2").arg(barcode, dateTime));
 }

@@ -22,6 +22,7 @@ public:
     
 signals:
     void logsReceived(const QList<SysOperationLog> &logs, int totalCount);
+    void logRefreshRequested();
 
 private slots:
     void onPacketReceived(const Protocol::NetPacket &packet);

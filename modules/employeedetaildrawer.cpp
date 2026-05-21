@@ -268,6 +268,7 @@ QWidget* EmployeeDetailDrawer::createProfilePage()
     addDetailRow(jobLayout, "入职日期", m_joinDateVal);
     addDetailRow(jobLayout, "所属部门", m_deptVal);
     addDetailRow(jobLayout, "基本薪资", m_salaryVal);
+    addDetailRow(jobLayout, "银行卡号", m_bankCardVal);
     addDetailRow(jobLayout, "当前状态", m_statusVal);
 
     // 分组 3: 联系与安全
@@ -435,6 +436,7 @@ void EmployeeDetailDrawer::setEmployee(const EmployeeInfo &info)
     m_emailVal->setText(info.email.isEmpty() ? "未填写" : info.email);
     m_idCardVal->setText(info.idCard);
     m_salaryVal->setText(QString("￥%1").arg(info.baseSalary));
+    m_bankCardVal->setText(info.bankCard.isEmpty() ? "未绑定" : info.bankCard);
     m_statusVal->setText(info.status);
     
     // 填充新增字段

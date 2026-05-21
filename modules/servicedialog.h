@@ -41,6 +41,7 @@ private:
     QTextEdit *m_descriptionEdit;
     
     QString m_currentId;
+    ServiceInfo m_originalServiceInfo;
 };
 
 

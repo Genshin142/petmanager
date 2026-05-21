@@ -125,7 +125,8 @@ class PetModule : public QWidget
     Q_OBJECT
 public:
     explicit PetModule(UserRole role, QWidget *parent = nullptr);
-    void addPetRow(const PetInfo &info); // 使用结构体简化
+    void addPetRow(const PetInfo &info);
+    void updatePetRowInPlace(int row, const PetInfo &info); // 使用结构体简化
     void addPet(const PetInfo &pet);
     void filterByMemberAndHighlightPet(const QString &memberName, const QString &petName);
     void selectPetById(const QString &petId);

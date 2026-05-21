@@ -44,6 +44,7 @@ public:
 signals:
     void salaryDataChanged();
     void performanceDataChanged();
+    void financeRefreshRequested(); // 👈 实时同步刷新信号
 
 private:
     explicit SalaryDataManager(QObject *parent = nullptr);

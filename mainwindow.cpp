@@ -1,4 +1,7 @@
 #include "mainwindow.h"
+#include "modules/productdatamanager.h"
+#include "modules/petdatamanager.h"
+#include "modules/logisticsmanager.h" 
 #include "ui_mainwindow.h"
 #include "modules/membermodule.h"
 #include "modules/rolemodule.h"
@@ -31,7 +34,7 @@ MainWindow::MainWindow(UserRole role, QString userName, QWidget *parent)
 
     ui->setupUi(this);
     this->setWindowState(Qt::WindowMaximized); // 默认启动最大化铺满全屏
-    this->setWindowTitle("PetManager - 智能宠物店管理系统 v1.1.6"); // 设置版本号！
+    this->setWindowTitle("PetManager - 智能宠物店管理系统 v1.1.8-VARCHAR-Fix"); // 设置版本号！
     
     // Initialize module pointers to prevent garbage values
     memberMod = nullptr;
@@ -297,6 +300,14 @@ QWidget* MainWindow::loadModule(int index, UserRole role)
             break;
         case 12:
             personalMod = new PersonalModule(role, m_userName, this);
+            // 绑定个人中心跳转信号，点击待办详情项时自动高亮切换到相应侧边栏模块
+            connect(personalMod, &PersonalModule::requestJumpToModule, this, [this](int idx) {
+                QAbstractButton *btn = navGroup->button(idx);
+                if (btn) {
+                    btn->setChecked(true);
+                    onNavClicked(idx);
+                }
+            });
             replacePlaceholder(12, personalMod);
             mod = personalMod;
             break;
@@ -406,7 +417,43 @@ void MainWindow::updateBadges()
     }
     qDebug() << "Logistics badge updated.";
 
-    qDebug() << "Product badge skip.";
+    // 2. 商品库存管理提醒 (基于库存警报数量)
+    if (ProductDataManager::instance()) {
+        int lowStockCount = ProductDataManager::instance()->getLowStockItems().size();
+        if (navInbound) {
+            if (lowStockCount > 0) {
+                navInbound->setText(QString("商品库存管理  (%1)").arg(lowStockCount));
+                navInbound->setStyleSheet("QPushButton { color: #ff4d4f; font-weight: bold; } "
+                                          "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
+            } else {
+                navInbound->setText("商品库存管理");
+                navInbound->setStyleSheet("");
+            }
+        }
+    }
+    qDebug() << "Product badge updated.";
+
+    // 3. 服务预约管理提醒 (基于待确认预约数量)
+    if (PetDataManager::instance()) {
+        int pendingApptCount = 0;
+        auto allAppts = PetDataManager::instance()->getAppointments(1, 100000, "", "全部").first;
+        for (const auto &appt : allAppts) {
+            if (appt.status == "Pending" || appt.status == "待确认") {
+                pendingApptCount++;
+            }
+        }
+        if (ui->navOrder) {
+            if (pendingApptCount > 0) {
+                ui->navOrder->setText(QString("预约服务  (%1)").arg(pendingApptCount));
+                ui->navOrder->setStyleSheet("QPushButton { color: #ff4d4f; font-weight: bold; } "
+                                            "QPushButton:checked { color: #409eff; border-left: 5px solid #409eff; }");
+            } else {
+                ui->navOrder->setText("预约服务");
+                ui->navOrder->setStyleSheet("");
+            }
+        }
+    }
+    qDebug() << "Appointment badge updated.";
 }
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {

@@ -55,6 +55,7 @@ private:
     QLineEdit *addressEdit;
     QLineEdit *usernameEdit;
     QLineEdit *passwordEdit;
+    QLineEdit *bankCardEdit;
     CustomCalendarEdit *joinDateEdit;
     
     QLabel *titleLabel;

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetManager 员工考勤与排班设计预览</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --primary-light: #eff6ff;
+            --success: #22c55e;
+            --success-light: #f0fdf4;
+            --success-border: #bbf7d0;
+            --warning: #f97316;
+            --warning-light: #fff7ed;
+            --warning-border: #fed7aa;
+            --danger: #ef4444;
+            --danger-light: #fef2f2;
+            --danger-border: #fee2e2;
+            --gray: #64748b;
+            --gray-light: #f1f5f9;
+            --gray-border: #e2e8f0;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', 'Noto Sans SC', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: #0b0f19;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(147, 51, 234, 0.1) 0, transparent 50%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .badge {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #f8fafc, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1.3fr;
+            gap: 28px;
+        }
+
+        /* 左侧抽屉卡片 */
+        .drawer-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 16px;
+        }
+
+        .avatar-wrapper {
+            position: relative;
+        }
+
+        .avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            border: 3px solid rgba(59, 130, 246, 0.3);
+            object-fit: cover;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+
+        .profile-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .emp-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .emp-role {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #0284c7;
+            background: rgba(14, 165, 233, 0.15);
+            padding: 2px 8px;
+            border-radius: 9999px;
+            width: fit-content;
+        }
+
+        .emp-id {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+
+        /* Tab Segmented Control */
+        .segmented-control {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 12px;
+            padding: 4px;
+            display: flex;
+            gap: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 8px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: #f8fafc;
+        }
+
+        .tab-btn.active {
+            background: rgba(30, 41, 59, 0.8);
+            color: #3b82f6;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        /* 今日排班卡片 */
+        .today-card {
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            border-radius: 12px;
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .today-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 120px;
+            height: 120px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 50%;
+            filter: blur(10px);
+        }
+
+        .today-title {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .today-shift {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .today-checkin-badge {
+            background: rgba(34, 197, 94, 0.25);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: #4ade80;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+        }
+
+        /* 考勤统计 */
+        .attendance-stats {
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+        }
+
+        .stat-value {
+            font-weight: 700;
+        }
+
+        .value-success { color: #4ade80; }
+        .value-warning { color: #fb923c; }
+        .value-gray { color: #94a3b8; }
+
+        /* 右侧日历面板 */
+        .calendar-panel {
+            background: rgba(30, 41, 59, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cal-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .date-selectors {
+            display: flex;
+            gap: 6px;
+        }
+
+        .date-select {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+
+        .weekday-hdr {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 600;
+            padding: 4px 0;
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 4px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 0.85rem;
+            font-weight: 600;
+            position: relative;
+        }
+
+        .day-cell:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            filter: brightness(1.2);
+        }
+
+        .day-num {
+            font-size: 0.8rem;
+        }
+
+        /* 状态样式 */
+        .day-normal {
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.25);
+            color: #4ade80;
+        }
+
+        .day-late {
+            background: rgba(249, 115, 22, 0.12);
+            border: 1px solid rgba(249, 115, 22, 0.25);
+            color: #fdba74;
+        }
+
+        .day-absent {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #fca5a5;
+        }
+
+        .day-rest {
+            background: rgba(100, 116, 139, 0.1);
+            border: 1px solid rgba(100, 116, 139, 0.15);
+            color: #94a3b8;
+        }
+
+        .day-today {
+            border: 2px solid #3b82f6 !important;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+        }
+
+        .day-badge {
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 1px 4px;
+            border-radius: 4px;
+            scale: 0.9;
+        }
+
+        .badge-normal { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .badge-late { background: rgba(249, 115, 22, 0.2); color: #fdba74; }
+        .badge-absent { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+        .badge-rest { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+
+        /* 图例 */
+        .legend {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-top: 6px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        /* 补签修改弹窗 (Glassmorphism Modal) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+            padding: 24px;
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-hdr {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 12px;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #fca5a5;
+        }
+
+        .form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-control {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-cancel {
+            background: rgba(100, 116, 139, 0.2);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            color: #94a3b8;
+        }
+
+        .btn-cancel:hover {
+            background: rgba(100, 116, 139, 0.3);
+            color: #f8fafc;
+        }
+
+        .btn-save {
+            background: #3b82f6;
+            border: 1px solid #3b82f6;
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-save:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-section">
+        <span class="badge">交互设计验证与预览</span>
+        <h1>员工排班与刷卡考勤修改</h1>
+        <p class="subtitle">直接在考勤日历上点击，即可唤起“编辑考勤与排班”进行手动补签/修改</p>
+    </div>
+
+    <div class="main-layout">
+        <!-- 左侧抽屉模拟 -->
+        <div class="drawer-card">
+            <div class="profile-header">
+                <div class="avatar-wrapper">
+                    <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=120&auto=format&fit=crop" alt="李曼妮" class="avatar">
+                </div>
+                <div class="profile-info">
+                    <div class="emp-name">李曼妮</div>
+                    <div class="emp-role">美容师</div>
+                    <div class="emp-id">工号: E002</div>
+                </div>
+            </div>
+
+            <!-- Segmented Control Tabs -->
+            <div class="segmented-control">
+                <button class="tab-btn">档案</button>
+                <button class="tab-btn">排班</button>
+                <button class="tab-btn active">考勤</button>
+            </div>
+
+            <!-- 今日班次 -->
+            <div class="today-card">
+                <div class="today-title">今日排班 (实时)</div>
+                <div class="today-shift">
+                    09:00 - 18:00
+                    <span class="today-checkin-badge">正常 08:52 打卡</span>
+                </div>
+            </div>
+
+            <!-- 考勤月度统计 -->
+            <div class="attendance-stats">
+                <div class="stat-row">
+                    <span class="stat-label">正常出勤</span>
+                    <span class="stat-value value-success">15 天</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">迟到/早退</span>
+                    <span class="stat-value value-warning">2 次</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">未打卡/缺卡</span>
+                    <span class="stat-value value-warning" style="color:#ef4444">1 天</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">休息天数</span>
+                    <span class="stat-value value-gray">4 天</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧全景日历 -->
+        <div class="calendar-panel">
+            <div class="calendar-header">
+                <div class="cal-title">月度考勤全景</div>
+                <div class="date-selectors">
+                    <select class="date-select">
+                        <option>2026年</option>
+                    </select>
+                    <select class="date-select">
+                        <option>5月</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 日历网格 -->
+            <div class="calendar-grid">
+                <!-- 星期表头 -->
+                <div class="weekday-hdr">日</div>
+                <div class="weekday-hdr">一</div>
+                <div class="weekday-hdr">二</div>
+                <div class="weekday-hdr">三</div>
+                <div class="weekday-hdr">四</div>
+                <div class="weekday-hdr">五</div>
+                <div class="weekday-hdr">六</div>
+
+                <!-- 填充5月日期数据 (从周五开始) -->
+                <div class="day-cell day-rest"><span class="day-num">26</span><span class="day-badge badge-rest">休息</span></div>
+                <div class="day-cell day-rest"><span class="day-num">27</span><span class="day-badge badge-rest">休息</span></div>
+                <div class="day-cell day-rest"><span class="day-num">28</span><span class="day-badge badge-rest">休息</span></div>
+                <div class="day-cell day-rest"><span class="day-num">29</span><span class="day-badge badge-rest">休息</span></div>
+                <div class="day-cell day-rest"><span class="day-num">30</span><span class="day-badge badge-rest">休息</span></div>
+                
+                <div class="day-cell day-normal" onclick="openModal(1, '08:52', '18:04', '早班 09:00 - 18:00', '正常刷卡')"><span class="day-num">1</span><span class="day-badge badge-normal">08:52</span></div>
+                <div class="day-cell day-normal" onclick="openModal(2, '08:48', '18:01', '早班 09:00 - 18:00', '正常刷卡')"><span class="day-num">2</span><span class="day-badge badge-normal">08:48</span></div>
+                <div class="day-cell day-rest" onclick="openModal(3, '', '', '休息', '')"><span class="day-num">3</span><span class="day-badge badge-rest">休息</span></div>
+                <div class="day-cell day-normal" onclick="openModal(4, '08:55', '18:02', '早班 09:00 - 18:00', '正常刷卡')"><span class="day-num">4</span><span class="day-badge badge-normal">08:55</span></div>
+                <div class="day-cell day-late" onclick="openModal(5, '09:12', '18:00', '早班 09:00 - 18:00', '堵车迟到')"><span class="day-num">5</span><span class="day-badge badge-late">迟到</span></div>
+                <div class="day-cell day-normal" onclick="openModal(6, '08:50', '18:05', '早班 09:00 - 18:00', '')"><span class="day-num">6</span><span class="day-badge badge-normal">08:50</span></div>
+                <div class="day-cell day-normal" onclick="openModal(7, '08:53', '18:02', '早班 09:00 - 18:00', '')"><span class="day-num">7</span><span class="day-badge badge-normal">08:53</span></div>
+                <div class="day-cell day-normal" onclick="openModal(8, '08:51', '18:03', '早班 09:00 - 18:00', '')"><span class="day-num">8</span><span class="day-badge badge-normal">08:51</span></div>
+                <div class="day-cell day-rest" onclick="openModal(9, '', '', '休息', '')"><span class="day-num">9</span><span class="day-badge badge-rest">休息</span></div>
+                <div class="day-cell day-normal" onclick="openModal(10, '08:56', '18:02', '早班 09:00 - 18:00', '')"><span class="day-num">10</span><span class="day-badge badge-normal">08:56</span></div>
+                <div class="day-cell day-normal" onclick="openModal(11, '08:54', '18:01', '早班 09:00 - 18:00', '')"><span class="day-num">11</span><span class="day-badge badge-normal">08:54</span></div>
+                <div class="day-cell day-late" onclick="openModal(12, '08:59', '17:45', '早班 09:00 - 18:00', '临时急事早退')"><span class="day-num">12</span><span class="day-badge badge-late">早退</span></div>
+                <div class="day-cell day-normal" onclick="openModal(13, '08:50', '18:00', '早班 09:00 - 18:00', '')"><span class="day-num">13</span><span class="day-badge badge-normal">08:50</span></div>
+                <div class="day-cell day-normal" onclick="openModal(14, '08:52', '18:02', '早班 09:00 - 18:00', '')"><span class="day-num">14</span><span class="day-badge badge-normal">08:52</span></div>
+                <div class="day-cell day-rest" onclick="openModal(15, '', '', '休息', '')"><span class="day-num">15</span><span class="day-badge badge-rest">休息</span></div>
+                <div class="day-cell day-absent" onclick="openModal(16, '未打卡', '未打卡', '早班 09:00 - 18:00', '忘记刷卡，待补签')"><span class="day-num">16</span><span class="day-badge badge-absent">缺卡</span></div>
+                <div class="day-cell day-normal day-today" onclick="openModal(17, '08:52', '18:04', '早班 09:00 - 18:00', '今天正常')"><span class="day-num">17</span><span class="day-badge badge-normal">今日</span></div>
+                <div class="day-cell day-rest"><span class="day-num">18</span><span class="day-badge badge-rest">-</span></div>
+                <div class="day-cell day-rest"><span class="day-num">19</span><span class="day-badge badge-rest">-</span></div>
+                <div class="day-cell day-rest"><span class="day-num">20</span><span class="day-badge badge-rest">-</span></div>
+                <div class="day-cell day-rest"><span class="day-num">21</span><span class="day-badge badge-rest">-</span></div>
+                <div class="day-cell day-rest"><span class="day-num">22</span><span class="day-badge badge-rest">-</span></div>
+                <div class="day-cell day-rest"><span class="day-num">23</span><span class="day-badge badge-rest">-</span></div>
+                <div class="day-cell day-rest"><span class="day-num">24</span><span class="day-badge badge-rest">-</span></div>
+            </div>
+
+            <!-- 图例 -->
+            <div class="legend">
+                <div class="legend-item"><span class="legend-dot" style="background:#22c55e"></span>正常</div>
+                <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span>迟到/早退</div>
+                <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>异常缺卡</div>
+                <div class="legend-item"><span class="legend-dot" style="background:#64748b"></span>休息</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Glassmorphism Modal Popup -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <div class="modal-hdr">
+            <div class="modal-title">编辑考勤与排班 (5月<span id="targetDay">16</span>日)</div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label">班次类型</label>
+                <select class="form-control" id="shiftType" onchange="onShiftChange()">
+                    <option value="SHIFT_MORNING">早班 (09:00 - 18:00)</option>
+                    <option value="SHIFT_EVENING">晚班 (13:00 - 22:00)</option>
+                    <option value="SHIFT_OFF">休息 (Off)</option>
+                    <option value="SHIFT_CUSTOM">自定义班次</option>
+                </select>
+            </div>
+            
+            <div class="form-row" id="shiftTimeRow">
+                <div class="form-group">
+                    <label class="form-label">计划上班时间</label>
+                    <input type="time" class="form-control" id="planStart" value="09:00">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">计划下班时间</label>
+                    <input type="time" class="form-control" id="planEnd" value="18:00">
+                </div>
+            </div>
+
+            <div class="form-row" id="clockTimeRow">
+                <div class="form-group">
+                    <label class="form-label">实际刷卡上班 (补签)</label>
+                    <input type="text" class="form-control" id="clockIn" placeholder="未刷卡" value="08:52">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">实际刷卡下班 (补签)</label>
+                    <input type="text" class="form-control" id="clockOut" placeholder="未刷卡" value="18:04">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">考勤补签备注</label>
+                <input type="text" class="form-control" id="note" placeholder="如：忘记刷卡，店长代补签" value="">
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-cancel" onclick="closeModal()">取消</button>
+            <button class="btn btn-save" onclick="saveChanges()">保存并同步</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openModal(day, clockIn, clockOut, shiftName, note) {
+        document.getElementById('targetDay').innerText = day;
+        document.getElementById('clockIn').value = clockIn === '未打卡' ? '' : clockIn;
+        document.getElementById('clockOut').value = clockOut === '未打卡' ? '' : clockOut;
+        document.getElementById('note').value = note;
+
+        const shiftTypeSelect = document.getElementById('shiftType');
+        if (shiftName.includes('休息')) {
+            shiftTypeSelect.value = 'SHIFT_OFF';
+        } else if (shiftName.includes('早班')) {
+            shiftTypeSelect.value = 'SHIFT_MORNING';
+        } else {
+            shiftTypeSelect.value = 'SHIFT_MORNING';
+        }
+
+        onShiftChange();
+
+        document.getElementById('modalOverlay').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('modalOverlay').classList.remove('active');
+    }
+
+    function onShiftChange() {
+        const type = document.getElementById('shiftType').value;
+        const shiftTimeRow = document.getElementById('shiftTimeRow');
+        const clockTimeRow = document.getElementById('clockTimeRow');
+
+        if (type === 'SHIFT_OFF') {
+            shiftTimeRow.style.display = 'none';
+            clockTimeRow.style.display = 'none';
+            document.getElementById('note').placeholder = '备注原因 (如：请假/轮休)';
+        } else {
+            shiftTimeRow.style.display = 'grid';
+            clockTimeRow.style.display = 'grid';
+            document.getElementById('note').placeholder = '如：忘记刷卡，店长代补签';
+        }
+    }
+
+    function saveChanges() {
+        alert("考勤与排班修改已成功保存！\n已通过 TCP 协议下发至 PetServer 写入 MySQL 数据库。");
+        closeModal();
+    }
+</script>
+
+</body>
+</html>

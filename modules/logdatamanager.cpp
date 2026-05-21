@@ -72,5 +72,10 @@ void LogDataManager::onPacketReceived(const Protocol::NetPacket &packet) {
         }
         
         emit logsReceived(logs, totalCount);
+    } else if (packet.cmdId == Protocol::CMD_NOTIFY_REFRESH) {
+        QJsonObject root = packet.jsonObj;
+        if (root["module"].toString() == "log") {
+            emit logRefreshRequested();
+        }
     }
 }

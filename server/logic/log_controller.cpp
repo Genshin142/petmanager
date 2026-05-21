@@ -148,6 +148,10 @@ void LogController::handleAddLog(ClientHandler *client, const QJsonObject &data)
         response["status"] = Protocol::STATUS_OK;
         response["message"] = "Success";
         LOG_I("[LOG] System log saved successfully.");
+        
+        QJsonObject notify;
+        notify["module"] = "log";
+        m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         LOG_E("[LOG] Failed to save system log: " << query.lastError().text().toStdString());
         response["status"] = Protocol::STATUS_ERROR;

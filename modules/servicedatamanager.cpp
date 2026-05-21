@@ -1,4 +1,5 @@
 #include "servicedatamanager.h"
+#include "logdatamanager.h"
 #include <QDateTime>
 #include <QRandomGenerator>
 #include <QJsonArray>
@@ -120,6 +121,11 @@ void ServiceDataManager::addService(const ServiceInfo &info)
     obj["isActive"] = info.isActive;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_ADD_SERVICE, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("服务分类", "新增服务类别", 
+        QString("服务名称: %1, 分类: %2, 价格: %3 元, 时长: %4 分钟")
+        .arg(info.name, info.category, QString::number(info.price, 'f', 2), QString::number(info.durationMinutes)));
 }
 
 void ServiceDataManager::updateService(const ServiceInfo &info)
@@ -136,13 +142,23 @@ void ServiceDataManager::updateService(const ServiceInfo &info)
     obj["isActive"] = info.isActive;
     
     NetworkManager::instance().sendRequest(Protocol::CMD_UPDATE_SERVICE, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("服务分类", "更新服务类别", 
+        QString("服务ID: %1, 名称: %2, 分类: %3, 价格: %4 元, 状态: %5")
+        .arg(info.id, info.name, info.category, QString::number(info.price, 'f', 2), info.isActive ? "启用" : "禁用"));
 }
 
 void ServiceDataManager::removeService(const QString &id)
 {
+    ServiceInfo info = getService(id);
     QJsonObject obj;
     obj["id"] = id;
     NetworkManager::instance().sendRequest(Protocol::CMD_DELETE_SERVICE, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("服务分类", "删除服务类别", 
+        QString("服务ID: %1, 名称: %2, 分类: %3").arg(id, info.name, info.category));
 }
 
 QList<ServiceInfo> ServiceDataManager::searchServices(const QString &keyword) const

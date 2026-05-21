@@ -72,6 +72,8 @@ private:
     QWidget *m_imagePreviewOverlay = nullptr;
     QLabel *m_previewLabel = nullptr;
 
+    class QStackedWidget *m_detailStack = nullptr;
+
     int m_currentPage = 1;
     const int m_pageSize = 11;
 

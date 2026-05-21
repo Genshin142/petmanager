@@ -17,6 +17,7 @@ class AddAppointmentDialog : public QDialog {
 public:
     explicit AddAppointmentDialog(QWidget *parent = nullptr);
     void setInitialData(const AppointmentInfo &info);
+    void setPreselectedSlot(const QString &date, const QString &hour);
     QList<AppointmentInfo> getAppointmentInfos() const;
     void accept() override; // 重写 accept 实现拦截校验
 

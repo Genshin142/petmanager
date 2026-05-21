@@ -19,6 +19,7 @@
 #include <QEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QStackedWidget>
 
 // --- 复刻：全行圆角选中委托 ---
 class PerformanceRowDelegate : public QStyledItemDelegate {
@@ -123,6 +124,8 @@ PerformanceModule::PerformanceModule(QWidget *parent) : QWidget(parent)
     onFilterChanged();
 
     connect(SalaryDataManager::instance(), &SalaryDataManager::performanceDataChanged, this, &PerformanceModule::refreshData);
+    // 👈 实时响应来自服务端的财务刷新指令
+    connect(SalaryDataManager::instance(), &SalaryDataManager::financeRefreshRequested, this, &PerformanceModule::onFilterChanged);
 }
 
 void PerformanceModule::setupUI()
@@ -298,8 +301,46 @@ void PerformanceModule::setupUI()
     detailCard->setObjectName("detailCard");
     detailCard->setFixedWidth(450); 
     detailCard->setStyleSheet("QFrame#detailCard { background-color: white; border: 1px solid #e2e8f0; border-radius: 12px; }");
-    QVBoxLayout *detailLayout = new QVBoxLayout(detailCard);
-    detailLayout->setContentsMargins(25, 30, 25, 25);
+    QVBoxLayout *cardOuterLayout = new QVBoxLayout(detailCard);
+    cardOuterLayout->setContentsMargins(25, 30, 25, 25);
+    cardOuterLayout->setSpacing(0);
+
+    m_detailStack = new class QStackedWidget(detailCard);
+    m_detailStack->setStyleSheet("background: transparent; border: none;");
+    cardOuterLayout->addWidget(m_detailStack);
+
+    // Page 0: 详情界面
+    QWidget *detailContentWidget = new QWidget();
+    detailContentWidget->setStyleSheet("background: transparent; border: none;");
+    QVBoxLayout *detailLayout = new QVBoxLayout(detailContentWidget);
+    detailLayout->setContentsMargins(0, 0, 0, 0);
+
+    // Page 1: 暂无数据界面
+    QWidget *noDataWidget = new QWidget();
+    noDataWidget->setStyleSheet("background: transparent; border: none;");
+    QVBoxLayout *noDataLayout = new QVBoxLayout(noDataWidget);
+    noDataLayout->setContentsMargins(0, 0, 0, 0);
+    noDataLayout->setSpacing(15);
+    noDataLayout->setAlignment(Qt::AlignCenter);
+
+    QLabel *noDataIcon = new QLabel();
+    noDataIcon->setFixedSize(80, 80);
+    noDataIcon->setStyleSheet("background-color: #f8fafc; border-radius: 40px; font-size: 36px; border: none;");
+    noDataIcon->setText("📭");
+    noDataIcon->setAlignment(Qt::AlignCenter);
+
+    QLabel *noDataText = new QLabel("当前暂无数据");
+    noDataText->setStyleSheet("color: #94a3b8; font-size: 15px; font-weight: bold;");
+    noDataText->setAlignment(Qt::AlignCenter);
+
+    noDataLayout->addStretch();
+    noDataLayout->addWidget(noDataIcon, 0, Qt::AlignCenter);
+    noDataLayout->addWidget(noDataText, 0, Qt::AlignCenter);
+    noDataLayout->addStretch();
+
+    m_detailStack->addWidget(detailContentWidget);
+    m_detailStack->addWidget(noDataWidget);
+    m_detailStack->setCurrentIndex(1); // 默认暂无数据
     
     QLabel *detailTitle = new QLabel("核销详情分析");
     detailTitle->setStyleSheet("font-weight: bold; font-size: 16px; color: #1e293b; margin-bottom: 20px; border: none; background: transparent;");
@@ -396,7 +437,8 @@ void PerformanceModule::setupUI()
         QString recordId = m_perfTable->item(row, 0)->data(Qt::UserRole).toString();
         m_currentRecordId = recordId;
         
-        auto records = SalaryDataManager::instance()->getPerformanceRecords(m_startDateEdit->text().left(7), m_employeeCombo->currentData().toString());
+        QString dateRange = QString("%1,%2").arg(m_startDateEdit->text(), m_endDateEdit->text());
+        auto records = SalaryDataManager::instance()->getPerformanceRecords(dateRange, m_employeeCombo->currentData().toString());
         for (const auto &r : records) {
             if (r.id == recordId) {
                 // 更新员工头部
@@ -461,7 +503,8 @@ void PerformanceModule::refreshData()
 
 void PerformanceModule::updateStats()
 {
-    auto records = SalaryDataManager::instance()->getPerformanceRecords(m_startDateEdit->text().left(7));
+    QString dateRange = QString("%1,%2").arg(m_startDateEdit->text(), m_endDateEdit->text());
+    auto records = SalaryDataManager::instance()->getPerformanceRecords(dateRange);
     double totalRev = 0, totalComm = 0;
     int pending = 0;
     
@@ -479,11 +522,11 @@ void PerformanceModule::updateStats()
 void PerformanceModule::updateTable()
 {
     m_perfTable->setRowCount(0);
-    QString filterMonth = m_startDateEdit->text().left(7);
+    QString dateRange = QString("%1,%2").arg(m_startDateEdit->text(), m_endDateEdit->text());
     QString filterEmp = m_employeeCombo->currentData().toString();
     QString filterStatus = m_statusCombo->currentText();
 
-    auto allRecords = SalaryDataManager::instance()->getPerformanceRecords(filterMonth, filterEmp);
+    auto allRecords = SalaryDataManager::instance()->getPerformanceRecords(dateRange, filterEmp);
     QVector<PerformanceRecord> filteredRecords;
     for (const auto &r : allRecords) {
         if (filterStatus != "全部状态" && r.status != filterStatus) continue;
@@ -548,6 +591,13 @@ void PerformanceModule::updateTable()
         m_perfTable->setCellWidget(row, 7, statusContainer);
         m_perfTable->setItem(row, 7, new QTableWidgetItem()); 
     }
+
+    if (m_perfTable->rowCount() > 0) {
+        m_detailStack->setCurrentIndex(0);
+        m_perfTable->selectRow(0);
+    } else {
+        m_detailStack->setCurrentIndex(1);
+    }
 }
 
 void PerformanceModule::onPrevPage() {
@@ -573,9 +623,9 @@ void PerformanceModule::onVerifySingle(const QString &recordId)
 void PerformanceModule::onFilterChanged()
 {
     m_currentPage = 1; 
-    QString month = m_startDateEdit->text().left(7);
+    QString dateRange = QString("%1,%2").arg(m_startDateEdit->text(), m_endDateEdit->text());
     QString empId = m_employeeCombo->currentData().toString();
-    SalaryDataManager::instance()->requestPerformanceRecords(month, empId);
+    SalaryDataManager::instance()->requestPerformanceRecords(dateRange, empId);
 }
 
 void PerformanceModule::setupImagePreview()

@@ -28,7 +28,7 @@ void AddEmployeeDialog::setupUI()
     // 1. 无边框与透明背景
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
-    setMinimumSize(560, 780); // 增加尺寸以容纳更多字段
+    setMinimumSize(560, 810); // 增加尺寸以容纳更多字段
 
     // 2. 主背景容器
     QVBoxLayout *rootLayout = new QVBoxLayout(this);
@@ -206,19 +206,25 @@ void AddEmployeeDialog::setupUI()
     addressEdit->setPlaceholderText("请输入员工当前详细住址");
     formLayout->addWidget(addressEdit, 9, 1, 1, 3);
 
-    // 第十一行：账号与密码
-    addLabel("登录账号:", 10, 0);
+    // 第十一行：银行卡号
+    addLabel("银行卡号:", 10, 0);
+    bankCardEdit = new QLineEdit();
+    bankCardEdit->setPlaceholderText("请输入银行卡号（用于发放薪资）");
+    formLayout->addWidget(bankCardEdit, 10, 1, 1, 3);
+
+    // 第十二行：账号与密码
+    addLabel("登录账号:", 11, 0);
     usernameEdit = new QLineEdit();
     usernameEdit->setPlaceholderText("系统自动生成");
     usernameEdit->setReadOnly(true); 
     usernameEdit->setStyleSheet("QLineEdit { background-color: #f5f7fa; color: #909399; border: 1px solid #dcdfe6; border-radius: 4px; padding: 5px 10px; }");
-    formLayout->addWidget(usernameEdit, 10, 1);
+    formLayout->addWidget(usernameEdit, 11, 1);
 
-    addLabel("登录密码:", 10, 2);
+    addLabel("登录密码:", 11, 2);
     passwordEdit = new QLineEdit();
     passwordEdit->setPlaceholderText("初始密码");
     passwordEdit->setText("123456"); 
-    formLayout->addWidget(passwordEdit, 10, 3);
+    formLayout->addWidget(passwordEdit, 11, 3);
 
     mainLayout->addLayout(formLayout);
     mainLayout->addStretch();
@@ -247,6 +253,7 @@ void AddEmployeeDialog::setupUI()
                              "QPushButton:hover { border-color: #409eff; color: #409eff; }";
 
     nameEdit->setStyleSheet(inputStyle);
+    bankCardEdit->setStyleSheet(inputStyle);
     roleCombo->setStyleSheet(comboStyle);
 
     saveBtn = new QPushButton("保存并入档");
@@ -320,9 +327,10 @@ void AddEmployeeDialog::setEmployeeInfo(const EmployeeInfo &info)
         joinDateEdit->setText(info.joinDate);
     }
     
-    // 账号密码回填
+    // 账号密码与银行卡回填
     usernameEdit->setText(info.username);
     passwordEdit->setText(info.password);
+    bankCardEdit->setText(info.bankCard);
 
     // 头像同步
     m_selectedImgPath = info.imgPath;
@@ -395,6 +403,7 @@ EmployeeInfo AddEmployeeDialog::employeeInfo() const
     info.joinDate = joinDateEdit->text();
     info.username = usernameEdit->text();
     info.password = passwordEdit->text();
+    info.bankCard = bankCardEdit->text();
 
     return info;
 }

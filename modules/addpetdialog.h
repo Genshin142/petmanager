@@ -54,6 +54,7 @@ private:
     QPushButton *selectImageBtn;
     QString m_avatarPath;
     QString m_currentId;
+    PetInfo m_originalPetInfo;
 
     // 大图预览交互
     QWidget *m_imagePreviewOverlay;

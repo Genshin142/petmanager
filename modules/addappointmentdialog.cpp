@@ -490,6 +490,13 @@ void AddAppointmentDialog::accept()
             m_errorLabel->setText(QString("⚠ 请选择【%1】的具体服务项目").arg(service));
             return;
         }
+        
+        if (typeKey == "Boarding") {
+            if (!row.roomCombo || row.roomCombo->currentData().toString().isEmpty() || row.roomCombo->currentText().contains("无")) {
+                m_errorLabel->setText("⚠ 请选择有效的寄养房位");
+                return;
+            }
+        }
     } // 关闭 for 循环
     
     QDialog::accept();
@@ -1183,7 +1190,7 @@ QList<AppointmentInfo> AddAppointmentDialog::getAppointmentInfos() const
             QDate endD = QDate::fromString(info.boardingEndDate, "yyyy-MM-dd");
             info.duration = startD.daysTo(endD);
             info.hour = ""; // 寄养不需要时间槽
-            if (row.roomCombo) info.roomNo = row.roomCombo->currentData().toString();
+            if (row.roomCombo) info.roomNo = row.roomCombo->currentText().replace("号房", "");
         }
         
         list.append(info);
@@ -1248,5 +1255,28 @@ void AddAppointmentDialog::setInitialData(const AppointmentInfo &info) {
         if (serviceStr.contains(btn->text(), Qt::CaseInsensitive)) {
             btn->setChecked(true);
         }
+    }
+}
+
+void AddAppointmentDialog::setPreselectedSlot(const QString &date, const QString &hour) {
+    if (m_serviceRows.isEmpty()) return;
+    auto &row = m_serviceRows.first();
+    
+    // 设置指定的日期
+    QLineEdit *dateEdit = qobject_cast<QLineEdit*>(row.dateEdit);
+    if (dateEdit) {
+        dateEdit->setText(date);
+    }
+    
+    // 强制重构并填充完整的时段，以确保传入的时段存在
+    row.hourCombo->clear();
+    QStringList timeSlots = {"09:00 - 11:00", "11:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 21:00"};
+    for (const auto &s : timeSlots) {
+        row.hourCombo->addItem(s, s);
+    }
+    
+    int hourIdx = row.hourCombo->findData(hour);
+    if (hourIdx >= 0) {
+        row.hourCombo->setCurrentIndex(hourIdx);
     }
 }

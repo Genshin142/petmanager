@@ -11,6 +11,8 @@
 #include <QStackedWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QJsonObject>
+#include <QJsonArray>
 
 // 前置声明
 class QChartView;
@@ -25,6 +27,7 @@ public:
 protected:
     void resizeEvent(QResizeEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private slots:
     void onCategoryChanged(int index);
@@ -41,6 +44,11 @@ private:
     void setupNavigation();
     void setupDashboardCards();
     void setupMainContent();
+    void ensureChartsCreated();
+
+    bool m_chartsCreated = false;
+    QJsonObject m_cachedDashboardStats;
+    QJsonArray m_cachedRevenueTrend;
     
     // 各分类视图初始化
     QWidget* createFinanceView();
@@ -84,9 +92,12 @@ private:
     QLabel *m_customTooltip;      // 自定义悬浮提示框
 
     // 财务视图组件
-    QChartView *m_finTrendChart;
-    QChartView *m_finCompChart;
-    QChartView *m_finPayChart;
+    QChartView *m_finTrendChart = nullptr;
+    QChartView *m_finCompChart = nullptr;
+    QChartView *m_finPayChart = nullptr;
+    QWidget *m_finTrendChartContainer = nullptr;
+    QWidget *m_finCompChartContainer = nullptr;
+    QWidget *m_finPayChartContainer = nullptr;
     QStackedWidget *m_financeMainStack = nullptr;
     QTableWidget *m_dailyRevenueTable = nullptr;
     QLabel *m_dailyRevPageLabel = nullptr;
@@ -95,8 +106,10 @@ private:
     QTableWidget *m_staffRankTable;
     QTableWidget *m_serviceRankTable; // 用于店员界面的服务明细，或新视图的服务单项
     QTableWidget *m_serviceCategoryRankTable = nullptr; // 服务类目排行
-    QChartView *m_serviceHeatmapChart;
-    QChartView *m_productCategoryChart; // 商品销售占比图
+    QChartView *m_serviceHeatmapChart = nullptr;
+    QChartView *m_productCategoryChart = nullptr; // 商品销售占比图
+    QWidget *m_serviceHeatmapChartContainer = nullptr;
+    QWidget *m_productCategoryChartContainer = nullptr;
 
     // 库存分析组件
     QTableWidget *m_invAlertTable;

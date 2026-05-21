@@ -125,6 +125,9 @@ OperationLogDialog::OperationLogDialog(QWidget *parent)
 
     m_dataManager = new LogDataManager(this);
     connect(m_dataManager, &LogDataManager::logsReceived, this, &OperationLogDialog::onLogsReceived);
+    connect(m_dataManager, &LogDataManager::logRefreshRequested, this, [this](){
+        loadPage(m_currentPage);
+    });
 
     setupUi();
     applyStyles();
@@ -646,7 +649,68 @@ QString OperationLogDialog::renderDiffHtml(const QString &jsonStr) {
     } else if (doc.isObject()) {
         diffArray.append(doc.object());
     } else {
-        return QString("<p style='color:#475569;'>%1</p>").arg(jsonStr.toHtmlEscaped());
+        // 智能尝试解析为键值对明细 (例如车辆、预约等非JSON操作日志)
+        if (jsonStr.contains(":") || jsonStr.contains("：")) {
+            QStringList pairs = jsonStr.split(QRegularExpression("[,，]\\s*"), Qt::SkipEmptyParts);
+            QList<QPair<QString, QString>> kvList;
+            bool isAllKeyValue = true;
+            for (const QString &pair : pairs) {
+                int colonIdx = pair.indexOf(":");
+                if (colonIdx == -1) colonIdx = pair.indexOf("：");
+                if (colonIdx != -1) {
+                    QString key = pair.left(colonIdx).trimmed();
+                    QString val = pair.mid(colonIdx + 1).trimmed();
+                    kvList.append(qMakePair(key, val));
+                } else {
+                    isAllKeyValue = false;
+                    break;
+                }
+            }
+
+            if (isAllKeyValue && !kvList.isEmpty()) {
+                QString html;
+                html += "<div>"
+                        "<h4 style='font-size:14px; color:#0f172a; font-weight:700; margin-bottom:14px; "
+                        "padding-left:10px; border-left:3px solid #fa8c16;'>"
+                        "业务详情数据</h4>";
+
+                html += "<table width='100%' cellspacing='0' cellpadding='0' "
+                        "style='border-collapse:collapse; font-size:13px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;'>"
+                        "<tr style='background-color:#fafbfc;'>"
+                        "<th style='padding:10px 14px; text-align:left; color:#475569; font-weight:600; font-size:12px; border-bottom:1px solid #e2e8f0; width:35%;'>属性名</th>"
+                        "<th style='padding:10px 14px; text-align:left; color:#475569; font-weight:600; font-size:12px; border-bottom:1px solid #e2e8f0; width:65%;'>属性值</th>"
+                        "</tr>";
+
+                for (const auto &pair : kvList) {
+                    QString key = pair.first;
+                    QString val = pair.second;
+                    
+                    QString valStyle = "color:#0f172a;";
+                    if (key.contains("ID") || key.contains("单号") || key.contains("条码") || key.contains("时间")) {
+                        valStyle = "font-family:Consolas,monospace; font-weight:bold; color:#1e40af; background-color:#eff6ff; padding:2px 6px; border-radius:4px;";
+                    } else if (key.contains("金额") || key.contains("进价") || key.contains("价格") || key.contains("元")) {
+                        valStyle = "font-weight:bold; color:#b91c1c; font-size:14px;";
+                    } else if (key.contains("状态")) {
+                        QString bg = "#f1f5f9", fg = "#475569";
+                        if (val == "待处理" || val == "未付款" || val == "Pending") { bg = "#ffedd5"; fg = "#9a3412"; }
+                        else if (val == "进行中" || val == "已付款" || val == "In-Service") { bg = "#e0f2fe"; fg = "#0369a1"; }
+                        else if (val == "已完成" || val == "Completed") { bg = "#dcfce7"; fg = "#166534"; }
+                        valStyle = QString("font-weight:bold; background-color:%1; color:%2; padding:3px 10px; border-radius:12px; font-size:11px;").arg(bg, fg);
+                    }
+
+                    html += "<tr>"
+                            "<td style='padding:10px 14px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#475569; background-color:#f8fafc;'>"
+                                + key.toHtmlEscaped() + "</td>"
+                            "<td style='padding:10px 14px; border-bottom:1px solid #f1f5f9;'>"
+                                "<span style='" + valStyle + "'>" + val.toHtmlEscaped() + "</span></td>"
+                            "</tr>";
+                }
+
+                html += "</table></div>";
+                return html;
+            }
+        }
+        return QString("<p style='color:#475569; line-height:1.6; font-size:13px;'>%1</p>").arg(jsonStr.toHtmlEscaped());
     }
 
     QString html;

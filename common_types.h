@@ -190,6 +190,7 @@ struct AppointmentInfo {
     QString groupId;      // 订单组标识符 (关联同时创建的子订单，如接送返程)
     QString memberName;
     QString memberPhone;
+    QString memberId;     // 会员ID
     QString petId;        // 宠物ID
     QString petName;      // 宠物名称
     QString breed;        // 品种
@@ -320,6 +321,7 @@ struct EmployeeInfo {
 
     QString username;
     QString password;
+    QString bankCard;
 };
 
 // --- 排班管理结构 (UIUX Pro Max Design) ---

@@ -479,9 +479,27 @@ void PetModule::refreshTable()
 
     int start = (m_currentPage - 1) * m_pageSize;
     int end = qMin(start + m_pageSize, total);
+    int targetRowCount = end - start;
 
-    for (int i = start; i < end; ++i) {
-        addPetRow(filtered[i]);
+    bool canUpdateInPlace = (petTable->rowCount() == targetRowCount);
+    if (canUpdateInPlace) {
+        for (int i = 0; i < targetRowCount; ++i) {
+            if (!petTable->item(i, 0) || petTable->item(i, 0)->text() != filtered[start + i].id) {
+                canUpdateInPlace = false;
+                break;
+            }
+        }
+    }
+
+    if (canUpdateInPlace) {
+        for (int i = 0; i < targetRowCount; ++i) {
+            updatePetRowInPlace(i, filtered[start + i]);
+        }
+    } else {
+        petTable->setRowCount(0);
+        for (int i = start; i < end; ++i) {
+            addPetRow(filtered[i]);
+        }
     }
 
     updateStats();
@@ -700,6 +718,118 @@ void PetModule::addPetRow(const PetInfo &info)
     btnL->addWidget(delBtn);
     petTable->setCellWidget(row, 7, btnWrap);
     petTable->setItem(row, 7, new QTableWidgetItem("")); 
+}
+
+void PetModule::updatePetRowInPlace(int row, const PetInfo &info)
+{
+    // Column 0: ID
+    QTableWidgetItem *idItem = petTable->item(row, 0);
+    if (idItem) idItem->setText(info.id);
+
+    // Column 1: Info Widget (Avatar & Name/Gender)
+    QWidget *infoWidget = petTable->cellWidget(row, 1);
+    if (infoWidget && infoWidget->layout()) {
+        QLabel *avatarImg = qobject_cast<QLabel*>(infoWidget->layout()->itemAt(0)->widget());
+        QVBoxLayout *nameV = qobject_cast<QVBoxLayout*>(infoWidget->layout()->itemAt(1)->layout());
+        
+        if (nameV) {
+            QLabel *nameL = qobject_cast<QLabel*>(nameV->itemAt(0)->widget());
+            if (nameL) {
+                QString genderSym = (info.gender == "公" || info.gender == "♂" || info.gender == "M") ? "♂" : "♀";
+                QString genderCol = (genderSym == "♂") ? "#409EFF" : "#F56C6C";
+                nameL->setText(QString("%1 <span style='color:%2; font-weight:bold;'>%3</span>")
+                               .arg(info.name).arg(genderCol).arg(genderSym));
+            }
+        }
+        
+        if (avatarImg && avatarImg->property("avatarPath").toString() != info.avatarPath) {
+            avatarImg->setProperty("avatarPath", info.avatarPath);
+            QPixmap srcPix = ImageUtils::loadPixmap(info.avatarPath);
+            if (srcPix.isNull()) srcPix.load(":/images/load_img.jpg");
+            QPixmap target(45, 45);
+            target.fill(Qt::transparent);
+            QPainter painter(&target);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform);
+            QPainterPath path;
+            path.addEllipse(1, 1, 43, 43);
+            painter.setClipPath(path);
+            QPixmap scaled = srcPix.scaled(45, 45, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            painter.drawPixmap((45 - scaled.width())/2, (45 - scaled.height())/2, scaled);
+            painter.setClipping(false);
+            painter.setPen(QPen(QColor("#f0f2f5"), 1));
+            painter.drawEllipse(1, 1, 43, 43);
+            avatarImg->setPixmap(target);
+        }
+    }
+
+    // Column 2: Breed
+    QTableWidgetItem *breedItem = petTable->item(row, 2);
+    if (breedItem) breedItem->setText(info.breed);
+
+    // Column 3: Owner Name
+    QTableWidgetItem *ownerItem = petTable->item(row, 3);
+    if (ownerItem) ownerItem->setText(QString("%1 (%2)").arg(info.ownerName, info.ownerId));
+
+    // Column 4: Basic attributes (Species · Age)
+    QTableWidgetItem *attrItem = petTable->item(row, 4);
+    if (attrItem) attrItem->setText(QString("%1 · %2").arg(info.species, info.age));
+
+    // Column 5: Status Tag
+    QWidget *statusWrap = petTable->cellWidget(row, 5);
+    if (statusWrap && statusWrap->layout()) {
+        QLabel *statusTag = qobject_cast<QLabel*>(statusWrap->layout()->itemAt(0)->widget());
+        if (statusTag) {
+            statusTag->setText(info.status);
+            QString bgColor, textColor, borderColor;
+            if (info.status == "在店") { bgColor = "#eff6ff"; textColor = "#1e40af"; borderColor = "#d9ecff"; }
+            else if (info.status == "洗护中") { bgColor = "#fff7e6"; textColor = "#e6a23c"; borderColor = "#f5dab1"; }
+            else if (info.status == "已预约") { bgColor = "#f0f9eb"; textColor = "#67c23a"; borderColor = "#c2e7b0"; }
+            else if (info.status == "寄养中") { bgColor = "#fef0f0"; textColor = "#f56c6c"; borderColor = "#fbc4c4"; }
+            else if (info.status == "在家") { bgColor = "#f4f4f5"; textColor = "#6b7280"; borderColor = "#e4e4e7"; }
+            else if (info.status == "已结账") { bgColor = "#e6f7ff"; textColor = "#0050b3"; borderColor = "#91d5ff"; }
+            else if (info.status == "待结账") { bgColor = "#fff7e6"; textColor = "#d46b08"; borderColor = "#ffd591"; }
+            else { bgColor = "#f4f4f5"; textColor = "#909399"; borderColor = "#e9e9eb"; }
+            statusTag->setStyleSheet(QString(
+                "background-color: %1; color: %2; border: 1px solid %3; border-radius: 11px; font-size: 11px; font-weight: bold; padding: 0 12px;"
+            ).arg(bgColor, textColor, borderColor));
+        }
+    }
+
+    // Column 6: Join Time
+    QTableWidgetItem *timeItem = petTable->item(row, 6);
+    if (timeItem) timeItem->setText(info.joinTime);
+
+    // Column 7: Action Buttons (Ensure properties match info.isActive)
+    QWidget *btnWrap = petTable->cellWidget(row, 7);
+    if (btnWrap && btnWrap->layout()) {
+        QPushButton *delBtn = qobject_cast<QPushButton*>(btnWrap->layout()->itemAt(btnWrap->layout()->count() - 1)->widget());
+        if (delBtn) {
+            delBtn->setProperty("petId", info.id);
+            QLabel *btnText = delBtn->findChild<QLabel*>();
+            if (btnText) {
+                if (info.isActive) {
+                    delBtn->setStyleSheet(
+                        "QPushButton#TableDeleteBtn { background: #fef0f0; border: 1px solid #fbc4c4; border-radius: 4px; } "
+                        "QPushButton#TableDeleteBtn:hover { background: #f56c6c; border-color: #f56c6c; } "
+                    );
+                    btnText->setText("删除");
+                    btnText->setStyleSheet("font-size: 11px; font-weight: bold; background: transparent; border: none; color: #f56c6c;");
+                    disconnect(delBtn, &QPushButton::clicked, nullptr, nullptr);
+                    connect(delBtn, &QPushButton::clicked, this, &PetModule::onDeletePet);
+                } else {
+                    delBtn->setStyleSheet(
+                        "QPushButton#TableDeleteBtn { background: #f0f9eb; border: 1px solid #c2e7b0; border-radius: 4px; } "
+                        "QPushButton#TableDeleteBtn:hover { background: #67c23a; border-color: #67c23a; } "
+                    );
+                    btnText->setText("恢复");
+                    btnText->setStyleSheet("font-size: 11px; font-weight: bold; background: transparent; border: none; color: #67c23a;");
+                    disconnect(delBtn, &QPushButton::clicked, nullptr, nullptr);
+                    connect(delBtn, &QPushButton::clicked, this, &PetModule::onRestorePet);
+                }
+            }
+        }
+    }
 }
 
 void PetModule::updateStats()

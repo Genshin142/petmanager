@@ -1,6 +1,7 @@
 #include "salarydatamanager.h"
 #include "staffdatamanager.h"
 #include "servicedatamanager.h"
+#include "logdatamanager.h"
 #include <QDateTime>
 #include <QRandomGenerator>
 #include "../utils/networkmanager.h"
@@ -46,15 +47,27 @@ void SalaryDataManager::updateSalary(const SalaryInfo &info) {
 }
 
 void SalaryDataManager::approveSalary(const QString &id) {
+    SalaryInfo info = getSalary(id);
     QJsonObject obj;
     obj["salary_id"] = id;
     NetworkManager::instance().sendRequest(Protocol::CMD_APPROVE_SALARY, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("薪资管理", "审核工资单", 
+        QString("月份: %1, 员工姓名: %2, 应发金额: %3 元")
+        .arg(info.month, info.employeeName, QString::number(info.netPay, 'f', 2)));
 }
 
 void SalaryDataManager::paySalary(const QString &id) {
+    SalaryInfo info = getSalary(id);
     QJsonObject obj;
     obj["salary_id"] = id;
     NetworkManager::instance().sendRequest(Protocol::CMD_PAY_SALARY, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("薪资管理", "发放员工工资", 
+        QString("月份: %1, 员工姓名: %2, 实发金额: %3 元")
+        .arg(info.month, info.employeeName, QString::number(info.netPay, 'f', 2)));
 }
 
 SalaryDataManager::SalaryStats SalaryDataManager::getStats(const QString &month) {
@@ -79,8 +92,27 @@ void SalaryDataManager::addPerformanceRecord(const PerformanceRecord &record) {
 QList<PerformanceRecord> SalaryDataManager::getPerformanceRecords(const QString &month, const QString &employeeId) {
     QMutexLocker locker(&m_mutex);
     QList<PerformanceRecord> list;
+    
+    QString startDate, endDate;
+    bool isRange = false;
+    if (month.contains(",")) {
+        QStringList dates = month.split(",");
+        if (dates.size() >= 2) {
+            startDate = dates[0];
+            endDate = dates[1];
+            isRange = true;
+        }
+    }
+    
     for (const auto &p : m_performance) {
-        if (p.serviceDate.startsWith(month)) {
+        bool dateMatch = false;
+        if (isRange) {
+            dateMatch = (p.serviceDate >= startDate && p.serviceDate <= endDate);
+        } else {
+            dateMatch = p.serviceDate.startsWith(month);
+        }
+        
+        if (dateMatch) {
             if (employeeId.isEmpty() || p.employeeId == employeeId) {
                 list.append(p);
             }
@@ -90,14 +122,28 @@ QList<PerformanceRecord> SalaryDataManager::getPerformanceRecords(const QString 
 }
 
 void SalaryDataManager::verifyPerformance(const QString &recordId) {
+    PerformanceRecord pr = m_performance.value(recordId);
     QJsonObject obj;
     obj["record_id"] = recordId;
     NetworkManager::instance().sendRequest(Protocol::CMD_VERIFY_PERFORMANCE, obj);
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("薪资管理", "审核绩效提成", 
+        QString("记录ID: %1, 员工姓名: %2, 提成项目: %3, 提成金额: %4 元")
+        .arg(recordId, pr.employeeName, pr.serviceName, QString::number(pr.commission, 'f', 2)));
 }
 
 void SalaryDataManager::requestPerformanceRecords(const QString &month, const QString &employeeId) {
     QJsonObject obj;
-    obj["month"] = month;
+    if (month.contains(",")) {
+        QStringList dates = month.split(",");
+        if (dates.size() >= 2) {
+            obj["start_date"] = dates[0];
+            obj["end_date"] = dates[1];
+        }
+    } else {
+        obj["month"] = month;
+    }
     if (!employeeId.isEmpty()) obj["employee_id"] = employeeId;
     NetworkManager::instance().sendRequest(Protocol::CMD_GET_PERFORMANCE_LIST, obj);
 }
@@ -175,6 +221,13 @@ void SalaryDataManager::onPacketReceived(const Protocol::NetPacket &packet) {
         if (root["status"].toInt() == Protocol::STATUS_OK) {
             qDebug() << "[SALARY] Operation success for CMD:" << packet.cmdId;
         }
+    } else if (packet.cmdId == Protocol::CMD_NOTIFY_REFRESH) {
+        QJsonObject notify = packet.jsonObj;
+        QString module = notify["module"].toString();
+        if (module == "finance") {
+            qDebug() << "[SALARY] Received finance sync refresh broadcast";
+            emit financeRefreshRequested(); // 👈 响应通知，触发界面异步拉取
+        }
     }
 }
 
@@ -184,4 +237,8 @@ void SalaryDataManager::generateMonthlySalaries(const QString &month) {
     obj["month"] = month;
     // 假设复用审批接口或新增
     qDebug() << "[SALARY] Triggering monthly salary generation for:" << month;
+
+    // 记录系统操作日志
+    LogDataManager::writeLog("薪资管理", "生成月度工资单", 
+        QString("触发月份: %1").arg(month));
 }

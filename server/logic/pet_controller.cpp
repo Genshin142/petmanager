@@ -39,6 +39,12 @@ PetController::PetController(ServerCore* core, QObject* parent)
     m_core->registerHandler(Protocol::CMD_HARD_DELETE_PET, [this](ClientHandler* client, const QJsonObject& data) {
         handleHardDeletePet(client, data);
     });
+    m_core->registerHandler(Protocol::CMD_ADD_ACTIVITY_LOG, [this](ClientHandler* client, const QJsonObject& data) {
+        handleAddActivityLog(client, data);
+    });
+    m_core->registerHandler(Protocol::CMD_ADD_PET_MEDIA, [this](ClientHandler* client, const QJsonObject& data) {
+        handleAddPetMedia(client, data);
+    });
 }
 
 void PetController::handleUpdatePet(ClientHandler* client, const QJsonObject& data) {
@@ -52,9 +58,19 @@ void PetController::handleUpdatePet(ClientHandler* client, const QJsonObject& da
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("UPDATE pets SET pet_name = ?, weight = ?, current_status = ? WHERE pet_id = ?");
+    query.prepare("UPDATE pets SET pet_name = ?, species = ?, breed = ?, gender = ?, age_months = ?, "
+                  "weight = ?, avatar_path = ?, health_status = ?, medical_history = ?, dietary_habit = ?, "
+                  "current_status = ? WHERE pet_id = ?");
     query.addBindValue(data["pet_name"].toString());
+    query.addBindValue(data["species"].toString());
+    query.addBindValue(data["breed"].toString());
+    query.addBindValue(data["gender"].toString());
+    query.addBindValue(data["age_months"].toInt());
     query.addBindValue(data["weight"].toDouble());
+    query.addBindValue(data["avatar_path"].toString());
+    query.addBindValue(data["health_status"].toString());
+    query.addBindValue(data["medical_history"].toString());
+    query.addBindValue(data["dietary_habit"].toString());
     query.addBindValue(data["status"].toString());
     query.addBindValue(petId);
 
@@ -69,6 +85,8 @@ void PetController::handleUpdatePet(ClientHandler* client, const QJsonObject& da
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();
     }
+    
+    ConnectionPool::instance().closeConnection(db);
     client->sendPacket(Protocol::CMD_UPDATE_PET, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
@@ -131,6 +149,77 @@ void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& d
                   "LEFT JOIN boarding_records br ON p.pet_id = br.pet_id AND (br.status = '入店中' OR br.status = '预约中') "
                   "ORDER BY p.pet_id DESC");
 
+    // 预加载所有宠物的活动日志
+    QSqlQuery logQuery(db);
+    logQuery.prepare("SELECT * FROM pet_activity_logs ORDER BY log_time ASC");
+    QHash<int, QJsonArray> logsMap;
+    if (logQuery.exec()) {
+        while (logQuery.next()) {
+            QJsonObject log;
+            log["time"] = logQuery.value("log_time").toString();
+            log["type"] = logQuery.value("log_type").toString();
+            log["remark"] = logQuery.value("remark").toString();
+            log["is_alert"] = logQuery.value("is_alert").toBool();
+            int pId = logQuery.value("pet_id").toInt();
+            logsMap[pId].append(log);
+        }
+    }
+
+    // 预加载所有宠物的影像文件 (升级解码支持)
+    QSqlQuery mediaQuery(db);
+    mediaQuery.prepare("SELECT * FROM sys_images WHERE target_type='foster_record' ORDER BY created_at ASC");
+    QHash<int, QJsonArray> mediaMap;
+    if (mediaQuery.exec()) {
+        while (mediaQuery.next()) {
+            QString rawUrl = mediaQuery.value("url").toString();
+            QString title = "入住存证";
+            QString realUrl = rawUrl;
+            if (rawUrl.contains("|")) {
+                QStringList parts = rawUrl.split("|");
+                title = parts[0];
+                realUrl = parts[1];
+            }
+            QJsonObject media;
+            media["title"] = title;
+            media["url"] = realUrl;
+            media["timestamp"] = mediaQuery.value("created_at").toString();
+            int pId = mediaQuery.value("target_id").toInt();
+            mediaMap[pId].append(media);
+        }
+    }
+
+    // 预加载所有宠物的寄养历史批次
+    QSqlQuery batchQuery(db);
+    batchQuery.prepare("SELECT * FROM boarding_records ORDER BY check_in_time DESC");
+    QHash<int, QJsonArray> batchesMap;
+    if (batchQuery.exec()) {
+        while (batchQuery.next()) {
+            QJsonObject batch;
+            batch["id"] = QString::number(batchQuery.value("record_id").toInt());
+            
+            QDateTime startDt = batchQuery.value("check_in_time").toDateTime();
+            batch["startTime"] = startDt.toString("yyyy-MM-dd");
+            
+            QString status = batchQuery.value("status").toString();
+            bool isActive = (status == "入住中" || status == "在店" || status == "入店中");
+            batch["isActive"] = isActive;
+            
+            if (isActive) {
+                batch["endTime"] = "至今";
+            } else {
+                QVariant outVal = batchQuery.value("actual_check_out_time");
+                if (outVal.isValid() && !outVal.isNull() && !outVal.toDateTime().isNull()) {
+                    batch["endTime"] = outVal.toDateTime().toString("yyyy-MM-dd");
+                } else {
+                    QDateTime expOutDt = batchQuery.value("expected_check_out_time").toDateTime();
+                    batch["endTime"] = expOutDt.toString("yyyy-MM-dd");
+                }
+            }
+            int pId = batchQuery.value("pet_id").toInt();
+            batchesMap[pId].append(batch);
+        }
+    }
+
     QJsonObject response;
     QJsonArray petList;
 
@@ -150,6 +239,11 @@ void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& d
                 else
                     pet[colName] = val.toString();
             }
+            int pId = pet["pet_id"].toInt();
+            if (logsMap.contains(pId)) pet["activity_logs"] = logsMap[pId];
+            if (mediaMap.contains(pId)) pet["media"] = mediaMap[pId];
+            if (batchesMap.contains(pId)) pet["foster_batches"] = batchesMap[pId];
+
             petList.append(pet);
         }
         response["status"] = Protocol::STATUS_OK;
@@ -161,6 +255,7 @@ void PetController::handleGetPetList(ClientHandler* client, const QJsonObject& d
         LOG_E("[PET] Database error: " << query.lastError().text().toStdString());
     }
 
+    ConnectionPool::instance().closeConnection(db);
     client->sendPacket(Protocol::CMD_GET_PET_LIST, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }
 
@@ -264,7 +359,6 @@ void PetController::handleUpdateVaccines(ClientHandler* client, const QJsonObjec
     LOG_I("[VACCINE] Updating vaccine records for pet_id: " << petId << ", count: " << records.size());
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
-    db.transaction();
     QSqlQuery query(db);
 
     // 1. 先删除旧记录
@@ -272,7 +366,6 @@ void PetController::handleUpdateVaccines(ClientHandler* client, const QJsonObjec
     query.addBindValue(petId);
     
     if (!query.exec()) {
-        db.rollback();
         QJsonObject res; res["status"] = Protocol::STATUS_ERROR; res["message"] = query.lastError().text();
         client->sendPacket(Protocol::CMD_UPDATE_VACCINES, QJsonDocument(res).toJson(QJsonDocument::Compact));
         return;
@@ -287,14 +380,12 @@ void PetController::handleUpdateVaccines(ClientHandler* client, const QJsonObjec
         query.addBindValue(obj["date"].toString());
         query.addBindValue(obj["expiry"].toString());
         if (!query.exec()) {
-            db.rollback();
             QJsonObject res; res["status"] = Protocol::STATUS_ERROR; res["message"] = query.lastError().text();
             client->sendPacket(Protocol::CMD_UPDATE_VACCINES, QJsonDocument(res).toJson(QJsonDocument::Compact));
             return;
         }
     }
 
-    db.commit();
     QJsonObject response;
     response["status"] = Protocol::STATUS_OK;
     response["pet_id"] = petId;
@@ -505,8 +596,6 @@ void PetController::handleHardDeletePet(ClientHandler* client, const QJsonObject
     
     query.exec("SET FOREIGN_KEY_CHECKS = 0");
     
-    // Begin transaction for safe cascade deletions
-    db.transaction();
     bool ok = true;
     
     query.prepare("DELETE FROM pet_activity_logs WHERE pet_id = :id");
@@ -526,12 +615,11 @@ void PetController::handleHardDeletePet(ClientHandler* client, const QJsonObject
     }
     
     QJsonObject response;
-    if (ok && db.commit()) {
+    if (ok) {
         query.exec("SET FOREIGN_KEY_CHECKS = 1");
         response["status"] = Protocol::STATUS_OK;
         m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, QJsonObject{{"module", "pet"}});
     } else {
-        db.rollback();
         query.exec("SET FOREIGN_KEY_CHECKS = 1");
         response["status"] = Protocol::STATUS_ERROR;
         response["message"] = query.lastError().text();
@@ -540,4 +628,90 @@ void PetController::handleHardDeletePet(ClientHandler* client, const QJsonObject
     
     ConnectionPool::instance().closeConnection(db);
     client->sendPacket(Protocol::CMD_HARD_DELETE_PET, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleAddActivityLog(ClientHandler* client, const QJsonObject& data) {
+    int petId = 0;
+    QString rawId = data["pet_id"].toString();
+    if (rawId.startsWith("P")) petId = rawId.mid(1).toInt();
+    else if (data["pet_id"].isDouble()) petId = data["pet_id"].toInt();
+    else petId = rawId.toInt();
+
+    LOG_I("[PET] Adding activity log for pet ID: " << petId);
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    QSqlQuery query(db);
+    query.prepare("INSERT INTO pet_activity_logs (pet_id, log_time, log_type, remark, is_alert) "
+                  "VALUES (?, ?, ?, ?, ?)");
+    query.addBindValue(petId);
+    
+    QString timeStr = data["time"].toString();
+    if (timeStr.isEmpty()) timeStr = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    query.addBindValue(timeStr);
+    query.addBindValue(data["type"].toString());
+    query.addBindValue(data["remark"].toString());
+    query.addBindValue(data["is_alert"].toBool() ? 1 : 0);
+
+    QJsonObject response;
+    if (query.exec()) {
+        response["status"] = Protocol::STATUS_OK;
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, QJsonObject{{"module", "pet"}});
+    } else {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = query.lastError().text();
+        LOG_E("[PET] Add activity log failed: " << query.lastError().text().toStdString());
+    }
+    ConnectionPool::instance().closeConnection(db);
+    client->sendPacket(Protocol::CMD_ADD_ACTIVITY_LOG, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void PetController::handleAddPetMedia(ClientHandler* client, const QJsonObject& data) {
+    int petId = 0;
+    QString rawId = data["pet_id"].toString();
+    if (rawId.startsWith("P")) petId = rawId.mid(1).toInt();
+    else if (data["pet_id"].isDouble()) petId = data["pet_id"].toInt();
+    else petId = rawId.toInt();
+
+    QString title = data["title"].toString();
+    if (title.isEmpty()) title = "入住存证";
+
+    QJsonArray urls = data["urls"].toArray();
+    QJsonArray tss = data["timestamps"].toArray();
+
+    LOG_I("[PET] Adding " << urls.size() << " media for pet ID: " << petId << " with title: " << title.toStdString());
+
+    QSqlDatabase db = ConnectionPool::instance().openConnection();
+    bool ok = true;
+    QString errMsg;
+
+    for (int i = 0; i < urls.size(); ++i) {
+        QSqlQuery query(db);
+        query.prepare("INSERT INTO sys_images (target_type, target_id, url, created_at) VALUES ('foster_record', ?, ?, ?)");
+        query.addBindValue(petId);
+        
+        // 进行精妙的标题编码！"喂食记录|uploads/xxx.png"
+        QString encodedUrl = title + "|" + urls[i].toString();
+        query.addBindValue(encodedUrl);
+        
+        QString tVal = (i < tss.size()) ? tss[i].toString() : QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+        query.addBindValue(tVal);
+        
+        if (!query.exec()) {
+            ok = false;
+            errMsg = query.lastError().text();
+            break;
+        }
+    }
+
+    QJsonObject response;
+    if (ok) {
+        response["status"] = Protocol::STATUS_OK;
+        m_core->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, QJsonObject{{"module", "pet"}});
+    } else {
+        response["status"] = Protocol::STATUS_ERROR;
+        response["message"] = errMsg;
+        LOG_E("[PET] Add media failed: " << errMsg.toStdString());
+    }
+    ConnectionPool::instance().closeConnection(db);
+    client->sendPacket(Protocol::CMD_ADD_PET_MEDIA, QJsonDocument(response).toJson(QJsonDocument::Compact));
 }

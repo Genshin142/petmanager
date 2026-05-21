@@ -160,14 +160,12 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
     LOG_I("[PRODUCT] Shelving inbound record ID:" << inboundId);
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
-    db.transaction();
     QSqlQuery query(db);
 
     // 1. 获取入库单详情
     query.prepare("SELECT * FROM product_inbound WHERE id = ?");
     query.addBindValue(inboundId);
     if (!query.exec() || !query.next()) {
-        db.rollback();
         client->sendPacket(Protocol::CMD_SHELVE_PRODUCT, "{\"status\":1, \"message\":\"Inbound record not found\"}");
         return;
     }
@@ -201,7 +199,6 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
         updateQuery.addBindValue(supplier);
         updateQuery.addBindValue(productId);
         if (!updateQuery.exec()) {
-            db.rollback();
             client->sendPacket(Protocol::CMD_SHELVE_PRODUCT, "{\"status\":1, \"message\":\"Update master failed\"}");
             return;
         }
@@ -221,7 +218,6 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
         insertQuery.addBindValue(qty);
         insertQuery.addBindValue(supplier);
         if (!insertQuery.exec()) {
-            db.rollback();
             client->sendPacket(Protocol::CMD_SHELVE_PRODUCT, "{\"status\":1, \"message\":\"Insert master failed\"}");
             return;
         }
@@ -244,7 +240,6 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
     batchQuery.addBindValue(qty);
     
     if (!batchQuery.exec()) {
-        db.rollback();
         LOG_E("[PRODUCT] Batch insert failed: " << batchQuery.lastError().text().toStdString());
         client->sendPacket(Protocol::CMD_SHELVE_PRODUCT, "{\"status\":1, \"message\":\"Batch info failed\"}");
         return;
@@ -256,7 +251,6 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
     finalQuery.addBindValue(inboundId);
     finalQuery.exec();
 
-    db.commit();
     LOG_I("[PRODUCT] Shelve success for barcode:" << barcode.toStdString());
 
     QJsonObject resp;
@@ -276,14 +270,12 @@ void ProductController::handleUnshelveProduct(ClientHandler* client, const QJson
     LOG_I("[PRODUCT] Unshelving inbound record ID:" << inboundId);
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
-    db.transaction();
     QSqlQuery query(db);
 
     // 1. 获取入库单详情
     query.prepare("SELECT * FROM product_inbound WHERE id = ?");
     query.addBindValue(inboundId);
     if (!query.exec() || !query.next()) {
-        db.rollback();
         client->sendPacket(Protocol::CMD_UNSHELVE_PRODUCT, "{\"status\":1, \"message\":\"Inbound record not found\"}");
         return;
     }
@@ -300,7 +292,6 @@ void ProductController::handleUnshelveProduct(ClientHandler* client, const QJson
     updateQuery.addBindValue(qty);
     updateQuery.addBindValue(barcode);
     if (!updateQuery.exec()) {
-        db.rollback();
         client->sendPacket(Protocol::CMD_UNSHELVE_PRODUCT, "{\"status\":1, \"message\":\"Update master failed\"}");
         return;
     }
@@ -310,7 +301,6 @@ void ProductController::handleUnshelveProduct(ClientHandler* client, const QJson
     batchQuery.prepare("DELETE FROM product_batches WHERE batch_id = ?");
     batchQuery.addBindValue(inboundNo);
     if (!batchQuery.exec()) {
-        db.rollback();
         client->sendPacket(Protocol::CMD_UNSHELVE_PRODUCT, "{\"status\":1, \"message\":\"Delete batch failed\"}");
         return;
     }
@@ -321,7 +311,6 @@ void ProductController::handleUnshelveProduct(ClientHandler* client, const QJson
     finalQuery.addBindValue(inboundId);
     finalQuery.exec();
 
-    db.commit();
     LOG_I("[PRODUCT] Unshelve success for barcode:" << barcode.toStdString());
 
     QJsonObject resp;
@@ -435,18 +424,50 @@ void ProductController::handleDeleteInboundRecord(ClientHandler* client, const Q
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
     
+    bool execSuccess = false;
+    QString errorMsg;
+
     if (isHard) {
         query.prepare("DELETE FROM product_inbound WHERE barcode = ? AND created_at = ?");
-    } else if (isRestore) {
-        query.prepare("UPDATE product_inbound SET is_deleted = 0 WHERE barcode = ? AND created_at = ?");
+        query.addBindValue(barcode);
+        query.addBindValue(dateTime);
+        if (query.exec()) {
+            // Check if any inbound records still exist for this barcode
+            QSqlQuery checkQuery(db);
+            checkQuery.prepare("SELECT COUNT(*) FROM product_inbound WHERE barcode = ?");
+            checkQuery.addBindValue(barcode);
+            if (checkQuery.exec() && checkQuery.next()) {
+                if (checkQuery.value(0).toInt() == 0) {
+                    // No more inbound records, delete from products catalog
+                    QSqlQuery delProdQuery(db);
+                    delProdQuery.prepare("DELETE FROM products WHERE barcode = ?");
+                    delProdQuery.addBindValue(barcode);
+                    delProdQuery.exec();
+                    
+                    // Also cleanup orphaned batches
+                    QSqlQuery delBatchQuery(db);
+                    delBatchQuery.prepare("DELETE FROM product_batches WHERE product_id NOT IN (SELECT product_id FROM products)");
+                    delBatchQuery.exec();
+                }
+            }
+            execSuccess = true;
+        } else {
+            errorMsg = query.lastError().text();
+        }
     } else {
-        query.prepare("UPDATE product_inbound SET is_deleted = 1 WHERE barcode = ? AND created_at = ?");
+        if (isRestore) {
+            query.prepare("UPDATE product_inbound SET is_deleted = 0 WHERE barcode = ? AND created_at = ?");
+        } else {
+            query.prepare("UPDATE product_inbound SET is_deleted = 1 WHERE barcode = ? AND created_at = ?");
+        }
+        query.addBindValue(barcode);
+        query.addBindValue(dateTime);
+        execSuccess = query.exec();
+        if (!execSuccess) errorMsg = query.lastError().text();
     }
-    query.addBindValue(barcode);
-    query.addBindValue(dateTime);
 
     QJsonObject resp;
-    if (query.exec()) {
+    if (execSuccess) {
         resp["status"] = Protocol::STATUS_OK;
         // 广播刷新
         QJsonObject notify;
@@ -454,7 +475,7 @@ void ProductController::handleDeleteInboundRecord(ClientHandler* client, const Q
         m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     } else {
         resp["status"] = Protocol::STATUS_ERROR;
-        resp["message"] = query.lastError().text();
+        resp["message"] = errorMsg;
     }
     client->sendPacket(Protocol::CMD_DELETE_INBOUND_RECORD, QJsonDocument(resp).toJson(QJsonDocument::Compact));
 }

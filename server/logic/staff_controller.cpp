@@ -46,6 +46,7 @@ void StaffController::handleGetStaffList(ClientHandler* client, const QJsonObjec
             staff["education"] = query.value("education").toString();
             staff["department"] = query.value("department").toString();
             staff["username"] = query.value("username").toString();
+            staff["bankCard"] = query.value("bank_card").toString();
             // password usually not sent back for security
             staffArray.append(staff);
         }
@@ -68,8 +69,8 @@ void StaffController::handleAddStaff(ClientHandler* client, const QJsonObject& d
     
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("INSERT INTO sys_employees (username, password, real_name, role, department, gender, age, phone, email, id_card, base_salary, join_date, emergency_contact, emergency_phone, address, education, status, img_url) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    query.prepare("INSERT INTO sys_employees (username, password, real_name, role, department, gender, age, phone, email, id_card, base_salary, join_date, emergency_contact, emergency_phone, address, education, status, img_url, bank_card) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     
     query.addBindValue(data["username"].toString());
     query.addBindValue(data["password"].toString());
@@ -89,6 +90,7 @@ void StaffController::handleAddStaff(ClientHandler* client, const QJsonObject& d
     query.addBindValue(data["education"].toString());
     query.addBindValue(data["status"].toString());
     query.addBindValue(data["imgPath"].toString());
+    query.addBindValue(data["bankCard"].toString());
 
     QJsonObject response;
     if (query.exec()) {
@@ -114,7 +116,7 @@ void StaffController::handleUpdateStaff(ClientHandler* client, const QJsonObject
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
     
-    QString sql = "UPDATE sys_employees SET real_name=?, role=?, department=?, gender=?, age=?, phone=?, email=?, id_card=?, base_salary=?, join_date=?, emergency_contact=?, emergency_phone=?, address=?, education=?, status=?, img_url=?, username=?";
+    QString sql = "UPDATE sys_employees SET real_name=?, role=?, department=?, gender=?, age=?, phone=?, email=?, id_card=?, base_salary=?, join_date=?, emergency_contact=?, emergency_phone=?, address=?, education=?, status=?, img_url=?, username=?, bank_card=?";
     
     if (data.contains("password") && !data["password"].toString().isEmpty()) {
         sql += ", password=?";
@@ -139,6 +141,7 @@ void StaffController::handleUpdateStaff(ClientHandler* client, const QJsonObject
     query.addBindValue(data["status"].toString());
     query.addBindValue(data["imgPath"].toString());
     query.addBindValue(data["username"].toString());
+    query.addBindValue(data["bankCard"].toString());
     
     if (data.contains("password") && !data["password"].toString().isEmpty()) {
         query.addBindValue(data["password"].toString());

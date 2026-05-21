@@ -1383,9 +1383,10 @@ void MediaGallery::setMedia(const QString &petId, const QList<PetMedia> &mediaLi
         if (targetTitle.endsWith("照片")) targetTitle.chop(2);
         if (targetTitle.endsWith("存证")) targetTitle.chop(0); // 存证保留
 
-        if (targetTitle == "洗护") targetTitle = "洗澡";
-        if (targetTitle == "投喂") targetTitle = "喂食";
+        if (targetTitle == "洗护" || targetTitle == "洗护记录") targetTitle = "洗澡";
+        if (targetTitle == "饮食" || targetTitle == "饮食记录" || targetTitle == "投喂") targetTitle = "喂食";
         if (targetTitle == "运动记录") targetTitle = "运动";
+        if (targetTitle == "医疗" || targetTitle == "医疗记录" || targetTitle == "其他") targetTitle = "运动";
         if (targetTitle == "入住存证照片") targetTitle = "入住存证";
         if (targetTitle == "离店存证照片") targetTitle = "离店存证";
 
@@ -2169,7 +2170,7 @@ void MediaUploadDialog::setupUI() {
     QLabel *typeLbl = new QLabel("影像类别:");
     typeLbl->setStyleSheet("font-size: 13px; font-weight: bold; color: #606266;");
     m_typeCombo = new QComboBox();
-    m_typeCombo->addItems({"运动", "洗护", "饮食", "睡觉", "医疗", "入住存证", "离店存证", "其他"});
+    m_typeCombo->addItems({"运动", "洗澡", "喂食", "睡觉", "入住存证", "离店存证"});
     m_typeCombo->setFixedHeight(32);
     m_typeCombo->setStyleSheet(
         "QComboBox { border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; background: white; font-size: 13px; } "
@@ -2819,10 +2820,8 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLabel->setStyleSheet("background: #ecf5ff; color: #409eff; border-radius: 8px;");
     
-    // 根据 ID 计算房型
-    QString roomType = "标准房";
-    if (roomId >= 111 && roomId <= 115) roomType = "豪华房";
-    else if (roomId >= 116 && roomId <= 120) roomType = "多宠房";
+    // 调用 PetDataManager 动态获取房间的真实类型
+    QString roomType = PetDataManager::instance()->getRoomType(roomId);
 
     QString badgeStyle;
     if (roomType == "豪华房") badgeStyle = "background: #f9f0ff; color: #722ed1; border: 1px solid #d3adf7;";
@@ -2910,9 +2909,7 @@ void FosterActionPanel::showCheckInForm(int roomId, const QDate &startDate) {
     };
 
     auto getRoomTypeStr = [](int rid) {
-        if (rid >= 111 && rid <= 115) return "豪华房";
-        if (rid >= 116 && rid <= 120) return "多宠房";
-        return "标准房";
+        return PetDataManager::instance()->getRoomType(rid);
     };
 
     if (roomId != -1) {
@@ -3994,7 +3991,8 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
         ns.status = "free";
         if (room.status == "清理中") ns.status = "cleaning";
         else if (room.status == "维护中") ns.status = "maintenance";
-        else if (room.status == "入住中") ns.status = "occupied";
+        else if (room.status == "入店中" || room.status == "入住中") ns.status = "occupied";
+        else if (room.status == "预约中" || room.status == "已预订") ns.status = "booked";
 
         bool found = false;
         for (const auto &pet : allPets) {
@@ -4006,7 +4004,9 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
                 QDate s = QDate::fromString(pet.fosterStartTime, "yyyy-MM-dd");
                 QDate e = (pet.fosterEndTime == "至今" || pet.fosterEndTime.isEmpty()) ? QDate::currentDate().addYears(1) : QDate::fromString(pet.fosterEndTime, "yyyy-MM-dd");
                 
-                if (date >= s && date <= e) {
+                bool inRange = (date >= s && date <= e);
+
+                if (inRange) {
                     if (pet.status.contains("寄养中") || pet.status.contains("在店") || pet.status.contains("洗护中")) {
                         ns.status = "occupied";
                     } else if (pet.status.contains("预约") || pet.status.contains("待寄养") || pet.status.contains("待入店")) {
@@ -4023,6 +4023,12 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
                     found = true;
                     break;
                 }
+            }
+        }
+
+        if (!found) {
+            if (ns.status == "occupied" || ns.status == "booked") {
+                ns.status = "free";
             }
         }
 
@@ -4069,10 +4075,13 @@ void FosterModule::onForecastDateChanged(const QDate &date) {
         
         FosterCard *existing = m_cardMap.value(roomId, nullptr);
         
-        // 核心判断：状态或宠物发生变化才需要替换
+        // 判断：状态改变、宠物名称、品种、主人改变才替换
         bool needsUpdate = !existing
             || existing->status() != ns.status
-            || existing->petId() != ns.petId;
+            || existing->petId() != ns.petId
+            || existing->petName() != ns.petName
+            || existing->petBreed() != ns.petBreed
+            || existing->ownerName() != ns.ownerName;
         
         if (needsUpdate) {
             if (existing) {

@@ -45,6 +45,7 @@ set(SOURCES
     logic/finance_controller.cpp
     logic/report_controller.cpp
     logic/log_controller.cpp
+    logic/logistics_controller.cpp
 )
 
 # 4. 生成可执行程序

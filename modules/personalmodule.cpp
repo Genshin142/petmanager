@@ -1,4 +1,9 @@
 #include "personalmodule.h"
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QPainterPath>
+#include <QAbstractItemView>
+
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QDateTime>
@@ -15,10 +20,25 @@
 #include <QPainter>
 #include <QPainterPath>
 #include "../utils/imageutils.h"
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QNetworkInterface>
+#include "productdatamanager.h"
+#include "logisticsmanager.h"
+#include "petdatamanager.h"
+
 
 PersonalModule::PersonalModule(UserRole role, const QString &userName, QWidget *parent)
     : QWidget(parent), m_role(role), m_userName(userName) {
     setupUI();
+
+    // 绑定数据管理器的全局变化信号，实现个人中心待办的 100% 实时统计刷新
+    connect(PetDataManager::instance(), &PetDataManager::globalDataChanged, this, &PersonalModule::updateTodoCard);
+    connect(ProductDataManager::instance(), &ProductDataManager::productDataChanged, this, &PersonalModule::updateTodoCard);
+    
+    // 初始化时立刻刷新一次数据
+    updateTodoCard();
 }
 
 void PersonalModule::setupUI() {
@@ -148,7 +168,7 @@ void PersonalModule::setupUI() {
     infoVl->setAlignment(Qt::AlignCenter);
     QLabel *nameLabel = new QLabel(m_userName);
     nameLabel->setStyleSheet("color: white; font-size: 28px; font-weight: 800; border: none; background: transparent;");
-    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.6)" : "门店营业专家 (v1.1.6)");
+    QLabel *roleLabel = new QLabel(m_role == ADMIN ? "系统超级管理员 (v1.1.8-VARCHAR-Fix)" : "门店营业专家 (v1.1.8-VARCHAR-Fix)");
     roleLabel->setStyleSheet("color: rgba(255, 255, 255, 0.8); font-size: 14px; font-weight: 600; border: none; background: transparent;");
     infoVl->addWidget(nameLabel);
     infoVl->addWidget(roleLabel);
@@ -156,7 +176,7 @@ void PersonalModule::setupUI() {
     hl->addStretch();
 
     // 加入时间
-    QLabel *joinDate = new QLabel("版本: v1.1.6 | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
+    QLabel *joinDate = new QLabel("版本: v1.1.8-VARCHAR-Fix | 加入于 " + QDate::currentDate().toString("yyyy-MM-dd"));
     joinDate->setStyleSheet("color: rgba(255, 255, 255, 0.6); font-size: 13px; border: none; background: transparent;");
     hl->addWidget(joinDate, 0, Qt::AlignBottom | Qt::AlignRight);
     hl->setContentsMargins(40, 40, 40, 20);
@@ -187,8 +207,29 @@ QWidget* PersonalModule::createAdminView() {
     // 账户与系统安全看板
     QHBoxLayout *cardHl = new QHBoxLayout();
     cardHl->addWidget(createCard("安全健康值", "98 / 100", "密码强度：极高", "#10b981"));
-    cardHl->addWidget(createCard("全系统待办", "5 项待办", "包含 2 个库存预警", "#f59e0b"));
-    cardHl->addWidget(createCard("最近登录", "09:30 AM", "IP: 192.168.1.105", "#3b82f6"));
+
+    // 全系统待办 (实时统计待办卡片)
+    m_todoCard = static_cast<QFrame*>(createCard("全系统待办", "0 项待办", "暂无待办事项，系统安全运行", "#f59e0b"));
+    m_todoCard->setCursor(Qt::PointingHandCursor);
+    m_todoCard->installEventFilter(this);
+    cardHl->addWidget(m_todoCard);
+
+    // 最近登录 (真实实时记录：记录本次开启客户端的真实时刻与实际本地IP地址)
+    static QString s_loginTimeStr = QDateTime::currentDateTime().toString("hh:mm AP");
+    static QString s_loginIp;
+    if (s_loginIp.isEmpty()) {
+        s_loginIp = "127.0.0.1";
+        const QHostAddress &localhost = QHostAddress(QHostAddress::LocalHost);
+        for (const QHostAddress &address : QNetworkInterface::allAddresses()) {
+            if (address.protocol() == QAbstractSocket::IPv4Protocol && address != localhost) {
+                s_loginIp = address.toString();
+                break;
+            }
+        }
+    }
+    m_loginCard = createCard("最近登录", s_loginTimeStr, "IP: " + s_loginIp, "#3b82f6");
+    cardHl->addWidget(m_loginCard);
+
     layout->addLayout(cardHl);
 
     // 设置列表
@@ -310,9 +351,11 @@ QWidget* PersonalModule::createCard(const QString &title, const QString &value, 
     t->setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; border: none; background: transparent;");
     
     QLabel *v = new QLabel(value);
+    v->setObjectName("CardValue");
     v->setStyleSheet(QString("color: %1; font-size: 24px; font-weight: 800; border: none; background: transparent;").arg(color));
     
     QLabel *s = new QLabel(subValue);
+    s->setObjectName("CardSubValue");
     s->setStyleSheet("color: #94a3b8; font-size: 11px; border: none; background: transparent;");
 
     vl->addWidget(t);
@@ -463,6 +506,10 @@ void PersonalModule::showEnlargedAvatar() {
 }
 
 bool PersonalModule::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == m_todoCard && event->type() == QEvent::MouseButtonRelease) {
+        showTodoDetailsDialog();
+        return true;
+    }
     if (watched == m_avatarLabel && event->type() == QEvent::MouseButtonRelease) {
         showEnlargedAvatar();
         return true;
@@ -474,4 +521,398 @@ bool PersonalModule::eventFilter(QObject *watched, QEvent *event) {
         return true;
     }
     return QWidget::eventFilter(watched, event);
+}
+
+
+class TodoRowDelegate : public QStyledItemDelegate {
+public:
+    mutable int m_hoveredRow = -1;
+public:
+    TodoRowDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+        QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent);
+        if (view) {
+            view->setMouseTracking(true);
+            connect(view, &QAbstractItemView::entered, this, [this, view](const QModelIndex &index) {
+                m_hoveredRow = index.row();
+                view->viewport()->update();
+            });
+            view->viewport()->installEventFilter(this);
+        }
+    }
+    
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Leave) {
+            m_hoveredRow = -1;
+            QAbstractItemView *view = qobject_cast<QAbstractItemView*>(parent());
+            if (view) {
+                view->viewport()->update();
+            }
+        }
+        return QStyledItemDelegate::eventFilter(watched, event);
+    }
+    
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if (index.row() == m_hoveredRow) {
+            painter->fillRect(opt.rect, QColor("#ecf5ff"));
+        } else {
+            painter->fillRect(opt.rect, Qt::white);
+        }
+
+        if (opt.state & QStyle::State_Selected) {
+            bool isFirst = (index.column() == 0);
+            bool isLast = (index.column() == index.model()->columnCount() - 1);
+            QRect rect = opt.rect.adjusted(1, 4, -1, -4);
+            int radius = 8;
+            QColor borderColor("#3b82f6");
+            QColor bgColor("#eff6ff");
+
+            painter->fillRect(opt.rect, bgColor);
+            painter->setPen(QPen(borderColor, 2));
+            
+            if (isFirst) {
+                QPainterPath path;
+                path.moveTo(opt.rect.right() + 1, rect.top()); 
+                path.lineTo(rect.left() + radius, rect.top());
+                path.arcTo(QRect(rect.left(), rect.top(), radius*2, radius*2), 90, 90);
+                path.lineTo(rect.left(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.left(), rect.bottom() - radius*2, radius*2, radius*2), 180, 90);
+                path.lineTo(opt.rect.right() + 1, rect.bottom());
+                painter->drawPath(path);
+            } else if (isLast) {
+                QPainterPath path;
+                path.moveTo(opt.rect.left() - 1, rect.top());
+                path.lineTo(rect.right() - radius, rect.top());
+                path.arcTo(QRect(rect.right() - radius*2, rect.top(), radius*2, radius*2), 90, -90);
+                path.lineTo(rect.right(), rect.bottom() - radius);
+                path.arcTo(QRect(rect.right() - radius*2, rect.bottom() - radius*2, radius*2, radius*2), 0, -90);
+                path.lineTo(opt.rect.left() - 1, rect.bottom());
+                painter->drawPath(path);
+            } else {
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.top()), QPoint(opt.rect.right() + 1, rect.top()));
+                painter->drawLine(QPoint(opt.rect.left() - 1, rect.bottom()), QPoint(opt.rect.right() + 1, rect.bottom()));
+            }
+        } else {
+            painter->setPen(QPen(QColor("#f1f5f9"), 1));
+            painter->drawLine(opt.rect.bottomLeft(), opt.rect.bottomRight());
+        }
+
+        // 绘制文本
+        painter->setPen(QColor((opt.state & QStyle::State_Selected) ? "#1e40af" : "#303133"));
+        QFont font = painter->font();
+        font.setWeight(opt.state & QStyle::State_Selected ? QFont::Bold : QFont::Normal);
+        font.setPointSize(10);
+        painter->setFont(font);
+        QRect textRect = opt.rect.adjusted(10, 0, -10, 0);
+        painter->drawText(textRect, opt.displayAlignment | Qt::AlignVCenter, opt.text);
+        
+        painter->restore();
+    }
+};
+
+TodoDetailsDialog::TodoDetailsDialog(QWidget *parent) : QDialog(parent) {
+    setWindowTitle("全系统待办事项详情");
+    resize(800, 550);
+    setStyleSheet("QDialog { background-color: #f8fafc; }"
+                  "QTabWidget::pane { border: 1px solid #e2e8f0; background: white; border-radius: 10px; }"
+                  "QTabBar::tab { background: #f1f5f9; color: #64748b; padding: 10px 20px; font-weight: bold; border-top-left-radius: 6px; border-top-right-radius: 6px; }"
+                  "QTabBar::tab:selected { background: white; color: #3b82f6; border-bottom: 2px solid #3b82f6; }"
+                  "QTableWidget { border: none; background: white; gridline-color: #f1f5f9; }"
+                  "QHeaderView::section { background-color: #f8fafc; color: #475569; font-weight: bold; border: none; padding: 8px; }"
+                  "QPushButton { background-color: #3b82f6; color: white; font-weight: bold; border-radius: 6px; padding: 6px 12px; border: none; }"
+                  "QPushButton:hover { background-color: #2563eb; }");
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setSpacing(15);
+
+    QLabel *titleLabel = new QLabel("🔔 全系统实时待办事项列表");
+    titleLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #0f172a;");
+    mainLayout->addWidget(titleLabel);
+
+    QTabWidget *tabs = new QTabWidget(this);
+    
+    // Tab 1: 库存警报
+    QWidget *stockTab = createStockTab();
+    tabs->addTab(stockTab, "商品库存警报");
+
+    // Tab 2: 待确认预约
+    QWidget *apptTab = createApptTab();
+    tabs->addTab(apptTab, "服务预约待确认");
+
+    // Tab 3: 临期车辆调度
+    QWidget *logisticsTab = createLogisticsTab();
+    tabs->addTab(logisticsTab, "临期车辆调度");
+
+    mainLayout->addWidget(tabs);
+
+    QHBoxLayout *btnHl = new QHBoxLayout();
+    btnHl->addStretch();
+    QPushButton *closeBtn = new QPushButton("关闭窗口");
+    closeBtn->setCursor(Qt::PointingHandCursor);
+    closeBtn->setStyleSheet("QPushButton { background-color: #64748b; color: white; } QPushButton:hover { background-color: #475569; }");
+    connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+    btnHl->addWidget(closeBtn);
+    mainLayout->addLayout(btnHl);
+}
+
+QWidget* TodoDetailsDialog::createStockTab() {
+    QWidget *w = new QWidget();
+    QVBoxLayout *v = new QVBoxLayout(w);
+    v->setContentsMargins(15, 15, 15, 15);
+    v->setSpacing(10);
+
+    auto lowStockItems = ProductDataManager::instance()->getLowStockItems();
+    if (lowStockItems.isEmpty()) {
+        QLabel *empty = new QLabel("✨ 暂无库存警报，所有商品储量充足");
+        empty->setAlignment(Qt::AlignCenter);
+        empty->setStyleSheet("color: #64748b; font-size: 14px; font-weight: bold; margin: 40px;");
+        v->addWidget(empty);
+        return w;
+    }
+
+    QTableWidget *table = new QTableWidget(this);
+    table->setColumnCount(5);
+    table->setHorizontalHeaderLabels({"条码", "商品名称", "商品分类", "当前库存", "最低安全库存"});
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table->verticalHeader()->setVisible(false);
+    table->setRowCount(lowStockItems.size());
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
+    table->verticalHeader()->setDefaultSectionSize(45);
+    table->setItemDelegate(new TodoRowDelegate(table));
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
+    table->verticalHeader()->setDefaultSectionSize(45);
+    table->setItemDelegate(new TodoRowDelegate(table));
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
+    table->verticalHeader()->setDefaultSectionSize(45);
+    table->setItemDelegate(new TodoRowDelegate(table));
+    // Center texts
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+
+    for (int i = 0; i < lowStockItems.size(); ++i) {
+        const auto &item = lowStockItems[i];
+        auto createItem = [&](const QString &t) { auto *it = new QTableWidgetItem(t); it->setTextAlignment(Qt::AlignCenter); return it; };
+        table->setItem(i, 0, createItem(item.barcode));
+        table->setItem(i, 1, createItem(item.name));
+        table->setItem(i, 2, createItem(item.category));
+        
+        auto *stockItem = createItem(QString::number(item.stock));
+        stockItem->setForeground(QBrush(QColor("#ef4444")));
+        stockItem->setFont(QFont("Arial", -1, QFont::Bold));
+        table->setItem(i, 3, stockItem);
+        
+        table->setItem(i, 4, createItem(QString::number(item.minStock)));
+    }
+    v->addWidget(table);
+
+    QPushButton *jumpBtn = new QPushButton("前往 商品库存管理 补货");
+    jumpBtn->setCursor(Qt::PointingHandCursor);
+    connect(jumpBtn, &QPushButton::clicked, this, [this]() {
+        emit requestJumpTo(10); // Index 10 is inboundMod (商品库存管理)
+        accept();
+    });
+    v->addWidget(jumpBtn, 0, Qt::AlignRight);
+    return w;
+}
+
+QWidget* TodoDetailsDialog::createApptTab() {
+    QWidget *w = new QWidget();
+    QVBoxLayout *v = new QVBoxLayout(w);
+    v->setContentsMargins(15, 15, 15, 15);
+    v->setSpacing(10);
+
+    // Count pending appointments
+    QList<AppointmentInfo> pendingAppts;
+    auto allAppts = PetDataManager::instance()->getAppointments(1, 100000, "", "全部").first;
+    for (const auto &appt : allAppts) {
+        if (appt.status == "Pending" || appt.status == "待确认") {
+            pendingAppts.append(appt);
+        }
+    }
+
+    if (pendingAppts.isEmpty()) {
+        QLabel *empty = new QLabel("✨ 暂无待处理预约，工作台干干净净");
+        empty->setAlignment(Qt::AlignCenter);
+        empty->setStyleSheet("color: #64748b; font-size: 14px; font-weight: bold; margin: 40px;");
+        v->addWidget(empty);
+        return w;
+    }
+
+    QTableWidget *table = new QTableWidget(this);
+    table->setColumnCount(5);
+    table->setHorizontalHeaderLabels({"预约号", "顾客姓名", "宠物名称", "服务内容", "预约时间"});
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table->verticalHeader()->setVisible(false);
+    table->setRowCount(pendingAppts.size());
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
+    table->verticalHeader()->setDefaultSectionSize(45);
+    table->setItemDelegate(new TodoRowDelegate(table));
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
+    table->verticalHeader()->setDefaultSectionSize(45);
+    table->setItemDelegate(new TodoRowDelegate(table));
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
+    table->verticalHeader()->setDefaultSectionSize(45);
+    table->setItemDelegate(new TodoRowDelegate(table));
+    // Center texts
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+
+    for (int i = 0; i < pendingAppts.size(); ++i) {
+        const auto &appt = pendingAppts[i];
+        auto createItem = [&](const QString &t) { auto *it = new QTableWidgetItem(t); it->setTextAlignment(Qt::AlignCenter); return it; };
+        table->setItem(i, 0, createItem(appt.id));
+        table->setItem(i, 1, createItem(appt.memberName));
+        table->setItem(i, 2, createItem(appt.petName));
+        table->setItem(i, 3, createItem(appt.service));
+        table->setItem(i, 4, createItem(QString("%1 %2").arg(appt.date).arg(appt.hour)));
+    }
+    v->addWidget(table);
+
+    QPushButton *jumpBtn = new QPushButton("前往 预约服务 确认");
+    jumpBtn->setCursor(Qt::PointingHandCursor);
+    connect(jumpBtn, &QPushButton::clicked, this, [this]() {
+        emit requestJumpTo(5); // Index 5 is apptMod (预约服务)
+        accept();
+    });
+    v->addWidget(jumpBtn, 0, Qt::AlignRight);
+    return w;
+}
+
+QWidget* TodoDetailsDialog::createLogisticsTab() {
+    QWidget *w = new QWidget();
+    QVBoxLayout *v = new QVBoxLayout(w);
+    v->setContentsMargins(15, 15, 15, 15);
+    v->setSpacing(10);
+
+    QList<LogisticsTask> urgentTasks;
+    if (LogisticsManager::instance()) {
+        QList<LogisticsTask> tasks = LogisticsManager::instance()->getAllTasks();
+        QDateTime now = QDateTime::currentDateTime();
+        for (const auto &task : tasks) {
+            if (task.status != "待处理") continue;
+            if (task.appointmentTime.contains(now.date().toString("yyyy-MM-dd"))) {
+                QString startTimeStr = task.appointmentTime.mid(11, 5);
+                QTime startTime = QTime::fromString(startTimeStr, "HH:mm");
+                if (startTime.isValid() && now.time() >= startTime.addSecs(-1800)) {
+                    urgentTasks.append(task);
+                }
+            }
+        }
+    }
+
+    if (urgentTasks.isEmpty()) {
+        QLabel *empty = new QLabel("✨ 暂无紧急出行派送调度，车库运转正常");
+        empty->setAlignment(Qt::AlignCenter);
+        empty->setStyleSheet("color: #64748b; font-size: 14px; font-weight: bold; margin: 40px;");
+        v->addWidget(empty);
+        return w;
+    }
+
+    QTableWidget *table = new QTableWidget(this);
+    table->setColumnCount(4);
+    table->setHorizontalHeaderLabels({"调度ID", "配送类型", "目的地地址", "计划时间"});
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table->verticalHeader()->setVisible(false);
+    table->setRowCount(urgentTasks.size());
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setShowGrid(false);
+    table->setFocusPolicy(Qt::NoFocus);
+    table->verticalHeader()->setDefaultSectionSize(45);
+    table->setItemDelegate(new TodoRowDelegate(table));
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+
+    for (int i = 0; i < urgentTasks.size(); ++i) {
+        const auto &task = urgentTasks[i];
+        auto createItem = [&](const QString &t) { auto *it = new QTableWidgetItem(t); it->setTextAlignment(Qt::AlignCenter); return it; };
+        table->setItem(i, 0, createItem(task.taskId));
+        table->setItem(i, 1, createItem(task.type == "接车" ? "🚕 接车任务" : "送回任务"));
+        table->setItem(i, 2, createItem(task.address));
+        table->setItem(i, 3, createItem(task.appointmentTime));
+    }
+    v->addWidget(table);
+
+    QPushButton *jumpBtn = new QPushButton("前往 车辆调度 安排");
+    jumpBtn->setCursor(Qt::PointingHandCursor);
+    connect(jumpBtn, &QPushButton::clicked, this, [this]() {
+        emit requestJumpTo(9); // Index 9 is logisticsMod (车辆调度中心)
+        accept();
+    });
+    v->addWidget(jumpBtn, 0, Qt::AlignRight);
+    return w;
+}
+
+void PersonalModule::updateTodoCard() {
+    if (!m_todoCard) return;
+
+    // 1. 获取商品库存警报数量
+    int lowStockCount = ProductDataManager::instance()->getLowStockItems().size();
+    
+    // 2. 获取服务预约待确认数量 (status == "Pending" / "待确认")
+    int pendingApptCount = 0;
+    auto allAppts = PetDataManager::instance()->getAppointments(1, 100000, "", "全部").first;
+    for (const auto &appt : allAppts) {
+        if (appt.status == "Pending" || appt.status == "待确认") {
+            pendingApptCount++;
+        }
+    }
+
+    // 3. 获取临期车辆调度数量 ( status == "待处理" 并且半小时内出发 )
+    int urgentLogisticsCount = 0;
+    if (LogisticsManager::instance()) {
+        QList<LogisticsTask> tasks = LogisticsManager::instance()->getAllTasks();
+        QDateTime now = QDateTime::currentDateTime();
+        for (const auto &task : tasks) {
+            if (task.status != "待处理") continue;
+            if (task.appointmentTime.contains(now.date().toString("yyyy-MM-dd"))) {
+                QString startTimeStr = task.appointmentTime.mid(11, 5);
+                QTime startTime = QTime::fromString(startTimeStr, "HH:mm");
+                if (startTime.isValid() && now.time() >= startTime.addSecs(-1800)) {
+                    urgentLogisticsCount++;
+                }
+            }
+        }
+    }
+
+    int totalTodos = lowStockCount + pendingApptCount + urgentLogisticsCount;
+
+    QLabel *v = m_todoCard->findChild<QLabel*>("CardValue");
+    QLabel *s = m_todoCard->findChild<QLabel*>("CardSubValue");
+
+    if (v) v->setText(QString("%1 项待办").arg(totalTodos));
+    if (s) {
+        QStringList parts;
+        if (lowStockCount > 0) parts << QString("%1 个库存报警").arg(lowStockCount);
+        if (pendingApptCount > 0) parts << QString("%1 个待确认预约").arg(pendingApptCount);
+        if (urgentLogisticsCount > 0) parts << QString("%1 个临期物流").arg(urgentLogisticsCount);
+        
+        if (parts.isEmpty()) {
+            s->setText("暂无待办事项，系统安全运行");
+        } else {
+            s->setText(parts.join(" | "));
+        }
+    }
+}
+
+void PersonalModule::showTodoDetailsDialog() {
+    TodoDetailsDialog dlg(this);
+    connect(&dlg, &TodoDetailsDialog::requestJumpTo, this, &PersonalModule::requestJumpToModule);
+    dlg.exec();
 }

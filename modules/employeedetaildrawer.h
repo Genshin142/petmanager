@@ -64,6 +64,7 @@ private:
     QLabel *m_deptVal;
     QLabel *m_eduVal;
     QLabel *m_addressVal;
+    QLabel *m_bankCardVal;
     
     // Tab 导航与页面结构
     QButtonGroup *m_tabGroup;

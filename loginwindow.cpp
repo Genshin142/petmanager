@@ -114,6 +114,10 @@ void LoginWindow::onLoginResponse(int status, const QString &message, const QJso
         
         LogDataManager::setCurrentUser(displayName);
 
+        // 记录用户登录操作日志（安全审计）
+        LogDataManager::writeLog("系统安全", "用户登录",
+            QString("用户: %1, 角色: %2").arg(actualName, userInfo["role"].toString()));
+
         LoadingWindow *lw = new LoadingWindow(role, displayName);
         lw->show();
         this->close();

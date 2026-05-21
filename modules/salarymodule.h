@@ -75,6 +75,8 @@ private:
     QWidget *m_imagePreviewOverlay = nullptr;
     QLabel *m_previewLabel = nullptr;
 
+    class QStackedWidget *m_detailStack = nullptr;
+
     QString m_currentMonth;
     QString m_currentSalaryId;
     QString m_currentStaffImgPath;
