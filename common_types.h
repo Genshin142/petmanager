@@ -130,6 +130,7 @@ struct ProductInfo {
     int dailyFeedingGrams = 0;// 建议每日喂食量 (g)
     bool isActive = true;    // 是否在架 (档案管理专用)
     bool isWarning = false;  // 库存预警标志
+    int salesCount = 0;      // 累计销量
 };
 
 struct ServiceInfo {

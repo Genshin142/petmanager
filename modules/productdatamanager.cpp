@@ -160,6 +160,7 @@ void ProductDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                     info.tags = obj["tags"].toString().split(",", Qt::SkipEmptyParts);
                     info.isActive = obj["is_active"].toBool();
                     info.isWarning = obj["is_warning"].toBool();
+                    info.salesCount = obj["sales_count"].toInt();
                     
                     // 优化图片提取：优先尝试直接作为数组读取，避免二次解析字符串
                     QJsonValue imgVal = obj["img_data"];

@@ -74,6 +74,18 @@ void OrderController::handleCreateOrder(ClientHandler *client, const QJsonObject
         QJsonObject notify;
         notify["module"] = "order";
         m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
+        
+        // 如果是直接支付的商品订单，原子扣减库存并广播通知
+        QString status = data["status"].toString();
+        QString sourceModule = data["sourceModule"].toString();
+        if (status == "Paid" && sourceModule == "Product") {
+            QString itemDetails = data["itemDetails"].toString();
+            deductProductStock(db, itemDetails);
+            
+            QJsonObject prodNotify;
+            prodNotify["module"] = "product";
+            m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, prodNotify);
+        }
     }
 
     client->sendPacket(Protocol::CMD_CREATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
@@ -268,6 +280,21 @@ void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject
                     }
                 }
             }
+
+            // C. 若此订单来源于商品零售，则自动扣减库存
+            if (sourceModule == "Product") {
+                QSqlQuery detailsQuery(db);
+                detailsQuery.prepare("SELECT item_details FROM orders WHERE order_no = ?");
+                detailsQuery.addBindValue(data["order_id"].toString());
+                if (detailsQuery.exec() && detailsQuery.next()) {
+                    QString itemDetails = detailsQuery.value("item_details").toString();
+                    deductProductStock(db, itemDetails);
+                    
+                    QJsonObject prodNotify;
+                    prodNotify["module"] = "product";
+                    m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, prodNotify);
+                }
+            }
         }
 
         response["status"] = Protocol::STATUS_OK;
@@ -322,4 +349,76 @@ void OrderController::handleCancelOrder(ClientHandler *client, const QJsonObject
         m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
     }
     client->sendPacket(Protocol::CMD_CANCEL_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));
+}
+
+void OrderController::deductProductStock(QSqlDatabase &db, const QString &itemDetailsJson) {
+    QJsonDocument doc = QJsonDocument::fromJson(itemDetailsJson.toUtf8());
+    if (!doc.isArray()) {
+        return;
+    }
+    QJsonArray items = doc.array();
+    for (int i = 0; i < items.size(); ++i) {
+        QJsonObject item = items[i].toObject();
+        QString barcode = item["barcode"].toString();
+        int count = item["count"].toInt();
+        if (count <= 0 || barcode.isEmpty()) {
+            continue;
+        }
+
+        // 1. 获取 product_id 和当前库存
+        QSqlQuery prodQuery(db);
+        prodQuery.prepare("SELECT product_id, stock_current FROM products WHERE barcode = ? AND is_deleted = 0");
+        prodQuery.addBindValue(barcode);
+        if (!prodQuery.exec() || !prodQuery.next()) {
+            LOG_E("[ORDER] Product not found for barcode: " << barcode.toStdString());
+            continue;
+        }
+        int productId = prodQuery.value("product_id").toInt();
+        int stockCurrent = prodQuery.value("stock_current").toInt();
+
+        int toDeduct = qMin(count, stockCurrent);
+        if (toDeduct <= 0) {
+            LOG_W("[ORDER] Stock is already 0 or negative for product ID " << productId << ", cannot deduct.");
+            continue;
+        }
+
+        // 2. 扣减 products 主表库存
+        QSqlQuery updateProd(db);
+        updateProd.prepare("UPDATE products SET stock_current = stock_current - ?, stock_curr = stock_curr - ? WHERE product_id = ?");
+        updateProd.addBindValue(toDeduct);
+        updateProd.addBindValue(toDeduct);
+        updateProd.addBindValue(productId);
+        if (!updateProd.exec()) {
+            LOG_E("[ORDER] Failed to update products stock: " << updateProd.lastError().text().toStdString());
+            continue;
+        }
+
+        // 3. 按 FEFO (最早过期优先) 扣减批次库存
+        int remaining = toDeduct;
+        QSqlQuery batchQuery(db);
+        batchQuery.prepare("SELECT batch_id, current_qty FROM product_batches WHERE product_id = ? AND current_qty > 0 ORDER BY expiry_date ASC");
+        batchQuery.addBindValue(productId);
+        if (batchQuery.exec()) {
+            while (batchQuery.next() && remaining > 0) {
+                QString batchId = batchQuery.value("batch_id").toString();
+                int currentQty = batchQuery.value("current_qty").toInt();
+                int deductQty = qMin(remaining, currentQty);
+
+                QSqlQuery updateBatch(db);
+                updateBatch.prepare("UPDATE product_batches SET current_qty = current_qty - ? WHERE batch_id = ?");
+                updateBatch.addBindValue(deductQty);
+                updateBatch.addBindValue(batchId);
+                if (updateBatch.exec()) {
+                    remaining -= deductQty;
+                    LOG_I("[ORDER] Deducted " << deductQty << " from batch " << batchId.toStdString() << " for product ID " << productId);
+                } else {
+                    LOG_E("[ORDER] Failed to update batch " << batchId.toStdString() << ": " << updateBatch.lastError().text().toStdString());
+                }
+            }
+        }
+
+        if (remaining > 0) {
+            LOG_W("[ORDER] Not enough batch inventory to completely cover deduction. Remaining: " << remaining);
+        }
+    }
 }

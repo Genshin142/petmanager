@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QtSql/QSqlDatabase>
 #include "../network/server_core.h"
 
 class OrderController : public QObject
@@ -26,6 +27,7 @@ public:
 
 private:
     ServerCore *m_server;
+    void deductProductStock(QSqlDatabase &db, const QString &itemDetailsJson);
 };
 
 #endif // ORDER_CONTROLLER_H

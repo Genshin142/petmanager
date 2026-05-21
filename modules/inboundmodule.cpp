@@ -293,8 +293,8 @@ void InboundModule::setupUI()
 
     // --- 2. Table: Audit View ---
     m_recordTable = new QTableWidget();
-    m_recordTable->setColumnCount(11); 
-    m_recordTable->setHorizontalHeaderLabels({"图片", "入库日期", "商品名称", "条形码", "售价", "生产日期", "分类", "入库数量", "当前库存", "状态", "操作"});
+    m_recordTable->setColumnCount(12); 
+    m_recordTable->setHorizontalHeaderLabels({"图片", "入库日期", "商品名称", "条形码", "售价", "生产日期", "分类", "入库数量", "当前库存", "累计销量", "状态", "操作"});
     
     QHeaderView *h = m_recordTable->horizontalHeader();
     h->setDefaultAlignment(Qt::AlignCenter);
@@ -335,13 +335,17 @@ void InboundModule::setupUI()
     h->setSectionResizeMode(8, QHeaderView::Fixed);
     m_recordTable->setColumnWidth(8, 80);
 
-    // 9. 状态
+    // 9. 累计销量 (新增)
     h->setSectionResizeMode(9, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(9, 90);
+    m_recordTable->setColumnWidth(9, 80);
 
-    // 10. 操作
+    // 10. 状态
     h->setSectionResizeMode(10, QHeaderView::Fixed);
-    m_recordTable->setColumnWidth(10, 160);
+    m_recordTable->setColumnWidth(10, 90);
+
+    // 11. 操作
+    h->setSectionResizeMode(11, QHeaderView::Fixed);
+    m_recordTable->setColumnWidth(11, 160);
 
     
     m_recordTable->setItemDelegate(new InboundRowDelegate(m_recordTable));
@@ -595,6 +599,13 @@ void InboundModule::updateRecordList()
         }
         m_recordTable->setItem(row, 8, stockItem);
         
+        // 累计销量 (新增)
+        int salesCount = pInfo.barcode.isEmpty() ? 0 : pInfo.salesCount;
+        auto *salesItem = createItem(QString::number(salesCount));
+        salesItem->setForeground(QBrush(QColor("#10b981"))); // 绿色，代表销售成功
+        salesItem->setFont(QFont("Segoe UI", 10, QFont::Bold));
+        m_recordTable->setItem(row, 9, salesItem);
+        
         QWidget *tagWrapper = new QWidget();
         QHBoxLayout *tagLayout = new QHBoxLayout(tagWrapper);
         tagLayout->setContentsMargins(0, 0, 0, 0);
@@ -620,11 +631,11 @@ void InboundModule::updateRecordList()
         }
         tagLayout->addWidget(statusTag, 0, Qt::AlignCenter); 
         
-        m_recordTable->setCellWidget(row, 9, tagWrapper);
-        m_recordTable->setItem(row, 9, new QTableWidgetItem()); // 占位
-        m_recordTable->item(row, 9)->setData(Qt::UserRole + 1, true); // 标记此列已有 Widget
+        m_recordTable->setCellWidget(row, 10, tagWrapper);
+        m_recordTable->setItem(row, 10, new QTableWidgetItem()); // 占位
+        m_recordTable->item(row, 10)->setData(Qt::UserRole + 1, true); // 标记此列已有 Widget
 
-        // 列8：操作
+        // 列11：操作
         QWidget *btnWrap = new QWidget();
         QHBoxLayout *btnL = new QHBoxLayout(btnWrap);
         btnL->setContentsMargins(0, 0, 0, 0);
@@ -692,9 +703,9 @@ void InboundModule::updateRecordList()
         delBtn->setProperty("barcode", rec.barcode);
         
         btnL->addWidget(delBtn);
-        m_recordTable->setCellWidget(row, 10, btnWrap);
-        m_recordTable->setItem(row, 10, new QTableWidgetItem());
-        m_recordTable->item(row, 10)->setData(Qt::UserRole + 1, true);
+        m_recordTable->setCellWidget(row, 11, btnWrap);
+        m_recordTable->setItem(row, 11, new QTableWidgetItem());
+        m_recordTable->item(row, 11)->setData(Qt::UserRole + 1, true);
     }
 
     pageLabel->setText(QString("第 %1 页 / 共 %2 页").arg(m_currentPage).arg(totalPages));
@@ -1088,6 +1099,7 @@ void InboundModule::onRecordSelected()
     inboundInfo << qMakePair(QString("入库单号"), rec.inboundNo);
     inboundInfo << qMakePair(QString("入库数量"), QString::number(rec.quantity));
     inboundInfo << qMakePair(QString("当前总库存"), pInfo.barcode.isEmpty() ? "-" : QString::number(pInfo.stock));
+    inboundInfo << qMakePair(QString("累计销量"), pInfo.barcode.isEmpty() ? "0" : QString::number(pInfo.salesCount));
     inboundInfo << qMakePair(QString("库存预警值"), pInfo.barcode.isEmpty() ? "未设" : QString::number(pInfo.minStock));
     inboundInfo << qMakePair(QString("规格单位"), rec.spec.isEmpty() ? "-" : rec.spec);
     inboundInfo << qMakePair(QString("入库时间"), rec.dateTime);

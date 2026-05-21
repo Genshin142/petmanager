@@ -100,8 +100,8 @@ def update_and_shelve_products():
         "6971161234567": {"brand": "渴望 (Orijen)", "origin": "加拿大", "shelf_life_days": 540}
     }
 
-    # Fetch all inbound records
-    cursor.execute("SELECT * FROM product_inbound")
+    # Fetch only unshelved inbound records
+    cursor.execute("SELECT * FROM product_inbound WHERE is_shelved = 0")
     inbound_records = cursor.fetchall()
     
     print("\n--- Phase 2: Automatically shelving inbound records to store inventory ---")

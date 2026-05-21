@@ -50,7 +50,17 @@ void ProductController::handleGetProductList(ClientHandler* client, const QJsonO
 
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    query.prepare("SELECT * FROM products WHERE is_deleted = 0");
+    query.prepare("SELECT p.*, "
+                  "  COALESCE(( "
+                  "    SELECT SUM(CAST(item.count AS SIGNED)) "
+                  "    FROM orders o, "
+                  "    JSON_TABLE(CASE WHEN JSON_VALID(o.item_details) THEN o.item_details ELSE '[]' END, '$[*]' COLUMNS ( "
+                  "      barcode VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci PATH '$.barcode', "
+                  "      count INT PATH '$.count' "
+                  "    )) as item "
+                  "    WHERE o.status = 'Paid' AND o.source_module = 'Product' AND item.barcode = p.barcode "
+                  "  ), 0) as sales_count "
+                  "FROM products p WHERE p.is_deleted = 0");
     
     if (query.exec()) {
         while (query.next()) {
@@ -89,6 +99,7 @@ void ProductController::handleGetProductList(ClientHandler* client, const QJsonO
         int curr = p["stock_curr"].toInt();
         int min = p["stock_min"].toInt();
         p["is_warning"] = (curr <= min);
+        p["sales_count"] = getValue("sales_count").toInt();
 
         productList.append(p);
     }
@@ -171,6 +182,11 @@ void ProductController::handleShelveProduct(ClientHandler* client, const QJsonOb
     }
 
     QSqlRecord rec = query.record();
+    int isShelved = rec.value("is_shelved").toInt();
+    if (isShelved == 1) {
+        client->sendPacket(Protocol::CMD_SHELVE_PRODUCT, "{\"status\":1, \"message\":\"This inbound record has already been shelved\"}");
+        return;
+    }
     QString barcode = rec.value("barcode").toString();
     int qty = rec.value("quantity").toInt();
     double cost = rec.value("cost_price").toDouble();
