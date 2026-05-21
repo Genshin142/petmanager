@@ -32,15 +32,15 @@ void ServiceDataManager::initMockData()
     // Mock data is now handled by server
 }
 
-void ServiceDataManager::requestServiceList()
+void ServiceDataManager::requestServiceList(bool force)
 {
-    if (!m_services.isEmpty()) {
+    if (!force && !m_services.isEmpty()) {
         emit serviceDataChanged();
         return;
     }
     if (m_isLoading) return;
     m_isLoading = true;
-    qDebug() << "[SERVICE] Requesting service list from server...";
+    qDebug() << "[SERVICE] Requesting service list from server (force:" << force << ")...";
     NetworkManager::instance().sendRequest(Protocol::CMD_GET_SERVICE_LIST, QJsonObject());
 }
 
@@ -66,6 +66,7 @@ void ServiceDataManager::onPacketReceived(const Protocol::NetPacket &packet)
                 info.description = obj["description"].toString();
                 info.icon = obj["iconPath"].toString();
                 info.isActive = obj["isActive"].toBool();
+                info.salesCount = obj["salesCount"].toInt();
                 
                 m_services[info.id] = info;
             }
@@ -84,7 +85,7 @@ void ServiceDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         QJsonObject root = doc.object();
         
         if (root["status"].toInt() == Protocol::STATUS_OK) {
-            requestServiceList();
+            requestServiceList(true);
         }
     }
 }

@@ -20,7 +20,7 @@ public:
     void removeService(const QString &id);
     
     // 网络同步接口
-    void requestServiceList();
+    void requestServiceList(bool force = false);
     
     // 联想搜索接口
     QList<ServiceInfo> searchServices(const QString &keyword) const;

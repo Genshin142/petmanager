@@ -20,8 +20,16 @@ void ServiceController::handleGetServiceList(ClientHandler* client, const QJsonO
     
     QSqlDatabase db = ConnectionPool::instance().openConnection();
     QSqlQuery query(db);
-    // 简化查询，只取提成值
-    query.prepare("SELECT * FROM services WHERE is_deleted = 0");
+    // 升级 SQL 语句以引入累计销量子查询统计
+    query.prepare("SELECT s.*, "
+                  "  (SELECT COUNT(*) FROM appointments a "
+                  "   INNER JOIN orders o ON o.source_module = 'Appointment' AND o.related_id = a.appt_id "
+                  "   WHERE a.service_id = s.service_id "
+                  "     AND a.status = '已完成' "
+                  "     AND o.status = 'Paid' "
+                  "     AND a.is_deleted = 0) as sales_count "
+                  "FROM services s "
+                  "WHERE s.is_deleted = 0");
     
     QJsonArray serviceArray;
     if (query.exec()) {
@@ -36,6 +44,7 @@ void ServiceController::handleGetServiceList(ClientHandler* client, const QJsonO
             svc["description"] = query.value("description").toString();
             svc["iconPath"] = query.value("icon_path").toString();
             svc["isActive"] = (query.value("status").toInt() == 1);
+            svc["salesCount"] = query.value("sales_count").toInt();
             serviceArray.append(svc);
         }
         

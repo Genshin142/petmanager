@@ -278,11 +278,17 @@ void OrderController::handleUpdateOrder(ClientHandler *client, const QJsonObject
         notify["module"] = "order";
         m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, notify);
 
-        // 如果更新了会员，同时广播会员刷新通知
-        if (oldStatus != "Paid" && data["status"].toString() == "Paid" && memberId > 0) {
-            QJsonObject memberNotify;
-            memberNotify["module"] = "member";
-            m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, memberNotify);
+        // 如果状态更新为 Paid，广播服务销量刷新通知与会员刷新通知
+        if (oldStatus != "Paid" && data["status"].toString() == "Paid") {
+            QJsonObject serviceNotify;
+            serviceNotify["module"] = "service";
+            m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, serviceNotify);
+            
+            if (memberId > 0) {
+                QJsonObject memberNotify;
+                memberNotify["module"] = "member";
+                m_server->broadcastPacket(Protocol::CMD_NOTIFY_REFRESH, memberNotify);
+            }
         }
     }
     client->sendPacket(Protocol::CMD_UPDATE_ORDER, QJsonDocument(response).toJson(QJsonDocument::Compact));

@@ -415,7 +415,7 @@ void PetDataManager::onPacketReceived(const Protocol::NetPacket &packet)
         } else if (module == "member") {
             NetworkManager::instance().sendRequest(Protocol::CMD_GET_MEMBER_LIST, QJsonObject());
         } else if (module == "service") {
-            NetworkManager::instance().sendRequest(Protocol::CMD_GET_SERVICE_LIST, QJsonObject());
+            ServiceDataManager::instance()->requestServiceList(true);
         } else if (module == "schedule") {
             // 排班刷新通常需要日期范围，这里刷新本周
             QDate today = QDate::currentDate();
