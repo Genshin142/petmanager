@@ -19,11 +19,13 @@ private slots:
     void onSearchChanged(const QString &text);
     void onItemDoubleClicked(QListWidgetItem *item);
     void onConfirm();
+    void onAvatarClicked(const QString &staffId);
 
 private:
     void setupUI();
     void renderStaffList(const QString &filter = "");
     QPixmap createCircularAvatar(const QPixmap &src, int size);
+    void showEnlargedAvatar(const QPixmap &avatar, const QString &name);
 
     QLineEdit *m_searchEdit;
     QListWidget *m_listWidget;
